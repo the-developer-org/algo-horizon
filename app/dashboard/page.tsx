@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
+import MarketData from '@/components/MarketData'
+import TradingInterface from '@/components/TradingInterface'
 
 export default function Dashboard() {
   const [userProfile, setUserProfile] = useState<any>(null)
@@ -61,7 +64,20 @@ export default function Dashboard() {
           <p><strong>Products:</strong> {userProfile.products.join(', ')}</p>
         </div>
       )}
-      <Button onClick={() => window.location.href = '/'}>Logout</Button>
+      <div className="mb-4">
+        <Link href={`/portfolio?token=${token}`}>
+          <Button>View Portfolio</Button>
+        </Link>
+      </div>
+      {token && (
+        <>
+          <MarketData token={token} />
+          <TradingInterface token={token} />
+        </>
+      )}
+      <div className="mt-8">
+        <Button onClick={() => window.location.href = '/'}>Logout</Button>
+      </div>
     </div>
   )
 }
