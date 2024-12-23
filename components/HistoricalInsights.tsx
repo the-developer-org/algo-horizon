@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Filter } from 'lucide-react'
+import { Input } from "@/components/ui/input"
 
 interface HistoricalResponse {
   companyName: string
@@ -13,6 +14,8 @@ interface HistoricalResponse {
   isBelowParLevel: {
     [key: string]: boolean
   }
+  currentEMA: number | null
+  currentRSI: number | null
 }
 
 interface ApiResponse {
@@ -41,6 +44,9 @@ export function HistoricalInsights() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [activeFilters, setActiveFilters] = useState<string[]>([])
+  const [emaFilter, setEmaFilter] = useState<number | null>(null)
+  const [rsiFilter, setRsiFilter] = useState<number | null>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -68,11 +74,35 @@ export function HistoricalInsights() {
     fetchData()
   }
 
+  const toggleFilter = (filter: string) => {
+    setActiveFilters(prev => 
+      prev.includes(filter) ? prev.filter(f => f !== filter) : [...prev, filter]
+    )
+  }
+
+  const applyFilters = (data: ApiResponse['sortedHistoricalResponses']) => {
+    return Object.fromEntries(
+      Object.entries(data).map(([companyName, responses]) => [
+        companyName,
+        responses.filter(response => {
+          const hasActiveModel = !activeFilters.some(filter => 
+            filter.startsWith('Model_') && response.formattedBoomDayDatesMap[filter]
+          )
+          const meetsEmaFilter = emaFilter === null || (response.currentEMA !== null && response.currentEMA >= emaFilter)
+          const meetsRsiFilter = rsiFilter === null || (response.currentRSI !== null && response.currentRSI >= rsiFilter)
+          return hasActiveModel && meetsEmaFilter && meetsRsiFilter
+        })
+      ]).filter(([, responses]) => responses.length > 0)
+    )
+  }
+
   const sortedData = data?.sortedHistoricalResponses ? Object.fromEntries(
-    Object.entries(data.sortedHistoricalResponses).sort(([a], [b]) => 
+    Object.entries(applyFilters(data.sortedHistoricalResponses)).sort(([a], [b]) => 
       sortOrder === 'asc' ? a.localeCompare(b) : b.localeCompare(a)
     )
   ) : null
+
+  const totalCompanies = sortedData ? Object.keys(sortedData).length : 0
 
   if (error) return <div className="text-center text-red-300">{error}</div>
 
@@ -94,6 +124,51 @@ export function HistoricalInsights() {
             className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-300"
           >
             Sort {sortOrder === 'asc' ? '↓' : '↑'}
+          </button>
+        </div>
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-white">Total Companies: {totalCompanies}</span>
+        {['Model_1', 'Model_2', 'Model_3'].map(model => (
+          <button
+            key={model}
+            onClick={() => toggleFilter(model)}
+            className={`relative bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition duration-300`}
+          >
+            {model}
+            <span className={`absolute top-0 right-0 w-3 h-3 rounded-full ${activeFilters.includes(model) ? 'bg-red-500' : 'bg-green-500'}`}></span>
+          </button>
+        ))}
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            placeholder="EMA"
+            className="w-20"
+            value={emaFilter ?? ''}
+            onChange={(e) => setEmaFilter(e.target.value ? Number(e.target.value) : null)}
+          />
+          <button
+            onClick={() => toggleFilter('EMA')}
+            className={`relative bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition duration-300`}
+          >
+            EMA Filter
+            <span className={`absolute top-0 right-0 w-3 h-3 rounded-full ${activeFilters.includes('EMA') ? 'bg-green-500' : 'bg-red-500'}`}></span>
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            placeholder="RSI"
+            className="w-20"
+            value={rsiFilter ?? ''}
+            onChange={(e) => setRsiFilter(e.target.value ? Number(e.target.value) : null)}
+          />
+          <button
+            onClick={() => toggleFilter('RSI')}
+            className={`relative bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition duration-300`}
+          >
+            RSI Filter
+            <span className={`absolute top-0 right-0 w-3 h-3 rounded-full ${activeFilters.includes('RSI') ? 'bg-green-500' : 'bg-red-500'}`}></span>
           </button>
         </div>
       </div>
@@ -122,6 +197,8 @@ export function HistoricalInsights() {
                       </div>
                     )
                   })}
+                  <p className="text-sm text-gray-700">EMA: {response.currentEMA?.toFixed(2) ?? 'N/A'}</p>
+                  <p className="text-sm text-gray-700">RSI: {response.currentRSI?.toFixed(2) ?? 'N/A'}</p>
                 </CardContent>
               </Card>
             ))
