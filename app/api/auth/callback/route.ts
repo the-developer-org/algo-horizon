@@ -31,20 +31,37 @@ export async function GET(request: NextRequest) {
       }),
     })
 
+    console.log(tokenResponse)
+
     if (!tokenResponse.ok) {
       throw new Error('Failed to retrieve access token')
     }
 
     const tokenData = await tokenResponse.json()
     const accessToken = tokenData.access_token
-
+  
     // Log the received access token (for debugging purposes)
     console.log('Received access token:', accessToken)
+
+    const backendResponse = await fetch('http://localhost:7070/api/user/store-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        phoneNumber: '8885615779', // Hardcoded phone number
+        tokenId: accessToken, // Access token
+      }),
+    })
+
+    console.log(backendResponse)
+
+    console.log('Token stored successfully in backend')
 
     // In a production environment, you would typically store the access token securely
     // (e.g., in an encrypted session or a secure database)
     // For this example, we'll pass it as a query parameter (not recommended for production)
-    return NextResponse.redirect(`/dashboard?token=${accessToken}`)
+  //  return NextResponse.redirect(`/dashboard?token=${accessToken}`)
   } catch (error) {
     console.error('Error during token exchange:', error)
     return NextResponse.redirect('/error?message=Failed to authenticate with Upstox')
