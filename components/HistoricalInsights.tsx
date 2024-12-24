@@ -2,53 +2,19 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RefreshCw, EyeOff } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { HiddenCardsManager } from "./HiddenCardsManager";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-interface HistoricalResponse {
-  companyName: string;
-  formattedLastBoomDataUpdatedAt: string;
-  formattedBoomDayDatesMap: {
-    [key: string]: string;
-  };
-  isBelowParLevel: {
-    [key: string]: boolean;
-  };
-  currentEMA: number | null;
-  currentRSI: number | null;
-}
-
-interface ApiResponse {
-  message: string;
-  sortedHistoricalResponses: {
-    [key: string]: HistoricalResponse[];
-  };
-}
-
-const getRandomGradient = () => {
-  const colors = [
-    "from-blue-200",
-    "from-green-200",
-    "from-yellow-200",
-    "from-pink-200",
-    "from-purple-200",
-    "from-indigo-200",
-    "via-red-200",
-    "via-orange-200",
-    "via-teal-200",
-    "via-cyan-200",
-    "to-rose-200",
-    "to-fuchsia-200",
-    "to-violet-200",
-    "to-sky-200",
-    "to-emerald-200",
-  ];
-  const randomColors = colors.sort(() => 0.5 - Math.random()).slice(0, 3);
-  return `bg-gradient-to-br ${randomColors.join(" ")}`;
-};
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import CompanyCards from "./CompanyCards";
+import { ApiResponse, HistoricalResponse, NumericFilters } from "./types/historical-insights";
 
 export function HistoricalInsights() {
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -59,9 +25,9 @@ export function HistoricalInsights() {
     direction: "asc" | "desc";
   }>({ key: "name", direction: "asc" });
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
-  const [numericFilters, setNumericFilters] = useState({
-    ema: { value: 200 as number | null, type: 'above' as 'above' | 'below' },
-    rsi: { value: 70 as number | null, type: 'below' as 'above' | 'below' },
+  const [numericFilters, setNumericFilters] = useState<NumericFilters>({
+    ema: { value: 200, type: "above" },
+    rsi: { value: 70, type: "below" },
   });
   const [hiddenCards, setHiddenCards] = useState<string[]>([]);
 
@@ -111,37 +77,15 @@ export function HistoricalInsights() {
     );
   };
 
-  const setNumericFilter = (filterType: 'ema' | 'rsi', value: number | null, type: 'above' | 'below') => {
-    setNumericFilters(prev => ({
+  const setNumericFilter = (
+    filterType: "ema" | "rsi",
+    value: number | null,
+    type: "above" | "below"
+  ) => {
+    setNumericFilters((prev) => ({
       ...prev,
       [filterType]: { value, type },
     }));
-  };
-
-  const filterData = (data: any[]) => {
-    return data.filter((item) => {
-      // Handle EMA filter
-      if (numericFilters.ema.value !== null) {
-        if (numericFilters.ema.type === 'above' && item.currentEMA <= numericFilters.ema.value) {
-          return false;
-        }
-        if (numericFilters.ema.type === 'below' && item.currentEMA >= numericFilters.ema.value) {
-          return false;
-        }
-      }
-
-      // Handle RSI filter
-      if (numericFilters.rsi.value !== null) {
-        if (numericFilters.rsi.type === 'above' && item.currentRSI <= numericFilters.rsi.value) {
-          return false;
-        }
-        if (numericFilters.rsi.type === 'below' && item.currentRSI >= numericFilters.rsi.value) {
-          return false;
-        }
-      }
-
-      return true; // Include if all numeric filters pass
-    });
   };
 
   const applyFilters = (data: ApiResponse["sortedHistoricalResponses"]) => {
@@ -161,12 +105,16 @@ export function HistoricalInsights() {
               !activeFilters.includes("EMA") ||
               numericFilters.ema.value === null ||
               (response.currentEMA !== null &&
-                (numericFilters.ema.type === 'above' ? response.currentEMA >= numericFilters.ema.value : response.currentEMA <= numericFilters.ema.value));
+                (numericFilters.ema.type === "above"
+                  ? response.currentEMA >= numericFilters.ema.value
+                  : response.currentEMA <= numericFilters.ema.value));
             const meetsRsiFilter =
               !activeFilters.includes("RSI") ||
               numericFilters.rsi.value === null ||
               (response.currentRSI !== null &&
-                (numericFilters.rsi.type === 'above' ? response.currentRSI >= numericFilters.rsi.value : response.currentRSI <= numericFilters.rsi.value));
+                (numericFilters.rsi.type === "above"
+                  ? response.currentRSI >= numericFilters.rsi.value
+                  : response.currentRSI <= numericFilters.rsi.value));
             return hasActiveModel && meetsEmaFilter && meetsRsiFilter;
           }),
         ])
@@ -297,12 +245,24 @@ export function HistoricalInsights() {
             type="number"
             placeholder="EMA"
             className="w-20 bg-white"
-            value={numericFilters.ema.value ?? ''}
-            onChange={(e) => setNumericFilter('ema', e.target.value ? Number(e.target.value) : null, numericFilters.ema.type)}
+            value={numericFilters.ema.value ?? ""}
+            onChange={(e) =>
+              setNumericFilter(
+                "ema",
+                e.target.value ? Number(e.target.value) : null,
+                numericFilters.ema.type
+              )
+            }
           />
           <Select
             value={numericFilters.ema.type}
-            onValueChange={(value) => setNumericFilter('ema', numericFilters.ema.value, value as 'above' | 'below')}
+            onValueChange={(value) =>
+              setNumericFilter(
+                "ema",
+                numericFilters.ema.value,
+                value as "above" | "below"
+              )
+            }
           >
             <SelectTrigger className="w-[100px] bg-[#f5f5dc]">
               <SelectValue placeholder="Filter type" />
@@ -334,12 +294,24 @@ export function HistoricalInsights() {
             type="number"
             placeholder="RSI"
             className="w-20 bg-white"
-            value={numericFilters.rsi.value ?? ''}
-            onChange={(e) => setNumericFilter('rsi', e.target.value ? Number(e.target.value) : null, numericFilters.rsi.type)}
+            value={numericFilters.rsi.value ?? ""}
+            onChange={(e) =>
+              setNumericFilter(
+                "rsi",
+                e.target.value ? Number(e.target.value) : null,
+                numericFilters.rsi.type
+              )
+            }
           />
           <Select
             value={numericFilters.rsi.type}
-            onValueChange={(value) => setNumericFilter('rsi', numericFilters.rsi.value, value as 'above' | 'below')}
+            onValueChange={(value) =>
+              setNumericFilter(
+                "rsi",
+                numericFilters.rsi.value,
+                value as "above" | "below"
+              )
+            }
           >
             <SelectTrigger className="w-[100px] bg-[#f5f5dc]">
               <SelectValue placeholder="Filter type" />
@@ -376,113 +348,7 @@ export function HistoricalInsights() {
         <div className="text-center text-gray-600">No data available</div>
       ) : (
         <div className="relative overflow-hidden rounded-lg p-4 bg-gradient-to-br from-gray-100 to-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
-            {Object.entries(sortedData).flatMap(([companyName, responses]) => {
-              if (!Array.isArray(responses)) {
-                console.error(
-                  `Expected an array for responses, but got:`,
-                  responses
-                );
-                return [];
-              }
-
-              return responses.map((response, index) => {
-                const cardGradient = getRandomGradient();
-                return (
-                  <div
-                    key={`${companyName}-${index}`}
-                    className="relative group transform transition-all duration-300 hover:-translate-y-1"
-                  >
-                    <div
-                      className={`rounded-lg shadow-lg overflow-hidden ${cardGradient}`}
-                    >
-                      <div className="relative p-6">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() =>
-                            hideCard(
-                              `${companyName}-${response.formattedLastBoomDataUpdatedAt}`
-                            )
-                          }
-                        >
-                          <EyeOff className="h-4 w-4 text-blue-600" />
-                        </Button>
-                        <h3 className="text-lg font-semibold text-blue-800 mb-2">
-                          {companyName}
-                        </h3>
-                        <p className="text-sm text-blue-600 mb-4">
-                          Last Updated:{" "}
-                          {response?.formattedLastBoomDataUpdatedAt || "N/A"}
-                        </p>
-                        {Object.entries(
-                          response?.formattedBoomDayDatesMap || {}
-                        ).map(([model, date]) => {
-                          const isBelowPar = response?.isBelowParLevel?.[model];
-                          return (
-                            <div
-                              key={model}
-                              className={`text-sm p-2 rounded-md mb-2 bg-white/50 backdrop-blur-sm border-2 ${
-                                isBelowPar
-                                  ? "border-green-500"
-                                  : "border-red-500"
-                              }`}
-                            >
-                              <span className="font-medium text-blue-700">
-                                {model}:
-                              </span>{" "}
-                              <span
-                                className={`${
-                                  isBelowPar
-                                    ? "text-green-500 font-bold"
-                                    : "text-red-500 font-bold"
-                                }`}
-                              >
-                                {date?.toString() || "N/A"}
-                                <span className="ml-2 font-bold">
-                                  {isBelowPar === undefined
-                                    ? "?"
-                                    : isBelowPar
-                                    ? "↓"
-                                    : "↑"}
-                                </span>
-
-                                <span className="ml-2 font-bold">
-                                  {isBelowPar === undefined
-                                    ? "?"
-                                    : isBelowPar
-                                    ? "DRY"
-                                    : ""}
-                                </span>
-
-
-                              </span>
-                            </div>
-                          );
-                        })}
-
-                        <div className="mt-4 space-y-1">
-                          <p className="text-sm">
-                            <span className="text-blue-600">EMA:</span>{" "}
-                            <span className="text-blue-800 font-medium">
-                              {response.currentEMA?.toFixed(2) ?? "N/A"}
-                            </span>
-                          </p>
-                          <p className="text-sm">
-                            <span className="text-blue-600">RSI:</span>{" "}
-                            <span className="text-blue-800 font-medium">
-                              {response.currentRSI?.toFixed(2) ?? "N/A"}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              });
-            })}
-          </div>
+          <CompanyCards sortedData={sortedData} hideCard={hideCard} />
         </div>
       )}
     </div>
