@@ -13,7 +13,11 @@ export default function Home() {
         <div className="container mx-auto px-4 py-8">
           <div
             className="text-4xl font-bold mb-8 text-center text-white-200 uppercase mx-auto bg-purple-200 p-4 rounded-lg "
-            style={{ width: "max-content", paddingLeft: "80px"}}
+            style={{
+              width: "max-content",
+              paddingLeft: "80px",
+              backgroundColor: "rgba(19, 191, 73, 0.42)", // Correct RGBA usage
+            }}
           >
             <span style={{ letterSpacing: "80px" }}>AlgoHorizon</span>
           </div>
