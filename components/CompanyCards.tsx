@@ -1,17 +1,20 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { EyeOff } from "lucide-react";
-import getGradient from "./utils/gradients";
-import { HistoricalResponse } from "./types/historical-insights";
+import { EyeOff } from 'lucide-react';
 import getRandomGradient from "./utils/gradients";
+import { HistoricalResponse } from "./types/historical-insights";
+import { FaStar, FaRegStar } from "react-icons/fa";
 
 interface CompanyCardsProps {
   sortedData: { [key: string]: HistoricalResponse[] };
   hideCard: (id: string) => void;
+  updateFavorites: (instrumentKey: string, companyName: string) => Promise<void>;
 }
 
 export default function CompanyCards({
   sortedData,
   hideCard,
+  updateFavorites,
 }: CompanyCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -47,6 +50,19 @@ export default function CompanyCards({
                       }
                     >
                       <EyeOff className="h-4 w-4 text-blue-600" />
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className=""
+                      onClick={() => updateFavorites(response.instrumentKey, companyName)}
+                    >
+                      {response?.isFavorite ? (
+                        <FaStar className="h-6 w-6 text-yellow-500" />
+                      ) : (
+                        <FaRegStar className="h-6 w-6 text-yellow-500" />
+                      )}
                     </Button>
                   </div>
                   <p className="text-sm text-blue-600 mb-4">
@@ -111,3 +127,4 @@ export default function CompanyCards({
     </div>
   );
 }
+

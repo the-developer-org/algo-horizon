@@ -1,9 +1,9 @@
 const getRandomGradient = () => {
     const colorPalettes = [
       ["from-slate-200", "via-slate-300", "to-slate-400"], // Sophisticated gray
-      ["from-sky-200", "via-sky-300", "to-indigo-300"],    // Serene blue
-      ["from-rose-200", "via-rose-300", "to-mauve-300"],   // Soft rose
-      ["from-emerald-100", "via-emerald-200", "to-teal-300"], // Fresh green
+      // ["from-sky-200", "via-sky-300", "to-indigo-300"],    // Serene blue
+      // ["from-rose-200", "via-rose-300", "to-mauve-300"],   // Soft rose
+      // ["from-emerald-100", "via-emerald-200", "to-teal-300"], // Fresh green
     ];
   
     const randomPalette = colorPalettes[Math.floor(Math.random() * colorPalettes.length)];

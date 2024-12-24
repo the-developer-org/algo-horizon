@@ -1,5 +1,6 @@
 export interface HistoricalResponse {
     companyName: string;
+    instrumentKey: string;
     formattedLastBoomDataUpdatedAt: string;
     formattedBoomDayDatesMap: {
       [key: string]: string;
@@ -9,6 +10,7 @@ export interface HistoricalResponse {
     };
     currentEMA: number | null;
     currentRSI: number | null;
+    isFavorite : boolean;
   }
   
   export interface ApiResponse {

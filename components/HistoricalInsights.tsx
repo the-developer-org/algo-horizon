@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { HiddenCardsManager } from "./HiddenCardsManager";
@@ -14,7 +14,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import CompanyCards from "./CompanyCards";
-import { ApiResponse, HistoricalResponse, NumericFilters } from "./types/historical-insights";
+import {
+  ApiResponse,
+  HistoricalResponse,
+  NumericFilters,
+} from "./types/historical-insights";
 
 export function HistoricalInsights() {
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -30,6 +34,9 @@ export function HistoricalInsights() {
     rsi: { value: 70, type: "below" },
   });
   const [hiddenCards, setHiddenCards] = useState<string[]>([]);
+  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   const unhideCard = (cardId: string) => {
     setHiddenCards((prevHiddenCards) =>
@@ -96,6 +103,7 @@ export function HistoricalInsights() {
           responses.filter((response) => {
             const cardId = `${companyName}-${response.formattedLastBoomDataUpdatedAt}`;
             if (hiddenCards.includes(cardId)) return false;
+            if (showOnlyFavorites && !response.isFavorite) return false;
             const hasActiveModel = !activeFilters.some(
               (filter) =>
                 filter.startsWith("Model_") &&
@@ -149,11 +157,77 @@ export function HistoricalInsights() {
     return Object.fromEntries(sortedEntries);
   };
 
-  const sortedData = data?.sortedHistoricalResponses
-    ? sortData(applyFilters(data.sortedHistoricalResponses))
+  const updateFavorites = async (
+    instrumentKey: string,
+    companyName: string
+  ) => {
+    if (data) {
+      try {
+        const response = await fetch(
+          "http://localhost:8050/api/historical-data/update-favourites/NSE",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ instrumentKey }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to update favorite status");
+        }
+
+        const updatedData = { ...data.sortedHistoricalResponses };
+        if (updatedData[companyName]) {
+          updatedData[companyName] = updatedData[companyName].map(
+            (response) => {
+              if (response.instrumentKey === instrumentKey) {
+                return { ...response, isFavorite: !response.isFavorite };
+              }
+              return response;
+            }
+          );
+        }
+
+        setData({
+          ...data,
+          sortedHistoricalResponses: updatedData,
+          message: data.message || "",
+        });
+      } catch (err) {
+        console.error("Error updating favorite status:", err);
+        setError("Failed to update favorite status. Please try again.");
+      }
+    }
+  };
+
+  const filteredData = data?.sortedHistoricalResponses
+    ? applyFilters(data.sortedHistoricalResponses)
     : null;
 
+  const sortedData = filteredData ? sortData(filteredData) : null;
+
   const totalCompanies = sortedData ? Object.keys(sortedData).length : 0;
+  const totalPages = Math.ceil(totalCompanies / itemsPerPage);
+
+  const paginatedData = sortedData
+    ? Object.fromEntries(
+        Object.entries(sortedData).slice(
+          (currentPage - 1) * itemsPerPage,
+          currentPage * itemsPerPage
+        )
+      )
+    : null;
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1);
+  };
 
   const handleSort = (key: string) => {
     setSortConfig((prevConfig) => ({
@@ -338,20 +412,98 @@ export function HistoricalInsights() {
             ></span>
           </Button>
         </div>
+        <Button
+          onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+          className={`relative bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold py-3 px-6 rounded-md transition duration-300`}
+        >
+          {"Show Favorites"}
+          <span
+            className={`absolute top-0 right-0 w-5 h-3 rounded-md ${
+              showOnlyFavorites ? "bg-green-500" : "bg-red-500"
+            }`}
+            style={{
+              borderTopRightRadius: "0.375rem",
+              borderBottomLeftRadius: "0.375rem",
+              transform: "translate(0%, 0%)",
+            }}
+          ></span>
+        </Button>
+      </div>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm" style={{ color: "#f5f5dc" }}>
+            Items per page:
+          </span>
+          <Select
+            value={itemsPerPage.toString()}
+            onValueChange={handleItemsPerPageChange}
+          >
+            <SelectTrigger className="w-[100px]" style={{ color: "#f5f5dc" }}>
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent>
+              {[10, 20, 50, 100, 500].map((value) => (
+                <SelectItem key={value} value={value.toString()}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <span className="text-sm" style={{ color: "#f5f5dc" }}>
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
+        </div>
       </div>
       <div className="mb-4">
         <HiddenCardsManager hiddenCards={hiddenCards} unhideCard={unhideCard} />
       </div>
       {loading && !data ? (
         <div className="text-center text-gray-600">Loading...</div>
-      ) : !sortedData ? (
+      ) : !paginatedData ? (
         <div className="text-center text-gray-600">No data available</div>
       ) : (
         <div className="relative overflow-hidden rounded-lg p-4 bg-gradient-to-br from-gray-100 to-gray-200">
-          <CompanyCards sortedData={sortedData} hideCard={hideCard} />
+          <CompanyCards
+            sortedData={paginatedData}
+            hideCard={hideCard}
+            updateFavorites={updateFavorites}
+          />
         </div>
       )}
+
+      <div className="flex items-end justify-end mt-10" >
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <span className="text-sm" style={{ color: "#f5f5dc" }}>
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
-
