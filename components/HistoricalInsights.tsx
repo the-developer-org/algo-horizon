@@ -60,8 +60,8 @@ export function HistoricalInsights() {
   }>({ key: "name", direction: "asc" });
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [numericFilters, setNumericFilters] = useState({
-    ema: { value: null as number | null, type: 'above' as 'above' | 'below' },
-    rsi: { value: null as number | null, type: 'above' as 'above' | 'below' },
+    ema: { value: 200 as number | null, type: 'above' as 'above' | 'below' },
+    rsi: { value: 70 as number | null, type: 'below' as 'above' | 'below' },
   });
   const [hiddenCards, setHiddenCards] = useState<string[]>([]);
 
@@ -425,8 +425,8 @@ export function HistoricalInsights() {
                               key={model}
                               className={`text-sm p-2 rounded-md mb-2 bg-white/50 backdrop-blur-sm border-2 ${
                                 isBelowPar
-                                  ? "border-red-500"
-                                  : "border-green-500"
+                                  ? "border-green-500"
+                                  : "border-red-500"
                               }`}
                             >
                               <span className="font-medium text-blue-700">
@@ -435,8 +435,8 @@ export function HistoricalInsights() {
                               <span
                                 className={`${
                                   isBelowPar
-                                    ? "text-red-500 font-bold"
-                                    : "text-green-500 font-bold"
+                                    ? "text-green-500 font-bold"
+                                    : "text-red-500 font-bold"
                                 }`}
                               >
                                 {date?.toString() || "N/A"}
@@ -447,6 +447,16 @@ export function HistoricalInsights() {
                                     ? "↓"
                                     : "↑"}
                                 </span>
+
+                                <span className="ml-2 font-bold">
+                                  {isBelowPar === undefined
+                                    ? "?"
+                                    : isBelowPar
+                                    ? "DRY"
+                                    : ""}
+                                </span>
+
+
                               </span>
                             </div>
                           );
