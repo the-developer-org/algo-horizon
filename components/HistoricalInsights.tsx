@@ -37,6 +37,8 @@ export function HistoricalInsights() {
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [activeAlphabet, setActiveAlphabet] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const unhideCard = (cardId: string) => {
     setHiddenCards((prevHiddenCards) =>
@@ -98,6 +100,17 @@ export function HistoricalInsights() {
   const applyFilters = (data: ApiResponse["sortedHistoricalResponses"]) => {
     return Object.fromEntries(
       Object.entries(data)
+        .filter(([companyName]) => {
+          if (activeAlphabet) {
+            return companyName
+              .toLowerCase()
+              .startsWith(activeAlphabet.toLowerCase());
+          }
+          if (searchTerm) {
+            return companyName.toLowerCase().includes(searchTerm.toLowerCase());
+          }
+          return true;
+        })
         .map(([companyName, responses]) => [
           companyName,
           responses.filter((response) => {
@@ -237,6 +250,18 @@ export function HistoricalInsights() {
           ? "desc"
           : "asc",
     }));
+  };
+
+  const handleAlphabetFilter = (letter: string) => {
+    setActiveAlphabet(activeAlphabet === letter ? null : letter);
+    setCurrentPage(1);
+    setSearchTerm("");
+  };
+
+  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(event.target.value);
+    setCurrentPage(1);
+    setActiveAlphabet(null);
   };
 
   if (error) return <div className="text-center text-red-600">{error}</div>;
@@ -429,6 +454,33 @@ export function HistoricalInsights() {
           ></span>
         </Button>
       </div>
+      <div className="mb-4">
+        <Input
+          type="text"
+          placeholder="Search companies..."
+          value={searchTerm}
+          onChange={handleSearch}
+          className="w-full max-w-xs bg-gray-800 text-white px-4 py-2 rounded-md"
+          style={{ color: "#f5f5dc" }}
+        />
+      </div>
+      <div className="mb-4 flex flex-wrap gap-6">
+        {Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)).map(
+          (letter) => (
+            <Button
+              key={letter}
+              onClick={() => handleAlphabetFilter(letter)}
+              className={`px-3 py-1 ${
+                activeAlphabet === letter
+                  ? "bg-blue-500 text-white"
+                  : "bg-purple-200 text-gray-700"
+              }`}
+            >
+              {letter}
+            </Button>
+          )
+        )}
+      </div>
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm" style={{ color: "#f5f5dc" }}>
@@ -485,7 +537,7 @@ export function HistoricalInsights() {
         </div>
       )}
 
-      <div className="flex items-end justify-end mt-10" >
+      <div className="flex items-end justify-end mt-10">
         <div className="flex items-center gap-2">
           <Button
             onClick={() => handlePageChange(currentPage - 1)}

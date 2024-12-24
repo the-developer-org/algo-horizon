@@ -8,7 +8,7 @@ import { FaStar, FaRegStar } from "react-icons/fa";
 interface CompanyCardsProps {
   sortedData: { [key: string]: HistoricalResponse[] };
   hideCard: (id: string) => void;
-  updateFavorites: (instrumentKey: string, companyName: string) => Promise<void>;
+  updateFavorites: (instrumentKey: string, companyName: string) => void;
 }
 
 export default function CompanyCards({

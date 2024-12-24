@@ -1,0 +1,10 @@
+
+.letter-spacing span {
+    display: inline-block;
+    margin-right: 80px; /* Apply spacing between letters */
+  }
+  
+  .letter-spacing span:last-child {
+    margin-right: 0; /* Remove spacing after the last letter */
+  }
+  
