@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { EyeOff } from 'lucide-react';
+import { EyeOff } from "lucide-react";
 import getRandomGradient from "./utils/gradients";
 import { HistoricalResponse } from "./types/historical-insights";
 import { FaStar, FaRegStar } from "react-icons/fa";
@@ -56,7 +56,9 @@ export default function CompanyCards({
                       variant="outline"
                       size="icon"
                       className=""
-                      onClick={() => updateFavorites(response.instrumentKey, companyName)}
+                      onClick={() =>
+                        updateFavorites(response.instrumentKey, companyName)
+                      }
                     >
                       {response?.isFavorite ? (
                         <FaStar className="h-6 w-6 text-yellow-500" />
@@ -66,9 +68,31 @@ export default function CompanyCards({
                     </Button>
                   </div>
                   <p className="text-sm text-blue-600 mb-4">
-                    Last Updated:{" "}
+                    Last Boom Date Updated:{" "}
                     {response?.formattedLastBoomDataUpdatedAt || "N/A"}
                   </p>
+                  <p className="text-sm text-blue-600 mb-4">
+                    Last Candle Date:{" "}
+                    {response?.formattedLastCandleDate || "N/A"}
+                  </p>
+                  <p className="text-sm text-blue-600 mb-4">
+                    Max Vol Change Date:{" "}
+                    {response?.maxVolumeChange
+                      ? Object.keys(response.maxVolumeChange).reduce((a, b) =>
+                          response.maxVolumeChange[a] >
+                          response.maxVolumeChange[b]
+                            ? a
+                            : b
+                        )
+                      : "N/A"}
+                  </p>
+                  <p className="text-sm text-blue-600 mb-4">
+                    Max Vol Change:{" "}
+                    {response?.maxVolumeChange
+                      ? Math.max(...Object.values(response.maxVolumeChange))
+                      : "N/A"}
+                  </p>
+
                   <div className="space-y-2">
                     {Object.entries(
                       response?.formattedBoomDayDatesMap || {}
@@ -93,10 +117,10 @@ export default function CompanyCards({
                               {date?.toString() || "N/A"}
                               <span className="ml-2">
                                 {isBelowPar === undefined
-                                  ? "?"
+                                  ? ""
                                   : isBelowPar
-                                  ? "↓ DRY"
-                                  : "↑"}
+                                  ? "DRY"
+                                  : ""}
                               </span>
                             </span>
                           </div>
@@ -127,4 +151,3 @@ export default function CompanyCards({
     </div>
   );
 }
-

@@ -2,9 +2,13 @@ export interface HistoricalResponse {
     companyName: string;
     instrumentKey: string;
     formattedLastBoomDataUpdatedAt: string;
+    formattedLastCandleDate: string;
     formattedBoomDayDatesMap: {
       [key: string]: string;
     };
+    maxVolumeChange:{
+      [key: string]: number;
+    }
     isBelowParLevel: {
       [key: string]: boolean;
     };

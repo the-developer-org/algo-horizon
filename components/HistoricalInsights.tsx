@@ -19,6 +19,14 @@ import {
   HistoricalResponse,
   NumericFilters,
 } from "./types/historical-insights";
+// Constants
+const MODELS = ["model1", "model2", "model3", "model4"];
+const SORT_KEYS = {
+  NAME: "name",
+  CURRENT_EMA: "currentEMA",
+  CURRENT_RSI: "currentRSI",
+  MAX_VOLUME_CHANGE: "maxVolumeChange",
+};
 
 export function HistoricalInsights() {
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -39,6 +47,8 @@ export function HistoricalInsights() {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [activeAlphabet, setActiveAlphabet] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [activateDryMode, setActivateDryMode] = useState(false);
 
   const unhideCard = (cardId: string) => {
     setHiddenCards((prevHiddenCards) =>
@@ -79,10 +89,19 @@ export function HistoricalInsights() {
   };
 
   const toggleFilter = (filter: string) => {
+    debugger;
     setActiveFilters((prev) =>
       prev.includes(filter)
         ? prev.filter((f) => f !== filter)
         : [...prev, filter]
+    );
+  };
+
+  const toggleModelFilter = (model: string) => {
+    setSelectedModels((prevSelectedModels) =>
+      prevSelectedModels.includes(model)
+        ? prevSelectedModels.filter((item) => item !== model)
+        : [...prevSelectedModels, model]
     );
   };
 
@@ -97,46 +116,72 @@ export function HistoricalInsights() {
     }));
   };
 
-  const applyFilters = (data: ApiResponse["sortedHistoricalResponses"]) => {
+  const sortDryData = (data: { [key: string]: HistoricalResponse[] }) => {
+    
+    console.log(data)
     return Object.fromEntries(
       Object.entries(data)
         .filter(([companyName]) => {
-          if (activeAlphabet) {
-            return companyName
-              .toLowerCase()
-              .startsWith(activeAlphabet.toLowerCase());
-          }
-          if (searchTerm) {
-            return companyName.toLowerCase().includes(searchTerm.toLowerCase());
-          }
-          return true;
+          const searchMatches = activeAlphabet
+            ? companyName.toLowerCase().startsWith(activeAlphabet.toLowerCase())
+            : companyName.toLowerCase().includes(searchTerm.toLowerCase());
+          return searchMatches;
+        })
+        .map(([companyName, responses]) => [
+          companyName,
+          responses.filter((response) => {
+            const selectedModel =  selectedModels[0];
+            let isDryValid = false
+            if(response.isBelowParLevel.hasOwnProperty(selectedModel) && response.isBelowParLevel[selectedModel] === true){
+              isDryValid = true;
+            }
+            return (
+              isDryValid
+            );
+          }),
+        ])
+        .filter(([, responses]) => responses.length > 0)
+    );
+  }
+  const applyFilters = (data: ApiResponse["sortedHistoricalResponses"]) => {
+    const activeModelFilters = activeFilters.filter((filter) =>
+      MODELS.includes(filter)
+    );
+
+    return Object.fromEntries(
+      Object.entries(data)
+        .filter(([companyName]) => {
+          const searchMatches = activeAlphabet
+            ? companyName.toLowerCase().startsWith(activeAlphabet.toLowerCase())
+            : companyName.toLowerCase().includes(searchTerm.toLowerCase());
+          return searchMatches;
         })
         .map(([companyName, responses]) => [
           companyName,
           responses.filter((response) => {
             const cardId = `${companyName}-${response.formattedLastBoomDataUpdatedAt}`;
-            if (hiddenCards.includes(cardId)) return false;
-            if (showOnlyFavorites && !response.isFavorite) return false;
-            const hasActiveModel = !activeFilters.some(
-              (filter) =>
-                filter.startsWith("Model_") &&
-                response.formattedBoomDayDatesMap[filter]
+            const isHidden = hiddenCards.includes(cardId);
+            const isFavoriteFiltered =
+              activeFilters.includes("Favorites") && !response.isFavorite;
+            const modelsValid =
+              Object.keys(response.formattedBoomDayDatesMap).some((model) =>
+                activeModelFilters.includes(model)
+              );
+
+            // If exactly one model is selected, check the `isBelowParLevel` condition
+            // debugger
+            // const isBelowParLevelFiltered =
+            //   activateDryMode &&
+            //   Object.keys(response.isBelowParLevel).some((model) =>
+            //     selectedModels.includes(model)) &&
+            //   selectedModels.length === 1 &&
+            //   response.isBelowParLevel?.[selectedModels[0]] === true;
+
+            return (
+              !isHidden &&
+              !isFavoriteFiltered &&
+              modelsValid
             );
-            const meetsEmaFilter =
-              !activeFilters.includes("EMA") ||
-              numericFilters.ema.value === null ||
-              (response.currentEMA !== null &&
-                (numericFilters.ema.type === "above"
-                  ? response.currentEMA >= numericFilters.ema.value
-                  : response.currentEMA <= numericFilters.ema.value));
-            const meetsRsiFilter =
-              !activeFilters.includes("RSI") ||
-              numericFilters.rsi.value === null ||
-              (response.currentRSI !== null &&
-                (numericFilters.rsi.type === "above"
-                  ? response.currentRSI >= numericFilters.rsi.value
-                  : response.currentRSI <= numericFilters.rsi.value));
-            return hasActiveModel && meetsEmaFilter && meetsRsiFilter;
           }),
         ])
         .filter(([, responses]) => responses.length > 0)
@@ -146,25 +191,39 @@ export function HistoricalInsights() {
   const sortData = (data: { [key: string]: HistoricalResponse[] }) => {
     const sortedEntries = Object.entries(data).sort(
       ([aName, aResponses], [bName, bResponses]) => {
-        if (sortConfig.key === "name") {
-          return sortConfig.direction === "asc"
-            ? aName.localeCompare(bName)
-            : bName.localeCompare(aName);
+        const aResponse = aResponses[0];
+        const bResponse = bResponses[0];
+
+        switch (sortConfig.key) {
+          case SORT_KEYS.NAME:
+            return sortConfig.direction === "asc"
+              ? aName.localeCompare(bName)
+              : bName.localeCompare(aName);
+          case SORT_KEYS.CURRENT_EMA:
+            return sortConfig.direction === "asc"
+              ? (aResponse?.currentEMA ?? -Infinity) -
+                  (bResponse?.currentEMA ?? -Infinity)
+              : (bResponse?.currentEMA ?? -Infinity) -
+                  (aResponse?.currentEMA ?? -Infinity);
+          case SORT_KEYS.CURRENT_RSI:
+            return sortConfig.direction === "asc"
+              ? (aResponse?.currentRSI ?? -Infinity) -
+                  (bResponse?.currentRSI ?? -Infinity)
+              : (bResponse?.currentRSI ?? -Infinity) -
+                  (aResponse?.currentRSI ?? -Infinity);
+          case SORT_KEYS.MAX_VOLUME_CHANGE:
+            const aValue = Math.max(
+              ...Object.values(aResponse?.maxVolumeChange || {})
+            );
+            const bValue = Math.max(
+              ...Object.values(bResponse?.maxVolumeChange || {})
+            );
+            return sortConfig.direction === "asc"
+              ? aValue - bValue
+              : bValue - aValue;
+          default:
+            return 0;
         }
-        const aValue =
-          aResponses[0]?.[sortConfig.key as keyof HistoricalResponse] ?? null;
-        const bValue =
-          bResponses[0]?.[sortConfig.key as keyof HistoricalResponse] ?? null;
-        if (aValue === null && bValue === null) return 0;
-        if (aValue === null) return 1;
-        if (bValue === null) return -1;
-        return sortConfig.direction === "asc"
-          ? aValue < bValue
-            ? -1
-            : 1
-          : bValue < aValue
-          ? -1
-          : 1;
       }
     );
     return Object.fromEntries(sortedEntries);
@@ -174,52 +233,51 @@ export function HistoricalInsights() {
     instrumentKey: string,
     companyName: string
   ) => {
-    if (data) {
-      try {
-        const response = await fetch(
-          "http://localhost:8050/api/historical-data/update-favourites/NSE",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ instrumentKey }),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to update favorite status");
+    try {
+      const response = await fetch(
+        "http://localhost:8050/api/historical-data/update-favourites/NSE",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instrumentKey }),
         }
+      );
+      if (!response.ok) throw new Error("Failed to update favorite status");
 
-        const updatedData = { ...data.sortedHistoricalResponses };
-        if (updatedData[companyName]) {
-          updatedData[companyName] = updatedData[companyName].map(
-            (response) => {
-              if (response.instrumentKey === instrumentKey) {
-                return { ...response, isFavorite: !response.isFavorite };
-              }
-              return response;
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              sortedHistoricalResponses: {
+                ...prev.sortedHistoricalResponses,
+                [companyName]: prev.sortedHistoricalResponses[companyName]?.map(
+                  (res) =>
+                    res.instrumentKey === instrumentKey
+                      ? { ...res, isFavorite: !res.isFavorite }
+                      : res
+                ),
+              },
             }
-          );
-        }
-
-        setData({
-          ...data,
-          sortedHistoricalResponses: updatedData,
-          message: data.message || "",
-        });
-      } catch (err) {
-        console.error("Error updating favorite status:", err);
-        setError("Failed to update favorite status. Please try again.");
-      }
+          : prev
+      );
+    } catch (err) {
+      console.error("Error updating favorite status:", err);
+      setError("Failed to update favorite status. Please try again.");
     }
   };
+
+ 
 
   const filteredData = data?.sortedHistoricalResponses
     ? applyFilters(data.sortedHistoricalResponses)
     : null;
 
-  const sortedData = filteredData ? sortData(filteredData) : null;
+    debugger
+  const handleDryData = filteredData ? sortDryData(filteredData) : null;
+
+  let finalData =  activateDryMode ? handleDryData : filteredData;
+
+  let sortedData = filteredData ? sortData(finalData) : null;
 
   const totalCompanies = sortedData ? Object.keys(sortedData).length : 0;
   const totalPages = Math.ceil(totalCompanies / itemsPerPage);
@@ -262,6 +320,12 @@ export function HistoricalInsights() {
     setSearchTerm(event.target.value);
     setCurrentPage(1);
     setActiveAlphabet(null);
+  };
+
+  const handleDryButtonClick = () => {
+    debugger
+    setActivateDryMode(!activateDryMode);
+
   };
 
   if (error) return <div className="text-center text-red-600">{error}</div>;
@@ -314,22 +378,36 @@ export function HistoricalInsights() {
                 : "↑"
               : ""}
           </Button>
+          <Button
+            onClick={() => handleSort("maxVolumeChange")}
+            className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition duration-300"
+          >
+            Sort by Max Volume Change{" "}
+            {sortConfig.key === "maxVolumeChange"
+              ? sortConfig.direction === "asc"
+                ? "↑"
+                : "↓"
+              : ""}
+          </Button>
         </div>
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-4">
         <span style={{ color: "#f5f5dc" }}>
           Total Companies: {totalCompanies}
         </span>
-        {["Model_1", "Model_2", "Model_3"].map((model) => (
+        {MODELS.map((model) => (
           <Button
             key={model}
-            onClick={() => toggleFilter(model)}
+            onClick={() => {
+              toggleFilter(model);
+              toggleModelFilter(model);
+            }}
             className={`relative bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-3 px-6 rounded-md transition duration-300`}
           >
-            {model}
+            {`Model - ${model.charAt(model.length - 1).toUpperCase()}`}
             <span
               className={`absolute top-0 right-0 w-5 h-3 rounded-md ${
-                activeFilters.includes(model) ? "bg-red-500" : "bg-green-500"
+                activeFilters.includes(model) ? "bg-green-500" : "bg-red-500"
               }`}
               style={{
                 borderTopRightRadius: "0.375rem",
@@ -339,55 +417,7 @@ export function HistoricalInsights() {
             ></span>
           </Button>
         ))}
-        <div className="flex items-center gap-4">
-          <Input
-            type="number"
-            placeholder="EMA"
-            className="w-20 bg-white"
-            value={numericFilters.ema.value ?? ""}
-            onChange={(e) =>
-              setNumericFilter(
-                "ema",
-                e.target.value ? Number(e.target.value) : null,
-                numericFilters.ema.type
-              )
-            }
-          />
-          <Select
-            value={numericFilters.ema.type}
-            onValueChange={(value) =>
-              setNumericFilter(
-                "ema",
-                numericFilters.ema.value,
-                value as "above" | "below"
-              )
-            }
-          >
-            <SelectTrigger className="w-[100px] bg-[#f5f5dc]">
-              <SelectValue placeholder="Filter type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="above">Above</SelectItem>
-              <SelectItem value="below">Below</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            onClick={() => toggleFilter("EMA")}
-            className={`relative bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold py-3 px-6 rounded-md transition duration-300`}
-          >
-            EMA Filter
-            <span
-              className={`absolute top-0 right-0 w-5 h-3 rounded-md ${
-                activeFilters.includes("EMA") ? "bg-green-500" : "bg-red-500"
-              }`}
-              style={{
-                borderTopRightRadius: "0.375rem",
-                borderBottomLeftRadius: "0.375rem",
-                transform: "translate(0%, 0%)",
-              }}
-            ></span>
-          </Button>
-        </div>
+
         <div className="flex items-center gap-4">
           <Input
             type="number"
@@ -520,9 +550,17 @@ export function HistoricalInsights() {
           </Button>
         </div>
       </div>
-      <div className="mb-4">
+      <div className="mb-4" style={{justifyContent:"space-between"}}>
         <HiddenCardsManager hiddenCards={hiddenCards} unhideCard={unhideCard} />
+        <div>
+          {selectedModels.length === 1 && (
+            <Button
+            className={`relative font-bold py-3 px-6 rounded-md transition duration-300 ${activateDryMode ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'} text-white`}
+             onClick={handleDryButtonClick}>DRY MODE</Button>
+          )}
+        </div>
       </div>
+
       {loading && !data ? (
         <div className="text-center text-gray-600">Loading...</div>
       ) : !paginatedData ? (
