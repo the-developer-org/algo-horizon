@@ -39,7 +39,7 @@ export function HistoricalInsights() {
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [numericFilters, setNumericFilters] = useState<NumericFilters>({
     ema: { value: 200, type: "above" },
-    rsi: { value: 70, type: "below" },
+    rsi: { min: 30, max: 70 },
   });
   const [hiddenCards, setHiddenCards] = useState<string[]>([]);
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
@@ -89,7 +89,6 @@ export function HistoricalInsights() {
   };
 
   const toggleFilter = (filter: string) => {
-    debugger;
     setActiveFilters((prev) =>
       prev.includes(filter)
         ? prev.filter((f) => f !== filter)
@@ -108,17 +107,22 @@ export function HistoricalInsights() {
   const setNumericFilter = (
     filterType: "ema" | "rsi",
     value: number | null,
-    type: "above" | "below"
+    type: "above" | "below" | "min" | "max"
   ) => {
     setNumericFilters((prev) => ({
       ...prev,
-      [filterType]: { value, type },
+      [filterType]:
+        filterType === "ema"
+          ? { ...prev.ema, value: value ?? prev.ema.value, type }
+          : {
+            ...prev.rsi,
+            [type]: value ?? prev.rsi[type as "min" | "max"],
+          },
     }));
   };
 
   const sortDryData = (data: { [key: string]: HistoricalResponse[] }) => {
-    
-    console.log(data)
+    console.log(data);
     return Object.fromEntries(
       Object.entries(data)
         .filter(([companyName]) => {
@@ -130,19 +134,20 @@ export function HistoricalInsights() {
         .map(([companyName, responses]) => [
           companyName,
           responses.filter((response) => {
-            const selectedModel =  selectedModels[0];
-            let isDryValid = false
-            if(response.isBelowParLevel.hasOwnProperty(selectedModel) && response.isBelowParLevel[selectedModel] === true){
+            const selectedModel = selectedModels[0];
+            let isDryValid = false;
+            if (
+              response.isBelowParLevel.hasOwnProperty(selectedModel) &&
+              response.isBelowParLevel[selectedModel] === true
+            ) {
               isDryValid = true;
             }
-            return (
-              isDryValid
-            );
+            return isDryValid;
           }),
         ])
         .filter(([, responses]) => responses.length > 0)
     );
-  }
+  };
   const applyFilters = (data: ApiResponse["sortedHistoricalResponses"]) => {
     const activeModelFilters = activeFilters.filter((filter) =>
       MODELS.includes(filter)
@@ -167,20 +172,24 @@ export function HistoricalInsights() {
               Object.keys(response.formattedBoomDayDatesMap).some((model) =>
                 activeModelFilters.includes(model)
               );
+            const isRsiFiltered =
+              activeFilters.includes("RSI") && response.currentRSI &&
+              (response.currentRSI < numericFilters.rsi.min ||
+                response.currentRSI > numericFilters.rsi.max);
 
-            // If exactly one model is selected, check the `isBelowParLevel` condition
-            // debugger
-            // const isBelowParLevelFiltered =
-            //   activateDryMode &&
-            //   Object.keys(response.isBelowParLevel).some((model) =>
-            //     selectedModels.includes(model)) &&
-            //   selectedModels.length === 1 &&
-            //   response.isBelowParLevel?.[selectedModels[0]] === true;
+            console.log('RSI Filter:', {
+              isActive: activeFilters.includes("RSI"),
+              currentRSI: response.currentRSI,
+              min: numericFilters.rsi.min,
+              max: numericFilters.rsi.max,
+              isFiltered: isRsiFiltered
+            });
 
             return (
               !isHidden &&
               !isFavoriteFiltered &&
-              modelsValid
+              modelsValid &&
+              !isRsiFiltered
             );
           }),
         ])
@@ -211,16 +220,6 @@ export function HistoricalInsights() {
                   (bResponse?.currentRSI ?? -Infinity)
               : (bResponse?.currentRSI ?? -Infinity) -
                   (aResponse?.currentRSI ?? -Infinity);
-          case SORT_KEYS.MAX_VOLUME_CHANGE:
-            const aValue = Math.max(
-              ...Object.values(aResponse?.maxVolumeChange || {})
-            );
-            const bValue = Math.max(
-              ...Object.values(bResponse?.maxVolumeChange || {})
-            );
-            return sortConfig.direction === "asc"
-              ? aValue - bValue
-              : bValue - aValue;
           default:
             return 0;
         }
@@ -266,16 +265,13 @@ export function HistoricalInsights() {
     }
   };
 
- 
-
   const filteredData = data?.sortedHistoricalResponses
     ? applyFilters(data.sortedHistoricalResponses)
     : null;
 
-    debugger
   const handleDryData = filteredData ? sortDryData(filteredData) : null;
 
-  let finalData =  activateDryMode ? handleDryData : filteredData;
+  let finalData = activateDryMode ? handleDryData : filteredData;
 
   let sortedData = filteredData ? sortData(finalData) : null;
 
@@ -323,9 +319,7 @@ export function HistoricalInsights() {
   };
 
   const handleDryButtonClick = () => {
-    debugger
     setActivateDryMode(!activateDryMode);
-
   };
 
   if (error) return <div className="text-center text-red-600">{error}</div>;
@@ -418,55 +412,50 @@ export function HistoricalInsights() {
           </Button>
         ))}
 
-        <div className="flex items-center gap-4">
-          <Input
-            type="number"
-            placeholder="RSI"
-            className="w-20 bg-white"
-            value={numericFilters.rsi.value ?? ""}
-            onChange={(e) =>
-              setNumericFilter(
-                "rsi",
-                e.target.value ? Number(e.target.value) : null,
-                numericFilters.rsi.type
-              )
-            }
-          />
-          <Select
-            value={numericFilters.rsi.type}
-            onValueChange={(value) =>
-              setNumericFilter(
-                "rsi",
-                numericFilters.rsi.value,
-                value as "above" | "below"
-              )
-            }
-          >
-            <SelectTrigger className="w-[100px] bg-[#f5f5dc]">
-              <SelectValue placeholder="Filter type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="above">Above</SelectItem>
-              <SelectItem value="below">Below</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            onClick={() => toggleFilter("RSI")}
-            className={`relative bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold py-3 px-6 rounded-md transition duration-300`}
-          >
-            RSI Filter
-            <span
-              className={`absolute top-0 right-0 w-5 h-3 rounded-md ${
-                activeFilters.includes("RSI") ? "bg-green-500" : "bg-red-500"
-              }`}
-              style={{
-                borderTopRightRadius: "0.375rem",
-                borderBottomLeftRadius: "0.375rem",
-                transform: "translate(0%, 0%)",
-              }}
-            ></span>
-          </Button>
-        </div>
+<div className="flex items-center gap-4">
+        <Input
+          type="number"
+          placeholder="Min RSI"
+          className="w-20 bg-white"
+          value={numericFilters.rsi.min}
+          onChange={(e) =>
+            setNumericFilter(
+              "rsi",
+              e.target.value ? Number(e.target.value) : null,
+              "min"
+            )
+          }
+        />
+        <Input
+          type="number"
+          placeholder="Max RSI"
+          className="w-20 bg-white"
+          value={numericFilters.rsi.max}
+          onChange={(e) =>
+            setNumericFilter(
+              "rsi",
+              e.target.value ? Number(e.target.value) : null,
+              "max"
+            )
+          }
+        />
+        <Button
+          onClick={() => toggleFilter("RSI")}
+          className={`relative bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold py-3 px-6 rounded-md transition duration-300`}
+        >
+          RSI Filter
+          <span
+            className={`absolute top-0 right-0 w-5 h-3 rounded-md ${
+              activeFilters.includes("RSI") ? "bg-green-500" : "bg-red-500"
+            }`}
+            style={{
+              borderTopRightRadius: "0.375rem",
+              borderBottomLeftRadius: "0.375rem",
+              transform: "translate(0%, 0%)",
+            }}
+          ></span>
+        </Button>
+      </div>
         <Button
           onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
           className={`relative bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold py-3 px-6 rounded-md transition duration-300`}
@@ -550,13 +539,20 @@ export function HistoricalInsights() {
           </Button>
         </div>
       </div>
-      <div className="mb-4" style={{justifyContent:"space-between"}}>
+      <div className="mb-4" style={{ justifyContent: "space-between" }}>
         <HiddenCardsManager hiddenCards={hiddenCards} unhideCard={unhideCard} />
         <div>
           {selectedModels.length === 1 && (
             <Button
-            className={`relative font-bold py-3 px-6 rounded-md transition duration-300 ${activateDryMode ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'} text-white`}
-             onClick={handleDryButtonClick}>DRY MODE</Button>
+              className={`relative font-bold py-3 px-6 rounded-md transition duration-300 ${
+                activateDryMode
+                  ? "bg-green-500 hover:bg-green-600"
+                  : "bg-red-500 hover:bg-red-600"
+              } text-white`}
+              onClick={handleDryButtonClick}
+            >
+              DRY MODE
+            </Button>
           )}
         </div>
       </div>

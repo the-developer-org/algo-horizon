@@ -6,9 +6,8 @@ export interface HistoricalResponse {
     formattedBoomDayDatesMap: {
       [key: string]: string;
     };
-    maxVolumeChange:{
-      [key: string]: number;
-    }
+    avgVolume: number;
+  
     isBelowParLevel: {
       [key: string]: boolean;
     };
@@ -26,7 +25,7 @@ export interface HistoricalResponse {
   
   export interface NumericFilters {
     ema: { value: number | null; type: "above" | "below" };
-    rsi: { value: number | null; type: "above" | "below" };
+    rsi: { min: number; max: number };
   }
   
   

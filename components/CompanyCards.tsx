@@ -76,20 +76,9 @@ export default function CompanyCards({
                     {response?.formattedLastCandleDate || "N/A"}
                   </p>
                   <p className="text-sm text-blue-600 mb-4">
-                    Max Vol Change Date:{" "}
-                    {response?.maxVolumeChange
-                      ? Object.keys(response.maxVolumeChange).reduce((a, b) =>
-                          response.maxVolumeChange[a] >
-                          response.maxVolumeChange[b]
-                            ? a
-                            : b
-                        )
-                      : "N/A"}
-                  </p>
-                  <p className="text-sm text-blue-600 mb-4">
-                    Max Vol Change:{" "}
-                    {response?.maxVolumeChange
-                      ? Math.max(...Object.values(response.maxVolumeChange))
+                    Avg Volume:{" "}
+                    {response?.avgVolume
+                      ? response.avgVolume
                       : "N/A"}
                   </p>
 
