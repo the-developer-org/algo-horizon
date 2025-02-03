@@ -4,8 +4,8 @@ export interface HistoricalResponse {
     formattedLastBoomDataUpdatedAt: string;
     formattedLastCandleDate: string;
     formattedBoomDayDatesMap: {
-      [key: string]: string;
-    };
+      [key: string]: string[]
+    }
     avgVolume: number;
   
     isBelowParLevel: {
@@ -14,14 +14,16 @@ export interface HistoricalResponse {
     currentEMA: number | null;
     currentRSI: number | null;
     isFavorite : boolean;
+    currTrend : string;
   }
   
   export interface ApiResponse {
-    message: string;
     sortedHistoricalResponses: {
-      [key: string]: HistoricalResponse[];
+      [key: string]: HistoricalResponse;
     };
   }
+
+
   
   export interface NumericFilters {
     ema: { value: number | null; type: "above" | "below" };

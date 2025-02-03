@@ -36,7 +36,7 @@ export function HistoricalInsights() {
     key: string;
     direction: "asc" | "desc";
   }>({ key: "name", direction: "asc" });
-  const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [activeFilters, setActiveFilters] = useState<string[]>(MODELS);
   const [numericFilters, setNumericFilters] = useState<NumericFilters>({
     ema: { value: 200, type: "above" },
     rsi: { min: 30, max: 70 },
@@ -47,7 +47,7 @@ export function HistoricalInsights() {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [activeAlphabet, setActiveAlphabet] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [selectedModels, setSelectedModels] = useState<string[]>(MODELS);
   const [activateDryMode, setActivateDryMode] = useState(false);
 
   const unhideCard = (cardId: string) => {
@@ -60,29 +60,56 @@ export function HistoricalInsights() {
     setHiddenCards((prev) => [...prev, cardId]);
   };
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // const fetchData = useCallback(async () => {
+  //   setLoading(true);
+  //   setError(null);
+  //   try {
+
+  //     const response = await fetch(
+  //       "http://localhost:8050/api/historical-data/fetch-previous-insights"
+  //     );
+  //     if (!response.ok) {
+  //       throw new Error("Failed to fetch data");
+  //     }
+  //     const result: ApiResponse = await response.json();
+  //     setData(result);
+  //   } catch (err) {
+  //     setError("An error occurred while fetching data");
+  //     console.error(err);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // }, []);
+
+
+  const fetchData = async () => {
     try {
       const response = await fetch(
-        "http://localhost:8050/api/historical-data/fetch-previous-insights"
+        "https://saved-dassie-60359.upstash.io/get/AlgoHorizon", // Replace 'foo' with your Redis key
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+          },
+        }
       );
-      if (!response.ok) {
-        throw new Error("Failed to fetch data");
-      }
-      const result: ApiResponse = await response.json();
-      setData(result);
+
+      const data = await response.json();
+      const parsedData: ApiResponse = JSON.parse(data.result);
+      console.log("Redis Parsed Data:", parsedData);
+
+
+      setData(parsedData);
     } catch (err) {
-      setError("An error occurred while fetching data");
-      console.error(err);
+      console.error("Error fetching from Redis:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, []);
 
   const handleRefresh = () => {
     fetchData();
@@ -148,14 +175,14 @@ export function HistoricalInsights() {
         .filter(([, responses]) => responses.length > 0)
     );
   };
-  const applyFilters = (data: ApiResponse["sortedHistoricalResponses"]) => {
+  const applyFilters = (data: ApiResponse) => {
     const activeModelFilters = activeFilters.filter((filter) =>
       MODELS.includes(filter)
     );
-
+  
     return Object.fromEntries(
-      Object.entries(data)
-        .filter(([companyName]) => {
+      Object.entries(data.sortedHistoricalResponses)
+        .filter(([companyName, responses]) => {
           const searchMatches = activeAlphabet
             ? companyName.toLowerCase().startsWith(activeAlphabet.toLowerCase())
             : companyName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -163,40 +190,70 @@ export function HistoricalInsights() {
         })
         .map(([companyName, responses]) => [
           companyName,
-          responses.filter((response) => {
-            const cardId = `${companyName}-${response.formattedLastBoomDataUpdatedAt}`;
-            const isHidden = hiddenCards.includes(cardId);
-            const isFavoriteFiltered =
-              activeFilters.includes("Favorites") && !response.isFavorite;
-            const modelsValid =
-              Object.keys(response.formattedBoomDayDatesMap).some((model) =>
-                activeModelFilters.includes(model)
-              );
-            const isRsiFiltered =
-              activeFilters.includes("RSI") && response.currentRSI &&
-              (response.currentRSI < numericFilters.rsi.min ||
-                response.currentRSI > numericFilters.rsi.max);
-
-            console.log('RSI Filter:', {
-              isActive: activeFilters.includes("RSI"),
-              currentRSI: response.currentRSI,
-              min: numericFilters.rsi.min,
-              max: numericFilters.rsi.max,
-              isFiltered: isRsiFiltered
-            });
-
-            return (
-              !isHidden &&
-              !isFavoriteFiltered &&
-              modelsValid &&
-              !isRsiFiltered
-            );
-          }),
+          Array.isArray(responses) // Check if responses is an array
+            ? responses.filter((response: HistoricalResponse) => {
+                const cardId = `${companyName}-${response.formattedLastBoomDataUpdatedAt}`;
+                const isHidden = hiddenCards.includes(cardId);
+                const isFavoriteFiltered =
+                  activeFilters.includes("Favorites") && !response.isFavorite;
+                const modelsValid =
+                  Object.keys(response.formattedBoomDayDatesMap).some((model) =>
+                    activeModelFilters.includes(model)
+                  );
+                const isRsiFiltered =
+                  activeFilters.includes("RSI") && response.currentRSI &&
+                  (response.currentRSI < numericFilters.rsi.min ||
+                    response.currentRSI > numericFilters.rsi.max);
+  
+                console.log('RSI Filter:', {
+                  isActive: activeFilters.includes("RSI"),
+                  currentRSI: response.currentRSI,
+                  min: numericFilters.rsi.min,
+                  max: numericFilters.rsi.max,
+                  isFiltered: isRsiFiltered
+                });
+  
+                return (
+                  !isHidden &&
+                  !isFavoriteFiltered &&
+                  modelsValid &&
+                  !isRsiFiltered
+                );
+              })
+            : [responses].filter((response: HistoricalResponse) => { // Handle single object case
+                const cardId = `${companyName}-${responses.formattedLastBoomDataUpdatedAt}`;
+                const isHidden = hiddenCards.includes(cardId);
+                const isFavoriteFiltered =
+                  activeFilters.includes("Favorites") && !responses.isFavorite;
+                const modelsValid =
+                  Object.keys(responses.formattedBoomDayDatesMap).some((model) =>
+                    activeModelFilters.includes(model)
+                  );
+                const isRsiFiltered =
+                  activeFilters.includes("RSI") && responses.currentRSI &&
+                  (responses.currentRSI < numericFilters.rsi.min ||
+                    responses.currentRSI > numericFilters.rsi.max);
+  
+                console.log('RSI Filter:', {
+                  isActive: activeFilters.includes("RSI"),
+                  currentRSI: responses.currentRSI,
+                  min: numericFilters.rsi.min,
+                  max: numericFilters.rsi.max,
+                  isFiltered: isRsiFiltered
+                });
+  
+                return (
+                  !isHidden &&
+                  !isFavoriteFiltered &&
+                  modelsValid &&
+                  !isRsiFiltered
+                );
+              })
         ])
         .filter(([, responses]) => responses.length > 0)
     );
   };
-
+  
   const sortData = (data: { [key: string]: HistoricalResponse[] }) => {
     const sortedEntries = Object.entries(data).sort(
       ([aName, aResponses], [bName, bResponses]) => {
@@ -211,15 +268,15 @@ export function HistoricalInsights() {
           case SORT_KEYS.CURRENT_EMA:
             return sortConfig.direction === "asc"
               ? (aResponse?.currentEMA ?? -Infinity) -
-                  (bResponse?.currentEMA ?? -Infinity)
+              (bResponse?.currentEMA ?? -Infinity)
               : (bResponse?.currentEMA ?? -Infinity) -
-                  (aResponse?.currentEMA ?? -Infinity);
+              (aResponse?.currentEMA ?? -Infinity);
           case SORT_KEYS.CURRENT_RSI:
             return sortConfig.direction === "asc"
               ? (aResponse?.currentRSI ?? -Infinity) -
-                  (bResponse?.currentRSI ?? -Infinity)
+              (bResponse?.currentRSI ?? -Infinity)
               : (bResponse?.currentRSI ?? -Infinity) -
-                  (aResponse?.currentRSI ?? -Infinity);
+              (aResponse?.currentRSI ?? -Infinity);
           default:
             return 0;
         }
@@ -249,24 +306,27 @@ export function HistoricalInsights() {
               ...prev,
               sortedHistoricalResponses: {
                 ...prev.sortedHistoricalResponses,
-                [companyName]: prev.sortedHistoricalResponses[companyName]?.map(
-                  (res) =>
-                    res.instrumentKey === instrumentKey
-                      ? { ...res, isFavorite: !res.isFavorite }
-                      : res
-                ),
+                [companyName]: prev.sortedHistoricalResponses[companyName]
+                  ? {
+                      ...prev.sortedHistoricalResponses[companyName],
+                      isFavorite: prev.sortedHistoricalResponses[companyName].instrumentKey === instrumentKey
+                        ? !prev.sortedHistoricalResponses[companyName].isFavorite
+                        : prev.sortedHistoricalResponses[companyName].isFavorite,
+                    }
+                  : prev.sortedHistoricalResponses[companyName], // Keep the existing value if companyName doesn't exist
               },
             }
           : prev
       );
+      
     } catch (err) {
       console.error("Error updating favorite status:", err);
       setError("Failed to update favorite status. Please try again.");
     }
   };
 
-  const filteredData = data?.sortedHistoricalResponses
-    ? applyFilters(data.sortedHistoricalResponses)
+  const filteredData = data
+    ? applyFilters(data)
     : null;
 
   const handleDryData = filteredData ? sortDryData(filteredData) : null;
@@ -280,11 +340,11 @@ export function HistoricalInsights() {
 
   const paginatedData = sortedData
     ? Object.fromEntries(
-        Object.entries(sortedData).slice(
-          (currentPage - 1) * itemsPerPage,
-          currentPage * itemsPerPage
-        )
+      Object.entries(sortedData).slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
       )
+    )
     : null;
 
   const handlePageChange = (page: number) => {
@@ -400,9 +460,8 @@ export function HistoricalInsights() {
           >
             {`Model - ${model.charAt(model.length - 1).toUpperCase()}`}
             <span
-              className={`absolute top-0 right-0 w-5 h-3 rounded-md ${
-                activeFilters.includes(model) ? "bg-green-500" : "bg-red-500"
-              }`}
+              className={`absolute top-0 right-0 w-5 h-3 rounded-md ${activeFilters.includes(model) ? "bg-green-500" : "bg-red-500"
+                }`}
               style={{
                 borderTopRightRadius: "0.375rem",
                 borderBottomLeftRadius: "0.375rem",
@@ -412,59 +471,57 @@ export function HistoricalInsights() {
           </Button>
         ))}
 
-<div className="flex items-center gap-4">
-        <Input
-          type="number"
-          placeholder="Min RSI"
-          className="w-20 bg-white"
-          value={numericFilters.rsi.min}
-          onChange={(e) =>
-            setNumericFilter(
-              "rsi",
-              e.target.value ? Number(e.target.value) : null,
-              "min"
-            )
-          }
-        />
-        <Input
-          type="number"
-          placeholder="Max RSI"
-          className="w-20 bg-white"
-          value={numericFilters.rsi.max}
-          onChange={(e) =>
-            setNumericFilter(
-              "rsi",
-              e.target.value ? Number(e.target.value) : null,
-              "max"
-            )
-          }
-        />
-        <Button
-          onClick={() => toggleFilter("RSI")}
-          className={`relative bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold py-3 px-6 rounded-md transition duration-300`}
-        >
-          RSI Filter
-          <span
-            className={`absolute top-0 right-0 w-5 h-3 rounded-md ${
-              activeFilters.includes("RSI") ? "bg-green-500" : "bg-red-500"
-            }`}
-            style={{
-              borderTopRightRadius: "0.375rem",
-              borderBottomLeftRadius: "0.375rem",
-              transform: "translate(0%, 0%)",
-            }}
-          ></span>
-        </Button>
-      </div>
+        <div className="flex items-center gap-4">
+          <Input
+            type="number"
+            placeholder="Min RSI"
+            className="w-20 bg-white"
+            value={numericFilters.rsi.min}
+            onChange={(e) =>
+              setNumericFilter(
+                "rsi",
+                e.target.value ? Number(e.target.value) : null,
+                "min"
+              )
+            }
+          />
+          <Input
+            type="number"
+            placeholder="Max RSI"
+            className="w-20 bg-white"
+            value={numericFilters.rsi.max}
+            onChange={(e) =>
+              setNumericFilter(
+                "rsi",
+                e.target.value ? Number(e.target.value) : null,
+                "max"
+              )
+            }
+          />
+          <Button
+            onClick={() => toggleFilter("RSI")}
+            className={`relative bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold py-3 px-6 rounded-md transition duration-300`}
+          >
+            RSI Filter
+            <span
+              className={`absolute top-0 right-0 w-5 h-3 rounded-md ${activeFilters.includes("RSI") ? "bg-green-500" : "bg-red-500"
+                }`}
+              style={{
+                borderTopRightRadius: "0.375rem",
+                borderBottomLeftRadius: "0.375rem",
+                transform: "translate(0%, 0%)",
+              }}
+            ></span>
+          </Button>
+        </div>
         <Button
           onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
           className={`relative bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold py-3 px-6 rounded-md transition duration-300`}
         >
           {"Show Favorites"}
           <span
-            className={`absolute top-0 right-0 w-5 h-3 rounded-md ${
-              showOnlyFavorites ? "bg-green-500" : "bg-red-500"
-            }`}
+            className={`absolute top-0 right-0 w-5 h-3 rounded-md ${showOnlyFavorites ? "bg-green-500" : "bg-red-500"
+              }`}
             style={{
               borderTopRightRadius: "0.375rem",
               borderBottomLeftRadius: "0.375rem",
@@ -489,11 +546,10 @@ export function HistoricalInsights() {
             <Button
               key={letter}
               onClick={() => handleAlphabetFilter(letter)}
-              className={`px-3 py-1 ${
-                activeAlphabet === letter
-                  ? "bg-blue-500 text-white"
-                  : "bg-purple-200 text-gray-700"
-              }`}
+              className={`px-3 py-1 ${activeAlphabet === letter
+                ? "bg-blue-500 text-white"
+                : "bg-purple-200 text-gray-700"
+                }`}
             >
               {letter}
             </Button>
@@ -544,11 +600,10 @@ export function HistoricalInsights() {
         <div>
           {selectedModels.length === 1 && (
             <Button
-              className={`relative font-bold py-3 px-6 rounded-md transition duration-300 ${
-                activateDryMode
-                  ? "bg-green-500 hover:bg-green-600"
-                  : "bg-red-500 hover:bg-red-600"
-              } text-white`}
+              className={`relative font-bold py-3 px-6 rounded-md transition duration-300 ${activateDryMode
+                ? "bg-green-500 hover:bg-green-600"
+                : "bg-red-500 hover:bg-red-600"
+                } text-white`}
               onClick={handleDryButtonClick}
             >
               DRY MODE
