@@ -1,5 +1,6 @@
+"use client";
 import { HistoricalInsights } from "../components/HistoricalInsights";
-import Link from "next/link";
+
 
 export default function Home() {
   return (
