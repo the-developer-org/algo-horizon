@@ -15,7 +15,7 @@ export interface HistoricalResponse {
     currentRSI: number | null;
     isFavorite : boolean;
     currTrend : string;
-    aboveEma: boolean;
+    aboveEMA: boolean;
   }
   
   export interface ApiResponse {

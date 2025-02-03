@@ -259,20 +259,19 @@ export function HistoricalInsights() {
                   activeFilters.includes("RSI") && responses.currentRSI &&
                   (responses.currentRSI < numericFilters.rsi.min ||
                     responses.currentRSI > numericFilters.rsi.max);
+
+                    const isAboveEMAFiltered =
+  activeFilters.includes("200EMA") && responses.aboveEMA !== undefined &&
+  !responses.aboveEMA;
+
   
-                console.log('RSI Filter:', {
-                  isActive: activeFilters.includes("RSI"),
-                  currentRSI: responses.currentRSI,
-                  min: numericFilters.rsi.min,
-                  max: numericFilters.rsi.max,
-                  isFiltered: isRsiFiltered
-                });
   
                 return (
                   !isHidden &&
                   !isFavoriteFiltered &&
                   modelsValid &&
-                  !isRsiFiltered
+                  !isRsiFiltered && 
+                  !isAboveEMAFiltered
                 );
               })
         ])
@@ -291,12 +290,6 @@ export function HistoricalInsights() {
             return sortConfig.direction === "asc"
               ? aName.localeCompare(bName)
               : bName.localeCompare(aName);
-          case SORT_KEYS.CURRENT_EMA:
-            return sortConfig.direction === "asc"
-              ? (aResponse?.currentEMA ?? -Infinity) -
-              (bResponse?.currentEMA ?? -Infinity)
-              : (bResponse?.currentEMA ?? -Infinity) -
-              (aResponse?.currentEMA ?? -Infinity);
         case SORT_KEYS.CURRENT_RSI:
           return sortConfig.direction === "asc"
               ? (aResponse?.currentRSI ?? -Infinity) -
@@ -436,17 +429,7 @@ export function HistoricalInsights() {
                 : "↑"
               : ""}
           </Button>
-          <Button
-            onClick={() => handleSort("currentEMA")}
-            className="bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded transition duration-300"
-          >
-            Sort by EMA{" "}
-            {sortConfig.key === "currentEMA"
-              ? sortConfig.direction === "asc"
-                ? "↓"
-                : "↑"
-              : ""}
-          </Button>
+
           <Button
             onClick={() => handleSort("currentRSI")}
             className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded transition duration-300"
@@ -540,6 +523,21 @@ export function HistoricalInsights() {
             ></span>
           </Button>
         </div>
+        <Button
+            onClick={() => toggleFilter("200EMA")}
+            className={`relative bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold py-3 px-6 rounded-md transition duration-300`}
+          >
+            200 EMA
+            <span
+              className={`absolute top-0 right-0 w-5 h-3 rounded-md ${activeFilters.includes("200EMA") ? "bg-green-500" : "bg-red-500"
+                }`}
+              style={{
+                borderTopRightRadius: "0.375rem",
+                borderBottomLeftRadius: "0.375rem",
+                transform: "translate(0%, 0%)",
+              }}
+            ></span>
+          </Button>
         <Button
           onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
           className={`relative bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold py-3 px-6 rounded-md transition duration-300`}
