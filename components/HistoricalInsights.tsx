@@ -84,8 +84,8 @@ export function HistoricalInsights() {
 
   const fetchData = async () => {
     try {
-      const response = await fetch(
-        "https://saved-dassie-60359.upstash.io/get/AlgoHorizon", // Replace 'foo' with your Redis key
+      const response1 = await fetch(
+        "https://saved-dassie-60359.upstash.io/get/AlgoHorizon",
         {
           method: "GET",
           headers: {
@@ -93,13 +93,40 @@ export function HistoricalInsights() {
           },
         }
       );
+  
+      const response2 = await fetch(
+        "https://saved-dassie-60359.upstash.io/get/AlgoHorizon2",
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+          },
+        }
+      );
+  
+      // Get the data from both responses
+      const data1 = await response1.json();
+      const data2 = await response2.json();
 
-      const data = await response.json();
-      const parsedData: ApiResponse = JSON.parse(data.result);
-      console.log("Redis Parsed Data:", parsedData);
+   const parsedData1: ApiResponse = JSON.parse(data1.result);
+    const parsedData2: ApiResponse = JSON.parse(data2.result);
 
+   // Merge the `sortedHistoricalResponses` and `sortedHistoricalResponses2` into one
+   const mergedSortedHistoricalResponses = {
+    ...parsedData1.sortedHistoricalResponses, 
+    ...parsedData2.sortedHistoricalResponses
+  };
 
-      setData(parsedData);
+  // Now set the merged data with the combined `sortedHistoricalResponses`
+  const mergedData = {
+    ...parsedData1,
+    sortedHistoricalResponses: mergedSortedHistoricalResponses,
+  };
+
+  console.log("Merged Data:", mergedData);
+
+  // Now set the merged data to your state
+  setData(mergedData);
     } catch (err) {
       console.error("Error fetching from Redis:", err);
     } finally {
@@ -149,7 +176,6 @@ export function HistoricalInsights() {
   };
 
   const sortDryData = (data: { [key: string]: HistoricalResponse[] }) => {
-    console.log(data);
     return Object.fromEntries(
       Object.entries(data)
         .filter(([companyName]) => {
@@ -179,7 +205,7 @@ export function HistoricalInsights() {
     const activeModelFilters = activeFilters.filter((filter) =>
       MODELS.includes(filter)
     );
-  
+
     return Object.fromEntries(
       Object.entries(data.sortedHistoricalResponses)
         .filter(([companyName, responses]) => {
@@ -212,7 +238,7 @@ export function HistoricalInsights() {
                   max: numericFilters.rsi.max,
                   isFiltered: isRsiFiltered
                 });
-  
+
                 return (
                   !isHidden &&
                   !isFavoriteFiltered &&
@@ -260,8 +286,8 @@ export function HistoricalInsights() {
         const aResponse = aResponses[0];
         const bResponse = bResponses[0];
 
-        switch (sortConfig.key) {
-          case SORT_KEYS.NAME:
+      switch (sortConfig.key) {
+        case SORT_KEYS.NAME:
             return sortConfig.direction === "asc"
               ? aName.localeCompare(bName)
               : bName.localeCompare(aName);
@@ -271,15 +297,15 @@ export function HistoricalInsights() {
               (bResponse?.currentEMA ?? -Infinity)
               : (bResponse?.currentEMA ?? -Infinity) -
               (aResponse?.currentEMA ?? -Infinity);
-          case SORT_KEYS.CURRENT_RSI:
-            return sortConfig.direction === "asc"
+        case SORT_KEYS.CURRENT_RSI:
+          return sortConfig.direction === "asc"
               ? (aResponse?.currentRSI ?? -Infinity) -
               (bResponse?.currentRSI ?? -Infinity)
               : (bResponse?.currentRSI ?? -Infinity) -
               (aResponse?.currentRSI ?? -Infinity);
-          default:
+        default:
             return 0;
-        }
+      }
       }
     );
     return Object.fromEntries(sortedEntries);
@@ -521,7 +547,7 @@ export function HistoricalInsights() {
           {"Show Favorites"}
           <span
             className={`absolute top-0 right-0 w-5 h-3 rounded-md ${showOnlyFavorites ? "bg-green-500" : "bg-red-500"
-              }`}
+            }`}
             style={{
               borderTopRightRadius: "0.375rem",
               borderBottomLeftRadius: "0.375rem",
