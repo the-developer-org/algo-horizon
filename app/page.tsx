@@ -11,21 +11,23 @@ export default function Home() {
       }}
     >
       <div className="min-h-screen bg-black bg-opacity-60">
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 flex flex-col items-center justify-center">
           <div
-            className="text-4xl font-bold mb-8 text-center text-white-200 uppercase mx-auto bg-purple-200 p-4 rounded-lg "
+            className="text-2xl sm:text-4xl font-bold mb-4 sm:mb-8 text-center text-white-200 uppercase mx-auto bg-purple-200 p-2 sm:p-4 rounded-lg max-w-full"
             style={{
-              width: "max-content",
-              paddingLeft: "80px",
-              backgroundColor: "rgba(19, 191, 73, 0.42)", // Correct RGBA usage
+              paddingLeft: "20px",
+              paddingRight: "20px",
+              backgroundColor: "rgba(19, 191, 73, 0.42)",
             }}
           >
-            <span style={{ letterSpacing: "80px" }}>AlgoHorizon</span>
+            <span style={{ letterSpacing: "0.5em" }} className="inline-block">
+              AlgoHorizon
+            </span>
           </div>
 
           <HistoricalInsights />
         </div>
       </div>
     </div>
-  );
+  )
 }

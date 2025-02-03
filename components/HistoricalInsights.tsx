@@ -93,7 +93,7 @@ export function HistoricalInsights() {
           },
         }
       );
-  
+
       const response2 = await fetch(
         "https://saved-dassie-60359.upstash.io/get/AlgoHorizon2",
         {
@@ -103,30 +103,30 @@ export function HistoricalInsights() {
           },
         }
       );
-  
+
       // Get the data from both responses
       const data1 = await response1.json();
       const data2 = await response2.json();
 
-   const parsedData1: ApiResponse = JSON.parse(data1.result);
-    const parsedData2: ApiResponse = JSON.parse(data2.result);
+      const parsedData1: ApiResponse = JSON.parse(data1.result);
+      const parsedData2: ApiResponse = JSON.parse(data2.result);
 
-   // Merge the `sortedHistoricalResponses` and `sortedHistoricalResponses2` into one
-   const mergedSortedHistoricalResponses = {
-    ...parsedData1.sortedHistoricalResponses, 
-    ...parsedData2.sortedHistoricalResponses
-  };
+      // Merge the `sortedHistoricalResponses` and `sortedHistoricalResponses2` into one
+      const mergedSortedHistoricalResponses = {
+        ...parsedData1.sortedHistoricalResponses,
+        ...parsedData2.sortedHistoricalResponses
+      };
 
-  // Now set the merged data with the combined `sortedHistoricalResponses`
-  const mergedData = {
-    ...parsedData1,
-    sortedHistoricalResponses: mergedSortedHistoricalResponses,
-  };
+      // Now set the merged data with the combined `sortedHistoricalResponses`
+      const mergedData = {
+        ...parsedData1,
+        sortedHistoricalResponses: mergedSortedHistoricalResponses,
+      };
 
-  console.log("Merged Data:", mergedData);
+      console.log("Merged Data:", mergedData);
 
-  // Now set the merged data to your state
-  setData(mergedData);
+      // Now set the merged data to your state
+      setData(mergedData);
     } catch (err) {
       console.error("Error fetching from Redis:", err);
     } finally {
@@ -218,87 +218,87 @@ export function HistoricalInsights() {
           companyName,
           Array.isArray(responses) // Check if responses is an array
             ? responses.filter((response: HistoricalResponse) => {
-                const cardId = `${companyName}-${response.formattedLastBoomDataUpdatedAt}`;
-                const isHidden = hiddenCards.includes(cardId);
-                const isFavoriteFiltered =
-                  activeFilters.includes("Favorites") && !response.isFavorite;
-                const modelsValid =
-                  Object.keys(response.formattedBoomDayDatesMap).some((model) =>
-                    activeModelFilters.includes(model)
-                  );
-                const isRsiFiltered =
-                  activeFilters.includes("RSI") && response.currentRSI &&
-                  (response.currentRSI < numericFilters.rsi.min ||
-                    response.currentRSI > numericFilters.rsi.max);
-  
-                console.log('RSI Filter:', {
-                  isActive: activeFilters.includes("RSI"),
-                  currentRSI: response.currentRSI,
-                  min: numericFilters.rsi.min,
-                  max: numericFilters.rsi.max,
-                  isFiltered: isRsiFiltered
-                });
-
-                return (
-                  !isHidden &&
-                  !isFavoriteFiltered &&
-                  modelsValid &&
-                  !isRsiFiltered
+              const cardId = `${companyName}-${response.formattedLastBoomDataUpdatedAt}`;
+              const isHidden = hiddenCards.includes(cardId);
+              const isFavoriteFiltered =
+                activeFilters.includes("Favorites") && !response.isFavorite;
+              const modelsValid =
+                Object.keys(response.formattedBoomDayDatesMap).some((model) =>
+                  activeModelFilters.includes(model)
                 );
-              })
+              const isRsiFiltered =
+                activeFilters.includes("RSI") && response.currentRSI &&
+                (response.currentRSI < numericFilters.rsi.min ||
+                  response.currentRSI > numericFilters.rsi.max);
+
+              console.log('RSI Filter:', {
+                isActive: activeFilters.includes("RSI"),
+                currentRSI: response.currentRSI,
+                min: numericFilters.rsi.min,
+                max: numericFilters.rsi.max,
+                isFiltered: isRsiFiltered
+              });
+
+              return (
+                !isHidden &&
+                !isFavoriteFiltered &&
+                modelsValid &&
+                !isRsiFiltered
+              );
+            })
             : [responses].filter((response: HistoricalResponse) => { // Handle single object case
-                const cardId = `${companyName}-${responses.formattedLastBoomDataUpdatedAt}`;
-                const isHidden = hiddenCards.includes(cardId);
-                const isFavoriteFiltered =
-                  activeFilters.includes("Favorites") && !responses.isFavorite;
-                const modelsValid =
-                  Object.keys(responses.formattedBoomDayDatesMap).some((model) =>
-                    activeModelFilters.includes(model)
-                  );
-                const isRsiFiltered =
-                  activeFilters.includes("RSI") && responses.currentRSI &&
-                  (responses.currentRSI < numericFilters.rsi.min ||
-                    responses.currentRSI > numericFilters.rsi.max);
-
-                    const isAboveEMAFiltered =
-  activeFilters.includes("200EMA") && responses.aboveEMA !== undefined &&
-  !responses.aboveEMA;
-
-  
-  
-                return (
-                  !isHidden &&
-                  !isFavoriteFiltered &&
-                  modelsValid &&
-                  !isRsiFiltered && 
-                  !isAboveEMAFiltered
+              const cardId = `${companyName}-${responses.formattedLastBoomDataUpdatedAt}`;
+              const isHidden = hiddenCards.includes(cardId);
+              const isFavoriteFiltered =
+                activeFilters.includes("Favorites") && !responses.isFavorite;
+              const modelsValid =
+                Object.keys(responses.formattedBoomDayDatesMap).some((model) =>
+                  activeModelFilters.includes(model)
                 );
-              })
+              const isRsiFiltered =
+                activeFilters.includes("RSI") && responses.currentRSI &&
+                (responses.currentRSI < numericFilters.rsi.min ||
+                  responses.currentRSI > numericFilters.rsi.max);
+
+              const isAboveEMAFiltered =
+                activeFilters.includes("200EMA") && responses.aboveEMA !== undefined &&
+                !responses.aboveEMA;
+
+
+
+              return (
+                !isHidden &&
+                !isFavoriteFiltered &&
+                modelsValid &&
+                !isRsiFiltered &&
+                !isAboveEMAFiltered
+              );
+            })
         ])
         .filter(([, responses]) => responses.length > 0)
     );
   };
-  
+
   const sortData = (data: { [key: string]: HistoricalResponse[] }) => {
     const sortedEntries = Object.entries(data).sort(
       ([aName, aResponses], [bName, bResponses]) => {
         const aResponse = aResponses[0];
         const bResponse = bResponses[0];
 
-      switch (sortConfig.key) {
-        case SORT_KEYS.NAME:
+        switch (sortConfig.key) {
+          case SORT_KEYS.NAME:
             return sortConfig.direction === "asc"
               ? aName.localeCompare(bName)
               : bName.localeCompare(aName);
-        case SORT_KEYS.CURRENT_RSI:
-          return sortConfig.direction === "asc"
+          case SORT_KEYS.CURRENT_RSI:
+            return sortConfig.direction === "asc"
               ? (aResponse?.currentRSI ?? -Infinity) -
               (bResponse?.currentRSI ?? -Infinity)
               : (bResponse?.currentRSI ?? -Infinity) -
               (aResponse?.currentRSI ?? -Infinity);
-        default:
+          default:
             return 0;
-      }
+        }
       }
     );
     return Object.fromEntries(sortedEntries);
@@ -322,22 +322,22 @@ export function HistoricalInsights() {
       setData((prev) =>
         prev
           ? {
-              ...prev,
-              sortedHistoricalResponses: {
-                ...prev.sortedHistoricalResponses,
-                [companyName]: prev.sortedHistoricalResponses[companyName]
-                  ? {
-                      ...prev.sortedHistoricalResponses[companyName],
-                      isFavorite: prev.sortedHistoricalResponses[companyName].instrumentKey === instrumentKey
-                        ? !prev.sortedHistoricalResponses[companyName].isFavorite
-                        : prev.sortedHistoricalResponses[companyName].isFavorite,
-                    }
-                  : prev.sortedHistoricalResponses[companyName], // Keep the existing value if companyName doesn't exist
-              },
-            }
+            ...prev,
+            sortedHistoricalResponses: {
+              ...prev.sortedHistoricalResponses,
+              [companyName]: prev.sortedHistoricalResponses[companyName]
+                ? {
+                  ...prev.sortedHistoricalResponses[companyName],
+                  isFavorite: prev.sortedHistoricalResponses[companyName].instrumentKey === instrumentKey
+                    ? !prev.sortedHistoricalResponses[companyName].isFavorite
+                    : prev.sortedHistoricalResponses[companyName].isFavorite,
+                }
+                : prev.sortedHistoricalResponses[companyName], // Keep the existing value if companyName doesn't exist
+            },
+          }
           : prev
       );
-      
+
     } catch (err) {
       console.error("Error updating favorite status:", err);
       setError("Failed to update favorite status. Please try again.");
@@ -403,148 +403,129 @@ export function HistoricalInsights() {
 
   if (error) return <div className="text-center text-red-600">{error}</div>;
 
+ 
   return (
-    <div className="container mx-auto px-4">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold" style={{ color: "#f5f5dc" }}>
+    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+        <h2 className="text-xl sm:text-2xl font-bold" style={{ color: "#f5f5dc" }}>
           Historical Insights
         </h2>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={handleRefresh}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-300 flex items-center"
+            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 flex items-center text-xs sm:text-sm"
             disabled={loading}
           >
-            <RefreshCw className="mr-2 h-5 w-5" />
+            <RefreshCw className="mr-1 h-3 w-3 sm:h-5 sm:w-5" />
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
           <Button
             onClick={() => handleSort("name")}
-            className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded transition duration-300"
+            className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 text-xs sm:text-sm"
           >
-            Sort by Name{" "}
-            {sortConfig.key === "name"
-              ? sortConfig.direction === "asc"
-                ? "↓"
-                : "↑"
-              : ""}
+            Sort by Name {sortConfig.key === "name" ? (sortConfig.direction === "asc" ? "↓" : "↑") : ""}
           </Button>
-
           <Button
             onClick={() => handleSort("currentRSI")}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded transition duration-300"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 text-xs sm:text-sm"
           >
-            Sort by RSI{" "}
-            {sortConfig.key === "currentRSI"
-              ? sortConfig.direction === "asc"
-                ? "↓"
-                : "↑"
-              : ""}
+            Sort by RSI {sortConfig.key === "currentRSI" ? (sortConfig.direction === "asc" ? "↓" : "↑") : ""}
           </Button>
           <Button
             onClick={() => handleSort("maxVolumeChange")}
-            className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition duration-300"
+            className="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 text-xs sm:text-sm"
           >
             Sort by Max Volume Change{" "}
-            {sortConfig.key === "maxVolumeChange"
-              ? sortConfig.direction === "asc"
-                ? "↑"
-                : "↓"
-              : ""}
+            {sortConfig.key === "maxVolumeChange" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
           </Button>
         </div>
       </div>
-      <div className="mb-4 flex flex-wrap items-center gap-4">
-        <span style={{ color: "#f5f5dc" }}>
+      <div className="mb-4 flex flex-wrap items-start sm:items-center gap-2 sm:gap-4">
+        <span className="w-full sm:w-auto text-sm sm:text-base mb-2 sm:mb-0" style={{ color: "#f5f5dc" }}>
           Total Companies: {totalCompanies}
         </span>
-        {MODELS.map((model) => (
-          <Button
-            key={model}
-            onClick={() => {
-              toggleFilter(model);
-              toggleModelFilter(model);
-            }}
-            className={`relative bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-3 px-6 rounded-md transition duration-300`}
-          >
-            {`Model - ${model.charAt(model.length - 1).toUpperCase()}`}
-            <span
-              className={`absolute top-0 right-0 w-5 h-3 rounded-md ${activeFilters.includes(model) ? "bg-green-500" : "bg-red-500"
-                }`}
-              style={{
-                borderTopRightRadius: "0.375rem",
-                borderBottomLeftRadius: "0.375rem",
-                transform: "translate(0%, 0%)",
+        <div className="flex flex-wrap gap-2">
+          {MODELS.map((model) => (
+            <Button
+              key={model}
+              onClick={() => {
+                toggleFilter(model)
+                toggleModelFilter(model)
               }}
-            ></span>
-          </Button>
-        ))}
-
-        <div className="flex items-center gap-4">
+              className={`relative bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 text-xs sm:text-sm`}
+            >
+              {`Model - ${model.charAt(model.length - 1).toUpperCase()}`}
+              <span
+                className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${
+                  activeFilters.includes(model) ? "bg-green-500" : "bg-red-500"
+                }`}
+                style={{
+                  borderTopRightRadius: "0.375rem",
+                  borderBottomLeftRadius: "0.375rem",
+                  transform: "translate(0%, 0%)",
+                }}
+              ></span>
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-2">
           <Input
             type="number"
             placeholder="Min RSI"
-            className="w-20 bg-white"
+            className="w-16 sm:w-20 bg-white text-xs sm:text-sm"
             value={numericFilters.rsi.min}
-            onChange={(e) =>
-              setNumericFilter(
-                "rsi",
-                e.target.value ? Number(e.target.value) : null,
-                "min"
-              )
-            }
+            onChange={(e) => setNumericFilter("rsi", e.target.value ? Number(e.target.value) : null, "min")}
           />
           <Input
             type="number"
             placeholder="Max RSI"
-            className="w-20 bg-white"
+            className="w-16 sm:w-20 bg-white text-xs sm:text-sm"
             value={numericFilters.rsi.max}
-            onChange={(e) =>
-              setNumericFilter(
-                "rsi",
-                e.target.value ? Number(e.target.value) : null,
-                "max"
-              )
-            }
+            onChange={(e) => setNumericFilter("rsi", e.target.value ? Number(e.target.value) : null, "max")}
           />
-          <Button
-            onClick={() => toggleFilter("RSI")}
-            className={`relative bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold py-3 px-6 rounded-md transition duration-300`}
-          >
-            RSI Filter
-            <span
-              className={`absolute top-0 right-0 w-5 h-3 rounded-md ${activeFilters.includes("RSI") ? "bg-green-500" : "bg-red-500"
-                }`}
-              style={{
-                borderTopRightRadius: "0.375rem",
-                borderBottomLeftRadius: "0.375rem",
-                transform: "translate(0%, 0%)",
-              }}
-            ></span>
-          </Button>
         </div>
         <Button
-            onClick={() => toggleFilter("200EMA")}
-            className={`relative bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold py-3 px-6 rounded-md transition duration-300`}
-          >
-            200 EMA
-            <span
-              className={`absolute top-0 right-0 w-5 h-3 rounded-md ${activeFilters.includes("200EMA") ? "bg-green-500" : "bg-red-500"
-                }`}
-              style={{
-                borderTopRightRadius: "0.375rem",
-                borderBottomLeftRadius: "0.375rem",
-                transform: "translate(0%, 0%)",
-              }}
-            ></span>
-          </Button>
+          onClick={() => toggleFilter("RSI")}
+          className={`relative bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 text-xs sm:text-sm`}
+        >
+          RSI Filter
+          <span
+            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${
+              activeFilters.includes("RSI") ? "bg-green-500" : "bg-red-500"
+            }`}
+            style={{
+              borderTopRightRadius: "0.375rem",
+              borderBottomLeftRadius: "0.375rem",
+              transform: "translate(0%, 0%)",
+            }}
+          ></span>
+        </Button>
+        <Button
+          onClick={() => toggleFilter("200EMA")}
+          className={`relative bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 text-xs sm:text-sm`}
+        >
+          200 EMA
+          <span
+            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${
+              activeFilters.includes("200EMA") ? "bg-green-500" : "bg-red-500"
+            }`}
+            style={{
+              borderTopRightRadius: "0.375rem",
+              borderBottomLeftRadius: "0.375rem",
+              transform: "translate(0%, 0%)",
+            }}
+          ></span>
+        </Button>
         <Button
           onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-          className={`relative bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold py-3 px-6 rounded-md transition duration-300`}
+          className={`relative bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 text-xs sm:text-sm`}
         >
           {"Show Favorites"}
           <span
-            className={`absolute top-0 right-0 w-5 h-3 rounded-md ${showOnlyFavorites ? "bg-green-500" : "bg-red-500"
+            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${
+              showOnlyFavorites ? "bg-green-500" : "bg-red-500"
             }`}
             style={{
               borderTopRightRadius: "0.375rem",
@@ -560,36 +541,30 @@ export function HistoricalInsights() {
           placeholder="Search companies..."
           value={searchTerm}
           onChange={handleSearch}
-          className="w-full max-w-xs bg-gray-800 text-white px-4 py-2 rounded-md"
+          className="w-full max-w-xs bg-gray-800 text-white px-2 sm:px-4 py-1 sm:py-2 rounded-md text-xs sm:text-sm"
           style={{ color: "#f5f5dc" }}
         />
       </div>
-      <div className="mb-4 flex flex-wrap gap-6">
-        {Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)).map(
-          (letter) => (
-            <Button
-              key={letter}
-              onClick={() => handleAlphabetFilter(letter)}
-              className={`px-3 py-1 ${activeAlphabet === letter
-                ? "bg-blue-500 text-white"
-                : "bg-purple-200 text-gray-700"
-                }`}
-            >
-              {letter}
-            </Button>
-          )
-        )}
+      <div className="mb-4 flex flex-wrap gap-1 sm:gap-2">
+        {Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)).map((letter) => (
+          <Button
+            key={letter}
+            onClick={() => handleAlphabetFilter(letter)}
+            className={`px-1 sm:px-3 py-1 text-xs sm:text-sm ${
+              activeAlphabet === letter ? "bg-blue-500 text-white" : "bg-purple-200 text-gray-700"
+            }`}
+          >
+            {letter}
+          </Button>
+        ))}
       </div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4">
         <div className="flex items-center gap-2">
-          <span className="text-sm" style={{ color: "#f5f5dc" }}>
+          <span className="text-xs sm:text-sm" style={{ color: "#f5f5dc" }}>
             Items per page:
           </span>
-          <Select
-            value={itemsPerPage.toString()}
-            onValueChange={handleItemsPerPageChange}
-          >
-            <SelectTrigger className="w-[100px]" style={{ color: "#f5f5dc" }}>
+          <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+            <SelectTrigger className="w-[80px] sm:w-[100px]" style={{ color: "#f5f5dc" }}>
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent>
@@ -605,35 +580,34 @@ export function HistoricalInsights() {
           <Button
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
+            className="text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-4"
           >
             Previous
           </Button>
-          <span className="text-sm" style={{ color: "#f5f5dc" }}>
+          <span className="text-xs sm:text-sm" style={{ color: "#f5f5dc" }}>
             Page {currentPage} of {totalPages}
           </span>
           <Button
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
+            className="text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-4"
           >
             Next
           </Button>
         </div>
       </div>
-      <div className="mb-4" style={{ justifyContent: "space-between" }}>
+      <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <HiddenCardsManager hiddenCards={hiddenCards} unhideCard={unhideCard} />
-        <div>
-          {selectedModels.length === 1 && (
-            <Button
-              className={`relative font-bold py-3 px-6 rounded-md transition duration-300 ${activateDryMode
-                ? "bg-green-500 hover:bg-green-600"
-                : "bg-red-500 hover:bg-red-600"
-                } text-white`}
-              onClick={handleDryButtonClick}
-            >
-              DRY MODE
-            </Button>
-          )}
-        </div>
+        {selectedModels.length === 1 && (
+          <Button
+            className={`relative font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 ${
+              activateDryMode ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"
+            } text-white text-xs sm:text-sm`}
+            onClick={handleDryButtonClick}
+          >
+            DRY MODE
+          </Button>
+        )}
       </div>
 
       {loading && !data ? (
@@ -641,34 +615,30 @@ export function HistoricalInsights() {
       ) : !paginatedData ? (
         <div className="text-center text-gray-600">No data available</div>
       ) : (
-        <div className="relative overflow-hidden rounded-lg p-4 bg-gradient-to-br from-gray-100 to-gray-200">
-          <CompanyCards
-            sortedData={paginatedData}
-            hideCard={hideCard}
-            updateFavorites={updateFavorites}
-          />
+        <div className="relative overflow-hidden rounded-lg p-2 sm:p-4 bg-gradient-to-br from-gray-100 to-gray-200">
+          <CompanyCards sortedData={paginatedData} hideCard={hideCard} updateFavorites={updateFavorites} />
         </div>
       )}
 
-      <div className="flex items-end justify-end mt-10">
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-          >
-            Previous
-          </Button>
-          <span className="text-sm" style={{ color: "#f5f5dc" }}>
-            Page {currentPage} of {totalPages}
-          </span>
-          <Button
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-          >
-            Next
-          </Button>
-        </div>
+      <div className="flex items-center justify-center sm:justify-end mt-4 sm:mt-10 gap-2">
+        <Button
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-4"
+        >
+          Previous
+        </Button>
+        <span className="text-xs sm:text-sm" style={{ color: "#f5f5dc" }}>
+          Page {currentPage} of {totalPages}
+        </span>
+        <Button
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-4"
+        >
+          Next
+        </Button>
       </div>
     </div>
-  );
+  )
 }
