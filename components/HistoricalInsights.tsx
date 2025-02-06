@@ -60,79 +60,27 @@ export function HistoricalInsights() {
     setHiddenCards((prev) => [...prev, cardId]);
   };
 
-  // const fetchData = useCallback(async () => {
-  //   setLoading(true);
-  //   setError(null);
-  //   try {
-
-  //     const response = await fetch(
-  //       "http://localhost:8050/api/historical-data/fetch-previous-insights"
-  //     );
-  //     if (!response.ok) {
-  //       throw new Error("Failed to fetch data");
-  //     }
-  //     const result: ApiResponse = await response.json();
-  //     setData(result);
-  //   } catch (err) {
-  //     setError("An error occurred while fetching data");
-  //     console.error(err);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // }, []);
-
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const response1 = await fetch(
-        "https://saved-dassie-60359.upstash.io/get/AlgoHorizon",
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-          },
-        }
+
+      const response = await fetch(
+        "https://algo-horizon-be.onrender.com/api/historical-data/fetch-previous-insights"
       );
-
-      const response2 = await fetch(
-        "https://saved-dassie-60359.upstash.io/get/AlgoHorizon2",
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-          },
-        }
-      );
-
-      // Get the data from both responses
-      const data1 = await response1.json();
-      const data2 = await response2.json();
-
-      const parsedData1: ApiResponse = JSON.parse(data1.result);
-      const parsedData2: ApiResponse = JSON.parse(data2.result);
-
-      // Merge the `sortedHistoricalResponses` and `sortedHistoricalResponses2` into one
-      const mergedSortedHistoricalResponses = {
-        ...parsedData1.sortedHistoricalResponses,
-        ...parsedData2.sortedHistoricalResponses
-      };
-
-      // Now set the merged data with the combined `sortedHistoricalResponses`
-      const mergedData = {
-        ...parsedData1,
-        sortedHistoricalResponses: mergedSortedHistoricalResponses,
-      };
-
-      console.log("Merged Data:", mergedData);
-
-      // Now set the merged data to your state
-      setData(mergedData);
+      if (!response.ok) {
+        throw new Error("Failed to fetch data");
+      }
+      const result: ApiResponse = await response.json();
+      setData(result);
     } catch (err) {
-      console.error("Error fetching from Redis:", err);
+      setError("An error occurred while fetching data");
+      console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
 
   useEffect(() => {
     fetchData();

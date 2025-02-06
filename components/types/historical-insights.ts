@@ -16,6 +16,13 @@ export interface HistoricalResponse {
     isFavorite : boolean;
     currTrend : string;
     aboveEMA: boolean;
+    support : number;
+    resistance : number;
+    latestOpen : number;
+    latestClose : number;
+    latestHigh : number;
+    latestLow : number;
+    latestVolume : number;
   }
   
   export interface ApiResponse {

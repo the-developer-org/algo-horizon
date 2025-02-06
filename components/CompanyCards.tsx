@@ -105,8 +105,24 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites }: 
                       <span className="text-blue-800 font-medium">{response.currentEMA?.toFixed(2) ?? "N/A"}</span>
                     </p>
                     <p className="text-xs flex justify-between">
-                      <span className="text-blue-600">RSI:</span>
-                      <span className="text-blue-800 font-medium">{response.currentRSI?.toFixed(2) ?? "N/A"}</span>
+                      <span className="text-red-600">RSI:</span>
+                      <span className="text-red-800 font-medium">{response.currentRSI?.toFixed(2) ?? "N/A"}</span>
+                    </p>
+                    <p className="text-xs flex justify-between">
+                      <span className="text-blue-600">Support:</span>
+                      <span className="text-blue-800 font-medium">{response.support?.toFixed(2) ?? "N/A"}</span>
+                    </p>
+                    <p className="text-xs flex justify-between">
+                      <span className="text-red-600">Resistance:</span>
+                      <span className="text-red-800 font-medium">{response.resistance?.toFixed(2) ?? "N/A"}</span>
+                    </p>
+                    <p className="text-xs flex justify-between">
+                      <span className="text-blue-600">Latest High:</span>
+                      <span className="text-blue-800 font-medium">{response.latestHigh?.toFixed(2) ?? "N/A"}</span>
+                    </p>
+                    <p className="text-xs flex justify-between">
+                      <span className="text-red-600">Latest Close:</span>
+                      <span className="text-red-800 font-medium">{response.latestClose?.toFixed(2) ?? "N/A"}</span>
                     </p>
                   </div>
                 </div>
