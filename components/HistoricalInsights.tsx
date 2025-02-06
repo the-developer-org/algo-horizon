@@ -30,7 +30,8 @@ const SORT_KEYS = {
 
 export function HistoricalInsights() {
   const [data, setData] = useState<ApiResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{
     key: string;
@@ -65,8 +66,11 @@ export function HistoricalInsights() {
     setError(null);
     try {
 
+      const url = "https://algo-horizon-be.onrender.com/api/historical-data/fetch-previous-insights";
+      const devUrl = "http://localhost:8050/api/historical-data/fetch-previous-insights";
+
       const response = await fetch(
-        "https://algo-horizon-be.onrender.com/api/historical-data/fetch-previous-insights"
+        url
       );
       if (!response.ok) {
         throw new Error("Failed to fetch data");
@@ -89,6 +93,28 @@ export function HistoricalInsights() {
   const handleRefresh = () => {
     fetchData();
   };
+
+  const handleCandleUpdate = async () => {
+    setUpdating(true)
+    try {
+
+
+      const url = "https://algo-horizon-be.onrender.com/api/historical-data/fetch-latest-data";
+      const devUrl = "http://localhost:8050/api/historical-data/fetch-latest-data";
+
+      const response = await fetch(
+        url
+      );
+      setUpdating(false)
+    } catch (err) {
+      console.error("Error updating candle data:", err);
+      setError("Failed to update candle data. Please try again.");
+      setUpdating(false);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
 
   const toggleFilter = (filter: string) => {
     setActiveFilters((prev) =>
@@ -212,6 +238,14 @@ export function HistoricalInsights() {
                 activeFilters.includes("200EMA") && responses.aboveEMA !== undefined &&
                 !responses.aboveEMA;
 
+              const isR1Filtered =
+                activeFilters.includes("R1") && responses.didR1Occur !== undefined &&
+                !responses.didR1Occur;
+
+              const isR2Filtered =
+                activeFilters.includes("R2") && responses.didR2Occur !== undefined &&
+                !responses.didR2Occur;
+
 
 
               return (
@@ -219,7 +253,9 @@ export function HistoricalInsights() {
                 !isFavoriteFiltered &&
                 modelsValid &&
                 !isRsiFiltered &&
-                !isAboveEMAFiltered
+                !isAboveEMAFiltered &&
+                !isR1Filtered &&
+                !isR2Filtered
               );
             })
         ])
@@ -257,8 +293,13 @@ export function HistoricalInsights() {
     companyName: string
   ) => {
     try {
+
+      const url = "https://algo-horizon-be.onrender.com/api/historical-data/update-favourites/NSE"
+
+      const devurl = "http://localhost:8050/api/historical-data/update-favourites/NSE"
+
       const response = await fetch(
-        "http://localhost:8050/api/historical-data/update-favourites/NSE",
+        url,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -351,7 +392,7 @@ export function HistoricalInsights() {
 
   if (error) return <div className="text-center text-red-600">{error}</div>;
 
- 
+
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
@@ -359,6 +400,14 @@ export function HistoricalInsights() {
           Historical Insights
         </h2>
         <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={handleCandleUpdate}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 flex items-center text-xs sm:text-sm"
+            disabled={updating}
+          >
+            <RefreshCw className="mr-1 h-3 w-3 sm:h-5 sm:w-5" />
+            {updating ? "Updating..." : "Update Candle Data"}
+          </Button>
           <Button
             onClick={handleRefresh}
             className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 flex items-center text-xs sm:text-sm"
@@ -386,6 +435,7 @@ export function HistoricalInsights() {
             Sort by Max Volume Change{" "}
             {sortConfig.key === "maxVolumeChange" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
           </Button>
+
         </div>
       </div>
       <div className="mb-4 flex flex-wrap items-start sm:items-center gap-2 sm:gap-4">
@@ -404,9 +454,8 @@ export function HistoricalInsights() {
             >
               {`Model - ${model.charAt(model.length - 1).toUpperCase()}`}
               <span
-                className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${
-                  activeFilters.includes(model) ? "bg-green-500" : "bg-red-500"
-                }`}
+                className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${activeFilters.includes(model) ? "bg-green-500" : "bg-red-500"
+                  }`}
                 style={{
                   borderTopRightRadius: "0.375rem",
                   borderBottomLeftRadius: "0.375rem",
@@ -440,9 +489,8 @@ export function HistoricalInsights() {
         >
           RSI Filter
           <span
-            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${
-              activeFilters.includes("RSI") ? "bg-green-500" : "bg-red-500"
-            }`}
+            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${activeFilters.includes("RSI") ? "bg-green-500" : "bg-red-500"
+              }`}
             style={{
               borderTopRightRadius: "0.375rem",
               borderBottomLeftRadius: "0.375rem",
@@ -456,9 +504,8 @@ export function HistoricalInsights() {
         >
           200 EMA
           <span
-            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${
-              activeFilters.includes("200EMA") ? "bg-green-500" : "bg-red-500"
-            }`}
+            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${activeFilters.includes("200EMA") ? "bg-green-500" : "bg-red-500"
+              }`}
             style={{
               borderTopRightRadius: "0.375rem",
               borderBottomLeftRadius: "0.375rem",
@@ -467,14 +514,46 @@ export function HistoricalInsights() {
           ></span>
         </Button>
         <Button
+          onClick={() => toggleFilter("R1")}
+          className={`relative bg-gradient-to-r from-orange-400 to-yellow-300 hover:from-orange-500 hover:to-yellow-400 text-white font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 text-xs sm:text-sm`}
+        >
+          R1
+          <span
+            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${activeFilters.includes("R1") ? "bg-green-500" : "bg-red-500"
+              }`}
+            style={{
+              borderTopRightRadius: "0.375rem",
+              borderBottomLeftRadius: "0.375rem",
+              transform: "translate(0%, 0%)",
+            }}
+          ></span>
+        </Button>
+
+        <Button
+          onClick={() => toggleFilter("R2")}
+          className={`relative bg-gradient-to-r from-sky-500 to-purple-500 hover:from-sky-600 hover:to-purple-600 text-white font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 text-xs sm:text-sm`}
+        >
+          R2
+          <span
+            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${activeFilters.includes("R2") ? "bg-green-500" : "bg-red-500"
+              }`}
+            style={{
+              borderTopRightRadius: "0.375rem",
+              borderBottomLeftRadius: "0.375rem",
+              transform: "translate(0%, 0%)",
+            }}
+          ></span>
+        </Button>
+
+
+        <Button
           onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
           className={`relative bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 text-xs sm:text-sm`}
         >
           {"Show Favorites"}
           <span
-            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${
-              showOnlyFavorites ? "bg-green-500" : "bg-red-500"
-            }`}
+            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${showOnlyFavorites ? "bg-green-500" : "bg-red-500"
+              }`}
             style={{
               borderTopRightRadius: "0.375rem",
               borderBottomLeftRadius: "0.375rem",
@@ -498,9 +577,8 @@ export function HistoricalInsights() {
           <Button
             key={letter}
             onClick={() => handleAlphabetFilter(letter)}
-            className={`px-1 sm:px-3 py-1 text-xs sm:text-sm ${
-              activeAlphabet === letter ? "bg-blue-500 text-white" : "bg-purple-200 text-gray-700"
-            }`}
+            className={`px-1 sm:px-3 py-1 text-xs sm:text-sm ${activeAlphabet === letter ? "bg-blue-500 text-white" : "bg-purple-200 text-gray-700"
+              }`}
           >
             {letter}
           </Button>
@@ -548,9 +626,8 @@ export function HistoricalInsights() {
         <HiddenCardsManager hiddenCards={hiddenCards} unhideCard={unhideCard} />
         {selectedModels.length === 1 && (
           <Button
-            className={`relative font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 ${
-              activateDryMode ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"
-            } text-white text-xs sm:text-sm`}
+            className={`relative font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 ${activateDryMode ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"
+              } text-white text-xs sm:text-sm`}
             onClick={handleDryButtonClick}
           >
             DRY MODE

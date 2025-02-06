@@ -23,6 +23,8 @@ export interface HistoricalResponse {
     latestHigh : number;
     latestLow : number;
     latestVolume : number;
+    didR1Occur : boolean;
+    didR2Occur : boolean;
   }
   
   export interface ApiResponse {

@@ -5,6 +5,10 @@ import getRandomGradient from "./utils/gradients"
 import type { HistoricalResponse } from "./types/historical-insights"
 import { FaStar, FaRegStar } from "react-icons/fa"
 import { ModelDates } from "./ModelDates"
+import R2Icon from "../app/images/R2.png"
+import R1Icon from "../app/images/R1.png"
+import Image from "next/image";
+
 
 interface CompanyCardsProps {
   sortedData: { [key: string]: HistoricalResponse[] }
@@ -79,6 +83,34 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites }: 
                       </Button>
                     </div>
                   </div>
+
+                  <div className="flex justify-between items-start mb-1 sm:mb-2">
+
+                  <div className="flex items-center space-x-1">
+                      <h3 className="text-sm sm:text-base font-semibold text-blue-800">
+                        {response.didR1Occur  ? (
+                          <Image
+                            width="30"
+                            height="30"
+                            src={R1Icon}
+                            alt="bull"
+                          />
+                        ) : ""}
+                      </h3>
+
+                      <h3 className="text-sm sm:text-base font-semibold text-blue-800">
+                        {response.didR2Occur  ? (
+                          <Image
+                            width="30"
+                            height="30"
+                            src={R2Icon}
+                            alt="bull"
+                          />
+                        ) : ""}
+                      </h3>
+
+                      </div>
+                    </div>
                   <p className="text-xs text-blue-600 mb-1">
                     Last Boom Date: {response?.formattedLastBoomDataUpdatedAt || "N/A"}
                   </p>
