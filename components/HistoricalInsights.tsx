@@ -542,12 +542,12 @@ export function HistoricalInsights() {
 
 
         <Button
-          onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+          onClick={() => toggleFilter("Favorites")}
           className={`relative bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold py-1 px-2 sm:py-3 sm:px-6 rounded-md transition duration-300 text-xs sm:text-sm`}
         >
           {"Show Favorites"}
           <span
-            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${showOnlyFavorites ? "bg-green-500" : "bg-red-500"
+            className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${activeFilters.includes("Favorites") ? "bg-green-500" : "bg-red-500"
               }`}
             style={{
               borderTopRightRadius: "0.375rem",
