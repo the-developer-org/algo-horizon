@@ -238,25 +238,20 @@ export function HistoricalInsights() {
                 activeFilters.includes("200EMA") && responses.aboveEMA !== undefined &&
                 !responses.aboveEMA;
 
-              const isR1Filtered =
-                activeFilters.includes("R1") && responses.didR1Occur !== undefined &&
-                !responses.didR1Occur;
-
-              const isR2Filtered =
-                activeFilters.includes("R2") && responses.didR2Occur !== undefined &&
-                !responses.didR2Occur;
-
-
-
-              return (
-                !isHidden &&
-                !isFavoriteFiltered &&
-                modelsValid &&
-                !isRsiFiltered &&
-                !isAboveEMAFiltered &&
-                !isR1Filtered &&
-                !isR2Filtered
-              );
+                const isR1Selected = activeFilters.includes("R1")
+                const isR2Selected = activeFilters.includes("R2")
+                
+                const isR1R2Filtered =
+                  (isR1Selected || isR2Selected) && !((isR1Selected && responses.didR1Occur) || (isR2Selected && responses.didR2Occur))
+                
+                return (
+                  !isHidden &&
+                  !isFavoriteFiltered &&
+                  modelsValid &&
+                  !isRsiFiltered &&
+                  !isAboveEMAFiltered &&
+                  !isR1R2Filtered
+                );
             })
         ])
         .filter(([, responses]) => responses.length > 0)
