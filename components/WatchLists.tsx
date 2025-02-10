@@ -48,7 +48,7 @@ export function WatchLists() {
             const devUrl = "http://localhost:8080/api/watchlist/fetch-watch-list-stocks";
 
             const response = await fetch(
-                devUrl
+                url
             );
             if (!response.ok) {
                 throw new Error("Failed to fetch data");
@@ -188,7 +188,7 @@ export function WatchLists() {
                 stockCount: tempValue
             };
 
-            const response = await fetch(devUrl, {
+            const response = await fetch(url, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -217,7 +217,7 @@ export function WatchLists() {
             const url = `https://algo-horizon-be.onrender.com/api/watchlist/retire-stock?instrumentKey=${encodeURIComponent(formattedInstrumentKey)}`;
             const devUrl = `http://localhost:8080/api/watchlist/retire-stock?instrumentKey=${encodeURIComponent(formattedInstrumentKey)}`;
 
-            const response = await fetch(devUrl, {
+            const response = await fetch(url, {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",

@@ -9,7 +9,7 @@ import R2Icon from "../app/images/R2.png"
 import R1Icon from "../app/images/R1.png"
 import WLIcon from "../app/images/wl.png"
 import Image from "next/image";
-import { WatchListModal } from "./WatchListModdal"
+import { WatchListModal } from "./WatchListModal"
 
 
 interface CompanyCardsProps {

@@ -58,7 +58,7 @@ export function WatchListModal({ isOpen, instrumentKey, onClose, fetchHistorical
             const url = "https://algo-horizon-be.onrender.com/api/watchlist/add-stocks-manually"
             const devUrl = "http://localhost:8080/api/watchlist/add-stocks-manually"
 
-            const response = await fetch(devUrl, {
+            const response = await fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
