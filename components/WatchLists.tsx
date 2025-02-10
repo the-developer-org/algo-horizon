@@ -1,0 +1,463 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { RefreshCw } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import Link from 'next/link'
+
+import {
+    Candle,
+    WatchListResponse,
+    WatchList
+} from "./types/historical-insights";
+import Image, { StaticImageData } from "next/image";
+import R2Icon from "../app/images/R2.png"
+import R1Icon from "../app/images/R1.png"
+import SQIcon from "../app/images/SQ.png"
+
+
+export function WatchLists() {
+    const [watchLists, setWatchLists] = useState<WatchList[]>([])
+    const [filteredWatchLists, setFilteredWatchLists] = useState<WatchList[]>([])
+    const [searchTerm, setSearchTerm] = useState("");
+    const [activeFilters, setActiveFilters] = useState<string[]>([]);
+    const [tempValue, setTempValue] = useState<number | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    const [sortOrderProfit, setSortOrderProfit] = useState<"asc" | "desc" | null>(null);
+    const [sortOrderLoss, setSortOrderLoss] = useState<"asc" | "desc" | null>(null);
+
+    useEffect(() => {
+        filterAndSortWatchLists();
+    }, [searchTerm, activeFilters, sortOrderProfit, sortOrderLoss, watchLists]);
+
+    const fetchData = useCallback(async () => {
+        try {
+            setLoading(true);
+            const url = "https://algo-horizon-be.onrender.com/api/watchlist/fetch-watch-list-stocks";
+            const devUrl = "http://localhost:8080/api/watchlist/fetch-watch-list-stocks";
+
+            const response = await fetch(
+                devUrl
+            );
+            if (!response.ok) {
+                throw new Error("Failed to fetch data");
+            }
+            const result: WatchListResponse = await response.json();
+
+            setWatchLists(result.watchLists)
+        } catch (err) {
+            setLoading(false);
+
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchData()
+    }, [fetchData])
+
+
+    const filterAndSortWatchLists = () => {
+        let filtered = [...watchLists]; // Start with original data
+
+
+        // Apply search filter
+        if (searchTerm) {
+            filtered = filtered.filter(watchList =>
+                watchList.companyName.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        // Apply active filters
+
+        if (activeFilters.includes("R1") || activeFilters.includes("R2") || activeFilters.includes("SayQid Watch List")) {
+            filtered = filtered.filter(watchList => activeFilters.length === 0 || activeFilters.includes(watchList.watchListTag));
+        }
+
+        if (activeFilters.includes("Profit")) {
+            filtered = filtered.filter(watchList => watchList?.inProfit && !watchList.retired);
+        }
+
+        if (activeFilters.includes("Loss")) {
+            filtered = filtered.filter(watchList => watchList?.inLoss && !watchList.retired);
+        }
+
+        if (activeFilters.includes("Future")) {
+            filtered = filtered.filter(watchList => watchList?.forFuture);
+        }
+
+        if (activeFilters.includes("Retired")) {
+            filtered = filtered.filter(watchList => watchList?.retired);
+        }
+
+        filtered.sort((a, b) => {
+            if (a.forFuture && !b.forFuture) return -1; // Future stocks go up
+            if (!a.forFuture && b.forFuture) return 1;
+            if (a.retired && !b.retired) return 1; // Retired stocks go down
+            if (!a.retired && b.retired) return -1;
+            return 0; // Keep original order otherwise
+        });
+
+        if (sortOrderProfit && activeFilters.includes("Profit")) {
+            filtered.sort((a, b) => {
+                if (a.inProfit && b.inProfit) {
+                    return sortOrderProfit === "asc" ? a.overAllProfitPercentage - b.overAllProfitPercentage
+                        : b.overAllProfitPercentage - a.overAllProfitPercentage;
+                }
+                return 0; // Keep non-matching items unchanged
+            });
+        }
+
+        if (sortOrderLoss && activeFilters.includes("Loss")) {
+            filtered.sort((a, b) => {
+                if (a.inLoss && b.inLoss) {
+                    return sortOrderLoss === "asc" ? a.overAllLossPercentage - b.overAllLossPercentage
+                        : b.overAllLossPercentage - a.overAllLossPercentage;
+                }
+                return 0; // Keep non-matching items unchanged
+            });
+        }
+
+        setFilteredWatchLists(filtered);
+    };
+
+
+    const toggleFilter = (tag: string) => {
+        setActiveFilters(prevFilters =>
+            prevFilters.includes(tag)
+                ? prevFilters.filter(f => f !== tag) // Remove filter if selected
+                : [...prevFilters, tag] // Add filter if not selected
+        );
+    };
+
+
+    const tagIcons: Record<string, StaticImageData> = {
+        R1: R1Icon,
+        R2: R2Icon,
+        "SayQid Watch List": SQIcon,
+    };
+
+
+    const handleRefresh = () => {
+        setLoading(true);
+        fetchData();
+        setLoading(false);
+    };
+    const getLatestReturn = (returns: Record<string, number>): number | null => {
+        if (!returns || Object.keys(returns).length === 0) return null;
+
+        const latestDate = Object.keys(returns).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+
+        return returns[latestDate];
+    };
+
+
+    const handleSave = (instrumentKey: string) => {
+        try {
+            if (tempValue !== null) {
+                updateStockCount(instrumentKey, tempValue);
+            }
+        } catch (err) {
+            console.error("Error updating stock count:", err);
+        } finally {
+            setEditingId(null); // Exit edit mode
+            setTempValue(null);
+        }
+    };
+
+    const updateStockCount = async (instrumentKey: string, tempValue: number) => {
+        try {
+            const url = "https://algo-horizon-be.onrender.com/api/watchlist/update-stock-count";
+            const devUrl = "http://localhost:8080/api/watchlist/update-stock-count";
+
+            const payload = {
+                instrumentKey: instrumentKey,
+                stockCount: tempValue
+            };
+
+            const response = await fetch(devUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to update stock count: ${response.statusText}`);
+            }
+
+            fetchData();
+        } catch (err) {
+            console.error("Error updating stock count:", err);
+        }
+    };
+
+    const retireStock = async (instrumentKey: string) => {
+        try {
+            if (!instrumentKey.includes("NSE")) {
+                throw new Error("Invalid Instrument Key");
+            }
+
+            const formattedInstrumentKey = instrumentKey.replace("|", "-");
+
+            const url = `https://algo-horizon-be.onrender.com/api/watchlist/retire-stock?instrumentKey=${encodeURIComponent(formattedInstrumentKey)}`;
+            const devUrl = `http://localhost:8080/api/watchlist/retire-stock?instrumentKey=${encodeURIComponent(formattedInstrumentKey)}`;
+
+            const response = await fetch(devUrl, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            fetchData();
+
+        } catch (err) {
+            console.error("Error retiring stock:", err);
+            throw err; // Rethrow for handling in UI
+        }
+    };
+
+
+
+
+    return (
+        <div className="w-full max-w-4xl bg-white bg-opacity-90 rounded-lg shadow-lg p-6 mt-6 mx-auto flex flex-col">
+            <div className="flex justify-between items-center mb-6 w-full">
+                <h2 className="text-2xl font-bold text-gray-800">Watch Lists</h2>
+
+                <Button
+                    onClick={handleRefresh}
+                    className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 flex items-center text-xs sm:text-sm"
+                    disabled={loading}
+                >
+                    <RefreshCw className="mr-1 h-3 w-3 sm:h-5 sm:w-5" />
+                    {loading ? "Refreshing..." : "Refresh"}
+                </Button>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-4 mb-6 w-full">
+                {/* Search Input */}
+                <Input
+                    type="text"
+                    placeholder="Search companies..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full lg:w-auto bg-gray-800 text-white px-4 py-2 rounded-md text-sm"
+                    style={{ color: "#f5f5dc" }}
+                />
+
+                {/* Filter Buttons */}
+                <div className="flex flex-wrap gap-2 justify-center lg:justify-start w-full">
+                    {["R1", "R2", "SayQid Watch List", "Profit", "Loss", "Future", "Retired"].map((tag) => (
+                        <Button
+                            key={tag}
+                            onClick={() => toggleFilter(tag)}
+                            className="relative bg-pink-100 hover:bg-pink-200 text-pink-800 font-bold py-2 px-4 rounded-md transition duration-300 text-xs sm:text-sm flex-grow sm:flex-grow-0"
+                        >
+                            {tag}
+                            <span
+                                className={`absolute top-0 right-0 w-3 h-3 rounded-md ${activeFilters.includes(tag) ? "bg-green-500" : "bg-red-500"}`}
+                                style={{
+                                    borderTopRightRadius: "0.375rem",
+                                    borderBottomLeftRadius: "0.375rem",
+                                    transform: "translate(0%, 0%)",
+                                }}
+                            ></span>
+                        </Button>
+                    ))}
+                </div>
+
+                {/* Sorting Options */}
+                {(activeFilters.includes("Profit") || activeFilters.includes("Loss")) && (
+                    <div className="flex flex-wrap gap-4 justify-center lg:justify-start w-full">
+                        {activeFilters.includes("Profit") && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-gray-700 font-semibold">Profit Sort:</span>
+                                <Button
+                                    onClick={() => setSortOrderProfit("asc")}
+                                    className={`bg-green-100 hover:bg-green-200 text-green-800 font-bold py-1 px-3 rounded-md transition duration-300 text-xs sm:text-sm ${sortOrderProfit === "asc" ? "border border-green-500" : ""}`}
+                                >
+                                    Asc
+                                </Button>
+                                <Button
+                                    onClick={() => setSortOrderProfit("desc")}
+                                    className={`bg-green-100 hover:bg-green-200 text-green-800 font-bold py-1 px-3 rounded-md transition duration-300 text-xs sm:text-sm ${sortOrderProfit === "desc" ? "border border-green-500" : ""}`}
+                                >
+                                    Desc
+                                </Button>
+                            </div>
+                        )}
+
+                        {activeFilters.includes("Loss") && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-gray-700 font-semibold">Loss Sort:</span>
+                                <Button
+                                    onClick={() => setSortOrderLoss("asc")}
+                                    className={`bg-red-100 hover:bg-red-200 text-red-800 font-bold py-1 px-3 rounded-md transition duration-300 text-xs sm:text-sm ${sortOrderLoss === "asc" ? "border border-red-500" : ""}`}
+                                >
+                                    Asc
+                                </Button>
+                                <Button
+                                    onClick={() => setSortOrderLoss("desc")}
+                                    className={`bg-red-100 hover:bg-red-200 text-red-800 font-bold py-1 px-3 rounded-md transition duration-300 text-xs sm:text-sm ${sortOrderLoss === "desc" ? "border border-red-500" : ""}`}
+                                >
+                                    Desc
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                {filteredWatchLists.length > 0 ? (
+                    filteredWatchLists.map((watchList) => (
+                        <Card key={watchList.instrumentKey} className="bg-white bg-opacity-75 w-full">
+                            <CardHeader
+                                className={`${watchList.retired
+                                    ? "bg-gray-400"
+                                    : watchList.forFuture
+                                        ? "bg-blue-400"
+                                        : watchList.inProfit
+                                            ? "bg-green-400"
+                                            : "bg-red-400"
+                                    } p-4 rounded-lg`}
+                            >
+                                <CardTitle className="text-lg font-semibold text-gray-800">
+                                    <div className="flex items-center justify-between w-full">
+                                        <div className="flex gap-10">
+                                            <span className="text-sm sm:text-base font-semibold">{watchList.companyName}</span>
+
+                                            <Image
+                                                width={30}
+                                                height={30}
+                                                src={tagIcons[watchList.watchListTag]}
+                                                alt="bull"
+                                            />
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            {!watchList.retired && editingId !== watchList.instrumentKey && <img
+                                                width={30}
+                                                height={30}
+                                                src="https://img.icons8.com/cotton/128/edit--v1.png"
+                                                alt="edit"
+                                                onClick={() => setEditingId(watchList.instrumentKey)}
+                                            />}
+                                            {!watchList.retired && editingId === watchList.instrumentKey && <img
+                                                width={30}
+                                                height={30}
+                                                src="https://img.icons8.com/keek/50/delete-sign.png"
+                                                alt="close"
+                                                onClick={() => {
+                                                    setEditingId(null)
+                                                    setTempValue(null)
+                                                }}
+                                            />}
+
+                                            {!watchList.retired && <img
+                                                width={30}
+                                                height={30}
+                                                src="https://img.icons8.com/plasticine/100/filled-trash.png"
+                                                alt="trash"
+                                                onClick={() => retireStock(watchList.instrumentKey)}
+                                            />}
+                                        </div>
+
+                                    </div>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-gray-600">
+                                    Added On: {watchList.entryDayCandle.timestamp.slice(0, 10)}
+                                </p>
+                                <p className="text-orange-600">
+                                    Entry At: {watchList.entryDayValue.toFixed(2)}
+                                </p>
+                                {watchList.inProfit && <p className="text-green-600">
+                                    Live Profit %: {watchList.overAllProfitPercentage.toFixed(2)}
+                                </p>}
+                                {watchList.inLoss && <p className="text-red-600">
+                                    Live Loss %: {watchList.overAllLossPercentage.toFixed(2)}
+                                </p>}
+                                {watchList.highestProfitPercentage > 0 && <p className="text-green-600">
+                                    Highest Profit: {`${watchList.highestProfitPercentage.toFixed(2)}% - ${watchList.highestProfitDay}`}
+                                </p>}
+                                {watchList.highestLossPercentage > 0 && <p className="text-red-600">
+                                    Highest Loss: {`${watchList.highestLossPercentage.toFixed(2)}% - ${watchList.highestLossDay}`}
+                                </p>}
+                                {/* <p className="text-green-600">
+                                Last Day Returns (H) %: {getLatestReturn(watchList.dayWiseHighReturns)?.toFixed(2)}
+                            </p>
+                            <p className="text-green-600">
+                                Last Day Returns (C) %: {getLatestReturn(watchList.dayWiseClosingReturns)?.toFixed(2)}
+                            </p> */}
+
+
+
+                                <div className="flex gap-2">
+                                    <p className="block text-gray-700">Stock Count:</p>
+
+                                    {editingId === watchList.instrumentKey ? (
+                                        <div className="flex gap-1">
+                                            <input
+                                                type="number"
+                                                defaultValue={watchList.stockCount}
+                                                onChange={(e) => setTempValue(Number(e.target.value))}
+                                                className="border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-400 rounded-md p-1 w-16 text-center text-gray-900 shadow-sm text-sm transition-all duration-200"
+                                            />
+                                            <button
+                                                onClick={() => handleSave(watchList.instrumentKey)}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md shadow-sm text-sm transition-all duration-200"
+                                            >
+                                                Save
+                                            </button>
+
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className="bg-white-100 rounded-lg text-gray-600 cursor-pointer hover:bg-gray-200 transition-all duration-200"
+                                            onClick={() => {
+                                                setTempValue(watchList.stockCount);
+                                            }}
+                                        >
+                                            {watchList.stockCount}
+                                        </div>
+                                    )}
+                                </div>
+                                {!watchList.forFuture && <p className="text-green-600">
+                                    Invested Amount: {(watchList.stockCount * watchList.entryDayValue)?.toFixed(2)}
+                                </p>}
+
+                                {!watchList.forFuture && <p className="text-green-600">
+                                    Current Value: {(watchList.stockCount * watchList.currentCandle.close)?.toFixed(2)}
+                                </p>}
+                            </CardContent>
+                        </Card>
+                    ))) : (
+                    <div className="flex justify-center items-center h-64">
+                        <p className="text-2xl font-bold text-gray-700">NO DATA AVAILABLE</p>
+                    </div>
+
+                )}
+            </div>
+        </div>
+
+
+    )
+}

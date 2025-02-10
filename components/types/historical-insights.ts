@@ -25,12 +25,19 @@ export interface HistoricalResponse {
     latestVolume : number;
     didR1Occur : boolean;
     didR2Occur : boolean;
+    beingWatched : boolean;
+    addedOn : Date;
   }
   
   export interface ApiResponse {
     sortedHistoricalResponses: {
       [key: string]: HistoricalResponse;
     };
+  }
+
+  export interface WatchListResponse {
+    message: string;
+    watchLists: WatchList[];
   }
 
 
@@ -40,4 +47,40 @@ export interface HistoricalResponse {
     rsi: { min: number; max: number };
   }
   
+  export interface Candle {
+    timestamp: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+    openInterest: number;
+    ema: number;
+    rsi: number;
+  }
+  
+  export interface WatchList {
+    instrumentKey: string;
+    companyName: string;
+    entryDayValue: number;
+    overAllProfitPercentage: number;
+    overAllLossPercentage: number;
+    watchListTag: string;
+    inProfit: boolean;
+    inLoss: boolean;  
+    currentCandle: Candle;
+    entryDayCandle: Candle;
+    dayWiseCandles: Candle[];
+    dayWiseHighReturns: Record<string, number>;
+    dayWiseClosingReturns: Record<string, number>;
+    beingWatched: boolean;
+    highestProfitPercentage : number;
+    highestLossPercentage : number;
+    highestProfitDay : Date | null;
+    highestLossDay : Date | null;
+    forFuture : boolean;
+    retired : boolean;
+    stockCount : number;
+    [key: string]: any; 
+  }
   

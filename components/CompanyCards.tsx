@@ -7,18 +7,26 @@ import { FaStar, FaRegStar } from "react-icons/fa"
 import { ModelDates } from "./ModelDates"
 import R2Icon from "../app/images/R2.png"
 import R1Icon from "../app/images/R1.png"
+import WLIcon from "../app/images/wl.png"
 import Image from "next/image";
+import { WatchListModal } from "./WatchListModdal"
 
 
 interface CompanyCardsProps {
   sortedData: { [key: string]: HistoricalResponse[] }
   hideCard: (id: string) => void
   updateFavorites: (instrumentKey: string, companyName: string) => void
+  fetchHistoricalData: () => void
 }
 
-export default function CompanyCards({ sortedData, hideCard, updateFavorites }: CompanyCardsProps) {
+export default function CompanyCards({ sortedData, hideCard, updateFavorites, fetchHistoricalData }: CompanyCardsProps) {
+
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [activeInstrumentKey, setActiveInstrumentKey] = useState<string | null>(null);
+
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
       {Object.entries(sortedData).flatMap(([companyName, responses]) => {
         if (!Array.isArray(responses)) {
           console.error(`Expected an array for responses, but got:`, responses)
@@ -36,32 +44,47 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites }: 
                 className={`${cardGradient} rounded-lg shadow-md p-3 sm:p-4 transition-all duration-300 hover:shadow-lg h-full`}
               >
                 <div className="relative">
-                  <div className="flex justify-between items-start mb-1 sm:mb-2">
-                    <h3 className="text-sm sm:text-base font-semibold text-blue-800 truncate max-w-[calc(100%-3rem)]">
+                  <div className="flex justify-between items-center mb-1 sm:mb-2">
+                    {/* Left: Company Name */}
+                    <h3 className="text-sm sm:text-base font-semibold text-blue-800 truncate max-w-[60%]">
                       {companyName}
                     </h3>
 
-                    <div className="flex items-center space-x-1">
-                      <h3 className="text-sm sm:text-base font-semibold text-blue-800">
-                        {response.currTrend === "Downtrend (Bearish)" ? (
-                          <img
-                            width="20"
-                            height="20"
-                            src="https://img.icons8.com/ios-filled/50/40C057/bull.png"
-                            alt="bull"
-                          />
-                        ) : (
-                          <img
-                            width="20"
-                            height="20"
-                            src="https://img.icons8.com/ios-filled/50/FA5252/bear-footprint.png"
-                            alt="bear"
-                          />
-                        )}
-                      </h3>
+                    {/* Right: Trend Icons & Buttons */}
+                    <div className="flex items-center space-x-2">
+                      {!response.beingWatched &&
+                        <Image
+                          width="30"
+                          height="30"
+                          src={WLIcon}
+                          onClick={(e) => {
+                            e.stopPropagation(); // ✅ Prevents event bubbling
+                            if (!isModalOpen) {
+                              setIsModalOpen(true);
+                            }
+                            setActiveInstrumentKey(response.instrumentKey)
+                            
+                          }}
+                          alt="Watch List"
+                        />}
+                      {isModalOpen && activeInstrumentKey === response.instrumentKey && (
+                        <WatchListModal
+                          isOpen={isModalOpen}
+                          fetchHistoricalData={fetchHistoricalData}
+                          instrumentKey={response.instrumentKey}
+                          onClose={() => setIsModalOpen(false)}
+                        />
+                      )}
+                      {/* Trend Icon (Bull/Bear) */}
+                      {response.currTrend === "Downtrend (Bearish)" ? (
+                        <img width="20" height="20" src="https://img.icons8.com/ios-filled/50/40C057/bull.png" alt="bull" />
+                      ) : (
+                        <img width="20" height="20" src="https://img.icons8.com/ios-filled/50/FA5252/bear-footprint.png" alt="bear" />
+                      )}
 
+                      {/* Hide Card Button */}
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1"
                         onClick={() => hideCard(`${companyName}-${response.formattedLastBoomDataUpdatedAt}`)}
@@ -69,26 +92,23 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites }: 
                         <EyeOff className="h-3 w-3 text-blue-600" />
                       </Button>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="p-1"
-                        onClick={() => updateFavorites(response.instrumentKey, companyName)}
-                      >
+                      {/* Favorite Button */}
+                      <Button variant="outline" size="sm" className="p-1" onClick={() => updateFavorites(response.instrumentKey, companyName)}>
                         {response?.isFavorite ? (
-                          <FaStar className="h-3 w-3 text-yellow-500" />
+                          <FaStar className="h-4 w-4 text-yellow-500" />
                         ) : (
-                          <FaRegStar className="h-3 w-3 text-yellow-500" />
+                          <FaRegStar className="h-4 w-4 text-yellow-500" />
                         )}
                       </Button>
                     </div>
                   </div>
 
+
                   <div className="flex justify-between items-start mb-1 sm:mb-2">
 
-                  <div className="flex items-center space-x-1">
+                    <div className="flex items-center space-x-1">
                       <h3 className="text-sm sm:text-base font-semibold text-blue-800">
-                        {response.didR1Occur  ? (
+                        {response.didR1Occur ? (
                           <Image
                             width="30"
                             height="30"
@@ -99,7 +119,7 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites }: 
                       </h3>
 
                       <h3 className="text-sm sm:text-base font-semibold text-blue-800">
-                        {response.didR2Occur  ? (
+                        {response.didR2Occur ? (
                           <Image
                             width="30"
                             height="30"
@@ -109,8 +129,8 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites }: 
                         ) : ""}
                       </h3>
 
-                      </div>
                     </div>
+                  </div>
                   <p className="text-xs text-blue-600 mb-1">
                     Last Boom Date: {response?.formattedLastBoomDataUpdatedAt || "N/A"}
                   </p>

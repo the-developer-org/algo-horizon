@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -67,10 +67,10 @@ export function HistoricalInsights() {
     try {
 
       const url = "https://algo-horizon-be.onrender.com/api/historical-data/fetch-previous-insights";
-      const devUrl = "http://localhost:8050/api/historical-data/fetch-previous-insights";
+      const devUrl = "http://localhost:8080/api/historical-data/fetch-previous-insights";
 
       const response = await fetch(
-        url
+        devUrl
       );
       if (!response.ok) {
         throw new Error("Failed to fetch data");
@@ -100,10 +100,10 @@ export function HistoricalInsights() {
 
 
       const url = "https://algo-horizon-be.onrender.com/api/historical-data/fetch-latest-data";
-      const devUrl = "http://localhost:8050/api/historical-data/fetch-latest-data";
+      const devUrl = "http://localhost:8080/api/historical-data/fetch-latest-data";
 
       const response = await fetch(
-        url
+        devUrl
       );
       setUpdating(false)
     } catch (err) {
@@ -291,10 +291,10 @@ export function HistoricalInsights() {
 
       const url = "https://algo-horizon-be.onrender.com/api/historical-data/update-favourites/NSE"
 
-      const devurl = "http://localhost:8050/api/historical-data/update-favourites/NSE"
+      const devUrl = "http://localhost:8080/api/historical-data/update-favourites/NSE"
 
       const response = await fetch(
-        url,
+        devUrl,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -636,7 +636,7 @@ export function HistoricalInsights() {
         <div className="text-center text-gray-600">No data available</div>
       ) : (
         <div className="relative overflow-hidden rounded-lg p-2 sm:p-4 bg-gradient-to-br from-gray-100 to-gray-200">
-          <CompanyCards sortedData={paginatedData} hideCard={hideCard} updateFavorites={updateFavorites} />
+          <CompanyCards fetchHistoricalData={fetchData} sortedData={paginatedData} hideCard={hideCard} updateFavorites={updateFavorites} />
         </div>
       )}
 
