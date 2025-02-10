@@ -272,7 +272,7 @@ export function WatchLists() {
                             {tag}
                             <span
                                 className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${activeFilters.includes(tag) ? "bg-green-500" : "bg-red-500"
-                                }`}
+                                    }`}
                                 style={{
                                     borderTopRightRadius: "0.375rem",
                                     borderBottomLeftRadius: "0.375rem",
@@ -325,6 +325,28 @@ export function WatchLists() {
                 )}
             </div>
 
+            {/* Stats Section */}
+            {/* Stats Section */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4 w-full">
+                {[
+                    { label: "Total Stocks", count: filteredWatchLists.length, color: "bg-blue-100 text-blue-800" },
+                    { label: "Total in Profit", count: filteredWatchLists.filter(stock => stock.inProfit).length, color: "bg-green-100 text-green-800" },
+                    { label: "Total in Loss", count: filteredWatchLists.filter(stock => stock.inLoss).length, color: "bg-red-100 text-red-800" },
+                    { label: "Total in R1", count: filteredWatchLists.filter(stock => stock.watchListTag === "R1").length, color: "bg-yellow-100 text-yellow-800" },
+                    { label: "Total in R2", count: filteredWatchLists.filter(stock => stock.watchListTag === "R2").length, color: "bg-purple-100 text-purple-800" },
+                    { label: "Total in SQ", count: filteredWatchLists.filter(stock => stock.watchListTag === "SayQid Watch List").length, color: "bg-pink-100 text-pink-800" },
+                    { label: "Total in Future", count: filteredWatchLists.filter(stock => stock.forFuture).length, color: "bg-indigo-100 text-indigo-800" },
+                    { label: "Total Retired", count: filteredWatchLists.filter(stock => stock.retired).length, color: "bg-gray-200 text-gray-700" },
+                ].map((stat, index) => (
+                    <div key={index} className={`p-2 sm:p-3 rounded-md shadow-sm text-center ${stat.color}`}>
+                        <p className="text-xs sm:text-sm font-medium">{stat.label}</p>
+                        <p className="text-base sm:text-lg font-bold">{stat.count}</p>
+                    </div>
+                ))}
+            </div>
+
+
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
                 {filteredWatchLists.length > 0 ? (
                     filteredWatchLists.map((watchList) => (
@@ -342,9 +364,10 @@ export function WatchLists() {
                                 <CardTitle className="text-lg font-semibold text-gray-800">
                                     <div className="flex items-center justify-between w-full">
                                         <div className="flex gap-3 xs:gap-3 sm:gap-3 items-center">
-                                            <div className="text-xs xs:text-sm sm:text-base font-semibold" style={{width: "8rem"}}>
+                                            <div className="text-xs xs:text-sm sm:text-base font-semibold w-32 lg:w-72">
                                                 {watchList.companyName}
                                             </div>
+
 
                                             <Image
                                                 className="w-4 h-4 xs:w-5 xs:h-5 sm:w-7 sm:h-7"
