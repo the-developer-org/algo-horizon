@@ -44,8 +44,8 @@ export function WatchLists() {
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            const url = "https://algo-horizon-be.onrender.com/api/watchlist/fetch-watch-list-stocks";
-            const devUrl = "http://localhost:8080/api/watchlist/fetch-watch-list-stocks";
+            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+            const url = baseUrl + "/api/watchlist/fetch-watch-list-stocks";
 
             const response = await fetch(
                 url
@@ -180,8 +180,8 @@ export function WatchLists() {
 
     const updateStockCount = async (instrumentKey: string, tempValue: number) => {
         try {
-            const url = "https://algo-horizon-be.onrender.com/api/watchlist/update-stock-count";
-            const devUrl = "http://localhost:8080/api/watchlist/update-stock-count";
+            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+            const url = baseUrl + "/api/watchlist/update-stock-count";
 
             const payload = {
                 instrumentKey: instrumentKey,
@@ -214,8 +214,8 @@ export function WatchLists() {
 
             const formattedInstrumentKey = instrumentKey.replace("|", "-");
 
-            const url = `https://algo-horizon-be.onrender.com/api/watchlist/retire-stock?instrumentKey=${encodeURIComponent(formattedInstrumentKey)}`;
-            const devUrl = `http://localhost:8080/api/watchlist/retire-stock?instrumentKey=${encodeURIComponent(formattedInstrumentKey)}`;
+            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+            const url = baseUrl + `/api/watchlist/retire-stock?instrumentKey=${encodeURIComponent(formattedInstrumentKey)}`;
 
             const response = await fetch(url, {
                 method: "GET",
@@ -236,7 +236,7 @@ export function WatchLists() {
 
 
     return (
-        <div className="w-full max-w-4xl bg-white bg-opacity-90 rounded-lg shadow-lg p-6 mt-6 mx-auto flex flex-col">
+        <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
             <div className="flex justify-between items-center mb-6 w-full">
                 <h2 className="text-2xl font-bold text-gray-800">Watch Lists</h2>
 
@@ -271,7 +271,8 @@ export function WatchLists() {
                         >
                             {tag}
                             <span
-                                className={`absolute top-0 right-0 w-3 h-3 rounded-md ${activeFilters.includes(tag) ? "bg-green-500" : "bg-red-500"}`}
+                                className={`absolute top-0 right-0 w-3 h-2 sm:w-5 sm:h-3 rounded-md ${activeFilters.includes(tag) ? "bg-green-500" : "bg-red-500"
+                                }`}
                                 style={{
                                     borderTopRightRadius: "0.375rem",
                                     borderBottomLeftRadius: "0.375rem",
@@ -340,44 +341,51 @@ export function WatchLists() {
                             >
                                 <CardTitle className="text-lg font-semibold text-gray-800">
                                     <div className="flex items-center justify-between w-full">
-                                        <div className="flex gap-10">
-                                            <span className="text-sm sm:text-base font-semibold">{watchList.companyName}</span>
+                                        <div className="flex gap-3 xs:gap-3 sm:gap-3 items-center">
+                                            <div className="text-xs xs:text-sm sm:text-base font-semibold" style={{width: "8rem"}}>
+                                                {watchList.companyName}
+                                            </div>
 
                                             <Image
-                                                width={30}
-                                                height={30}
+                                                className="w-4 h-4 xs:w-5 xs:h-5 sm:w-7 sm:h-7"
                                                 src={tagIcons[watchList.watchListTag]}
                                                 alt="bull"
                                             />
                                         </div>
 
-                                        <div className="flex gap-2">
-                                            {!watchList.retired && editingId !== watchList.instrumentKey && <img
-                                                width={30}
-                                                height={30}
-                                                src="https://img.icons8.com/cotton/128/edit--v1.png"
-                                                alt="edit"
-                                                onClick={() => setEditingId(watchList.instrumentKey)}
-                                            />}
-                                            {!watchList.retired && editingId === watchList.instrumentKey && <img
-                                                width={30}
-                                                height={30}
-                                                src="https://img.icons8.com/keek/50/delete-sign.png"
-                                                alt="close"
-                                                onClick={() => {
-                                                    setEditingId(null)
-                                                    setTempValue(null)
-                                                }}
-                                            />}
 
-                                            {!watchList.retired && <img
-                                                width={30}
-                                                height={30}
-                                                src="https://img.icons8.com/plasticine/100/filled-trash.png"
-                                                alt="trash"
-                                                onClick={() => retireStock(watchList.instrumentKey)}
-                                            />}
+                                        <div className="flex gap-2 items-center">
+                                            {!watchList.retired && editingId !== watchList.instrumentKey && (
+                                                <img
+                                                    className="w-5 h-5 sm:w-7 sm:h-7"
+                                                    src="https://img.icons8.com/cotton/128/edit--v1.png"
+                                                    alt="edit"
+                                                    onClick={() => setEditingId(watchList.instrumentKey)}
+                                                />
+                                            )}
+
+                                            {!watchList.retired && editingId === watchList.instrumentKey && (
+                                                <img
+                                                    className="w-5 h-5 sm:w-7 sm:h-7"
+                                                    src="https://img.icons8.com/keek/50/delete-sign.png"
+                                                    alt="close"
+                                                    onClick={() => {
+                                                        setEditingId(null);
+                                                        setTempValue(null);
+                                                    }}
+                                                />
+                                            )}
+
+                                            {!watchList.retired && (
+                                                <img
+                                                    className="w-5 h-5 sm:w-7 sm:h-7"
+                                                    src="https://img.icons8.com/plasticine/100/filled-trash.png"
+                                                    alt="trash"
+                                                    onClick={() => retireStock(watchList.instrumentKey)}
+                                                />
+                                            )}
                                         </div>
+
 
                                     </div>
                                 </CardTitle>
@@ -414,21 +422,24 @@ export function WatchLists() {
                                     <p className="block text-gray-700">Stock Count:</p>
 
                                     {editingId === watchList.instrumentKey ? (
-                                        <div className="flex gap-1">
+                                        <div className="flex gap-1 sm:gap-2 items-center">
                                             <input
                                                 type="number"
                                                 defaultValue={watchList.stockCount}
                                                 onChange={(e) => setTempValue(Number(e.target.value))}
-                                                className="border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-400 rounded-md p-1 w-16 text-center text-gray-900 shadow-sm text-sm transition-all duration-200"
+                                                className="border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-400 rounded-md p-1 sm:p-2 
+                                                    w-14 sm:w-20 text-center text-gray-900 shadow-sm text-xs sm:text-sm transition-all duration-200"
                                             />
+
                                             <button
                                                 onClick={() => handleSave(watchList.instrumentKey)}
-                                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md shadow-sm text-sm transition-all duration-200"
+                                                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 sm:px-4 sm:py-2 
+                                                    rounded-md shadow-sm text-xs sm:text-sm transition-all duration-200"
                                             >
                                                 Save
                                             </button>
-
                                         </div>
+
                                     ) : (
                                         <div
                                             className="bg-white-100 rounded-lg text-gray-600 cursor-pointer hover:bg-gray-200 transition-all duration-200"

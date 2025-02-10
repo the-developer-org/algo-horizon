@@ -66,10 +66,10 @@ export function HistoricalInsights() {
     setError(null);
     try {
 
-      const url = "https://algo-horizon-be.onrender.com/api/historical-data/fetch-previous-insights";
-      const devUrl = "http://localhost:8080/api/historical-data/fetch-previous-insights";
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+      const url = baseUrl + "/api/historical-data/fetch-previous-insights";
 
-      const response = await  fetch(
+      const response = await fetch(
         url
       );
       if (!response.ok) {
@@ -98,11 +98,10 @@ export function HistoricalInsights() {
     setUpdating(true)
     try {
 
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+      const url = baseUrl + "/api/historical-data/fetch-latest-data";
 
-      const url = "https://algo-horizon-be.onrender.com/api/historical-data/fetch-latest-data";
-      const devUrl = "http://localhost:8080/api/historical-data/fetch-latest-data";
-
-      const response = await  fetch(
+      const response = await fetch(
         url
       );
       setUpdating(false)
@@ -238,20 +237,20 @@ export function HistoricalInsights() {
                 activeFilters.includes("200EMA") && responses.aboveEMA !== undefined &&
                 !responses.aboveEMA;
 
-                const isR1Selected = activeFilters.includes("R1")
-                const isR2Selected = activeFilters.includes("R2")
-                
-                const isR1R2Filtered =
-                  (isR1Selected || isR2Selected) && !((isR1Selected && responses.didR1Occur) || (isR2Selected && responses.didR2Occur))
-                
-                return (
-                  !isHidden &&
-                  !isFavoriteFiltered &&
-                  modelsValid &&
-                  !isRsiFiltered &&
-                  !isAboveEMAFiltered &&
-                  !isR1R2Filtered
-                );
+              const isR1Selected = activeFilters.includes("R1")
+              const isR2Selected = activeFilters.includes("R2")
+
+              const isR1R2Filtered =
+                (isR1Selected || isR2Selected) && !((isR1Selected && responses.didR1Occur) || (isR2Selected && responses.didR2Occur))
+
+              return (
+                !isHidden &&
+                !isFavoriteFiltered &&
+                modelsValid &&
+                !isRsiFiltered &&
+                !isAboveEMAFiltered &&
+                !isR1R2Filtered
+              );
             })
         ])
         .filter(([, responses]) => responses.length > 0)
@@ -289,11 +288,10 @@ export function HistoricalInsights() {
   ) => {
     try {
 
-      const url = "https://algo-horizon-be.onrender.com/api/historical-data/update-favourites/NSE"
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+      const url = baseUrl + "/api/historical-data/update-favourites/NSE"
 
-      const devUrl = "http://localhost:8080/api/historical-data/update-favourites/NSE"
-
-      const response = await  fetch(
+      const response = await fetch(
         url,
         {
           method: "POST",
