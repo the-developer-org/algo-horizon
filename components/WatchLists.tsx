@@ -22,7 +22,7 @@ import {
 import Image, { StaticImageData } from "next/image";
 import R2Icon from "../app/images/R2.png"
 import R1Icon from "../app/images/R1.png"
-import SQIcon from "../app/images/SQ.png"
+import SQIcon from "../app/images/sq.png"
 
 
 export function WatchLists() {
