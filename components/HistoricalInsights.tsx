@@ -69,8 +69,8 @@ export function HistoricalInsights() {
       const url = "https://algo-horizon-be.onrender.com/api/historical-data/fetch-previous-insights";
       const devUrl = "http://localhost:8080/api/historical-data/fetch-previous-insights";
 
-      const response = await fetch(
-        devUrl
+      const response = await  fetch(
+        url
       );
       if (!response.ok) {
         throw new Error("Failed to fetch data");
@@ -102,8 +102,8 @@ export function HistoricalInsights() {
       const url = "https://algo-horizon-be.onrender.com/api/historical-data/fetch-latest-data";
       const devUrl = "http://localhost:8080/api/historical-data/fetch-latest-data";
 
-      const response = await fetch(
-        devUrl
+      const response = await  fetch(
+        url
       );
       setUpdating(false)
     } catch (err) {
@@ -293,8 +293,8 @@ export function HistoricalInsights() {
 
       const devUrl = "http://localhost:8080/api/historical-data/update-favourites/NSE"
 
-      const response = await fetch(
-        devUrl,
+      const response = await  fetch(
+        url,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
