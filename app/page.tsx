@@ -33,7 +33,10 @@ export default function Home() {
             <Button
               variant="orange"
               className="flex-1 sm:flex-none text-sm sm:text-base px-3 py-2 sm:px-5 sm:py-3"
-              onClick={() => setShowWatchLists(!showWatchLists)}
+              onClick={() => {setShowHistoricalInsights(!showHistoricalInsights)
+                setShowWatchLists(!showWatchLists)
+
+              }}
             >
               {showWatchLists ? "Hide Watchlists" : "Show Watchlists"}
             </Button>
@@ -41,7 +44,10 @@ export default function Home() {
             <Button
               variant="orange"
               className="flex-1 sm:flex-none text-sm sm:text-base px-3 py-2 sm:px-5 sm:py-3"
-              onClick={() => setShowHistoricalInsights(!showHistoricalInsights)}
+              onClick={() => {setShowHistoricalInsights(!showHistoricalInsights)
+                setShowWatchLists(!showWatchLists)
+
+              }}
             >
               {showHistoricalInsights ? "Hide Insights" : "Show Insights"}
             </Button>

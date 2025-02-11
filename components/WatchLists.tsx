@@ -23,6 +23,7 @@ import Image, { StaticImageData } from "next/image";
 import R2Icon from "../app/images/R2.png"
 import R1Icon from "../app/images/R1.png"
 import SQIcon from "../app/images/sq.png"
+import { RetireStockModal } from "./RetireStockModal";
 
 
 export function WatchLists() {
@@ -36,6 +37,10 @@ export function WatchLists() {
 
     const [sortOrderProfit, setSortOrderProfit] = useState<"asc" | "desc" | null>(null);
     const [sortOrderLoss, setSortOrderLoss] = useState<"asc" | "desc" | null>(null);
+
+
+    const [isModalOpen, setIsModalOpen] = useState(false)
+    const [activeInstrumentKey, setActiveInstrumentKey] = useState<string | null>(null);
 
     useEffect(() => {
         filterAndSortWatchLists();
@@ -156,15 +161,7 @@ export function WatchLists() {
         fetchData();
         setLoading(false);
     };
-    const getLatestReturn = (returns: Record<string, number>): number | null => {
-        if (!returns || Object.keys(returns).length === 0) return null;
-
-        const latestDate = Object.keys(returns).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
-
-        return returns[latestDate];
-    };
-
-
+ 
     const handleSave = (instrumentKey: string) => {
         try {
             if (tempValue !== null) {
@@ -205,34 +202,6 @@ export function WatchLists() {
             console.error("Error updating stock count:", err);
         }
     };
-
-    const retireStock = async (instrumentKey: string) => {
-        try {
-            if (!instrumentKey.includes("NSE")) {
-                throw new Error("Invalid Instrument Key");
-            }
-
-            const formattedInstrumentKey = instrumentKey.replace("|", "-");
-
-            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
-            const url = baseUrl + `/api/watchlist/retire-stock?instrumentKey=${encodeURIComponent(formattedInstrumentKey)}`;
-
-            const response = await fetch(url, {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
-
-            fetchData();
-
-        } catch (err) {
-            console.error("Error retiring stock:", err);
-            throw err; // Rethrow for handling in UI
-        }
-    };
-
-
 
 
     return (
@@ -359,7 +328,7 @@ export function WatchLists() {
                                         : watchList.inProfit
                                             ? "bg-green-400"
                                             : "bg-red-400"
-                                    } p-4 rounded-lg`}
+                                    } p-4`}
                             >
                                 <CardTitle className="text-lg font-semibold text-gray-800">
                                     <div className="flex items-center justify-between w-full">
@@ -404,7 +373,23 @@ export function WatchLists() {
                                                     className="w-5 h-5 sm:w-7 sm:h-7"
                                                     src="https://img.icons8.com/plasticine/100/filled-trash.png"
                                                     alt="trash"
-                                                    onClick={() => retireStock(watchList.instrumentKey)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // ✅ Prevents event bubbling
+                                                        if (!isModalOpen) {
+                                                          setIsModalOpen(true);
+                                                        }
+                                                        setActiveInstrumentKey(watchList.instrumentKey)
+                                                        
+                                                      }}
+                                                />
+                                            )}
+
+                                            {isModalOpen && activeInstrumentKey === watchList.instrumentKey && (
+                                                <RetireStockModal
+                                                    isOpen={isModalOpen}
+                                                    fetchData={fetchData}
+                                                    instrumentKey={watchList.instrumentKey}
+                                                    onClose={() => setIsModalOpen(false)}
                                                 />
                                             )}
                                         </div>
@@ -417,19 +402,19 @@ export function WatchLists() {
                                 <p className="text-gray-600">
                                     Added On: {watchList.entryDayCandle.timestamp.slice(0, 10)}
                                 </p>
-                                <p className="text-orange-600">
+                                <p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
                                     Entry At: {watchList.entryDayValue.toFixed(2)}
                                 </p>
-                                {watchList.inProfit && <p className="text-green-600">
-                                    Live Profit %: {watchList.overAllProfitPercentage.toFixed(2)}
+                                {watchList.inProfit && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
+                                    {watchList.retired ? `Live Profit %:` : `Closing Profit %:` } {watchList.overAllProfitPercentage.toFixed(2)}
                                 </p>}
-                                {watchList.inLoss && <p className="text-red-600">
-                                    Live Loss %: {watchList.overAllLossPercentage.toFixed(2)}
+                                {watchList.inLoss && <p className={watchList.retired ? "text-gray-700" :"text-red-600"}>
+                                    {watchList.retired ? `Live Loss %:` : `Closing Loss %:` } {watchList.overAllLossPercentage.toFixed(2)}
                                 </p>}
-                                {watchList.highestProfitPercentage > 0 && <p className="text-green-600">
+                                {watchList.highestProfitPercentage > 0 && <p className={watchList.retired ? "text-gray-700" :"text-green-600"}>
                                     Highest Profit: {`${watchList.highestProfitPercentage.toFixed(2)}% - ${watchList.highestProfitDay}`}
                                 </p>}
-                                {watchList.highestLossPercentage > 0 && <p className="text-red-600">
+                                {watchList.highestLossPercentage > 0 && <p className={watchList.retired ? "text-gray-700" : "text-red-600"}>
                                     Highest Loss: {`${watchList.highestLossPercentage.toFixed(2)}% - ${watchList.highestLossDay}`}
                                 </p>}
                                 {/* <p className="text-green-600">
@@ -474,11 +459,11 @@ export function WatchLists() {
                                         </div>
                                     )}
                                 </div>
-                                {!watchList.forFuture && <p className="text-green-600">
+                                {!watchList.forFuture && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
                                     Invested Amount: {(watchList.stockCount * watchList.entryDayValue)?.toFixed(2)}
                                 </p>}
 
-                                {!watchList.forFuture && <p className="text-green-600">
+                                {!watchList.forFuture && <p className={watchList.retired ? "text-gray-700" : watchList.inProfit ?  "text-green-600" : "text-red-600"}>
                                     Current Value: {(watchList.stockCount * watchList.currentCandle.close)?.toFixed(2)}
                                 </p>}
                             </CardContent>
