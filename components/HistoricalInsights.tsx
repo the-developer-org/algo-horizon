@@ -393,14 +393,14 @@ export function HistoricalInsights() {
           Historical Insights
         </h2>
         <div className="flex flex-wrap gap-2">
-          <Button
+          {/* <Button
             onClick={handleCandleUpdate}
             className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 flex items-center text-xs sm:text-sm"
             disabled={updating}
           >
             <RefreshCw className="mr-1 h-3 w-3 sm:h-5 sm:w-5" />
             {updating ? "Updating..." : "Update Candle Data"}
-          </Button>
+          </Button> */}
           <Button
             onClick={handleRefresh}
             className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 flex items-center text-xs sm:text-sm"
