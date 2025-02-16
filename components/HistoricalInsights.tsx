@@ -66,17 +66,65 @@ export function HistoricalInsights() {
     setError(null);
     try {
 
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
-      const url = baseUrl + "/api/historical-data/fetch-previous-insights";
+      // const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+      // const url = baseUrl + "/api/historical-data/fetch-previous-insights";
 
-      const response = await fetch(
-        url
+      // const response = await fetch(
+      //   url
+      // );
+      // if (!response.ok) {
+      //   throw new Error("Failed to fetch data");
+      // }
+      // const result: ApiResponse = await response.json();
+      const response1 = await fetch(
+        "https://saved-dassie-60359.upstash.io/get/AlgoHorizon",
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+          },
+        }
       );
-      if (!response.ok) {
-        throw new Error("Failed to fetch data");
+      
+      const response2 = await fetch(
+        "https://saved-dassie-60359.upstash.io/get/AlgoHorizon2",
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+          },
+        }
+      );
+      
+      // Get the data from both responses
+      const data1 = await response1.json();
+      const data2 = await response2.json();
+      
+      const parsedData1: ApiResponse = JSON.parse(data1.result);
+      
+      // Initialize mergedSortedHistoricalResponses with data from response1
+      let mergedSortedHistoricalResponses = { ...parsedData1.sortedHistoricalResponses };
+      
+      // Ensure data2.result is not null before parsing
+      if (data2.result) {
+        try {
+          const parsedData2: ApiResponse = JSON.parse(data2.result);
+          mergedSortedHistoricalResponses = {
+            ...mergedSortedHistoricalResponses,
+            ...parsedData2.sortedHistoricalResponses
+          };
+        } catch (error) {
+          console.error("Error parsing response2 JSON:", error);
+        }
       }
-      const result: ApiResponse = await response.json();
-      setData(result);
+      
+      const mergedData = {
+        ...parsedData1,
+        sortedHistoricalResponses: mergedSortedHistoricalResponses,
+      };
+      
+
+      setData(mergedData);
     } catch (err) {
       setError("An error occurred while fetching data");
       console.error(err);

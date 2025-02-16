@@ -49,18 +49,32 @@ export function WatchLists() {
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
-            const url = baseUrl + "/api/watchlist/fetch-watch-list-stocks";
+            // const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+            // const url = baseUrl + "/api/watchlist/fetch-watch-list-stocks";
 
-            const response = await fetch(
-                url
-            );
-            if (!response.ok) {
-                throw new Error("Failed to fetch data");
-            }
-            const result: WatchListResponse = await response.json();
+            // const response = await fetch(
+            //     url
+            // );
+            // if (!response.ok) {
+            //     throw new Error("Failed to fetch data");
+            // }
+            // const result: WatchListResponse = await response.json();
 
-            setWatchLists(result.watchLists)
+            const watchListResponse = await fetch(
+                "https://saved-dassie-60359.upstash.io/get/WatchListData",
+                {
+                  method: "GET",
+                  headers: {
+                    Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+                  },
+                }
+              );
+
+              const watchListJsonData = await watchListResponse.json();
+
+               const watchListParsedData: WatchList[] = JSON.parse(watchListJsonData.result);
+
+            setWatchLists(watchListParsedData)
         } catch (err) {
             setLoading(false);
 
@@ -318,8 +332,8 @@ export function WatchLists() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
                 {filteredWatchLists.length > 0 ? (
-                    filteredWatchLists.map((watchList) => (
-                        <Card key={watchList.instrumentKey} className="bg-white bg-opacity-75 w-full">
+                    filteredWatchLists.map((watchList, index) => (
+                        <Card key={`${watchList.instrumentKey}-${index}`} className="bg-white bg-opacity-75 w-full">
                             <CardHeader
                                 className={`${watchList.retired
                                     ? "bg-gray-400"
