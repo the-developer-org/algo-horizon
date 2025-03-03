@@ -76,11 +76,12 @@ export interface HistoricalResponse {
     beingWatched: boolean;
     highestProfitPercentage : number;
     highestLossPercentage : number;
-    highestProfitDay : Date | null;
-    highestLossDay : Date | null;
+    highestProfitDay : number;
+    highestLossDay : number;
     forFuture : boolean;
     retired : boolean;
     stockCount : number;
+    reCalculatedOn : string;
     [key: string]: any; 
   }
   

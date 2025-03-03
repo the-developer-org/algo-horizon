@@ -217,6 +217,15 @@ export function WatchLists() {
         }
     };
 
+    function formatDateFromSeconds(seconds : number) {
+        debugger
+        return new Date(seconds * 1000).toLocaleDateString("en-GB", { 
+            day: "2-digit", 
+            month: "short", 
+            year: "numeric" 
+        });
+    }
+
 
     return (
         <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
@@ -416,6 +425,9 @@ export function WatchLists() {
                                 <p className="text-gray-600">
                                     Added On: {watchList.entryDayCandle.timestamp.slice(0, 10)}
                                 </p>
+                               {!watchList.forFuture && <p className="text-gray-600">
+                                    Re-Calculated On: {watchList?.reCalculatedOn ?? ""}
+                                </p>}
                                 <p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
                                     Entry At: {watchList.entryDayValue.toFixed(2)}
                                 </p>
