@@ -63,7 +63,7 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites, fe
                               setIsModalOpen(true);
                             }
                             setActiveInstrumentKey(response.instrumentKey)
-                            
+
                           }}
                           alt="Watch List"
                         />}
