@@ -408,8 +408,8 @@ export const WatchLists = ({ liveData }: Props) => {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                            {liveData["abc"] && <span style={{ fontWeight: 'bold', marginRight: '8px', color: 'green' }}>
-                    {`Live - `}{liveData["abc"]?.close?.toFixed(2)}
+                            {liveData[watchList.instrumentKey] && <span style={{ fontWeight: 'bold', marginRight: '8px', color: 'green' }}>
+                    {`Live - `}{liveData[watchList.instrumentKey]?.close?.toFixed(2)}
 
                     <>
                       <style>
