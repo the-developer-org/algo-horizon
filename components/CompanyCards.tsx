@@ -187,8 +187,8 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites, fe
 
 
                   </div>
-                  {liveClose[response.instrumentKey] && <span style={{ fontWeight: 'bold', marginRight: '8px', color: 'green' }}>
-                    {`Live - `}{liveClose[response.instrumentKey]?.close?.toFixed(2)}
+                  {liveClose["abc"] && <span style={{ fontWeight: 'bold', marginRight: '8px', color: 'green' }}>
+                    {`Live - `}{liveClose["abc"]?.close?.toFixed(2)}
 
                     <>
                       <style>
