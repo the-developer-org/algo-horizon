@@ -1,17 +1,28 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { HistoricalInsights } from "../components/HistoricalInsights";
 import { WatchLists } from "../components/WatchLists";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import useWebSocket from "../components/WebSocket"; // Adjust the import path as necessary
+import useSocketConnectionStatus from "../components/useSocketConnectionStatus"; 
+import useWebSocket from "../components/WebSocket";// Adjust the import path as necessary
 
 export default function Home() {
   const [showWatchLists, setShowWatchLists] = useState(false);
   const [showHistoricalInsights, setShowHistoricalInsights] = useState(true);
-
-
+  
+  // Using the useSocketConnectionStatus hook for WebSocket connection status
+  const { isConnected } = useSocketConnectionStatus(); // Replace with actual WebSocket URL
   const liveData = useWebSocket();
+
+
+  useEffect(() => {
+    if (isConnected) {
+      console.log("Connected to the server");
+    } else {
+      console.log("Disconnected from the server");
+    }
+  }, [isConnected]);
 
   return (
     <div
@@ -22,6 +33,8 @@ export default function Home() {
     >
       {/* Dark overlay to improve readability */}
       <div className="min-h-screen bg-black bg-opacity-60 flex flex-col items-center justify-center px-6 sm:px-8 md:px-12 py-8">
+        
+      
 
         {/* Title and Buttons Container */}
         <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full max-w-5xl">
@@ -37,9 +50,9 @@ export default function Home() {
             <Button
               variant="orange"
               className="flex-1 sm:flex-none text-sm sm:text-base px-3 py-2 sm:px-5 sm:py-3"
-              onClick={() => {setShowHistoricalInsights(!showHistoricalInsights)
-                setShowWatchLists(!showWatchLists)
-
+              onClick={() => {
+                setShowHistoricalInsights(!showHistoricalInsights);
+                setShowWatchLists(!showWatchLists);
               }}
             >
               {showWatchLists ? "Hide Watchlists" : "Show Watchlists"}
@@ -48,16 +61,21 @@ export default function Home() {
             <Button
               variant="orange"
               className="flex-1 sm:flex-none text-sm sm:text-base px-3 py-2 sm:px-5 sm:py-3"
-              onClick={() => {setShowHistoricalInsights(!showHistoricalInsights)
-                setShowWatchLists(!showWatchLists)
-
+              onClick={() => {
+                setShowHistoricalInsights(!showHistoricalInsights);
+                setShowWatchLists(!showWatchLists);
               }}
             >
               {showHistoricalInsights ? "Hide Insights" : "Show Insights"}
             </Button>
+
+            <div
+          className={`w-full sm:w-auto p-4 rounded-lg mb-4 ${isConnected ? "bg-green-500" : "bg-red-500"}`}
+          style={{ transition: "background-color 0.3s ease" }}
+        >
+          <span className="text-white font-bold">{isConnected ? "Server is ON" : "Server is OFF"}</span>
+        </div>
           </div>
-
-
         </div>
 
         {/* Parent container for WatchLists & HistoricalInsights */}
@@ -73,9 +91,7 @@ export default function Home() {
             </div>
           )}
         </div>
-
       </div>
     </div>
-
   );
 }

@@ -1,49 +1,51 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import SockJS from 'sockjs-client';
-
-import { useState, useCallback } from "react";
 import { Client, IMessage } from '@stomp/stompjs';
 
-import { WebSocketData } from './types/historical-insights'; // Adjust the import path as necessary
-
-
-// Define the Candle type (adjust the properties to match the actual Candle structure)
+// Define the interface for WebSocket data
+// You can customize this based on your actual data structure
+interface WebSocketData {
+  [key: string]: any;
+}
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_BASE_URL + "/ws";
 
-const useWebSocket = () => {
+const useWebSocket = (): WebSocketData => {
   const [data, setData] = useState<WebSocketData>({});
   const clientRef = useRef<Client | null>(null);
 
   useEffect(() => {
+    // Create a new STOMP client
     const client = new Client({
       webSocketFactory: () => new SockJS(SOCKET_URL),
+      
       onConnect: () => {
         console.log('Connected to WebSocket');
-
+        
         // Subscribe to the WebSocket topic
         client.subscribe('/topic/data', (message: IMessage) => {
           try {
-            // Parse the received message as a Map of instrument keys to Candle data
             const newData: WebSocketData = JSON.parse(message.body);
             console.log('Received:', newData);
-
-            // Update the state with the new data
+            
             setData((prevData) => ({
               ...prevData,
-              ...newData, // Merge new data into the previous state
+              ...newData,
             }));
           } catch (error) {
             console.error('Failed to parse WebSocket message', error);
           }
         });
       },
+      
       onDisconnect: () => {
         console.log('Disconnected from WebSocket');
       },
+      
       debug: (str: string) => {
         console.log(str);
       },
+      
       reconnectDelay: 5000,
     });
 
@@ -53,11 +55,13 @@ const useWebSocket = () => {
 
     // Cleanup on component unmount
     return () => {
-      client.deactivate();
+      if (clientRef.current?.connected) {
+        clientRef.current.deactivate();
+      }
     };
   }, []);
 
-  return data; // Return live data to be used by components
+  return data;
 };
 
 export default useWebSocket;
