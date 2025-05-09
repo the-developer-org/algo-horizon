@@ -63,6 +63,7 @@ export interface HistoricalResponse {
     instrumentKey: string;
     companyName: string;
     entryDayValue: number;
+    futureEntryDayValue:number;
     overAllProfitPercentage: number;
     overAllLossPercentage: number;
     watchListTag: string;
@@ -85,3 +86,6 @@ export interface HistoricalResponse {
     [key: string]: any; 
   }
   
+  export interface WebSocketData {
+    [key: string]: Candle; 
+  }

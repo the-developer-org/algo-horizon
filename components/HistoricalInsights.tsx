@@ -19,6 +19,9 @@ import {
   HistoricalResponse,
   NumericFilters,
 } from "./types/historical-insights";
+import useWebSocket from "./WebSocket";
+
+
 // Constants
 const MODELS = ["model1", "model2", "model3", "model4"];
 const SORT_KEYS = {
@@ -50,6 +53,8 @@ export function HistoricalInsights() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedModels, setSelectedModels] = useState<string[]>(MODELS);
   const [activateDryMode, setActivateDryMode] = useState(false);
+
+  
 
   const unhideCard = (cardId: string) => {
     setHiddenCards((prevHiddenCards) =>
@@ -434,6 +439,9 @@ export function HistoricalInsights() {
   if (error) return <div className="text-center text-red-600">{error}</div>;
 
 
+  const liveData = useWebSocket();
+
+
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
@@ -682,7 +690,7 @@ export function HistoricalInsights() {
         <div className="text-center text-gray-600">No data available</div>
       ) : (
         <div className="relative overflow-hidden rounded-lg p-2 sm:p-4 bg-gradient-to-br from-gray-100 to-gray-200">
-          <CompanyCards fetchHistoricalData={fetchData} sortedData={paginatedData} hideCard={hideCard} updateFavorites={updateFavorites} />
+          <CompanyCards fetchHistoricalData={fetchData} sortedData={paginatedData} hideCard={hideCard} updateFavorites={updateFavorites} liveClose={liveData} />
         </div>
       )}
 

@@ -10,6 +10,12 @@ import R1Icon from "../app/images/R1.png"
 import WLIcon from "../app/images/wl.png"
 import Image from "next/image";
 import { WatchListModal } from "./WatchListModal"
+import { ConsentModal } from "@/components/ConsentModal"
+import { ConsentRevokeModal } from "./ConsentRevokeModal"
+
+import {
+  WebSocketData
+} from "./types/historical-insights";
 
 
 interface CompanyCardsProps {
@@ -17,12 +23,19 @@ interface CompanyCardsProps {
   hideCard: (id: string) => void
   updateFavorites: (instrumentKey: string, companyName: string) => void
   fetchHistoricalData: () => void
+  liveClose: WebSocketData
 }
 
-export default function CompanyCards({ sortedData, hideCard, updateFavorites, fetchHistoricalData }: CompanyCardsProps) {
+export default function CompanyCards({ sortedData, hideCard, updateFavorites, fetchHistoricalData, liveClose }: CompanyCardsProps) {
 
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isConsentModalOpen, setIsConsentModalOpen] = useState(false)
+  const [isConsentRevokeModalOpen, setIsConsentRevokeModalOpen] = useState(false)
   const [activeInstrumentKey, setActiveInstrumentKey] = useState<string | null>(null);
+
+  const [liveInstrumentKey, setLiveInstrumentKey] = useState<string | null>(null);
+
+
 
 
   return (
@@ -52,6 +65,47 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites, fe
 
                     {/* Right: Trend Icons & Buttons */}
                     <div className="flex items-center space-x-2">
+                      {(liveClose !== null) && <img
+                        width="40"
+                        height="40"
+                        src={
+                          liveClose?.[response.instrumentKey]
+                            ? "https://img.icons8.com/dotty/80/FA5252/last-60-sec.png"
+                            : "https://img.icons8.com/dotty/80/40C057/last-60-sec.png"
+                        }
+                        alt={liveClose?.[response.instrumentKey] ? "bull" : "bear"}
+                        onClick={(e) => {
+                          if (liveClose?.[response.instrumentKey]) {
+                            e.stopPropagation()
+                            if (!isConsentModalOpen) setIsConsentModalOpen(true)
+                            setLiveInstrumentKey(response.instrumentKey)
+                          } else {
+                            e.stopPropagation()
+                            if (!isConsentModalOpen) setIsConsentModalOpen(true)
+                            setLiveInstrumentKey(response.instrumentKey)
+                          }
+                        }}
+                      />}
+
+
+                      {/* Consent Icon */}
+                      {isConsentModalOpen && liveInstrumentKey === response.instrumentKey && (
+                        <ConsentModal
+                          isOpen={isConsentModalOpen}
+                          instrumentKey={response.instrumentKey}
+                          onClose={() => setIsConsentModalOpen(false)}
+                        />
+                      )}
+                      {/* Revoke Consent Icon */}
+                      {isConsentRevokeModalOpen && liveInstrumentKey === response.instrumentKey && (
+                        <ConsentRevokeModal
+                          isOpen={isConsentRevokeModalOpen}
+                          instrumentKey={response.instrumentKey}
+                          onClose={() => setIsConsentRevokeModalOpen(false)}
+                        />
+                      )}
+                      {/* Watch List Icon */}
+
                       {!response.beingWatched &&
                         <Image
                           width="30"
@@ -130,7 +184,51 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites, fe
                       </h3>
 
                     </div>
+
+
                   </div>
+                  {liveClose[response.instrumentKey] && <span style={{ fontWeight: 'bold', marginRight: '8px', color: 'green' }}>
+                    {`Live - `}{liveClose[response.instrumentKey]?.close?.toFixed(2)}
+
+                    <>
+                      <style>
+                        {`
+                        @keyframes pulse {
+                          0% {
+                            transform: scale(1);
+                            box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7);
+                          }
+                          70% {
+                            transform: scale(1.3);
+                            box-shadow: 0 0 10px 6px rgba(255, 0, 0, 0);
+                          }
+                          100% {
+                            transform: scale(1);
+                            box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+                          }
+                        }
+
+                        .live-indicator-pulse {
+                          width: 10px;
+                          height: 10px;
+                          background-color: red;
+                          border-radius: 50%;
+                          display: inline-block;
+                          vertical-align: middle;
+                          animation: pulse 1.5s ease-in-out infinite;
+                          margin-left: 8px;
+                        }
+                      `}
+                      </style>
+
+
+                      <span className="live-indicator-pulse" style={{ marginBottom: '5px', marginLeft: '8px' }}></span>
+                    </>
+                  </span>
+                  }
+
+
+
                   <p className="text-xs text-blue-600 mb-1">
                     Last Boom Date: {response?.formattedLastBoomDataUpdatedAt || "N/A"}
                   </p>

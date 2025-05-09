@@ -63,16 +63,16 @@ export function WatchLists() {
             const watchListResponse = await fetch(
                 "https://saved-dassie-60359.upstash.io/get/WatchListData",
                 {
-                  method: "GET",
-                  headers: {
-                    Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-                  },
+                    method: "GET",
+                    headers: {
+                        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+                    },
                 }
-              );
+            );
 
-              const watchListJsonData = await watchListResponse.json();
+            const watchListJsonData = await watchListResponse.json();
 
-               const watchListParsedData: WatchList[] = JSON.parse(watchListJsonData.result);
+            const watchListParsedData: WatchList[] = JSON.parse(watchListJsonData.result);
 
             setWatchLists(watchListParsedData)
         } catch (err) {
@@ -175,7 +175,7 @@ export function WatchLists() {
         fetchData();
         setLoading(false);
     };
- 
+
     const handleSave = (instrumentKey: string) => {
         try {
             if (tempValue !== null) {
@@ -217,12 +217,12 @@ export function WatchLists() {
         }
     };
 
-    function formatDateFromSeconds(seconds : number) {
+    function formatDateFromSeconds(seconds: number) {
         debugger
-        return new Date(seconds * 1000).toLocaleDateString("en-GB", { 
-            day: "2-digit", 
-            month: "short", 
-            year: "numeric" 
+        return new Date(seconds * 1000).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
         });
     }
 
@@ -399,11 +399,11 @@ export function WatchLists() {
                                                     onClick={(e) => {
                                                         e.stopPropagation(); // ✅ Prevents event bubbling
                                                         if (!isModalOpen) {
-                                                          setIsModalOpen(true);
+                                                            setIsModalOpen(true);
                                                         }
                                                         setActiveInstrumentKey(watchList.instrumentKey)
-                                                        
-                                                      }}
+
+                                                    }}
                                                 />
                                             )}
 
@@ -425,19 +425,25 @@ export function WatchLists() {
                                 <p className="text-gray-600">
                                     Added On: {watchList.entryDayCandle.timestamp.slice(0, 10)}
                                 </p>
-                               {!watchList.forFuture && <p className="text-gray-600">
+                                {!watchList.forFuture && <p className="text-gray-600">
                                     Re-Calculated On: {watchList?.reCalculatedOn ?? ""}
                                 </p>}
-                                <p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
-                                    Entry At: {watchList.entryDayValue.toFixed(2)}
-                                </p>
+                                { (watchList.watchListTag === "SayQid Watch List") && <p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
+                                    {"Entry Marked At :"}{watchList.futureEntryDayValue.toFixed(2)}
+                                </p>}
+                                {<p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
+                                    {(watchList.watchListTag === "R1" || watchList.watchListTag === "R2") ? "Entry At" : `Actual Entry At:`} {watchList.entryDayValue.toFixed(2)}
+                                </p>}
+                                {<p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
+                                    Today Closed At: {watchList.currentCandle.close}
+                                </p>}
                                 {watchList.inProfit && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
-                                    {watchList.retired ? `Live Profit %:` : `Closing Profit %:` } {watchList.overAllProfitPercentage.toFixed(2)}
+                                    {watchList.retired ? `Live Profit:` : `Closing Profit:`} {watchList.overAllProfitPercentage.toFixed(2)} {`%`}
                                 </p>}
-                                {watchList.inLoss && <p className={watchList.retired ? "text-gray-700" :"text-red-600"}>
-                                    {watchList.retired ? `Live Loss %:` : `Closing Loss %:` } {watchList.overAllLossPercentage.toFixed(2)}
+                                {watchList.inLoss && <p className={watchList.retired ? "text-gray-700" : "text-red-600"}>
+                                    {watchList.retired ? `Live Loss:` : `Closing Loss :`} {watchList.overAllLossPercentage.toFixed(2)} {`%`}
                                 </p>}
-                                {watchList.highestProfitPercentage > 0 && <p className={watchList.retired ? "text-gray-700" :"text-green-600"}>
+                                {watchList.highestProfitPercentage > 0 && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
                                     Highest Profit: {`${watchList.highestProfitPercentage.toFixed(2)}% - ${watchList.highestProfitDay}`}
                                 </p>}
                                 {watchList.highestLossPercentage > 0 && <p className={watchList.retired ? "text-gray-700" : "text-red-600"}>
@@ -489,7 +495,7 @@ export function WatchLists() {
                                     Invested Amount: {(watchList.stockCount * watchList.entryDayValue)?.toFixed(2)}
                                 </p>}
 
-                                {!watchList.forFuture && <p className={watchList.retired ? "text-gray-700" : watchList.inProfit ?  "text-green-600" : "text-red-600"}>
+                                {!watchList.forFuture && <p className={watchList.retired ? "text-gray-700" : watchList.inProfit ? "text-green-600" : "text-red-600"}>
                                     Current Value: {(watchList.stockCount * watchList.currentCandle.close)?.toFixed(2)}
                                 </p>}
                             </CardContent>
