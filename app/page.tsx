@@ -4,10 +4,14 @@ import { HistoricalInsights } from "../components/HistoricalInsights";
 import { WatchLists } from "../components/WatchLists";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import useWebSocket from "../components/WebSocket"; // Adjust the import path as necessary
 
 export default function Home() {
   const [showWatchLists, setShowWatchLists] = useState(false);
   const [showHistoricalInsights, setShowHistoricalInsights] = useState(true);
+
+
+  const liveData = useWebSocket();
 
   return (
     <div
@@ -60,12 +64,12 @@ export default function Home() {
         <div className="w-full sm:w-11/12 md:w-5/6 lg:w-4/5 xl:w-11/12 max-w-25xl mt-8">
           {showWatchLists && (
             <div className="w-full bg-gray-500 bg-opacity-75 rounded-lg p-6 sm:p-8">
-              <WatchLists />
+              <WatchLists liveData={liveData} />
             </div>
           )}
           {showHistoricalInsights && (
             <div className="w-full bg-gray-500 bg-opacity-75 rounded-lg p-6 sm:p-8 mt-4">
-              <HistoricalInsights />
+              <HistoricalInsights liveData={liveData} />
             </div>
           )}
         </div>

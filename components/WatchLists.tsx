@@ -5,19 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
-import Link from 'next/link'
+
 
 import {
-    Candle,
-    WatchListResponse,
-    WatchList
+
+    WatchList,
+    WebSocketData
 } from "./types/historical-insights";
 import Image, { StaticImageData } from "next/image";
 import R2Icon from "../app/images/R2.png"
@@ -25,8 +18,11 @@ import R1Icon from "../app/images/R1.png"
 import SQIcon from "../app/images/sq.png"
 import { RetireStockModal } from "./RetireStockModal";
 
+interface Props {
+    liveData: WebSocketData 
+  }
 
-export function WatchLists() {
+export const WatchLists = ({ liveData }: Props) => {
     const [watchLists, setWatchLists] = useState<WatchList[]>([])
     const [filteredWatchLists, setFilteredWatchLists] = useState<WatchList[]>([])
     const [searchTerm, setSearchTerm] = useState("");
@@ -49,16 +45,6 @@ export function WatchLists() {
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            // const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
-            // const url = baseUrl + "/api/watchlist/fetch-watch-list-stocks";
-
-            // const response = await fetch(
-            //     url
-            // );
-            // if (!response.ok) {
-            //     throw new Error("Failed to fetch data");
-            // }
-            // const result: WatchListResponse = await response.json();
 
             const watchListResponse = await fetch(
                 "https://saved-dassie-60359.upstash.io/get/WatchListData",
@@ -422,6 +408,45 @@ export function WatchLists() {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
+                            {liveData[watchList.instrumentKey] && <span style={{ fontWeight: 'bold', marginRight: '8px', color: 'green' }}>
+                    {`Live - `}{liveData[watchList.instrumentKey]?.close?.toFixed(2)}
+
+                    <>
+                      <style>
+                        {`
+                        @keyframes pulse {
+                          0% {
+                            transform: scale(1);
+                            box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7);
+                          }
+                          70% {
+                            transform: scale(1.3);
+                            box-shadow: 0 0 10px 6px rgba(255, 0, 0, 0);
+                          }
+                          100% {
+                            transform: scale(1);
+                            box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+                          }
+                        }
+
+                        .live-indicator-pulse {
+                          width: 10px;
+                          height: 10px;
+                          background-color: red;
+                          border-radius: 50%;
+                          display: inline-block;
+                          vertical-align: middle;
+                          animation: pulse 1.5s ease-in-out infinite;
+                          margin-left: 8px;
+                        }
+                      `}
+                      </style>
+
+
+                      <span className="live-indicator-pulse" style={{ marginBottom: '5px', marginLeft: '8px' }}></span>
+                    </>
+                  </span>
+                  }
                                 <p className="text-gray-600">
                                     Added On: {watchList.entryDayCandle.timestamp.slice(0, 10)}
                                 </p>

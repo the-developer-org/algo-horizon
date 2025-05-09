@@ -18,8 +18,9 @@ import {
   ApiResponse,
   HistoricalResponse,
   NumericFilters,
+  WebSocketData,
 } from "./types/historical-insights";
-import useWebSocket from "./WebSocket";
+
 
 
 // Constants
@@ -31,7 +32,12 @@ const SORT_KEYS = {
   MAX_VOLUME_CHANGE: "maxVolumeChange",
 };
 
-export function HistoricalInsights() {
+
+interface Props {
+    liveData: WebSocketData 
+  }
+
+export const HistoricalInsights = ({ liveData }: Props) => {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -70,17 +76,6 @@ export function HistoricalInsights() {
     setLoading(true);
     setError(null);
     try {
-
-      // const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
-      // const url = baseUrl + "/api/historical-data/fetch-previous-insights";
-
-      // const response = await fetch(
-      //   url
-      // );
-      // if (!response.ok) {
-      //   throw new Error("Failed to fetch data");
-      // }
-      // const result: ApiResponse = await response.json();
       const response1 = await fetch(
         "https://saved-dassie-60359.upstash.io/get/AlgoHorizon",
         {
@@ -145,26 +140,6 @@ export function HistoricalInsights() {
 
   const handleRefresh = () => {
     fetchData();
-  };
-
-  const handleCandleUpdate = async () => {
-    setUpdating(true)
-    try {
-
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
-      const url = baseUrl + "/api/historical-data/fetch-latest-data";
-
-      const response = await fetch(
-        url
-      );
-      setUpdating(false)
-    } catch (err) {
-      console.error("Error updating candle data:", err);
-      setError("Failed to update candle data. Please try again.");
-      setUpdating(false);
-    } finally {
-      setUpdating(false);
-    }
   };
 
 
@@ -439,9 +414,6 @@ export function HistoricalInsights() {
   if (error) return <div className="text-center text-red-600">{error}</div>;
 
 
-  const liveData = useWebSocket();
-
-
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
@@ -449,14 +421,7 @@ export function HistoricalInsights() {
           Historical Insights
         </h2>
         <div className="flex flex-wrap gap-2">
-          {/* <Button
-            onClick={handleCandleUpdate}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 flex items-center text-xs sm:text-sm"
-            disabled={updating}
-          >
-            <RefreshCw className="mr-1 h-3 w-3 sm:h-5 sm:w-5" />
-            {updating ? "Updating..." : "Update Candle Data"}
-          </Button> */}
+       
           <Button
             onClick={handleRefresh}
             className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded transition duration-300 flex items-center text-xs sm:text-sm"
