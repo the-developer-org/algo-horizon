@@ -10,11 +10,33 @@ interface WebSocketData {
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_BASE_URL + "/ws";
 
+const isWithinTradingHours = (): boolean => {
+  const now = new Date();
+  const day = now.getDay(); // Sunday = 0, Monday = 1, ..., Saturday = 6
+
+  if (day === 0 || day === 6) return false; // Skip Saturday and Sunday
+
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const timeInMinutes = hours * 60 + minutes;
+
+  const start = 9 * 60 + 30;  // 9:30 AM = 570
+  const end = 15 * 60 + 30;   // 3:30 PM = 930
+
+  return timeInMinutes >= start && timeInMinutes <= end;
+};
+
 const useWebSocket = (): WebSocketData => {
   const [data, setData] = useState<WebSocketData>({});
   const clientRef = useRef<Client | null>(null);
 
   useEffect(() => {
+
+    if (!isWithinTradingHours()) {
+      console.log("Outside trading hours — WebSocket not connected.");
+      return;
+    }
+    
     // Create a new STOMP client
     const client = new Client({
       webSocketFactory: () => new SockJS(SOCKET_URL),
