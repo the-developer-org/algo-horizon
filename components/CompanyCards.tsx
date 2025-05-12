@@ -71,13 +71,13 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites, fe
                         width="40"
                         height="40"
                         src={
-                          liveSet.includes(response?.instrumentKey)
+                          liveClose[(response?.instrumentKey)]
                             ? "https://img.icons8.com/dotty/80/FA5252/last-60-sec.png"
                             : "https://img.icons8.com/dotty/80/40C057/last-60-sec.png"
                         }
                         alt={liveClose?.[response.instrumentKey] ? "bull" : "bear"}
                         onClick={(e) => {
-                          if ( liveSet.includes(response.instrumentKey)) {
+                          if (  liveClose[(response?.instrumentKey)]) {
                             e.stopPropagation()
                             if (!isConsentModalOpen) setIsConsentModalOpen(true)
                             setLiveInstrumentKey(response.instrumentKey)
