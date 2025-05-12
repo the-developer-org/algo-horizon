@@ -60,6 +60,8 @@ export const HistoricalInsights = ({ liveData }: Props) => {
   const [selectedModels, setSelectedModels] = useState<string[]>(MODELS);
   const [activateDryMode, setActivateDryMode] = useState(false);
 
+  const [liveDataKeys, setLiveDataKeys] = useState([]);
+
   
 
   const unhideCard = (cardId: string) => {
@@ -71,6 +73,32 @@ export const HistoricalInsights = ({ liveData }: Props) => {
   const hideCard = (cardId: string) => {
     setHiddenCards((prev) => [...prev, cardId]);
   };
+
+ 
+  const fetchLiveDataKeys = async () => {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+      const url = baseUrl+"/api/live-data/fetch-info";
+      const response = await fetch(url, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch data");
+      }
+
+      const data = await response.json();
+      setLiveDataKeys(data.instrumentKeys);
+    } catch (error) {
+      console.error("Error fetching live data keys:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveDataKeys();
+  }, []);
+
+
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -655,7 +683,7 @@ export const HistoricalInsights = ({ liveData }: Props) => {
         <div className="text-center text-gray-600">No data available</div>
       ) : (
         <div className="relative overflow-hidden rounded-lg p-2 sm:p-4 bg-gradient-to-br from-gray-100 to-gray-200">
-          <CompanyCards fetchHistoricalData={fetchData} sortedData={paginatedData} hideCard={hideCard} updateFavorites={updateFavorites} liveClose={liveData} />
+          <CompanyCards fetchHistoricalData={fetchData} sortedData={paginatedData} hideCard={hideCard} updateFavorites={updateFavorites} liveClose={liveData} liveSet={liveDataKeys} updateLiveSet={fetchLiveDataKeys} />
         </div>
       )}
 

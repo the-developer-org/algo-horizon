@@ -24,9 +24,11 @@ interface CompanyCardsProps {
   updateFavorites: (instrumentKey: string, companyName: string) => void
   fetchHistoricalData: () => void
   liveClose: WebSocketData
+  liveSet : string[]
+  updateLiveSet : () => void
 }
 
-export default function CompanyCards({ sortedData, hideCard, updateFavorites, fetchHistoricalData, liveClose }: CompanyCardsProps) {
+export default function CompanyCards({ sortedData, hideCard, updateFavorites, fetchHistoricalData, liveClose, liveSet, updateLiveSet }: CompanyCardsProps) {
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isConsentModalOpen, setIsConsentModalOpen] = useState(false)
@@ -69,20 +71,22 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites, fe
                         width="40"
                         height="40"
                         src={
-                          liveClose?.[response.instrumentKey]
+                          liveSet.includes(response?.instrumentKey)
                             ? "https://img.icons8.com/dotty/80/FA5252/last-60-sec.png"
                             : "https://img.icons8.com/dotty/80/40C057/last-60-sec.png"
                         }
                         alt={liveClose?.[response.instrumentKey] ? "bull" : "bear"}
                         onClick={(e) => {
-                          if (liveClose?.[response.instrumentKey]) {
+                          if ( liveSet.includes(response.instrumentKey)) {
                             e.stopPropagation()
                             if (!isConsentModalOpen) setIsConsentModalOpen(true)
                             setLiveInstrumentKey(response.instrumentKey)
+                            updateLiveSet()
                           } else {
                             e.stopPropagation()
                             if (!isConsentModalOpen) setIsConsentModalOpen(true)
                             setLiveInstrumentKey(response.instrumentKey)
+                            updateLiveSet()
                           }
                         }}
                       />}
