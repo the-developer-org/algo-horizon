@@ -456,10 +456,11 @@ export const WatchLists = ({ liveData }: Props) => {
 
                                     {/* Live PnL */}
                                     {liveChangePercent !== null && (
-                                        <p className={watchList.retired ? "text-gray-700" : liveChangePercent >= 0 ? "text-green-800" : "text-red-600"}>
-                                        Live {liveChangePercent >= 0 ? "Profit:" : "Loss:"} {liveChangePercent.toFixed(2)}%
-                                        Live Value : {watchList.stockCount * livePrice}
-                                        </p>
+                                      <div className={watchList.retired ? "text-gray-700" : liveChangePercent >= 0 ? "text-green-800" : "text-red-600"}>
+                                      <p>Live {liveChangePercent >= 0 ? "Profit:" : "Loss:"} {liveChangePercent.toFixed(2)}%</p>
+                                      <p>Live Value: {watchList.stockCount * livePrice}</p>
+                                    </div>
+                                    
                                         
                                     )}
                                     <p className="text-gray-600">
