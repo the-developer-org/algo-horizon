@@ -459,11 +459,13 @@ export const WatchLists = ({ liveData }: Props) => {
                                       <div className={watchList.retired ? "text-gray-700" : liveChangePercent >= 0 ? "text-green-800" : "text-red-600"}>
                                       <p>Live {liveChangePercent >= 0 ? "Profit:" : "Loss:"} {liveChangePercent.toFixed(2)}%</p>
                                       <p>Live Value: {watchList.stockCount * livePrice}</p>
+                                      <br />
+                                      <hr className="my-2 border-t-2 border-gray-700" />
                                     </div>
                                     
                                         
                                     )}
-                                    <hr className="my-1 border-gray-300" />
+                                  
                                     <p className="text-gray-600">
                                         Added On: {watchList.entryDayCandle.timestamp.slice(0, 10)}
                                     </p>
