@@ -19,8 +19,8 @@ import SQIcon from "../app/images/sq.png"
 import { RetireStockModal } from "./RetireStockModal";
 
 interface Props {
-    liveData: WebSocketData 
-  }
+    liveData: WebSocketData
+}
 
 export const WatchLists = ({ liveData }: Props) => {
     const [watchLists, setWatchLists] = useState<WatchList[]>([])
@@ -327,93 +327,99 @@ export const WatchLists = ({ liveData }: Props) => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
                 {filteredWatchLists.length > 0 ? (
-                    filteredWatchLists.map((watchList, index) => (
-                        <Card key={`${watchList.instrumentKey}-${index}`} className="bg-white bg-opacity-75 w-full">
-                            <CardHeader
-                                className={`${watchList.retired
-                                    ? "bg-gray-400"
-                                    : watchList.forFuture
-                                        ? "bg-blue-400"
-                                        : watchList.inProfit
-                                            ? "bg-green-400"
-                                            : "bg-red-400"
-                                    } p-4`}
-                            >
-                                <CardTitle className="text-lg font-semibold text-gray-800">
-                                    <div className="flex items-center justify-between w-full">
-                                        <div className="flex gap-3 xs:gap-3 sm:gap-3 items-center">
-                                            <div className="text-xs xs:text-sm sm:text-base font-semibold w-32 lg:w-72">
-                                                {watchList.companyName}
+                    filteredWatchLists.map((watchList, index) => {
+
+                        const livePrice = liveData[watchList.instrumentKey]?.close;
+                        const entryPrice = watchList.entryDayValue;
+                        const liveChangePercent = livePrice ? ((livePrice - entryPrice) / entryPrice) * 100 : null;
+
+                        return (
+                            <Card key={`${watchList.instrumentKey}-${index}`} className="bg-white bg-opacity-75 w-full">
+                                <CardHeader
+                                    className={`${watchList.retired
+                                        ? "bg-gray-400"
+                                        : watchList.forFuture
+                                            ? "bg-blue-400"
+                                            : watchList.inProfit
+                                                ? "bg-green-400"
+                                                : "bg-red-400"
+                                        } p-4`}
+                                >
+                                    <CardTitle className="text-lg font-semibold text-gray-800">
+                                        <div className="flex items-center justify-between w-full">
+                                            <div className="flex gap-3 xs:gap-3 sm:gap-3 items-center">
+                                                <div className="text-xs xs:text-sm sm:text-base font-semibold w-32 lg:w-72">
+                                                    {watchList.companyName}
+                                                </div>
+
+
+                                                <Image
+                                                    className="w-4 h-4 xs:w-5 xs:h-5 sm:w-7 sm:h-7"
+                                                    src={tagIcons[watchList.watchListTag]}
+                                                    alt="bull"
+                                                />
                                             </div>
 
 
-                                            <Image
-                                                className="w-4 h-4 xs:w-5 xs:h-5 sm:w-7 sm:h-7"
-                                                src={tagIcons[watchList.watchListTag]}
-                                                alt="bull"
-                                            />
+                                            <div className="flex gap-2 items-center">
+                                                {!watchList.retired && editingId !== watchList.instrumentKey && (
+                                                    <img
+                                                        className="w-5 h-5 sm:w-7 sm:h-7"
+                                                        src="https://img.icons8.com/cotton/128/edit--v1.png"
+                                                        alt="edit"
+                                                        onClick={() => setEditingId(watchList.instrumentKey)}
+                                                    />
+                                                )}
+
+                                                {!watchList.retired && editingId === watchList.instrumentKey && (
+                                                    <img
+                                                        className="w-5 h-5 sm:w-7 sm:h-7"
+                                                        src="https://img.icons8.com/keek/50/delete-sign.png"
+                                                        alt="close"
+                                                        onClick={() => {
+                                                            setEditingId(null);
+                                                            setTempValue(null);
+                                                        }}
+                                                    />
+                                                )}
+
+                                                {!watchList.retired && (
+                                                    <img
+                                                        className="w-5 h-5 sm:w-7 sm:h-7"
+                                                        src="https://img.icons8.com/plasticine/100/filled-trash.png"
+                                                        alt="trash"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // ✅ Prevents event bubbling
+                                                            if (!isModalOpen) {
+                                                                setIsModalOpen(true);
+                                                            }
+                                                            setActiveInstrumentKey(watchList.instrumentKey)
+
+                                                        }}
+                                                    />
+                                                )}
+
+                                                {isModalOpen && activeInstrumentKey === watchList.instrumentKey && (
+                                                    <RetireStockModal
+                                                        isOpen={isModalOpen}
+                                                        fetchData={fetchData}
+                                                        instrumentKey={watchList.instrumentKey}
+                                                        onClose={() => setIsModalOpen(false)}
+                                                    />
+                                                )}
+                                            </div>
+
+
                                         </div>
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {liveData[watchList.instrumentKey] && <span style={{ fontWeight: 'bold', marginRight: '8px', color: 'green' }}>
+                                        {`Live - `}{liveData[watchList.instrumentKey]?.close?.toFixed(2)}
 
-
-                                        <div className="flex gap-2 items-center">
-                                            {!watchList.retired && editingId !== watchList.instrumentKey && (
-                                                <img
-                                                    className="w-5 h-5 sm:w-7 sm:h-7"
-                                                    src="https://img.icons8.com/cotton/128/edit--v1.png"
-                                                    alt="edit"
-                                                    onClick={() => setEditingId(watchList.instrumentKey)}
-                                                />
-                                            )}
-
-                                            {!watchList.retired && editingId === watchList.instrumentKey && (
-                                                <img
-                                                    className="w-5 h-5 sm:w-7 sm:h-7"
-                                                    src="https://img.icons8.com/keek/50/delete-sign.png"
-                                                    alt="close"
-                                                    onClick={() => {
-                                                        setEditingId(null);
-                                                        setTempValue(null);
-                                                    }}
-                                                />
-                                            )}
-
-                                            {!watchList.retired && (
-                                                <img
-                                                    className="w-5 h-5 sm:w-7 sm:h-7"
-                                                    src="https://img.icons8.com/plasticine/100/filled-trash.png"
-                                                    alt="trash"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation(); // ✅ Prevents event bubbling
-                                                        if (!isModalOpen) {
-                                                            setIsModalOpen(true);
-                                                        }
-                                                        setActiveInstrumentKey(watchList.instrumentKey)
-
-                                                    }}
-                                                />
-                                            )}
-
-                                            {isModalOpen && activeInstrumentKey === watchList.instrumentKey && (
-                                                <RetireStockModal
-                                                    isOpen={isModalOpen}
-                                                    fetchData={fetchData}
-                                                    instrumentKey={watchList.instrumentKey}
-                                                    onClose={() => setIsModalOpen(false)}
-                                                />
-                                            )}
-                                        </div>
-
-
-                                    </div>
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                            {liveData[watchList.instrumentKey] && <span style={{ fontWeight: 'bold', marginRight: '8px', color: 'green' }}>
-                    {`Live - `}{liveData[watchList.instrumentKey]?.close?.toFixed(2)}
-
-                    <>
-                      <style>
-                        {`
+                                        <>
+                                            <style>
+                                                {`
                         @keyframes pulse {
                           0% {
                             transform: scale(1);
@@ -440,41 +446,48 @@ export const WatchLists = ({ liveData }: Props) => {
                           margin-left: 8px;
                         }
                       `}
-                      </style>
+                                            </style>
 
 
-                      <span className="live-indicator-pulse" style={{ marginBottom: '5px', marginLeft: '8px' }}></span>
-                    </>
-                  </span>
-                  }
-                                <p className="text-gray-600">
-                                    Added On: {watchList.entryDayCandle.timestamp.slice(0, 10)}
-                                </p>
-                                {!watchList.forFuture && <p className="text-gray-600">
-                                    Re-Calculated On: {watchList?.reCalculatedOn ?? ""}
-                                </p>}
-                                { (watchList.watchListTag === "SayQid Watch List") && <p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
-                                    {"Entry Marked At :"}{watchList.futureEntryDayValue.toFixed(2)}
-                                </p>}
-                                {<p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
-                                    {(watchList.watchListTag === "R1" || watchList.watchListTag === "R2") ? "Entry At" : `Actual Entry At:`} {watchList.entryDayValue.toFixed(2)}
-                                </p>}
-                                {<p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
-                                    Today Closed At: {watchList.currentCandle.close}
-                                </p>}
-                                {watchList.inProfit && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
-                                    {watchList.retired ? `Live Profit:` : `Closing Profit:`} {watchList.overAllProfitPercentage.toFixed(2)} {`%`}
-                                </p>}
-                                {watchList.inLoss && <p className={watchList.retired ? "text-gray-700" : "text-red-600"}>
-                                    {watchList.retired ? `Live Loss:` : `Closing Loss :`} {watchList.overAllLossPercentage.toFixed(2)} {`%`}
-                                </p>}
-                                {watchList.highestProfitPercentage > 0 && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
-                                    Highest Profit: {`${watchList.highestProfitPercentage.toFixed(2)}% - ${watchList.highestProfitDay}`}
-                                </p>}
-                                {watchList.highestLossPercentage > 0 && <p className={watchList.retired ? "text-gray-700" : "text-red-600"}>
-                                    Highest Loss: {`${watchList.highestLossPercentage.toFixed(2)}% - ${watchList.highestLossDay}`}
-                                </p>}
-                                {/* <p className="text-green-600">
+                                            <span className="live-indicator-pulse" style={{ marginBottom: '5px', marginLeft: '8px' }}></span>
+                                        </>
+                                    </span>
+                                    }
+
+                                    {/* Live PnL */}
+                                    {liveChangePercent !== null && (
+                                        <p className={watchList.retired ? "text-gray-700" : liveChangePercent >= 0 ? "text-green-600" : "text-red-600"}>
+                                        Live {liveChangePercent >= 0 ? "Profit:" : "Loss:"} {liveChangePercent.toFixed(2)}%
+                                        </p>
+                                    )}
+                                    <p className="text-gray-600">
+                                        Added On: {watchList.entryDayCandle.timestamp.slice(0, 10)}
+                                    </p>
+                                    {!watchList.forFuture && <p className="text-gray-600">
+                                        Re-Calculated On: {watchList?.reCalculatedOn ?? ""}
+                                    </p>}
+                                    {(watchList.watchListTag === "SayQid Watch List") && <p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
+                                        {"Entry Marked At :"}{watchList.futureEntryDayValue.toFixed(2)}
+                                    </p>}
+                                    {<p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
+                                        {(watchList.watchListTag === "R1" || watchList.watchListTag === "R2") ? "Entry At" : `Actual Entry At:`} {watchList.entryDayValue.toFixed(2)}
+                                    </p>}
+                                    {<p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
+                                        Today Closed At: {watchList.currentCandle.close}
+                                    </p>}
+                                    {watchList.inProfit && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
+                                        {watchList.retired ? `Closing Profit:` : `Current Profit:`} {watchList.overAllProfitPercentage.toFixed(2)} {`%`}
+                                    </p>}
+                                    {watchList.inLoss && <p className={watchList.retired ? "text-gray-700" : "text-red-600"}>
+                                        {watchList.retired ? `Closing Loss:` : `Current Loss :`} {watchList.overAllLossPercentage.toFixed(2)} {`%`}
+                                    </p>}
+                                    {watchList.highestProfitPercentage > 0 && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
+                                        Highest Profit: {`${watchList.highestProfitPercentage.toFixed(2)}% - ${watchList.highestProfitDay}`}
+                                    </p>}
+                                    {watchList.highestLossPercentage > 0 && <p className={watchList.retired ? "text-gray-700" : "text-red-600"}>
+                                        Highest Loss: {`${watchList.highestLossPercentage.toFixed(2)}% - ${watchList.highestLossDay}`}
+                                    </p>}
+                                    {/* <p className="text-green-600">
                                 Last Day Returns (H) %: {getLatestReturn(watchList.dayWiseHighReturns)?.toFixed(2)}
                             </p>
                             <p className="text-green-600">
@@ -483,49 +496,50 @@ export const WatchLists = ({ liveData }: Props) => {
 
 
 
-                                <div className="flex gap-2">
-                                    <p className="block text-gray-700">Stock Count:</p>
+                                    <div className="flex gap-2">
+                                        <p className="block text-gray-700">Stock Count:</p>
 
-                                    {editingId === watchList.instrumentKey ? (
-                                        <div className="flex gap-1 sm:gap-2 items-center">
-                                            <input
-                                                type="number"
-                                                defaultValue={watchList.stockCount}
-                                                onChange={(e) => setTempValue(Number(e.target.value))}
-                                                className="border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-400 rounded-md p-1 sm:p-2 
+                                        {editingId === watchList.instrumentKey ? (
+                                            <div className="flex gap-1 sm:gap-2 items-center">
+                                                <input
+                                                    type="number"
+                                                    defaultValue={watchList.stockCount}
+                                                    onChange={(e) => setTempValue(Number(e.target.value))}
+                                                    className="border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-400 rounded-md p-1 sm:p-2 
                                                     w-14 sm:w-20 text-center text-gray-900 shadow-sm text-xs sm:text-sm transition-all duration-200"
-                                            />
+                                                />
 
-                                            <button
-                                                onClick={() => handleSave(watchList.instrumentKey)}
-                                                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 sm:px-4 sm:py-2 
+                                                <button
+                                                    onClick={() => handleSave(watchList.instrumentKey)}
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 sm:px-4 sm:py-2 
                                                     rounded-md shadow-sm text-xs sm:text-sm transition-all duration-200"
+                                                >
+                                                    Save
+                                                </button>
+                                            </div>
+
+                                        ) : (
+                                            <div
+                                                className="bg-white-100 rounded-lg text-gray-600 cursor-pointer hover:bg-gray-200 transition-all duration-200"
+                                                onClick={() => {
+                                                    setTempValue(watchList.stockCount);
+                                                }}
                                             >
-                                                Save
-                                            </button>
-                                        </div>
+                                                {watchList.stockCount}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {!watchList.forFuture && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
+                                        Invested Amount: {(watchList.stockCount * watchList.entryDayValue)?.toFixed(2)}
+                                    </p>}
 
-                                    ) : (
-                                        <div
-                                            className="bg-white-100 rounded-lg text-gray-600 cursor-pointer hover:bg-gray-200 transition-all duration-200"
-                                            onClick={() => {
-                                                setTempValue(watchList.stockCount);
-                                            }}
-                                        >
-                                            {watchList.stockCount}
-                                        </div>
-                                    )}
-                                </div>
-                                {!watchList.forFuture && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
-                                    Invested Amount: {(watchList.stockCount * watchList.entryDayValue)?.toFixed(2)}
-                                </p>}
-
-                                {!watchList.forFuture && <p className={watchList.retired ? "text-gray-700" : watchList.inProfit ? "text-green-600" : "text-red-600"}>
-                                    Current Value: {(watchList.stockCount * watchList.currentCandle.close)?.toFixed(2)}
-                                </p>}
-                            </CardContent>
-                        </Card>
-                    ))) : (
+                                    {!watchList.forFuture && <p className={watchList.retired ? "text-gray-700" : watchList.inProfit ? "text-green-600" : "text-red-600"}>
+                                        Current Value: {(watchList.stockCount * watchList.currentCandle.close)?.toFixed(2)}
+                                    </p>}
+                                </CardContent>
+                            </Card>
+                        )
+                    })) : (
                     <div className="flex justify-center items-center h-64">
                         <p className="text-2xl font-bold text-gray-700">NO DATA AVAILABLE</p>
                     </div>
