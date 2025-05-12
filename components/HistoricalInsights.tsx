@@ -81,6 +81,9 @@ export const HistoricalInsights = ({ liveData }: Props) => {
       const url = baseUrl+"/api/live-data/fetch-info";
       const response = await fetch(url, {
         method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
