@@ -414,8 +414,8 @@ export const WatchLists = ({ liveData }: Props) => {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    {liveData[watchList.instrumentKey] && <span style={{ fontWeight: 'bold', marginRight: '8px', color: 'green' }}>
-                                        {`Live - `}{liveData[watchList.instrumentKey]?.close?.toFixed(2)}
+                                    {livePrice && <span style={{ fontWeight: 'bold', marginRight: '8px', color: 'green' }}>
+                                        {`Live - `}{livePrice}
 
                                         <>
                                             <style>
@@ -456,9 +456,11 @@ export const WatchLists = ({ liveData }: Props) => {
 
                                     {/* Live PnL */}
                                     {liveChangePercent !== null && (
-                                        <p className={watchList.retired ? "text-gray-700" : liveChangePercent >= 0 ? "text-green-600" : "text-red-600"}>
+                                        <p className={watchList.retired ? "text-gray-700" : liveChangePercent >= 0 ? "text-green-800" : "text-red-600"}>
                                         Live {liveChangePercent >= 0 ? "Profit:" : "Loss:"} {liveChangePercent.toFixed(2)}%
+                                        Live Value : {watchList.stockCount * livePrice}
                                         </p>
+                                        
                                     )}
                                     <p className="text-gray-600">
                                         Added On: {watchList.entryDayCandle.timestamp.slice(0, 10)}
