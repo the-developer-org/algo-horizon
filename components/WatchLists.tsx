@@ -463,6 +463,7 @@ export const WatchLists = ({ liveData }: Props) => {
                                     
                                         
                                     )}
+                                    <hr className="my-1 border-gray-300" />
                                     <p className="text-gray-600">
                                         Added On: {watchList.entryDayCandle.timestamp.slice(0, 10)}
                                     </p>
