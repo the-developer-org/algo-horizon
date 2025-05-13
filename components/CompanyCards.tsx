@@ -230,12 +230,6 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites, fe
                     </>
                   </span>
                   }
-
-
-
-                  <p className="text-xs text-blue-600 mb-1">
-                    Last Boom Date: {response?.formattedLastBoomDataUpdatedAt || "N/A"}
-                  </p>
                   <p className="text-xs text-blue-600 mb-1">
                     Last Candle: {response?.formattedLastCandleDate || "N/A"}
                   </p>

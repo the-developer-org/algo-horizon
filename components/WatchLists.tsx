@@ -473,13 +473,13 @@ export const WatchLists = ({ liveData }: Props) => {
                                         Re-Calculated On: {watchList?.reCalculatedOn ?? ""}
                                     </p>}
                                     {(watchList.watchListTag === "SayQid Watch List") && <p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
-                                        {"Entry Marked At :"}{watchList.futureEntryDayValue.toFixed(2)}
+                                        {"Entry Requested At :"}{watchList.futureEntryDayValue.toFixed(2)}
                                     </p>}
                                     {<p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
                                         {(watchList.watchListTag === "R1" || watchList.watchListTag === "R2") ? "Entry At" : `Actual Entry At:`} {watchList.entryDayValue.toFixed(2)}
                                     </p>}
                                     {<p className={watchList.retired ? "text-gray-700" : "text-orange-600"}>
-                                        Today Closed At: {watchList.currentCandle.close}
+                                        Last Day Closed At: {watchList.currentCandle.close}
                                     </p>}
                                     {watchList.inProfit && <p className={watchList.retired ? "text-gray-700" : "text-green-600"}>
                                         {watchList.retired ? `Closing Profit:` : `Current Profit:`} {watchList.overAllProfitPercentage.toFixed(2)} {`%`}
