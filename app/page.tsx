@@ -4,7 +4,7 @@ import { HistoricalInsights } from "../components/HistoricalInsights";
 import { WatchLists } from "../components/WatchLists";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import useSocketConnectionStatus from "../components/useSocketConnectionStatus"; 
+//import useSocketConnectionStatus from "../components/useSocketConnectionStatus"; 
 import useWebSocket from "../components/WebSocket";// Adjust the import path as necessary
 
 export default function Home() {
@@ -12,17 +12,17 @@ export default function Home() {
   const [showHistoricalInsights, setShowHistoricalInsights] = useState(true);
   
   // Using the useSocketConnectionStatus hook for WebSocket connection status
-  const { isConnected } = useSocketConnectionStatus(); // Replace with actual WebSocket URL
+ // const { isConnected } = useSocketConnectionStatus(); // Replace with actual WebSocket URL
   const liveData = useWebSocket();
 
 
-  useEffect(() => {
-    if (isConnected) {
-      console.log("Connected to the server");
-    } else {
-      console.log("Disconnected from the server");
-    }
-  }, [isConnected]);
+  // useEffect(() => {
+  //   if (isConnected) {
+  //     console.log("Connected to the server");
+  //   } else {
+  //     console.log("Disconnected from the server");
+  //   }
+  // }, [isConnected]);
 
   return (
     <div
@@ -68,13 +68,13 @@ export default function Home() {
             >
               {showHistoricalInsights ? "Hide Insights" : "Show Insights"}
             </Button>
-
+{/* 
             <div
           className={`w-full sm:w-auto p-4 rounded-lg mb-4 ${isConnected ? "bg-green-500" : "bg-red-500"}`}
           style={{ transition: "background-color 0.3s ease" }}
         >
           <span className="text-white font-bold">{isConnected ? "Server is ON" : "Server is OFF"}</span>
-        </div>
+        </div> */}
           </div>
         </div>
 
