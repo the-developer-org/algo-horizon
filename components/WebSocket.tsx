@@ -39,17 +39,16 @@ const useWebSocket = (): WebSocketData => {
 
     // Create a new STOMP client
     const client = new Client({
+webSocketFactory: () => {
+  const sock = new SockJS(SOCKET_URL, null, {
+    transports: ['websocket'], // 👈 Force only websocket transport
+  });
 
-      webSocketFactory: () => {
-        const sock = new SockJS(SOCKET_URL, null, {
-          transports: ['xhr-streaming', 'xhr-polling', 'websocket'],
-        });
+  (sock as any).withCredentials = false;
+  return sock;
+},
 
-        // 👇 Force type assertion to bypass TypeScript error
-        (sock as any).withCredentials = false;
 
-        return sock;
-      },
 
 
 
