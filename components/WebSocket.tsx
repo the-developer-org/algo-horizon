@@ -36,20 +36,32 @@ const useWebSocket = (): WebSocketData => {
       console.log("Outside trading hours — WebSocket not connected.");
       return;
     }
-    
+
     // Create a new STOMP client
     const client = new Client({
-      webSocketFactory: () => new SockJS(SOCKET_URL),
-      
+
+      webSocketFactory: () => {
+        const sock = new SockJS(SOCKET_URL, null, {
+          transports: ['xhr-streaming', 'xhr-polling', 'websocket'],
+        });
+
+        // 👇 Force type assertion to bypass TypeScript error
+        (sock as any).withCredentials = false;
+
+        return sock;
+      },
+
+
+
       onConnect: () => {
         console.log('Connected to WebSocket');
-        
+
         // Subscribe to the WebSocket topic
         client.subscribe('/topic/data', (message: IMessage) => {
           try {
             const newData: WebSocketData = JSON.parse(message.body);
             console.log('Received:', newData);
-            
+
             setData((prevData) => ({
               ...prevData,
               ...newData,
@@ -59,15 +71,15 @@ const useWebSocket = (): WebSocketData => {
           }
         });
       },
-      
+
       onDisconnect: () => {
         console.log('Disconnected from WebSocket');
       },
-      
+
       debug: (str: string) => {
         console.log(str);
       },
-      
+
       reconnectDelay: 5000,
     });
 
