@@ -93,22 +93,22 @@ export default function AuthPage() {
         backgroundImage: `url('https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1')`,
       }}
     >
-      <div className="bg-black bg-opacity-60 p-8 rounded-lg flex flex-col items-center gap-6">
+      <div className="bg-black bg-opacity-60 p-8 rounded-lg flex flex-col items-center gap-6 w-full max-w-md mx-4">
         <h1 
-          className={`text-3xl md:text-4xl font-bold text-white uppercase px-8 py-4 rounded-lg text-center tracking-widest
+          className={`text-3xl md:text-4xl font-bold text-white uppercase px-8 py-4 rounded-lg text-center tracking-widest w-full
           ${isInvalid ? 'bg-red-600 bg-opacity-40' : 'bg-green-600 bg-opacity-40'}`}
         >
           ALGOHORIZON
         </h1>
         
-        <form onSubmit={handleSubmit} className="flex flex-col items-center gap-4">
-          <div className="flex flex-col items-center gap-2">
+        <form onSubmit={handleSubmit} className="flex flex-col items-center gap-4 w-full">
+          <div className="flex flex-col items-center gap-2 w-full">
             <input
               type="password"
               value={pin}
               onChange={handlePinChange}
               placeholder="Enter 6-digit PIN"
-              className={`w-[200px] h-[48px] text-center text-xl bg-white bg-opacity-90 rounded-lg 
+              className={`w-full max-w-[200px] h-[48px] text-center text-xl bg-white bg-opacity-90 rounded-lg 
                        border-2 focus:outline-none transition-colors duration-300
                        ${isInvalid 
                          ? 'border-red-500 focus:border-red-600' 
