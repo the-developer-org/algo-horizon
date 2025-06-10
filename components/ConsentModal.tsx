@@ -43,7 +43,7 @@ export function ConsentModal({ isOpen, onClose, instrumentKey }: ConsentModalPro
     try {
         const formattedInstrumentKey = instrumentKey.replace("|", "-");
 
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+        const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL
         const url = baseUrl + `/api/live-data/add-stock/${encodeURIComponent(formattedInstrumentKey)}`;
 
         const response = await fetch(url, {

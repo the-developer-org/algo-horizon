@@ -8,7 +8,7 @@ interface WebSocketData {
   [key: string]: any;
 }
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_BASE_URL + "/ws";
+const SOCKET_URL = `${process.env.NEXT_PUBLIC_FRONTEND_URL}${process.env.NEXT_PUBLIC_WS_PATH}`;
 
 const isWithinTradingHours = (): boolean => {
   const now = new Date();

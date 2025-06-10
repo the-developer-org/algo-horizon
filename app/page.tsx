@@ -1,13 +1,17 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from 'next/navigation';
 import { HistoricalInsights } from "../components/HistoricalInsights";
 import { WatchLists } from "../components/WatchLists";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import useSocketConnectionStatus from "../components/useSocketConnectionStatus"; 
 import useWebSocket from "../components/WebSocket";// Adjust the import path as necessary
+import { LoginButton } from "@/components/LoginButton";
 
 export default function Home() {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showWatchLists, setShowWatchLists] = useState(false);
   const [showHistoricalInsights, setShowHistoricalInsights] = useState(true);
   
@@ -15,83 +19,92 @@ export default function Home() {
   const { isConnected } = useSocketConnectionStatus(); // Replace with actual WebSocket URL
   const liveData = useWebSocket();
 
+  const buttonClass = "w-[200px] h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center";
 
   useEffect(() => {
-    if (isConnected) {
-      console.log("Connected to the server");
+    // Check if user is authenticated
+    const isAuthorized = sessionStorage.getItem('isUserAuthorised');
+    if (isAuthorized !== 'true') {
+      router.replace('/auth');
     } else {
-      console.log("Disconnected from the server");
+      setIsAuthenticated(true);
     }
-  }, [isConnected]);
+    setIsLoading(false);
+  }, [router]);
+
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+      </div>
+    );
+  }
 
   return (
-    <div
+    <main
       className="min-h-screen bg-cover bg-center bg-fixed"
       style={{
         backgroundImage: `url('https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1')`,
       }}
     >
-      {/* Dark overlay to improve readability */}
-      <div className="min-h-screen bg-black bg-opacity-60 flex flex-col items-center justify-center px-6 sm:px-8 md:px-12 py-8">
-        
-      
-
+      <div className="min-h-screen bg-black bg-opacity-60 flex flex-col items-center px-4 py-8">
         {/* Title and Buttons Container */}
-        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full max-w-5xl">
-          <div
-            className="text-xl sm:text-3xl font-bold text-center text-white uppercase bg-purple-200 px-4 py-3 sm:px-6 sm:py-4 rounded-lg w-full sm:w-auto"
-            style={{ backgroundColor: "rgba(19, 191, 73, 0.42)" }}
+        <div className="w-full max-w-6xl flex flex-col items-center gap-8">
+          {/* ALGOHORIZON Title */}
+          <h1 
+            className="text-3xl md:text-4xl font-bold text-white uppercase bg-green-600 bg-opacity-40 px-8 py-4 rounded-lg text-center tracking-widest min-w-[300px]"
           >
-            <span style={{ letterSpacing: "0.2em" }}>AlgoHorizon</span>
-          </div>
+            ALGOHORIZON
+          </h1>
 
-          {/* Toggle WatchLists Button */}
-          <div className="flex flex-wrap justify-center sm:justify-start gap-2 w-full">
+          {/* Buttons Row */}
+          <div className="flex flex-wrap justify-center gap-4">
+            <LoginButton />
+            
             <Button
-              variant="orange"
-              className="flex-1 sm:flex-none text-sm sm:text-base px-3 py-2 sm:px-5 sm:py-3"
               onClick={() => {
-                setShowHistoricalInsights(!showHistoricalInsights);
                 setShowWatchLists(!showWatchLists);
+                setShowHistoricalInsights(!showHistoricalInsights);
               }}
+              className={`${buttonClass} bg-orange-500 hover:bg-orange-600`}
             >
               {showWatchLists ? "Hide Watchlists" : "Show Watchlists"}
             </Button>
 
             <Button
-              variant="orange"
-              className="flex-1 sm:flex-none text-sm sm:text-base px-3 py-2 sm:px-5 sm:py-3"
               onClick={() => {
                 setShowHistoricalInsights(!showHistoricalInsights);
                 setShowWatchLists(!showWatchLists);
               }}
+              className={`${buttonClass} bg-orange-500 hover:bg-orange-600`}
             >
               {showHistoricalInsights ? "Hide Insights" : "Show Insights"}
             </Button>
 
             <div
-          className={`w-full sm:w-auto p-4 rounded-lg mb-4 ${isConnected ? "bg-green-500" : "bg-red-500"}`}
-          style={{ transition: "background-color 0.3s ease" }}
-        >
-          <span className="text-white font-bold">{isConnected ? "Server is ON" : "Server is OFF"}</span>
-        </div>
+              className={`${buttonClass} ${
+                isConnected ? "bg-green-500" : "bg-red-500"
+              }`}
+            >
+              Server is {isConnected ? "ON" : "OFF"}
+            </div>
           </div>
         </div>
 
-        {/* Parent container for WatchLists & HistoricalInsights */}
-        <div className="w-full sm:w-11/12 md:w-5/6 lg:w-4/5 xl:w-11/12 max-w-25xl mt-8">
+        {/* Content Section */}
+        <div className="w-full max-w-7xl space-y-4 mt-8">
           {showWatchLists && (
-            <div className="w-full bg-gray-500 bg-opacity-75 rounded-lg p-6 sm:p-8">
+            <div className="bg-gray-500 bg-opacity-75 rounded-lg p-6">
               <WatchLists liveData={liveData} />
             </div>
           )}
           {showHistoricalInsights && (
-            <div className="w-full bg-gray-500 bg-opacity-75 rounded-lg p-6 sm:p-8 mt-4">
+            <div className="bg-gray-500 bg-opacity-75 rounded-lg p-6">
               <HistoricalInsights liveData={liveData} />
             </div>
           )}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

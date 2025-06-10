@@ -177,7 +177,7 @@ export const WatchLists = ({ liveData }: Props) => {
 
     const updateStockCount = async (instrumentKey: string, tempValue: number) => {
         try {
-            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+            const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL
             const url = baseUrl + "/api/watchlist/update-stock-count";
 
             const payload = {
