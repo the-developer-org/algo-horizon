@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     console.log('Successfully received access token')
 
     // Store token in backend
-    const backendUrl = process.env.JAVA_NEXT_PUBLIC_BACKEND_URL || 'https://firmly-flexible-quagga.ngrok-free.app'
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     console.log('Storing token in backend:', backendUrl)
 
     const backendResponse = await fetch(`${backendUrl}/api/user/store-token`, {

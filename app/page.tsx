@@ -81,6 +81,13 @@ export default function Home() {
               {showHistoricalInsights ? "Hide Insights" : "Show Insights"}
             </Button>
 
+            <Button
+              onClick={() => router.push('/chart')}
+              className={`${buttonClass} bg-blue-500 hover:bg-blue-600`}
+            >
+              View OHLC Chart
+            </Button>
+
             <div
               className={`${buttonClass} ${
                 isConnected ? "bg-green-500" : "bg-red-500"
