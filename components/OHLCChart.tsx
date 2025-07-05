@@ -86,7 +86,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
       });
       // @ts-ignore
       chart.priceScale('volume').applyOptions({
-        scaleMargins: { top: 0.9, bottom: 0 },
+        scaleMargins: { top: 0.94, bottom: 0 }, // larger gap between candles and volume
       });
     }
 
@@ -119,17 +119,38 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     // Add VIX line overlay
     let formattedVix: { time: number; value: number }[] = [];
     if (vixData && vixData.length > 0) {
-      formattedVix = vixData.map(v => ({
-        time: Math.floor(new Date(v.timestamp).getTime() / 1000),
-        value: v.value,
-      }));
+      // Build a map for fast lookup
+      const vixMap = new Map<number, number>();
+      vixData.forEach(v => {
+        const t = Math.floor(new Date(v.timestamp).getTime() / 1000);
+        vixMap.set(t, v.value);
+      });
+      let lastVix = 0;
+      formattedVix = candles.map(candle => {
+        const t = Math.floor(new Date(candle.timestamp).getTime() / 1000);
+        if (vixMap.has(t)) {
+          lastVix = vixMap.get(t)!;
+        }
+        return { time: t, value: lastVix };
+      });
       const vixSeries = chart.addLineSeries({
         color: '#FFD600', // bright yellow
         lineWidth: 2,
-        priceScaleId: '', // overlay on main price scale
+        priceScaleId: 'vix', // separate scale for VIX
       });
       // @ts-ignore
       vixSeries.setData(formattedVix);
+      // Add and configure the VIX price scale on the left
+      // @ts-ignore
+      chart.priceScale('vix').applyOptions({
+        position: 'left',
+        scaleMargins: { top: 0.1, bottom: 0.1 },
+        borderColor: '#FFD600',
+        borderVisible: true,
+        entireTextOnly: false,
+        visible: true,
+        autoScale: true,
+      });
     }
 
     // Show the last candle's info and VIX by default
@@ -141,6 +162,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         low: last.low,
         close: last.close,
         prevClose: candles.length > 1 ? candles[candles.length - 2].close : last.open,
+        volume: last.volume,
       });
       if (formattedVix.length > 0) {
         setVixValue(formattedVix[formattedVix.length - 1].value);
@@ -164,6 +186,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             low: hovered.low,
             close: hovered.close,
             prevClose,
+            volume: hovered.volume,
           });
         }
         // Find the VIX value for the hovered time
@@ -199,13 +222,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     );
   }
 
-  // Fullscreen chart container styles
-  const fullscreenStyle = {
+  // Chart container with 20% gap at the top
+  const chartAreaStyle = {
     position: 'fixed' as const,
-    top: 0,
+    top: '20vh',
     left: 0,
     width: '100vw',
-    height: '100vh',
+    height: '80vh',
     zIndex: 100,
     background: '#fff',
     borderRadius: 0,
@@ -217,7 +240,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
       if (chartRef.current) {
         chartRef.current.applyOptions({
           width: window.innerWidth,
-          height: window.innerHeight,
+          height: window.innerHeight * 0.8,
         });
       }
     };
@@ -226,8 +249,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
   }, []);
 
   return (
-    <div style={fullscreenStyle}>
-      {/* Floating OHLC info at top left */}
+    <div style={chartAreaStyle}>
+      {/* Floating OHLC info at top left (inside chart area) */}
       {ohlcInfo && (
         <div style={{
           position: 'absolute',
@@ -252,6 +275,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
           <span>H <b>{ohlcInfo.high.toLocaleString()}</b></span>
           <span>L <b>{ohlcInfo.low.toLocaleString()}</b></span>
           <span>C <b>{ohlcInfo.close.toLocaleString()}</b></span>
+          <span>V <b>{ohlcInfo.volume?.toLocaleString()}</b></span>
           <span>
             {(() => {
               const change = ohlcInfo.close - ohlcInfo.prevClose;
@@ -265,7 +289,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
           )}
         </div>
       )}
-      <div ref={chartContainerRef} style={{ width: '100vw', height: '100vh' }} />
+      <div ref={chartContainerRef} style={{ width: '100vw', height: '80vh' }} />
     </div>
   );
 }; 
