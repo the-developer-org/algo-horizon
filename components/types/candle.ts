@@ -6,6 +6,8 @@ export interface Candle {
   close: number;
   volume: number;
   openInterest: number;
+  ema?: number;
+  rsi?: number;
 }
 
 export interface FormattedCandle {

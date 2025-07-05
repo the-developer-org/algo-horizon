@@ -9,20 +9,28 @@ const generateSampleData = (count: number = 100): Candle[] => {
   const data: Candle[] = [];
   let basePrice = 15000; // Starting price
   const now = new Date();
-  
+  let closes: number[] = [];
   for (let i = count - 1; i >= 0; i--) {
     const timestamp = new Date(now.getTime() - i * 24 * 60 * 60 * 1000); // Daily data
-    
-    // Generate realistic price movements
     const volatility = 0.02; // 2% daily volatility
     const change = (Math.random() - 0.5) * volatility;
-    const open = basePrice;
-    const close = basePrice * (1 + change);
+    let open = basePrice;
+    let close = basePrice * (1 + change);
+    // Simulate gap up/down every 5 days
+    if (i < count - 1 && i % 5 === 0) {
+      // 50% chance gap up, 50% gap down
+      if (Math.random() > 0.5) {
+        open = basePrice * 1.01; // gap up 1%
+      } else {
+        open = basePrice * 0.99; // gap down 1%
+      }
+      close = open * (1 + change); // recalc close from new open
+    }
     const high = Math.max(open, close) * (1 + Math.random() * 0.01);
     const low = Math.min(open, close) * (1 - Math.random() * 0.01);
     const volume = Math.floor(Math.random() * 1000000) + 100000;
     const openInterest = Math.floor(Math.random() * 50000) + 10000;
-    
+    closes.push(close);
     data.push({
       timestamp: timestamp.toISOString(),
       open,
@@ -31,11 +39,44 @@ const generateSampleData = (count: number = 100): Candle[] => {
       close,
       volume,
       openInterest,
+      ema: 0, // placeholder
+      rsi: 0, // placeholder
     });
-    
-    basePrice = close; // Next day's open is previous day's close
+    basePrice = close;
   }
-  
+  // Calculate EMA (20)
+  const period = 20;
+  let k = 2 / (period + 1);
+  let ema = closes[0];
+  data[0].ema = ema;
+  for (let i = 1; i < closes.length; i++) {
+    ema = closes[i] * k + ema * (1 - k);
+    data[i].ema = ema;
+  }
+  // Calculate RSI (14)
+  const rsiPeriod = 14;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= rsiPeriod; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff >= 0) gains += diff; else losses -= diff;
+  }
+  gains /= rsiPeriod;
+  losses /= rsiPeriod;
+  let rs = losses === 0 ? 100 : gains / losses;
+  data[rsiPeriod].rsi = 100 - 100 / (1 + rs);
+  for (let i = rsiPeriod + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff >= 0) {
+      gains = (gains * (rsiPeriod - 1) + diff) / rsiPeriod;
+      losses = (losses * (rsiPeriod - 1)) / rsiPeriod;
+    } else {
+      gains = (gains * (rsiPeriod - 1)) / rsiPeriod;
+      losses = (losses * (rsiPeriod - 1) - diff) / rsiPeriod;
+    }
+    rs = losses === 0 ? 100 : gains / losses;
+    data[i].rsi = 100 - 100 / (1 + rs);
+  }
+  for (let i = 0; i < rsiPeriod; i++) data[i].rsi = NaN;
   return data;
 };
 
