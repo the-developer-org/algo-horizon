@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -177,7 +175,7 @@ export const WatchLists = ({ liveData }: Props) => {
 
     const updateStockCount = async (instrumentKey: string, tempValue: number) => {
         try {
-            const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL
+            const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL
             const url = baseUrl + "/api/watchlist/update-stock-count";
 
             const payload = {

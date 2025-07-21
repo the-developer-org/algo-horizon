@@ -55,7 +55,7 @@ export function WatchListModal({ isOpen, instrumentKey, onClose, fetchHistorical
         e.preventDefault()
         setIsSaving(true)
         try {
-            const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL
+            const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL
             const url = baseUrl + "/api/watchlist/add-stocks-manually"
 
             const response = await fetch(url, {
