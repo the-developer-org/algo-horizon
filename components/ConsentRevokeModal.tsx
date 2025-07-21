@@ -42,7 +42,7 @@ export function ConsentRevokeModal({ isOpen, onClose, instrumentKey }: ConsentRe
     try {
         const formattedInstrumentKey = instrumentKey.replace("|", "-");
 
-        const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL
+        const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL
         const url = baseUrl + `/api/live-data/remove-stock/${encodeURIComponent(formattedInstrumentKey)}`;
 
         const response = await fetch(url, {

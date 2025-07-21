@@ -15,6 +15,7 @@ interface OHLCChartProps {
 
 const maxWidth = typeof window !== 'undefined' ? Math.floor(window.innerWidth * 0.8) : 1152;
 const maxHeight = typeof window !== 'undefined' ? Math.floor(window.innerHeight * 0.8) : 720;
+console.log(maxWidth, maxHeight);
 
 function calculateEMA(data: number[], period: number): number[] {
     const k = 2 / (period + 1);
@@ -237,6 +238,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             vixSeriesRef.current.setData(formattedVix);
             // @ts-ignore
             chart.priceScale('vix').applyOptions({
+                position: 'left',
                 scaleMargins: { top: 0.1, bottom: 0.1 },
                 borderColor: '#FFD600',
                 borderVisible: true,

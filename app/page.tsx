@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import { HistoricalInsights } from "../components/HistoricalInsights";
 import { WatchLists } from "../components/WatchLists";
 import { Button } from "@/components/ui/button";
-import useWebSocket from "../components/WebSocket";
+import useSocketConnectionStatus from "../components/useSocketConnectionStatus"; 
+import useWebSocket from "../components/WebSocket";// Adjust the import path as necessary
 import { LoginButton } from "@/components/LoginButton";
 
 export default function Home() {
@@ -14,8 +15,9 @@ export default function Home() {
   const [showWatchLists, setShowWatchLists] = useState(false);
   const [showHistoricalInsights, setShowHistoricalInsights] = useState(true);
   
-  // Using the merged useWebSocket hook for both connection status and data
-  const { data: liveData, isConnected } = useWebSocket();
+  // Using the useSocketConnectionStatus hook for WebSocket connection status
+  const { isConnected } = useSocketConnectionStatus(); // Replace with actual WebSocket URL
+  const liveData = useWebSocket();
 
   const buttonClass = "w-[200px] h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center";
 
