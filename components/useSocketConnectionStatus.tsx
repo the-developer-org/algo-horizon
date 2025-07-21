@@ -36,6 +36,7 @@ const useSocketConnectionStatus = (): UseSocketConnectionStatus => {
 
     const socket = new SockJS(SOCKET_URL);
 
+    
     stompClientRef.current = new Client({
       brokerURL: undefined, // use webSocketFactory with SockJS
       webSocketFactory: () => socket,

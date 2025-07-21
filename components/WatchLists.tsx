@@ -202,7 +202,7 @@ export const WatchLists = ({ liveData }: Props) => {
     };
 
     function formatDateFromSeconds(seconds: number) {
-        debugger
+        
         return new Date(seconds * 1000).toLocaleDateString("en-GB", {
             day: "2-digit",
             month: "short",

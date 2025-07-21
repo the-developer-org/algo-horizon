@@ -81,12 +81,12 @@ export default function CompanyCards({ sortedData, hideCard, updateFavorites, fe
                             e.stopPropagation()
                             if (!isConsentModalOpen) setIsConsentModalOpen(true)
                             setLiveInstrumentKey(response.instrumentKey)
-                            updateLiveSet()
+                         //   updateLiveSet()
                           } else {
                             e.stopPropagation()
                             if (!isConsentModalOpen) setIsConsentModalOpen(true)
                             setLiveInstrumentKey(response.instrumentKey)
-                            updateLiveSet()
+                           // updateLiveSet()
                           }
                         }}
                       />}

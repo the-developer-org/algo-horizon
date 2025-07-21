@@ -37,8 +37,8 @@ export default function AuthPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin.length !== 6) {
-      setError('PIN must be 6 digits');
+    if (pin.length < 4 || pin.length > 6) {
+      setError('PIN must be 4 to 6 digits');
       return;
     }
 
@@ -107,7 +107,7 @@ export default function AuthPage() {
               type="password"
               value={pin}
               onChange={handlePinChange}
-              placeholder="Enter 6-digit PIN"
+              placeholder="Enter 4-6 digit PIN"
               className={`w-full max-w-[200px] h-[48px] text-center text-xl bg-white bg-opacity-90 rounded-lg 
                        border-2 focus:outline-none transition-colors duration-300
                        ${isInvalid 
@@ -124,9 +124,9 @@ export default function AuthPage() {
 
           <Button
             type="submit"
-            disabled={isSubmitting || pin.length !== 6}
+            disabled={isSubmitting || pin.length < 4 || pin.length > 6}
             className={`w-[200px] h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 
-                     ${isSubmitting || pin.length !== 6 
+                     ${isSubmitting || pin.length < 4 || pin.length > 6 
                        ? 'bg-gray-500 cursor-not-allowed' 
                        : isInvalid 
                          ? 'bg-red-500 hover:bg-red-600'

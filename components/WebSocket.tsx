@@ -32,6 +32,7 @@ const useWebSocket = (): WebSocketData => {
 
   useEffect(() => {
 
+    
     if (!isWithinTradingHours()) {
       console.log("Outside trading hours — WebSocket not connected.");
       return;
