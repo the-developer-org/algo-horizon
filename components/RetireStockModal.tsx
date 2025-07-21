@@ -36,7 +36,7 @@ export function RetireStockModal({ isOpen, instrumentKey, onClose, fetchData }: 
         try {
             const formattedInstrumentKey = instrumentKey.replace("|", "-");
 
-            const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL
+            const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL
             const url = baseUrl + `/api/watchlist/retire-stock?instrumentKey=${encodeURIComponent(formattedInstrumentKey)}`;
 
             const response = await fetch(url, {

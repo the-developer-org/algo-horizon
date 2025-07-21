@@ -77,7 +77,7 @@ export const HistoricalInsights = ({ liveData }: Props) => {
  
   const fetchLiveDataKeys = async () => {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL
+      const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL
       const url = baseUrl+"/api/live-data/fetch-info";
       const response = await fetch(url, {
         method: "GET",
@@ -98,7 +98,7 @@ export const HistoricalInsights = ({ liveData }: Props) => {
   };
 
   useEffect(() => {
-   // fetchLiveDataKeys();
+   fetchLiveDataKeys();
   }, []);
 
 
@@ -263,14 +263,6 @@ export const HistoricalInsights = ({ liveData }: Props) => {
                 (response.currentRSI < numericFilters.rsi.min ||
                   response.currentRSI > numericFilters.rsi.max);
 
-              console.log('RSI Filter:', {
-                isActive: activeFilters.includes("RSI"),
-                currentRSI: response.currentRSI,
-                min: numericFilters.rsi.min,
-                max: numericFilters.rsi.max,
-                isFiltered: isRsiFiltered
-              });
-
               return (
                 !isHidden &&
                 !isFavoriteFiltered &&
@@ -347,7 +339,7 @@ export const HistoricalInsights = ({ liveData }: Props) => {
   ) => {
     try {
 
-      const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL
+      const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL
       const url = baseUrl + "/api/historical-data/update-favourites/NSE"
 
       const response = await fetch(

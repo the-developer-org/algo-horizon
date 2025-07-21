@@ -11,7 +11,8 @@ export function LoginButton() {
 
   const checkTokenAvailability = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/is-token-available`)
+      const url = process.env.NEXT_PUBLIC_BACKEND_URL
+      const response = await fetch(`${url}/api/user/is-token-available`)
       const data = await response.json()
       setIsTokenAvailable(data.isTokenAvailable)
     } catch (error) {
