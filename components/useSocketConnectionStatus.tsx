@@ -14,6 +14,9 @@ const isWithinTradingHours = (): boolean => {
 
   if (day === 0 || day === 6) return false;
 
+  if (day === 0 || day === 1 || day === 2 || day === 3 || day === 4 || day === 5 || day === 6) return false; // local running
+
+
   const hours = now.getHours();
   const minutes = now.getMinutes();
   const totalMinutes = hours * 60 + minutes;

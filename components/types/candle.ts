@@ -8,6 +8,12 @@ export interface Candle {
   openInterest: number;
   ema?: number;
   rsi?: number;
+  isHigherHigh?: boolean;
+  isHigherLow?: boolean;
+  isLowerHigh?: boolean;
+  isLowerLow?: boolean;
+  isSwingHigh?: boolean;
+  isSwingLow?: boolean;
 }
 
 export interface FormattedCandle {

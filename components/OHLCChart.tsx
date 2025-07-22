@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
 import { createChart } from 'lightweight-charts';
 import { Candle } from './types/candle';
 
@@ -11,51 +12,15 @@ interface OHLCChartProps {
     height?: number;
     width?: number;
     showVolume?: boolean;
+    showEMA?: boolean;
+    showRSI?: boolean;
+    showVIX?: boolean;
+    showSwingPoints?: boolean;
 }
 
-const maxWidth = typeof window !== 'undefined' ? Math.floor(window.innerWidth * 0.8) : 1152;
-const maxHeight = typeof window !== 'undefined' ? Math.floor(window.innerHeight * 0.8) : 720;
+const maxWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+const maxHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
 console.log(maxWidth, maxHeight);
-
-function calculateEMA(data: number[], period: number): number[] {
-    const k = 2 / (period + 1);
-    let ema: number[] = [];
-    let prevEma = data[0];
-    ema.push(prevEma);
-    for (let i = 1; i < data.length; i++) {
-        prevEma = data[i] * k + prevEma * (1 - k);
-        ema.push(prevEma);
-    }
-    return ema;
-}
-
-function calculateRSI(closes: number[], period: number): number[] {
-    let rsi: number[] = [];
-    let gains = 0, losses = 0;
-    for (let i = 1; i <= period; i++) {
-        const diff = closes[i] - closes[i - 1];
-        if (diff >= 0) gains += diff; else losses -= diff;
-    }
-    gains /= period;
-    losses /= period;
-    let rs = losses === 0 ? 100 : gains / losses;
-    rsi[period] = 100 - 100 / (1 + rs);
-    for (let i = period + 1; i < closes.length; i++) {
-        const diff = closes[i] - closes[i - 1];
-        if (diff >= 0) {
-            gains = (gains * (period - 1) + diff) / period;
-            losses = (losses * (period - 1)) / period;
-        } else {
-            gains = (gains * (period - 1)) / period;
-            losses = (losses * (period - 1) - diff) / period;
-        }
-        rs = losses === 0 ? 100 : gains / losses;
-        rsi[i] = 100 - 100 / (1 + rs);
-    }
-    // Fill initial values with NaN
-    for (let i = 0; i < period; i++) rsi[i] = NaN;
-    return rsi;
-}
 
 export const OHLCChart: React.FC<OHLCChartProps> = ({
     candles,
@@ -63,26 +28,32 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     title = "OHLC Chart",
     height = 400,
     width,
-    showVolume = true
+    showVolume = true,
+    showEMA = true,
+    showRSI = true,
+    showVIX = true,
+    showSwingPoints = true,
 }) => {
-    const chartContainerRef = useRef<HTMLDivElement>(null);
+    const UnderstchartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
     const [ohlcInfo, setOhlcInfo] = useState<any>(null);
     const [vixValue, setVixValue] = useState<number | null>(null);
-    const [showEMA, setShowEMA] = useState(true);
-    const [showRSI, setShowRSI] = useState(true);
-    const [showVIX, setShowVIX] = useState(true);
+    const [emaError, setEmaError] = useState<string | null>(null);
+    const [rsiError, setRsiError] = useState<string | null>(null);
+    const [vixError, setVixError] = useState<string | null>(null);
     const emaSeriesRef = useRef<any>(null);
     const rsiSeriesRef = useRef<any>(null);
     const vixSeriesRef = useRef<any>(null);
+    const swingPointsSeriesRef = useRef<any>(null);
 
+    // Chart initialization effect - only runs when data changes, not indicator toggles
     useEffect(() => {
-        if (!chartContainerRef.current || !candles.length) return;
+        if (!UnderstchartContainerRef.current || !candles.length) return;
 
         // Create chart with minimal configuration
-        const chart = createChart(chartContainerRef.current, {
+        const chart = createChart(UnderstchartContainerRef.current, {
             width: maxWidth,
-            height: maxHeight,
+            height: 800, // Fixed reasonable height instead of maxHeight
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
@@ -126,17 +97,16 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             volumeSeries = chart.addHistogramSeries({
                 color: '#4caf50',
                 priceFormat: { type: 'volume' },
-                priceScaleId: 'volume', // separate scale for volume
-                // @ts-ignore
-                scaleMargins: { top: 0.8, bottom: 0 }, // restrict to bottom 20%
+                priceScaleId: 'volume',
             });
             // @ts-ignore
             chart.priceScale('volume').applyOptions({
-                scaleMargins: { top: 0.94, bottom: 0 }, // larger gap between candles and volume
+                scaleMargins: { top: 0.75, bottom: 0 },
+                autoScale: true // Re-enable auto-scaling
             });
         }
 
-        // Format data for the chart
+        // Format data for the chart using candles
         // @ts-ignore: TypeScript types are too strict, but this works at runtime
         const formattedData = candles.map(candle => ({
             time: Math.floor(new Date(candle.timestamp).getTime() / 1000),
@@ -162,95 +132,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             volumeSeries.setData(volumeData);
         }
 
-        // Overlay EMA (from candle.ema) if enabled
-        if (showEMA) {
-            emaSeriesRef.current = chart.addLineSeries({
-                color: '#1976D2',
-                lineWidth: 2,
-                priceScaleId: '', // overlay on main price scale
-            });
-            // @ts-ignore
-            emaSeriesRef.current.setData(candles.map(c => ({
-                time: Math.floor(new Date(c.timestamp).getTime() / 1000),
-                // @ts-ignore
-                value: c.ema,
-            })));
-        } else if (emaSeriesRef.current) {
-            chart.removeSeries(emaSeriesRef.current);
-            emaSeriesRef.current = null;
-        }
-
-        // RSI (from candle.rsi) as subchart if enabled
-        if (showRSI) {
-            const rsiPaneId = 'rsi';
-            // @ts-ignore
-            rsiSeriesRef.current = chart.addLineSeries({
-                color: '#9C27B0',
-                lineWidth: 2,
-                priceScaleId: rsiPaneId,
-                // @ts-ignore
-                pane: 1, // put in a new pane below
-            });
-            // @ts-ignore
-            rsiSeriesRef.current.setData(candles.map((c) => ({
-                time: Math.floor(new Date(c.timestamp).getTime() / 1000),
-                // @ts-ignore
-                value: c.rsi,
-            })));
-            // @ts-ignore
-            chart.priceScale(rsiPaneId).applyOptions({
-                // @ts-ignore
-                position: 'right',
-                scaleMargins: { top: 0.1, bottom: 0.1 },
-                borderColor: '#9C27B0',
-                borderVisible: true,
-                visible: true,
-                autoScale: true,
-            });
-        } else if (rsiSeriesRef.current) {
-            chart.removeSeries(rsiSeriesRef.current);
-            rsiSeriesRef.current = null;
-        }
-
-        // VIX overlay if enabled
-        let formattedVix: { time: number; value: number }[] = [];
-        if (showVIX && vixData && vixData.length > 0) {
-            // Build a map for fast lookup
-            const vixMap = new Map<number, number>();
-            vixData.forEach(v => {
-                const t = Math.floor(new Date(v.timestamp).getTime() / 1000);
-                vixMap.set(t, v.value);
-            });
-            let lastVix = 0;
-            formattedVix = candles.map(candle => {
-                const t = Math.floor(new Date(candle.timestamp).getTime() / 1000);
-                if (vixMap.has(t)) {
-                    lastVix = vixMap.get(t)!;
-                }
-                return { time: t, value: lastVix };
-            });
-            vixSeriesRef.current = chart.addLineSeries({
-                color: '#FFD600', // bright yellow
-                lineWidth: 2,
-                priceScaleId: 'vix', // separate scale for VIX
-            });
-            // @ts-ignore
-            vixSeriesRef.current.setData(formattedVix);
-            // @ts-ignore
-            chart.priceScale('vix').applyOptions({
-                scaleMargins: { top: 0.1, bottom: 0.1 },
-                borderColor: '#FFD600',
-                borderVisible: true,
-                entireTextOnly: false,
-                visible: true,
-                autoScale: true,
-            });
-        } else if (vixSeriesRef.current) {
-            chart.removeSeries(vixSeriesRef.current);
-            vixSeriesRef.current = null;
-        }
-
-        // Show the last candle's info and VIX by default
+        // Show the last candle's info by default
         if (candles.length > 0) {
             const last = candles[candles.length - 1];
             setOhlcInfo({
@@ -262,21 +144,16 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 volume: last.volume,
                 rsi: last.rsi,
             });
-            if (formattedVix.length > 0) {
-                setVixValue(formattedVix[formattedVix.length - 1].value);
-            } else {
-                setVixValue(null);
-            }
         }
 
-        // Update the OHLC info and VIX on crosshair move
+        // Update the OHLC info on crosshair move
         chart.subscribeCrosshairMove(param => {
             if (param && param.time) {
                 // Find the candle for the hovered time
-                const hovered = candles.find(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === param.time);
+                const hovered = candles.find((c: Candle) => Math.floor(new Date(c.timestamp).getTime() / 1000) === param.time);
                 if (hovered) {
                     // Find previous candle for change calculation
-                    const idx = candles.findIndex(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === param.time);
+                    const idx = candles.findIndex((c: Candle) => Math.floor(new Date(c.timestamp).getTime() / 1000) === param.time);
                     const prevClose = idx > 0 ? candles[idx - 1].close : hovered.open;
                     setOhlcInfo({
                         open: hovered.open,
@@ -288,19 +165,14 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         rsi: hovered.rsi,
                     });
                 }
-                // Find the VIX value for the hovered time
-                if (formattedVix.length > 0) {
-                    const hoveredVix = formattedVix.find(v => v.time === param.time);
-                    setVixValue(hoveredVix ? hoveredVix.value : null);
-                }
             }
         });
 
         // Handle resize
         const handleResize = () => {
-            if (chartContainerRef.current) {
+            if (UnderstchartContainerRef.current) {
                 chart.applyOptions({
-                    width: width || chartContainerRef.current.clientWidth,
+                    width: width || UnderstchartContainerRef.current.clientWidth,
                 });
             }
         };
@@ -308,14 +180,334 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         window.addEventListener('resize', handleResize);
 
         return () => {
-            // Remove indicator series on cleanup
-            if (emaSeriesRef.current) { chart.removeSeries(emaSeriesRef.current); emaSeriesRef.current = null; }
-            if (rsiSeriesRef.current) { chart.removeSeries(rsiSeriesRef.current); rsiSeriesRef.current = null; }
-            if (vixSeriesRef.current) { chart.removeSeries(vixSeriesRef.current); vixSeriesRef.current = null; }
             window.removeEventListener('resize', handleResize);
             chart.remove();
         };
-    }, [candles, height, width, showVolume, vixData, showEMA, showRSI, showVIX]);
+    }, [candles, height, width, showVolume, vixData]); // Removed indicator toggles from dependencies
+
+    // Separate effect for EMA indicator management
+    useEffect(() => {
+        if (!chartRef.current) return;
+
+        const chart = chartRef.current;
+        setEmaError(null);
+
+        const handleEMA = () => {
+            if (showEMA) {
+                try {
+                    emaSeriesRef.current = chart.addLineSeries({
+                        color: '#1976D2',
+                        lineWidth: 2,
+                        priceScaleId: '',
+                    });
+                    const emaData = candles
+                        .map((c: Candle) => ({
+                            time: Math.floor(new Date(c.timestamp).getTime() / 1000),
+                            value: typeof c.ema === 'number' && !isNaN(c.ema) ? c.ema : null,
+                        }))
+                        .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value));
+                    if (!emaData.length) throw new Error('Insufficient EMA data');
+                    emaSeriesRef.current.setData(emaData);
+                } catch (err) {
+                    console.error('EMA calculation error:', err);
+                    setEmaError('Insufficient EMA data available');
+                    if (emaSeriesRef.current) {
+                        chart.removeSeries(emaSeriesRef.current);
+                        emaSeriesRef.current = null;
+                    }
+                }
+            } else if (emaSeriesRef.current) {
+                chart.removeSeries(emaSeriesRef.current);
+                emaSeriesRef.current = null;
+            }
+        };
+
+        handleEMA();
+    }, [showEMA]); // Removed candles dependency since EMA is pre-calculated
+
+    // Separate effect for RSI indicator management
+    useEffect(() => {
+        if (!chartRef.current) return;
+        
+        const chart = chartRef.current;
+        setRsiError(null);
+        
+        if (showRSI) {
+            try {
+                const rsiPaneId = 'rsi';
+                rsiSeriesRef.current = chart.addLineSeries({
+                    color: '#9C27B0',
+                    lineWidth: 2,
+                    priceScaleId: rsiPaneId,
+                });
+                const rsiData = candles
+                    .map((c: Candle) => ({
+                        time: Math.floor(new Date(c.timestamp).getTime() / 1000),
+                        value: typeof c.rsi === 'number' && !isNaN(c.rsi) ? c.rsi : null,
+                    }))
+                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value));
+                if (!rsiData.length) throw new Error('Insufficient RSI data');
+                rsiSeriesRef.current.setData(rsiData);
+                chart.priceScale(rsiPaneId).applyOptions({
+                    scaleMargins: { top: 0.1, bottom: 0.1 },
+                    borderColor: '#9C27B0',
+                    borderVisible: true,
+                    visible: true,
+                    autoScale: true,
+                });
+            } catch (err) {
+                console.error('RSI calculation error:', err);
+                setRsiError('Insufficient RSI data available');
+                if (rsiSeriesRef.current) {
+                    chart.removeSeries(rsiSeriesRef.current);
+                    rsiSeriesRef.current = null;
+                }
+            }
+        } else if (rsiSeriesRef.current) {
+            chart.removeSeries(rsiSeriesRef.current);
+            rsiSeriesRef.current = null;
+        }
+    }, [showRSI]); // Removed candles dependency since RSI is pre-calculated
+
+    // Separate effect for VIX indicator management
+    useEffect(() => {
+        if (!chartRef.current) return;
+        
+        const chart = chartRef.current;
+        setVixError(null);
+        let formattedVix: { time: number; value: number }[] = [];
+        
+        if (showVIX) {
+            if (!vixData || vixData.length === 0) {
+                setVixError('Insufficient VIX data available');
+                if (vixSeriesRef.current) {
+                    chart.removeSeries(vixSeriesRef.current);
+                    vixSeriesRef.current = null;
+                }
+            } else {
+                try {
+                    // Build a map for fast lookup
+                    const vixMap = new Map<number, number>();
+                    vixData.forEach(v => {
+                        const t = Math.floor(new Date(v.timestamp).getTime() / 1000);
+                        vixMap.set(t, v.value);
+                    });
+                    let lastVix = 0;
+                    formattedVix = candles.map(candle => {
+                        const t = Math.floor(new Date(candle.timestamp).getTime() / 1000);
+                        if (vixMap.has(t)) {
+                            lastVix = vixMap.get(t)!;
+                        }
+                        return { time: t, value: typeof lastVix === 'number' && !isNaN(lastVix) ? lastVix : undefined };
+                    }).filter(item => typeof item.value === 'number' && !isNaN(item.value)) as { time: number; value: number }[];
+                    if (!formattedVix.length) throw new Error('Insufficient VIX data');
+                    vixSeriesRef.current = chart.addLineSeries({
+                        color: '#FFD600', // bright yellow
+                        lineWidth: 2,
+                        priceScaleId: 'vix', // separate scale for VIX
+                    });
+                    vixSeriesRef.current.setData(formattedVix);
+                    chart.priceScale('vix').applyOptions({
+                        scaleMargins: { top: 0.1, bottom: 0.1 },
+                        borderColor: '#FFD600',
+                        borderVisible: true,
+                        entireTextOnly: false,
+                        visible: true,
+                        autoScale: true,
+                    });
+                    
+                    // Set initial VIX value
+                    if (formattedVix.length > 0) {
+                        setVixValue(formattedVix[formattedVix.length - 1].value);
+                    }
+                } catch (err) {
+                    console.error('VIX calculation error:', err);
+                    setVixError('Insufficient VIX data available');
+                    if (vixSeriesRef.current) {
+                        chart.removeSeries(vixSeriesRef.current);
+                        vixSeriesRef.current = null;
+                    }
+                }
+            }
+        } else if (vixSeriesRef.current) {
+            chart.removeSeries(vixSeriesRef.current);
+            vixSeriesRef.current = null;
+            setVixValue(null);
+        }
+    }, [showVIX, vixData]); // Removed candles dependency
+
+    // Separate effect for Swing Points indicator management
+    useEffect(() => {
+        if (!chartRef.current) return;
+        
+        const chart = chartRef.current;
+        
+        if (showSwingPoints) {
+            try {
+                // Debug: Count swing points in data
+                const swingPointCount = candles.reduce((count, candle) => {
+                    return count + 
+                        (candle.isHigherHigh ? 1 : 0) + 
+                        (candle.isHigherLow ? 1 : 0) + 
+                        (candle.isLowerHigh ? 1 : 0) + 
+                        (candle.isLowerLow ? 1 : 0);
+                }, 0);
+                console.log(`Found ${swingPointCount} swing points in ${candles.length} candles`);
+
+                // Check if there are no swing points
+                if (swingPointCount === 0) {
+                    toast.error('No swing point data available. Not enough data to plot higher\'s or lower\'s', { duration: 4000 });
+                    return;
+                }
+
+                swingPointsSeriesRef.current = chart.addLineSeries({
+                    color: 'transparent', // Line is transparent, we only want markers
+                    lineWidth: 0,
+                    priceScaleId: '', // overlay on main price scale
+                    crosshairMarkerVisible: false,
+                    lastValueVisible: false,
+                    priceLineVisible: false,
+                });
+
+                // Create markers for swing points
+                const markers: any[] = [];
+                candles.forEach((candle, index) => {
+                    const time = Math.floor(new Date(candle.timestamp).getTime() / 1000);
+                    
+                    // Higher Highs and Higher Lows (green dots)
+                    if (candle.isHigherHigh) {
+                        console.log(`Adding HH marker at ${candle.timestamp}`);
+                        markers.push({
+                            time: time,
+                            position: 'aboveBar',
+                            color: '#00AA00', // Darker green for better visibility
+                            shape: 'circle',
+                            text: 'HH',
+                            size: 10, // Larger size
+                        });
+                    }
+                    
+                    if (candle.isHigherLow) {
+                        console.log(`Adding HL marker at ${candle.timestamp}`);
+                        markers.push({
+                            time: time,
+                            position: 'belowBar',
+                            color: '#00AA00', // Darker green for better visibility
+                            shape: 'circle',
+                            text: 'HL',
+                            size: 10, // Larger size
+                        });
+                    }
+                    
+                    // Lower Highs and Lower Lows (red dots)
+                    if (candle.isLowerHigh) {
+                        console.log(`Adding LH marker at ${candle.timestamp}`);
+                        markers.push({
+                            time: time,
+                            position: 'aboveBar',
+                            color: '#CC0000', // Darker red for better visibility
+                            shape: 'circle',
+                            text: 'LH',
+                            size: 10, // Larger size
+                        });
+                    }
+                    
+                    if (candle.isLowerLow) {
+                        console.log(`Adding LL marker at ${candle.timestamp}`);
+                        markers.push({
+                            time: time,
+                            position: 'belowBar',
+                            color: '#CC0000', // Darker red for better visibility
+                            shape: 'circle',
+                            text: 'LL',
+                            size: 10, // Larger size
+                        });
+                    }
+                });
+
+                console.log(`Created ${markers.length} markers for swing points`);
+
+                // Set markers on the series
+                swingPointsSeriesRef.current.setMarkers(markers);
+                
+                // Set empty data for the line series (we only want markers)
+                swingPointsSeriesRef.current.setData([]);
+                
+            } catch (err) {
+                console.error('Swing points error:', err);
+                toast.error('Error displaying swing points', { duration: 4000 });
+                if (swingPointsSeriesRef.current) {
+                    chart.removeSeries(swingPointsSeriesRef.current);
+                    swingPointsSeriesRef.current = null;
+                }
+            }
+        } else if (swingPointsSeriesRef.current) {
+            chart.removeSeries(swingPointsSeriesRef.current);
+            swingPointsSeriesRef.current = null;
+        }
+    }, [showSwingPoints]); // Only depend on toggle state
+
+    // Crosshair move handler effect - updates when chart changes
+    useEffect(() => {
+        if (!chartRef.current) return;
+        
+        const chart = chartRef.current;
+        
+        // Update the OHLC info and VIX on crosshair move
+        const crosshairHandler = (param: any) => {
+            if (param?.time) {
+                // Find the candle for the hovered time
+                const hovered = candles.find((c: Candle) => Math.floor(new Date(c.timestamp).getTime() / 1000) === param.time);
+                if (hovered) {
+                    // Find previous candle for change calculation
+                    const idx = candles.findIndex((c: Candle) => Math.floor(new Date(c.timestamp).getTime() / 1000) === param.time);
+                    const prevClose = idx > 0 ? candles[idx - 1].close : hovered.open;
+                    setOhlcInfo({
+                        open: hovered.open,
+                        high: hovered.high,
+                        low: hovered.low,
+                        close: hovered.close,
+                        prevClose,
+                        volume: hovered.volume,
+                        rsi: hovered.rsi,
+                    });
+                }
+                
+                // Find the VIX value for the hovered time
+                if (showVIX && vixData && vixData.length > 0) {
+                    const vixMap = new Map<number, number>();
+                    vixData.forEach(v => {
+                        const t = Math.floor(new Date(v.timestamp).getTime() / 1000);
+                        vixMap.set(t, v.value);
+                    });
+                    let lastVix = 0;
+                    const formattedVix = candles.map(candle => {
+                        const t = Math.floor(new Date(candle.timestamp).getTime() / 1000);
+                        if (vixMap.has(t)) {
+                            lastVix = vixMap.get(t)!;
+                        }
+                        return { time: t, value: typeof lastVix === 'number' && !isNaN(lastVix) ? lastVix : undefined };
+                    }).filter(item => typeof item.value === 'number' && !isNaN(item.value)) as { time: number; value: number }[];
+                    
+                    const hoveredVix = formattedVix.find(v => v.time === param.time);
+                    setVixValue(hoveredVix ? hoveredVix.value : null);
+                }
+            }
+        };
+        
+        chart.subscribeCrosshairMove(crosshairHandler);
+        
+        return () => {
+            chart.unsubscribeCrosshairMove(crosshairHandler);
+        };
+    }, [candles, showVIX, vixData]); // Removed candlesWithIndicators dependency
+
+    // Error toast effect
+    useEffect(() => {
+        if (emaError) toast.error(emaError, { duration: 4000 });
+        if (rsiError) toast.error(rsiError, { duration: 4000 });
+        if (vixError) toast.error(vixError, { duration: 4000 });
+    }, [emaError, rsiError, vixError]);
 
     if (!candles.length) {
         return (
@@ -324,32 +516,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             </div>
         );
     }
-
-    // Chart container with 20% gap at the top
-    const chartAreaStyle = {
-        position: 'fixed' as const,
-        top: '20vh',
-        left: 0,
-        width: '100vw',
-        height: '80vh',
-        zIndex: 100,
-        background: '#fff',
-        borderRadius: 0,
-        boxShadow: 'none',
-    };
-
-    useEffect(() => {
-        const handleResize = () => {
-            if (chartRef.current) {
-                chartRef.current.applyOptions({
-                    width: window.innerWidth,
-                    height: window.innerHeight * 0.8,
-                });
-            }
-        };
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
 
     // Helper to get the gap between previous day's close and today's open
     function getPrevCloseToTodayOpenGap(currentCandle: any) {
@@ -369,16 +535,30 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         return { gap, todayOpen: todayFirstCandle.open, prevClose: prevDayLastCandle.close };
     }
 
+    // Chart container - adaptive width, reasonable height
+    const chartAreaStyle = {
+        position: 'relative' as const,
+        top: 0,
+        left: 0,
+        width: '100vw', // Revert to original width
+        height: '90vh', // Revert to original height
+        zIndex: 1,
+        background: '#fff',
+    };
+
     return (
         <div style={chartAreaStyle}>
-            {/* Indicator toggles (top right) */}
-            <div style={{ position: 'absolute', top: 12, right: 16, zIndex: 201, background: 'rgba(255,255,255,0.92)', padding: '8px 20px', borderRadius: 10, fontWeight: 700, fontSize: 15, boxShadow: '0 2px 12px rgba(0,0,0,0.12)', border: '2px solid #bdbdbd', display: 'flex', gap: 12, minWidth: 320, width: 340 }}>
-                <label><input type="checkbox" checked={showEMA} onChange={e => setShowEMA(e.target.checked)} /> EMA (200)</label>
-                <label><input type="checkbox" checked={showRSI} onChange={e => setShowRSI(e.target.checked)} /> RSI (14)</label>
-                <label><input type="checkbox" checked={showVIX} onChange={e => setShowVIX(e.target.checked)} /> VIX</label>
-            </div>
-            {/* Stats section (separate, beneath toggles) */}
-            <div style={{ position: 'absolute', top: 64, right: 16, zIndex: 201, background: 'rgba(255,255,255,0.96)', padding: '8px 20px', borderRadius: 10, fontWeight: 600, fontSize: 15, color: '#333', boxShadow: '0 2px 12px rgba(0,0,0,0.10)', border: '2px solid #bdbdbd', minWidth: 320, width: 340, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <Toaster position="top-right" />
+            {/* Error messages for indicators */}
+            {(emaError || rsiError || vixError) && (
+                <div style={{ position: 'absolute', top: 12, right: 16, zIndex: 202, background: '#ffeaea', color: '#c62828', padding: '8px 20px', borderRadius: 10, fontWeight: 600, fontSize: 15, border: '2px solid #c62828', minWidth: 400, width: 420 }}>
+                    {emaError && <div>{emaError}</div>}
+                    {rsiError && <div>{rsiError}</div>}
+                    {vixError && <div>{vixError}</div>}
+                </div>
+            )}
+            {/* Stats section */}
+            <div style={{ position: 'absolute', top: -200, right: 16, zIndex: 203, background: 'rgba(255,255,255,0.96)', padding: '8px 20px', borderRadius: 10, fontWeight: 600, fontSize: 15, color: '#333', boxShadow: '0 2px 12px rgba(0,0,0,0.10)', border: '2px solid #bdbdbd', minWidth: 400, width: 420, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={{ fontWeight: 700, fontSize: 15, color: '#333' }}>Stats</span>
                 {(() => {
                     const gapInfo = getPrevCloseToTodayOpenGap(ohlcInfo ? { ...ohlcInfo, timestamp: (candles.find(c => c.close === ohlcInfo.close && c.open === ohlcInfo.open && c.high === ohlcInfo.high && c.low === ohlcInfo.low && c.volume === ohlcInfo.volume)?.timestamp) || candles[candles.length-1].timestamp } : candles[candles.length-1]);
@@ -393,49 +573,47 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             </div>
             {/* Floating OHLC info at top left (inside chart area) */}
             {ohlcInfo && (
-                <>
-                    <div style={{
-                        position: 'absolute',
-                        top: 12,
-                        left: 16,
-                        zIndex: 200,
-                        background: 'rgba(255,255,255,0.92)',
-                        padding: '8px 20px',
-                        borderRadius: 10,
-                        fontWeight: 700,
-                        fontSize: 17,
-                        color: ohlcInfo.close >= ohlcInfo.open ? '#1e7e34' : '#c62828',
-                        boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
-                        border: '2px solid #bdbdbd',
-                        letterSpacing: '0.5px',
-                        minWidth: 320,
-                        textAlign: 'left',
-                        display: 'flex',
-                        gap: 16,
-                    }}>
-                        <span>O <b>{ohlcInfo.open.toLocaleString()}</b></span>
-                        <span>H <b>{ohlcInfo.high.toLocaleString()}</b></span>
-                        <span>L <b>{ohlcInfo.low.toLocaleString()}</b></span>
-                        <span>C <b>{ohlcInfo.close.toLocaleString()}</b></span>
-                        <span>V <b>{ohlcInfo.volume?.toLocaleString()}</b></span>
-                        {showRSI && ohlcInfo.rsi !== undefined && !isNaN(ohlcInfo.rsi) && (
-                            <span>RSI <b>{ohlcInfo.rsi.toFixed(2)}</b></span>
-                        )}
-                        <span>
-                            {(() => {
-                                const change = ohlcInfo.close - ohlcInfo.prevClose;
-                                const percent = ohlcInfo.prevClose ? (change / ohlcInfo.prevClose) * 100 : 0;
-                                const sign = change > 0 ? '+' : '';
-                                return `${sign}${change.toFixed(2)} (${sign}${percent.toFixed(2)}%)`;
-                            })()}
-                        </span>
-                        {vixValue !== null && (
-                            <span style={{ color: '#FFD600', fontWeight: 700 }}>VIX <b>{vixValue.toFixed(2)}</b></span>
-                        )}
-                    </div>
-                </>
+                <div style={{
+                    position: 'absolute',
+                    top: 12,
+                    left: 16,
+                    zIndex: 200,
+                    background: 'rgba(255,255,255,0.92)',
+                    padding: '8px 20px',
+                    borderRadius: 10,
+                    fontWeight: 700,
+                    fontSize: 17,
+                    color: ohlcInfo.close >= ohlcInfo.open ? '#1e7e34' : '#c62828',
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
+                    border: '2px solid #bdbdbd',
+                    letterSpacing: '0.5px',
+                    minWidth: 320,
+                    textAlign: 'left',
+                    display: 'flex',
+                    gap: 16,
+                }}>
+                    <span>O <b>{ohlcInfo.open.toLocaleString()}</b></span>
+                    <span>H <b>{ohlcInfo.high.toLocaleString()}</b></span>
+                    <span>L <b>{ohlcInfo.low.toLocaleString()}</b></span>
+                    <span>C <b>{ohlcInfo.close.toLocaleString()}</b></span>
+                    <span>V <b>{ohlcInfo.volume?.toLocaleString()}</b></span>
+                    {showRSI && ohlcInfo.rsi !== undefined && ohlcInfo.rsi !== null && !isNaN(ohlcInfo.rsi) && (
+                        <span>RSI <b>{ohlcInfo.rsi.toFixed(2)}</b></span>
+                    )}
+                    <span>
+                        {(() => {
+                            const change = ohlcInfo.close - ohlcInfo.prevClose;
+                            const percent = ohlcInfo.prevClose ? (change / ohlcInfo.prevClose) * 100 : 0;
+                            const sign = change > 0 ? '+' : '';
+                            return `${sign}${change.toFixed(2)} (${sign}${percent.toFixed(2)}%)`;
+                        })()}
+                    </span>
+                    {(typeof vixValue === 'number' && !isNaN(vixValue)) ? (
+                        <span style={{ color: '#FFD600', fontWeight: 700 }}>VIX <b>{vixValue.toFixed(2)}</b></span>
+                    ) : null}
+                </div>
             )}
-            <div ref={chartContainerRef} style={{ width: '100vw', height: '80vh' }} />
+            <div ref={UnderstchartContainerRef} style={{ width: '100vw', height: '100vh' }} />
         </div>
     );
-}; 
+};

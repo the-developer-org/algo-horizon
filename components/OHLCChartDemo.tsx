@@ -1,112 +1,83 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import toast, { Toaster } from 'react-hot-toast';
 import { OHLCChart } from './OHLCChart';
 import { Candle } from './types/candle';
-
-// Generate sample OHLC data
-const generateSampleData = (count: number = 100): Candle[] => {
-  const data: Candle[] = [];
-  let basePrice = 15000; // Starting price
-  const now = new Date();
-  let closes: number[] = [];
-  for (let i = count - 1; i >= 0; i--) {
-    const timestamp = new Date(now.getTime() - i * 24 * 60 * 60 * 1000); // Daily data
-    const volatility = 0.02; // 2% daily volatility
-    const change = (Math.random() - 0.5) * volatility;
-    let open = basePrice;
-    let close = basePrice * (1 + change);
-    // Simulate gap up/down every 5 days
-    if (i < count - 1 && i % 5 === 0) {
-      // 50% chance gap up, 50% gap down
-      if (Math.random() > 0.5) {
-        open = basePrice * 1.01; // gap up 1%
-      } else {
-        open = basePrice * 0.99; // gap down 1%
-      }
-      close = open * (1 + change); // recalc close from new open
-    }
-    const high = Math.max(open, close) * (1 + Math.random() * 0.01);
-    const low = Math.min(open, close) * (1 - Math.random() * 0.01);
-    const volume = Math.floor(Math.random() * 1000000) + 100000;
-    const openInterest = Math.floor(Math.random() * 50000) + 10000;
-    closes.push(close);
-    data.push({
-      timestamp: timestamp.toISOString(),
-      open,
-      high,
-      low,
-      close,
-      volume,
-      openInterest,
-      ema: 0, // placeholder
-      rsi: 0, // placeholder
-    });
-    basePrice = close;
-  }
-  // Calculate EMA (20)
-  const period = 20;
-  let k = 2 / (period + 1);
-  let ema = closes[0];
-  data[0].ema = ema;
-  for (let i = 1; i < closes.length; i++) {
-    ema = closes[i] * k + ema * (1 - k);
-    data[i].ema = ema;
-  }
-  // Calculate RSI (14)
-  const rsiPeriod = 14;
-  let gains = 0, losses = 0;
-  for (let i = 1; i <= rsiPeriod; i++) {
-    const diff = closes[i] - closes[i - 1];
-    if (diff >= 0) gains += diff; else losses -= diff;
-  }
-  gains /= rsiPeriod;
-  losses /= rsiPeriod;
-  let rs = losses === 0 ? 100 : gains / losses;
-  data[rsiPeriod].rsi = 100 - 100 / (1 + rs);
-  for (let i = rsiPeriod + 1; i < closes.length; i++) {
-    const diff = closes[i] - closes[i - 1];
-    if (diff >= 0) {
-      gains = (gains * (rsiPeriod - 1) + diff) / rsiPeriod;
-      losses = (losses * (rsiPeriod - 1)) / rsiPeriod;
-    } else {
-      gains = (gains * (rsiPeriod - 1)) / rsiPeriod;
-      losses = (losses * (rsiPeriod - 1) - diff) / rsiPeriod;
-    }
-    rs = losses === 0 ? 100 : gains / losses;
-    data[i].rsi = 100 - 100 / (1 + rs);
-  }
-  for (let i = 0; i < rsiPeriod; i++) data[i].rsi = NaN;
-  return data;
-};
-
-// Generate sample VIX data as a smooth line
-const generateVixData = (candles: Candle[]): { timestamp: string; value: number }[] => {
-  let vixBase = 12;
-  return candles.map((c, i) => {
-    // Simulate a smooth, wavy VIX
-    vixBase += Math.sin(i / 10) * 0.2 + (Math.random() - 0.5) * 0.1;
-    return {
-      timestamp: c.timestamp,
-      value: Math.max(10, vixBase + Math.sin(i / 7) * 0.5),
-    };
-  });
-};
+import { calculateIndicators } from './utils/indicators';
 
 export const OHLCChartDemo: React.FC = () => {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [vixData, setVixData] = useState<{ timestamp: string; value: number }[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
+  const [selectedInstrumentKey, setSelectedInstrumentKey] = useState<string>('');
+  
+  // Chart indicator toggles
+  const [showEMA, setShowEMA] = useState(false);
+  const [showRSI, setShowRSI] = useState(false);
+  const [showVIX, setShowVIX] = useState(false);
+  const [showSwingPoints, setShowSwingPoints] = useState(false);
 
+  // Fetch KeyMapping from Redis on mount
   useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
-      const sampleData = generateSampleData(200);
-      setCandles(sampleData);
-      setVixData(generateVixData(sampleData));
-      setIsLoading(false);
-    }, 1000);
+    setIsLoading(true);
+    fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        const mapping = JSON.parse(data.result);
+        setKeyMapping(mapping);
+        setIsLoading(false);
+      })
+      .catch(() => setIsLoading(false));
   }, []);
+
+  // Update suggestions as user types
+  useEffect(() => {
+    if (!searchTerm) {
+      setSuggestions([]);
+      return;
+    }
+    const matches = Object.keys(keyMapping)
+      .filter(name => name.toLowerCase().includes(searchTerm.toLowerCase()))
+      .slice(0, 8);
+    setSuggestions(matches);
+  }, [searchTerm, keyMapping]);
+
+  // Handle selection from suggestions
+  const handleSelectCompany = (companyName: string) => {
+    setSelectedCompany(companyName);
+    setSelectedInstrumentKey(keyMapping[companyName]);
+    setSearchTerm(companyName);
+    setSuggestions([]);
+  };
+
+  // Fetch candles for selected company/instrument
+  const handleFetchData = () => {
+    if (!selectedCompany || !selectedInstrumentKey) return;
+    setIsLoading(true);
+    const formattedInstrumentKey = selectedInstrumentKey.replace(/\|/g, '-');
+    const url = `http://localhost:8090/api/local-historical-data/get-candles/${selectedCompany}/${formattedInstrumentKey}`;
+    axios.get(url)
+      .then(res => {
+        const candlesData = res.data.historicalDataLocal.candles;
+        // Calculate EMA and RSI indicators before setting the candles
+        const candlesWithIndicators = calculateIndicators(candlesData, 200, 14);
+        setCandles(candlesWithIndicators);
+        setVixData([]);
+        setIsLoading(false);
+      })
+      .catch(() => setIsLoading(false));
+  };
 
   if (isLoading) {
     return (
@@ -117,18 +88,103 @@ export const OHLCChartDemo: React.FC = () => {
   }
 
   return (
-    <>
-      <div className="text-center mb-4">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">OHLC Chart Demo</h1>
-        <p className="text-gray-600">Interactive candlestick chart with volume and VIX overlay</p>
+    <div>
+      <Toaster position="top-right" />
+      <div className="mb-4 flex flex-col items-center">
+        {/* Centered title */}
+        <div className="flex justify-center mb-4">
+          <h1 className="text-3xl font-bold text-gray-800">OHLC Chart Demo</h1>
+        </div>
+        
+        {/* Indicator toggles in separate div */}
+        <div className="flex justify-center mb-4">
+          <div className="flex gap-4 bg-white bg-opacity-90 p-3 rounded-lg border-2 border-gray-300 shadow-md">
+            <label className="flex items-center gap-1 text-sm font-semibold">
+              <input 
+                type="checkbox" 
+                checked={showEMA} 
+                onChange={e => setShowEMA(e.target.checked)} 
+              />
+              EMA (200)
+            </label>
+            <label className="flex items-center gap-1 text-sm font-semibold">
+              <input 
+                type="checkbox" 
+                checked={showRSI} 
+                onChange={e => setShowRSI(e.target.checked)} 
+              />
+              RSI (14)
+            </label>
+            <label className="flex items-center gap-1 text-sm font-semibold">
+              <input 
+                type="checkbox" 
+                checked={showVIX} 
+                onChange={e => {
+                  if (e.target.checked && (!vixData || vixData.length === 0)) {
+                    toast.error('Insufficient VIX data available', { duration: 4000 });
+                    setShowVIX(false);
+                  } else {
+                    setShowVIX(e.target.checked);
+                  }
+                }}
+              />
+              VIX
+            </label>
+            <label className="flex items-center gap-1 text-sm font-semibold">
+              <input 
+                type="checkbox" 
+                checked={showSwingPoints} 
+                onChange={e => setShowSwingPoints(e.target.checked)} 
+              />
+              SWING
+            </label>
+          </div>
+        </div>
+        <div className="w-full max-w-md">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={e => {
+              setSearchTerm(e.target.value);
+              setSelectedCompany('');
+              setSelectedInstrumentKey('');
+            }}
+            placeholder="Search for a company..."
+            className="p-2 border border-gray-300 rounded-md w-full"
+          />
+          {/* Only show suggestions if not selected */}
+          {suggestions.length > 0 && !selectedCompany && (
+            <ul className="mt-2 border border-gray-300 rounded-md max-h-60 overflow-auto">
+              {suggestions.map((name) => (
+                <li
+                  key={name}
+                  onClick={() => handleSelectCompany(name)}
+                  className="p-2 cursor-pointer hover:bg-gray-100"
+                >
+                  {name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <button
+          onClick={handleFetchData}
+          className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-md"
+        >
+          Load Data
+        </button>
       </div>
-      <OHLCChart 
+      <OHLCChart
         candles={candles}
         vixData={vixData}
-        title="Nifty 50 OHLC Chart"
+        title="OHLC Chart"
         height={500}
         showVolume={true}
+        showEMA={showEMA}
+        showRSI={showRSI}
+        showVIX={showVIX}
+        showSwingPoints={showSwingPoints}
       />
-    </>
+    </div>
   );
-}; 
+};
