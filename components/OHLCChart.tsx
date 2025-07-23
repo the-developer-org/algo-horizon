@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { createChart } from 'lightweight-charts';
 import { Candle } from './types/candle';
+import axios from 'axios';
 
 interface OHLCChartProps {
     candles: Candle[];
@@ -16,6 +17,7 @@ interface OHLCChartProps {
     showRSI?: boolean;
     showVIX?: boolean;
     showSwingPoints?: boolean;
+    analysisList?: { timestamp: string; swingLabel?: string; }[]; // Added analysisList prop
 }
 
 const maxWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
@@ -33,6 +35,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     showRSI = true,
     showVIX = true,
     showSwingPoints = true,
+    analysisList,// Destructure analysisList
 }) => {
     const UnderstchartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
@@ -45,6 +48,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const rsiSeriesRef = useRef<any>(null);
     const vixSeriesRef = useRef<any>(null);
     const swingPointsSeriesRef = useRef<any>(null);
+    const propAnalysisList = analysisList || []; // Use propAnalysisList if provided
+
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
     useEffect(() => {
@@ -88,6 +93,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             borderVisible: false,
             wickUpColor: '#1e7e34',  // Darker green for wicks
             wickDownColor: '#c62828', // Darker red for wicks
+        });
+
+        // Initialize a dedicated swing points series during chart creation
+        swingPointsSeriesRef.current = chart.addLineSeries({
+            color: '#000000',
+            lineWidth: 1,
+            priceScaleId: '',
         });
 
         // Add volume series on a separate scale at the bottom
@@ -339,116 +351,164 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
     }, [showVIX, vixData]); // Removed candles dependency
 
-    // Separate effect for Swing Points indicator management
+    // Define candlestickSeries and fix issues in swing points logic
     useEffect(() => {
         if (!chartRef.current) return;
-        
+
         const chart = chartRef.current;
-        
+        const candlestickSeries = chartRef.current.series?.candlestickSeries; // Ensure candlestickSeries is accessible
+
+        if (!candlestickSeries) {
+            console.error('Candlestick series is not initialized. Ensure the series is created before adding price lines.');
+            return;
+        }
+
         if (showSwingPoints) {
             try {
-                // Debug: Count swing points in data
-                const swingPointCount = candles.reduce((count, candle) => {
-                    return count + 
-                        (candle.isHigherHigh ? 1 : 0) + 
-                        (candle.isHigherLow ? 1 : 0) + 
-                        (candle.isLowerHigh ? 1 : 0) + 
-                        (candle.isLowerLow ? 1 : 0);
-                }, 0);
-                console.log(`Found ${swingPointCount} swing points in ${candles.length} candles`);
+                console.log(propAnalysisList);
+                if (Array.isArray(propAnalysisList) && propAnalysisList.length > 0) {
+                    const markers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
+                    propAnalysisList.forEach((analysis) => {
+                        const time = Math.floor(new Date(analysis.timestamp).getTime() / 1000);
+                        const candle = candles.find(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === time);
 
-                // Check if there are no swing points
-                if (swingPointCount === 0) {
-                    toast.error('No swing point data available. Not enough data to plot higher\'s or lower\'s', { duration: 4000 });
+                        if (analysis.swingLabel && candle) {
+                            const label = analysis.swingLabel;
+                            let position: 'aboveBar' | 'belowBar';
+                            let price: number;
+
+                            switch (label) {
+                                case 'HH':
+                                case 'LH':
+                                    position = 'aboveBar';
+                                    price = candle.high;
+                                    break;
+                                case 'HL':
+                                case 'LL':
+                                    position = 'belowBar';
+                                    price = candle.low;
+                                    break;
+                                default:
+                                    console.warn(`Unknown swing label: ${label}`);
+                                    return;
+                            }
+
+                            const color = getSwingPointColor(label);
+
+                            // Add marker for the swing point
+                            markers.push({
+                                time: time,
+                                position: position,
+                                color: color,
+                                shape: 'circle',
+                                text: label,
+                                size: 10,
+                            });
+
+                            // Add horizontal line for High/Low using candlestickSeries
+                            candlestickSeries.createPriceLine({
+                                price: price,
+                                color: color,
+                                lineWidth: 2,
+                                lineStyle: 0,
+                                axisLabelVisible: true,
+                                title: `${label} (${price.toFixed(2)})`,
+                            });
+                        }
+                    });
+                    candlestickSeries.setMarkers(markers);
+                } else {
+                    toast.error('No swing point data available in analysisList.', { duration: 4000 });
                     return;
                 }
-
-                swingPointsSeriesRef.current = chart.addLineSeries({
-                    color: 'transparent', // Line is transparent, we only want markers
-                    lineWidth: 0,
-                    priceScaleId: '', // overlay on main price scale
-                    crosshairMarkerVisible: false,
-                    lastValueVisible: false,
-                    priceLineVisible: false,
-                });
-
-                // Create markers for swing points
-                const markers: any[] = [];
-                candles.forEach((candle, index) => {
-                    const time = Math.floor(new Date(candle.timestamp).getTime() / 1000);
-                    
-                    // Higher Highs and Higher Lows (green dots)
-                    if (candle.isHigherHigh) {
-                        console.log(`Adding HH marker at ${candle.timestamp}`);
-                        markers.push({
-                            time: time,
-                            position: 'aboveBar',
-                            color: '#00AA00', // Darker green for better visibility
-                            shape: 'circle',
-                            text: 'HH',
-                            size: 10, // Larger size
-                        });
-                    }
-                    
-                    if (candle.isHigherLow) {
-                        console.log(`Adding HL marker at ${candle.timestamp}`);
-                        markers.push({
-                            time: time,
-                            position: 'belowBar',
-                            color: '#00AA00', // Darker green for better visibility
-                            shape: 'circle',
-                            text: 'HL',
-                            size: 10, // Larger size
-                        });
-                    }
-                    
-                    // Lower Highs and Lower Lows (red dots)
-                    if (candle.isLowerHigh) {
-                        console.log(`Adding LH marker at ${candle.timestamp}`);
-                        markers.push({
-                            time: time,
-                            position: 'aboveBar',
-                            color: '#CC0000', // Darker red for better visibility
-                            shape: 'circle',
-                            text: 'LH',
-                            size: 10, // Larger size
-                        });
-                    }
-                    
-                    if (candle.isLowerLow) {
-                        console.log(`Adding LL marker at ${candle.timestamp}`);
-                        markers.push({
-                            time: time,
-                            position: 'belowBar',
-                            color: '#CC0000', // Darker red for better visibility
-                            shape: 'circle',
-                            text: 'LL',
-                            size: 10, // Larger size
-                        });
-                    }
-                });
-
-                console.log(`Created ${markers.length} markers for swing points`);
-
-                // Set markers on the series
-                swingPointsSeriesRef.current.setMarkers(markers);
-                
-                // Set empty data for the line series (we only want markers)
-                swingPointsSeriesRef.current.setData([]);
-                
             } catch (err) {
                 console.error('Swing points error:', err);
                 toast.error('Error displaying swing points', { duration: 4000 });
-                if (swingPointsSeriesRef.current) {
-                    chart.removeSeries(swingPointsSeriesRef.current);
-                    swingPointsSeriesRef.current = null;
-                }
             }
-        } else if (swingPointsSeriesRef.current) {
-            chart.removeSeries(swingPointsSeriesRef.current);
-            swingPointsSeriesRef.current = null;
         }
-    }, [showSwingPoints]); // Only depend on toggle state
+    }, [showSwingPoints, propAnalysisList]);
+
+    // Add a fallback series for price lines
+    useEffect(() => {
+        if (!chartRef.current) return;
+
+        const chart = chartRef.current;
+
+        // Ensure candlestickSeries or fallback series is available
+        let priceLineSeries = chartRef.current.series?.candlestickSeries;
+        if (!priceLineSeries) {
+            console.warn('Candlestick series is not initialized. Using fallback series for price lines.');
+            priceLineSeries = chart.addLineSeries({
+                color: '#000000',
+                lineWidth: 1,
+                priceScaleId: '',
+            });
+        }
+
+        if (showSwingPoints) {
+            try {
+                console.log(propAnalysisList);
+                if (Array.isArray(propAnalysisList) && propAnalysisList.length > 0) {
+                    const markers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
+                    propAnalysisList.forEach((analysis) => {
+                        const time = Math.floor(new Date(analysis.timestamp).getTime() / 1000);
+                        const candle = candles.find(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === time);
+
+                        if (analysis.swingLabel && candle) {
+                            const label = analysis.swingLabel;
+                            let position: 'aboveBar' | 'belowBar';
+                            let price: number;
+
+                            switch (label) {
+                                case 'HH':
+                                case 'LH':
+                                    position = 'aboveBar';
+                                    price = candle.high;
+                                    break;
+                                case 'HL':
+                                case 'LL':
+                                    position = 'belowBar';
+                                    price = candle.low;
+                                    break;
+                                default:
+                                    console.warn(`Unknown swing label: ${label}`);
+                                    return;
+                            }
+
+                            const color = getSwingPointColor(label);
+
+                            // Add marker for the swing point
+                            markers.push({
+                                time: time,
+                                position: position,
+                                color: color,
+                                shape: 'circle',
+                                text: label,
+                                size: 10,
+                            });
+
+                            // Add horizontal line for High/Low using priceLineSeries
+                            priceLineSeries.createPriceLine({
+                                price: price,
+                                color: color,
+                                lineWidth: 2,
+                                lineStyle: 0,
+                                axisLabelVisible: true,
+                                title: `${label} (${price.toFixed(2)})`,
+                            });
+                        }
+                    });
+                    priceLineSeries.setMarkers(markers);
+                } else {
+                    toast.error('No swing point data available in analysisList.', { duration: 4000 });
+                    return;
+                }
+            } catch (err) {
+                console.error('Swing points error:', err);
+                toast.error('Error displaying swing points', { duration: 4000 });
+            }
+        }
+    }, [showSwingPoints, propAnalysisList]);
 
     // Crosshair move handler effect - updates when chart changes
     useEffect(() => {
@@ -547,6 +607,21 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         height: '90vh', // Revert to original height
         zIndex: 1,
         background: '#fff',
+    };
+
+    const getSwingPointColor = (label: string): string => {
+        switch (label) {
+            case 'HH':
+                return '#1e90ff'; // Blue for Higher High
+            case 'HL':
+                return '#32cd32'; // Green for Higher Low
+            case 'LH':
+                return '#ff4500'; // Orange for Lower High
+            case 'LL':
+                return '#8b0000'; // Dark Red for Lower Low
+            default:
+                return '#000000'; // Default color
+        }
     };
 
     return (

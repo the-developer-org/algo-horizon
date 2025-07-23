@@ -16,6 +16,7 @@ export const OHLCChartDemo: React.FC = () => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [selectedInstrumentKey, setSelectedInstrumentKey] = useState<string>('');
+  const [analysisList, setAnalysisList] = useState<{ timestamp: string; swingLabel?: string;}[]>([]);
   
   // Chart indicator toggles
   const [showEMA, setShowEMA] = useState(false);
@@ -70,9 +71,11 @@ export const OHLCChartDemo: React.FC = () => {
     axios.get(url)
       .then(res => {
         const candlesData = res.data.historicalDataLocal.candles;
+        const analysisData = res.data.historicalDataLocal.analysisList || [];
         // Calculate EMA and RSI indicators before setting the candles
         const candlesWithIndicators = calculateIndicators(candlesData, 200, 14);
         setCandles(candlesWithIndicators);
+        setAnalysisList(analysisData);
         setVixData([]);
         setIsLoading(false);
       })
@@ -156,13 +159,13 @@ export const OHLCChartDemo: React.FC = () => {
           {suggestions.length > 0 && !selectedCompany && (
             <ul className="mt-2 border border-gray-300 rounded-md max-h-60 overflow-auto">
               {suggestions.map((name) => (
-                <li
+                <button
                   key={name}
                   onClick={() => handleSelectCompany(name)}
-                  className="p-2 cursor-pointer hover:bg-gray-100"
+                  className="p-2 cursor-pointer hover:bg-gray-100 w-full text-left"
                 >
                   {name}
-                </li>
+                </button>
               ))}
             </ul>
           )}
@@ -184,6 +187,7 @@ export const OHLCChartDemo: React.FC = () => {
         showRSI={showRSI}
         showVIX={showVIX}
         showSwingPoints={showSwingPoints}
+        analysisList={analysisList}
       />
     </div>
   );
