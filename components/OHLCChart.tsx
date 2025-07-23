@@ -53,7 +53,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Create chart with minimal configuration
         const chart = createChart(UnderstchartContainerRef.current, {
             width: maxWidth,
-            height: 800, // Fixed reasonable height instead of maxHeight
+            height: 800 * 0.96, // Reduce height by 10%
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
@@ -169,10 +169,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         });
 
         // Handle resize
-        const handleResize = () => {
-            if (UnderstchartContainerRef.current) {
-                chart.applyOptions({
-                    width: width || UnderstchartContainerRef.current.clientWidth,
+         const handleResize = () => {
+            if (UnderstchartContainerRef.current && chartRef.current) {
+                const containerWidth = UnderstchartContainerRef.current.clientWidth;
+                const containerHeight = UnderstchartContainerRef.current.clientHeight * 0.9; // Reduce height by 10%
+                chartRef.current.applyOptions({
+                    width: containerWidth,
+                    height: containerHeight,
                 });
             }
         };
@@ -613,7 +616,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     ) : null}
                 </div>
             )}
-            <div ref={UnderstchartContainerRef} style={{ width: '100vw', height: '100vh' }} />
+            <div ref={UnderstchartContainerRef} style={{ width: '100%', height: '100%' }} />
         </div>
     );
 };
