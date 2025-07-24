@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { createChart } from 'lightweight-charts';
 import { Candle } from './types/candle';
-import axios from 'axios';
 
 interface OHLCChartProps {
     candles: Candle[];
@@ -22,13 +21,121 @@ interface OHLCChartProps {
 
 const maxWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
 const maxHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-console.log(maxWidth, maxHeight);
+const chartHeight = maxHeight * 0.91; // Increase chart height to 91% of the viewport height
+
+// Function to calculate support and resistance levels
+const calculateSupportResistance = (candles: Candle[]) => {
+    if (!candles || candles.length < 20) {
+        return { support: null, resistance: null, levels: [] };
+    }
+
+    // Get recent data (last 50 candles for more responsive levels)
+    const recentCandles = candles.slice(-50);
+    const currentPrice = recentCandles[recentCandles.length - 1].close;
+    
+    // Find pivot points (local maxima and minima) with their index
+    const pivotHighs: { price: number, strength: number, index: number, age: number }[] = [];
+    const pivotLows: { price: number, strength: number, index: number, age: number }[] = [];
+    
+    // Look for pivot points with a window of 3 periods for more recent signals
+    for (let i = 3; i < recentCandles.length - 3; i++) {
+        const currentHigh = recentCandles[i].high;
+        const currentLow = recentCandles[i].low;
+        
+        // Check if current high is a pivot high
+        const isPivotHigh = [1, 2, 3].every(offset => 
+            currentHigh >= recentCandles[i - offset].high && 
+            currentHigh >= recentCandles[i + offset].high
+        );
+        
+        if (isPivotHigh) {
+            // Calculate strength based on how much higher than surrounding candles
+            const surroundingHighs = [
+                ...[-3, -2, -1, 1, 2, 3].map(offset => recentCandles[i + offset].high)
+            ];
+            const avgSurrounding = surroundingHighs.reduce((a, b) => a + b, 0) / surroundingHighs.length;
+            const strength = ((currentHigh - avgSurrounding) / avgSurrounding) * 100;
+            const age = recentCandles.length - 1 - i; // How many periods ago
+            
+            pivotHighs.push({ price: currentHigh, strength, index: i, age });
+        }
+        
+        // Check if current low is a pivot low
+        const isPivotLow = [1, 2, 3].every(offset => 
+            currentLow <= recentCandles[i - offset].low && 
+            currentLow <= recentCandles[i + offset].low
+        );
+        
+        if (isPivotLow) {
+            // Calculate strength based on how much lower than surrounding candles
+            const surroundingLows = [
+                ...[-3, -2, -1, 1, 2, 3].map(offset => recentCandles[i + offset].low)
+            ];
+            const avgSurrounding = surroundingLows.reduce((a, b) => a + b, 0) / surroundingLows.length;
+            const strength = ((avgSurrounding - currentLow) / avgSurrounding) * 100;
+            const age = recentCandles.length - 1 - i; // How many periods ago
+            
+            pivotLows.push({ price: currentLow, strength, index: i, age });
+        }
+    }
+    
+    // Filter out broken levels with a small tolerance for noise
+    const priceThreshold = currentPrice * 0.001; // 0.1% threshold for noise
+    
+    const validResistanceLevels = pivotHighs.filter(pivot => {
+        // Check if price has clearly broken above this resistance
+        const candlesAfterPivot = recentCandles.slice(pivot.index + 1);
+        const hasBeenBroken = candlesAfterPivot.some(candle => candle.close > (pivot.price + priceThreshold));
+        return !hasBeenBroken && pivot.price > currentPrice;
+    });
+    
+    const validSupportLevels = pivotLows.filter(pivot => {
+        // Check if price has clearly broken below this support
+        const candlesAfterPivot = recentCandles.slice(pivot.index + 1);
+        const hasBeenBroken = candlesAfterPivot.some(candle => candle.close < (pivot.price - priceThreshold));
+        return !hasBeenBroken && pivot.price < currentPrice;
+    });
+    
+    // Score levels based on proximity, strength, and recency
+    const scoreLevel = (level: { price: number, strength: number, age: number }) => {
+        const distance = Math.abs(level.price - currentPrice);
+        const proximityScore = 1 / (1 + distance / currentPrice); // Closer = higher score
+        const strengthScore = level.strength / 100; // Normalize strength
+        const recencyScore = 1 / (1 + level.age / 10); // More recent = higher score
+        
+        return proximityScore * 0.4 + strengthScore * 0.4 + recencyScore * 0.2;
+    };
+    
+    // Sort by combined score
+    const resistanceLevels = validResistanceLevels
+        .map(level => ({ ...level, score: scoreLevel(level) }))
+        .toSorted((a, b) => b.score - a.score)
+        .slice(0, 3);
+    
+    const supportLevels = validSupportLevels
+        .map(level => ({ ...level, score: scoreLevel(level) }))
+        .toSorted((a, b) => b.score - a.score)
+        .slice(0, 3);
+    
+    // Primary resistance and support (highest scoring unbroken levels)
+    const resistance = resistanceLevels.length > 0 ? resistanceLevels[0].price : null;
+    const support = supportLevels.length > 0 ? supportLevels[0].price : null;
+    
+    return { 
+        resistance, 
+        support, 
+        levels: [
+            ...resistanceLevels.map(r => ({ price: r.price, type: 'resistance', strength: r.strength, score: r.score })),
+            ...supportLevels.map(s => ({ price: s.price, type: 'support', strength: s.strength, score: s.score }))
+        ]
+    };
+};
 
 export const OHLCChart: React.FC<OHLCChartProps> = ({
     candles,
     vixData,
     title = "OHLC Chart",
-    height = 400,
+    height = chartHeight, // Use the updated chartHeight
     width,
     showVolume = true,
     showEMA = true,
@@ -94,6 +201,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             wickUpColor: '#1e7e34',  // Darker green for wicks
             wickDownColor: '#c62828', // Darker red for wicks
         });
+        
+        // Store candlestick series reference for later use
+        chartRef.current.candlestickSeries = candlestickSeries;
 
         // Initialize a dedicated swing points series during chart creation
         swingPointsSeriesRef.current = chart.addLineSeries({
@@ -181,7 +291,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         });
 
         // Handle resize
-         const handleResize = () => {
+        const handleResize = () => {
             if (UnderstchartContainerRef.current && chartRef.current) {
                 const containerWidth = UnderstchartContainerRef.current.clientWidth;
                 const containerHeight = UnderstchartContainerRef.current.clientHeight * 0.9; // Reduce height by 10%
@@ -243,10 +353,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     // Separate effect for RSI indicator management
     useEffect(() => {
         if (!chartRef.current) return;
-        
+
         const chart = chartRef.current;
         setRsiError(null);
-        
+
         if (showRSI) {
             try {
                 const rsiPaneId = 'rsi';
@@ -287,11 +397,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     // Separate effect for VIX indicator management
     useEffect(() => {
         if (!chartRef.current) return;
-        
+
         const chart = chartRef.current;
         setVixError(null);
         let formattedVix: { time: number; value: number }[] = [];
-        
+
         if (showVIX) {
             if (!vixData || vixData.length === 0) {
                 setVixError('Insufficient VIX data available');
@@ -330,7 +440,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         visible: true,
                         autoScale: true,
                     });
-                    
+
                     // Set initial VIX value
                     if (formattedVix.length > 0) {
                         setVixValue(formattedVix[formattedVix.length - 1].value);
@@ -353,169 +463,87 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Define candlestickSeries and fix issues in swing points logic
     useEffect(() => {
-        if (!chartRef.current) return;
+        if (!chartRef.current || !showSwingPoints) return;
 
         const chart = chartRef.current;
-        const candlestickSeries = chartRef.current.series?.candlestickSeries; // Ensure candlestickSeries is accessible
+        // Ensure the candlestick series is initialized
+        const candlestickSeries = chartRef.current.series?.candlestickSeries || chart.addCandlestickSeries({
+            upColor: '#1e7e34',
+            downColor: '#c62828',
+            borderVisible: false,
+            wickUpColor: '#1e7e34',
+            wickDownColor: '#c62828',
+        });
+        chartRef.current.series = { ...chartRef.current.series, candlestickSeries };
 
-        if (!candlestickSeries) {
-            console.error('Candlestick series is not initialized. Ensure the series is created before adding price lines.');
-            return;
-        }
-
-        if (showSwingPoints) {
+        if (Array.isArray(propAnalysisList) && propAnalysisList.length > 0) {
             try {
                 console.log(propAnalysisList);
-                if (Array.isArray(propAnalysisList) && propAnalysisList.length > 0) {
-                    const markers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
-                    propAnalysisList.forEach((analysis) => {
-                        const time = Math.floor(new Date(analysis.timestamp).getTime() / 1000);
-                        const candle = candles.find(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === time);
+                const markers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
+                propAnalysisList.forEach((analysis) => {
+                    const time = Math.floor(new Date(analysis.timestamp).getTime() / 1000);
+                    const candle = candles.find(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === time);
 
-                        if (analysis.swingLabel && candle) {
-                            const label = analysis.swingLabel;
-                            let position: 'aboveBar' | 'belowBar';
-                            let price: number;
+                    if (analysis.swingLabel && candle) {
+                        const label = analysis.swingLabel;
+                        let position: 'aboveBar' | 'belowBar';
+                        let price: number;
 
-                            switch (label) {
-                                case 'HH':
-                                case 'LH':
-                                    position = 'aboveBar';
-                                    price = candle.high;
-                                    break;
-                                case 'HL':
-                                case 'LL':
-                                    position = 'belowBar';
-                                    price = candle.low;
-                                    break;
-                                default:
-                                    console.warn(`Unknown swing label: ${label}`);
-                                    return;
-                            }
-
-                            const color = getSwingPointColor(label);
-
-                            // Add marker for the swing point
-                            markers.push({
-                                time: time,
-                                position: position,
-                                color: color,
-                                shape: 'circle',
-                                text: label,
-                                size: 10,
-                            });
-
-                            // Add horizontal line for High/Low using candlestickSeries
-                            candlestickSeries.createPriceLine({
-                                price: price,
-                                color: color,
-                                lineWidth: 2,
-                                lineStyle: 0,
-                                axisLabelVisible: true,
-                                title: `${label} (${price.toFixed(2)})`,
-                            });
+                        switch (label) {
+                            case 'HH':
+                            case 'LH':
+                                position = 'aboveBar';
+                                price = candle.high;
+                                break;
+                            case 'HL':
+                            case 'LL':
+                                position = 'belowBar';
+                                price = candle.low;
+                                break;
+                            default:
+                                console.warn(`Unknown swing label: ${label}`);
+                                return;
                         }
-                    });
-                    candlestickSeries.setMarkers(markers);
-                } else {
-                    toast.error('No swing point data available in analysisList.', { duration: 4000 });
-                    return;
-                }
+
+                        const color = getSwingPointColor(label);
+
+                        // Add marker for the swing point
+                        markers.push({
+                            time: time,
+                            position: position,
+                            color: color,
+                            shape: 'circle',
+                            text: label,
+                            size: 10,
+                        });
+
+                        // Add horizontal line for High/Low using candlestickSeries
+                        candlestickSeries.createPriceLine({
+                            price: price,
+                            color: color,
+                            lineWidth: 2,
+                            lineStyle: 0,
+                            axisLabelVisible: true,
+                            title: `${label} (${price.toFixed(2)})`,
+                        });
+                    }
+                });
+                candlestickSeries.setMarkers(markers);
             } catch (err) {
                 console.error('Swing points error:', err);
                 toast.error('Error displaying swing points', { duration: 4000 });
             }
-        }
-    }, [showSwingPoints, propAnalysisList]);
-
-    // Add a fallback series for price lines
-    useEffect(() => {
-        if (!chartRef.current) return;
-
-        const chart = chartRef.current;
-
-        // Ensure candlestickSeries or fallback series is available
-        let priceLineSeries = chartRef.current.series?.candlestickSeries;
-        if (!priceLineSeries) {
-            console.warn('Candlestick series is not initialized. Using fallback series for price lines.');
-            priceLineSeries = chart.addLineSeries({
-                color: '#000000',
-                lineWidth: 1,
-                priceScaleId: '',
-            });
-        }
-
-        if (showSwingPoints) {
-            try {
-                console.log(propAnalysisList);
-                if (Array.isArray(propAnalysisList) && propAnalysisList.length > 0) {
-                    const markers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
-                    propAnalysisList.forEach((analysis) => {
-                        const time = Math.floor(new Date(analysis.timestamp).getTime() / 1000);
-                        const candle = candles.find(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === time);
-
-                        if (analysis.swingLabel && candle) {
-                            const label = analysis.swingLabel;
-                            let position: 'aboveBar' | 'belowBar';
-                            let price: number;
-
-                            switch (label) {
-                                case 'HH':
-                                case 'LH':
-                                    position = 'aboveBar';
-                                    price = candle.high;
-                                    break;
-                                case 'HL':
-                                case 'LL':
-                                    position = 'belowBar';
-                                    price = candle.low;
-                                    break;
-                                default:
-                                    console.warn(`Unknown swing label: ${label}`);
-                                    return;
-                            }
-
-                            const color = getSwingPointColor(label);
-
-                            // Add marker for the swing point
-                            markers.push({
-                                time: time,
-                                position: position,
-                                color: color,
-                                shape: 'circle',
-                                text: label,
-                                size: 10,
-                            });
-
-                            // Add horizontal line for High/Low using priceLineSeries
-                            priceLineSeries.createPriceLine({
-                                price: price,
-                                color: color,
-                                lineWidth: 2,
-                                lineStyle: 0,
-                                axisLabelVisible: true,
-                                title: `${label} (${price.toFixed(2)})`,
-                            });
-                        }
-                    });
-                    priceLineSeries.setMarkers(markers);
-                } else {
-                    toast.error('No swing point data available in analysisList.', { duration: 4000 });
-                    return;
-                }
-            } catch (err) {
-                console.error('Swing points error:', err);
-                toast.error('Error displaying swing points', { duration: 4000 });
-            }
+        } else {
+            toast.error('No swing point data available in analysisList.', { duration: 4000 });
         }
     }, [showSwingPoints, propAnalysisList]);
 
     // Crosshair move handler effect - updates when chart changes
     useEffect(() => {
         if (!chartRef.current) return;
-        
+
         const chart = chartRef.current;
-        
+
         // Update the OHLC info and VIX on crosshair move
         const crosshairHandler = (param: any) => {
             if (param?.time) {
@@ -535,7 +563,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         rsi: hovered.rsi,
                     });
                 }
-                
+
                 // Find the VIX value for the hovered time
                 if (showVIX && vixData && vixData.length > 0) {
                     const vixMap = new Map<number, number>();
@@ -551,15 +579,15 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         }
                         return { time: t, value: typeof lastVix === 'number' && !isNaN(lastVix) ? lastVix : undefined };
                     }).filter(item => typeof item.value === 'number' && !isNaN(item.value)) as { time: number; value: number }[];
-                    
+
                     const hoveredVix = formattedVix.find(v => v.time === param.time);
                     setVixValue(hoveredVix ? hoveredVix.value : null);
                 }
             }
         };
-        
+
         chart.subscribeCrosshairMove(crosshairHandler);
-        
+
         return () => {
             chart.unsubscribeCrosshairMove(crosshairHandler);
         };
@@ -624,6 +652,51 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
     };
 
+    useEffect(() => {
+        // Calculate and add dynamic support/resistance lines
+        if (candles.length > 0 && chartRef.current?.candlestickSeries) {
+            const levels = calculateSupportResistance(candles);
+            
+            // Add primary resistance level
+            if (levels.resistance) {
+                chartRef.current.candlestickSeries.createPriceLine({
+                    price: levels.resistance,
+                    color: '#FF0000',
+                    lineWidth: 2,
+                    lineStyle: 0, // Solid line
+                    axisLabelVisible: true,
+                    title: `Dynamic Resistance (${levels.resistance.toFixed(2)})`,
+                });
+            }
+            
+            // Add primary support level
+            if (levels.support) {
+                chartRef.current.candlestickSeries.createPriceLine({
+                    price: levels.support,
+                    color: '#00FF00',
+                    lineWidth: 2,
+                    lineStyle: 0, // Solid line
+                    axisLabelVisible: true,
+                    title: `Dynamic Support (${levels.support.toFixed(2)})`,
+                });
+            }
+            
+            // Add secondary levels with different styling
+            levels.levels.slice(1).forEach((level, index) => {
+                if (index < 2) { // Only show top 2 secondary levels
+                    chartRef.current.candlestickSeries.createPriceLine({
+                        price: level.price,
+                        color: level.type === 'resistance' ? '#FF6B6B' : '#4ECDC4', // Lighter colors
+                        lineWidth: 1,
+                        lineStyle: 2, // Dashed line
+                        axisLabelVisible: false,
+                        title: `${level.type} ${level.price.toFixed(2)}`,
+                    });
+                }
+            });
+        }
+    }, [candles]);
+
     return (
         <div style={chartAreaStyle}>
             <Toaster position="top-right" />
@@ -639,7 +712,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             <div style={{ position: 'absolute', top: -200, right: 16, zIndex: 203, background: 'rgba(255,255,255,0.96)', padding: '8px 20px', borderRadius: 10, fontWeight: 600, fontSize: 15, color: '#333', boxShadow: '0 2px 12px rgba(0,0,0,0.10)', border: '2px solid #bdbdbd', minWidth: 400, width: 420, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={{ fontWeight: 700, fontSize: 15, color: '#333' }}>Stats</span>
                 {(() => {
-                    const gapInfo = getPrevCloseToTodayOpenGap(ohlcInfo ? { ...ohlcInfo, timestamp: (candles.find(c => c.close === ohlcInfo.close && c.open === ohlcInfo.open && c.high === ohlcInfo.high && c.low === ohlcInfo.low && c.volume === ohlcInfo.volume)?.timestamp) || candles[candles.length-1].timestamp } : candles[candles.length-1]);
+                    const gapInfo = getPrevCloseToTodayOpenGap(ohlcInfo ? { ...ohlcInfo, timestamp: (candles.find(c => c.close === ohlcInfo.close && c.open === ohlcInfo.open && c.high === ohlcInfo.high && c.low === ohlcInfo.low && c.volume === ohlcInfo.volume)?.timestamp) || candles[candles.length - 1].timestamp } : candles[candles.length - 1]);
                     if (!gapInfo) return <span style={{ fontSize: 13, color: '#888' }}>No gap data</span>;
                     const sign = gapInfo.gap > 0 ? '+' : '';
                     return (

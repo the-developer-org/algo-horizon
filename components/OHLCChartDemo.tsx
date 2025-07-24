@@ -93,15 +93,47 @@ export const OHLCChartDemo: React.FC = () => {
   return (
     <div>
       <Toaster position="top-right" />
-      <div className="mb-4 flex flex-col items-center">
-        {/* Centered title */}
-        <div className="flex justify-center mb-4">
-          <h1 className="text-3xl font-bold text-gray-800">OHLC Chart Demo</h1>
-        </div>
+      <div className="mb-4 flex flex-col items-center p-4">
+        {/* Compact layout with title and toggles in one row */}
         
-        {/* Indicator toggles in separate div */}
-        <div className="flex justify-center mb-4">
-          <div className="flex gap-4 bg-white bg-opacity-90 p-3 rounded-lg border-2 border-gray-300 shadow-md">
+  
+        {/* Search bar and Load Data button in one row */}
+        <div className="flex flex-wrap justify-between items-center w-full max-w-4xl gap-4">
+          <div className="flex-grow">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={e => {
+                setSearchTerm(e.target.value);
+                setSelectedCompany('');
+                setSelectedInstrumentKey('');
+              }}
+              placeholder="Search for a company..."
+              className="p-2 border border-gray-300 rounded-md w-full"
+            />
+            {/* Only show suggestions if not selected */}
+            {suggestions.length > 0 && !selectedCompany && (
+              <ul className="mt-2 border border-gray-300 rounded-md max-h-60 overflow-auto">
+                {suggestions.map((name) => (
+                  <button
+                    key={name}
+                    onClick={() => handleSelectCompany(name)}
+                    className="p-2 cursor-pointer hover:bg-gray-100 w-full text-left"
+                  >
+                    {name}
+                  </button>
+                ))}
+              </ul>
+            )}
+          </div>
+          <button
+            onClick={handleFetchData}
+            className="bg-blue-500 text-white px-4 py-2 rounded-md"
+          >
+            Load Data
+          </button>
+      
+         <div className="flex gap-2 bg-white bg-opacity-90 p-2 rounded-lg border border-gray-300 shadow-sm">
             <label className="flex items-center gap-1 text-sm font-semibold">
               <input 
                 type="checkbox" 
@@ -142,41 +174,9 @@ export const OHLCChartDemo: React.FC = () => {
               SWING
             </label>
           </div>
-        </div>
-        <div className="w-full max-w-md">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={e => {
-              setSearchTerm(e.target.value);
-              setSelectedCompany('');
-              setSelectedInstrumentKey('');
-            }}
-            placeholder="Search for a company..."
-            className="p-2 border border-gray-300 rounded-md w-full"
-          />
-          {/* Only show suggestions if not selected */}
-          {suggestions.length > 0 && !selectedCompany && (
-            <ul className="mt-2 border border-gray-300 rounded-md max-h-60 overflow-auto">
-              {suggestions.map((name) => (
-                <button
-                  key={name}
-                  onClick={() => handleSelectCompany(name)}
-                  className="p-2 cursor-pointer hover:bg-gray-100 w-full text-left"
-                >
-                  {name}
-                </button>
-              ))}
-            </ul>
-          )}
-        </div>
-        <button
-          onClick={handleFetchData}
-          className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-md"
-        >
-          Load Data
-        </button>
+          </div>
       </div>
+
       <OHLCChart
         candles={candles}
         vixData={vixData}
