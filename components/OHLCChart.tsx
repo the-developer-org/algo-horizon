@@ -131,6 +131,154 @@ const calculateSupportResistance = (candles: Candle[]) => {
     };
 };
 
+// Function to draw trend lines connecting swing points
+const drawTrendLines = (sortedAnalysis: { timestamp: string; swingLabel?: string; }[], candles: Candle[], chart: any) => {
+    // Group swing points by trend type
+    const swingPoints = sortedAnalysis.map(analysis => {
+        const time = Math.floor(new Date(analysis.timestamp).getTime() / 1000);
+        const candle = candles.find(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === time);
+        
+        if (!candle || !analysis.swingLabel) return null;
+        
+        const label = analysis.swingLabel;
+        let price: number;
+        
+        switch (label) {
+            case 'HH':
+            case 'LH':
+                price = candle.high;
+                break;
+            case 'HL':
+            case 'LL':
+                price = candle.low;
+                break;
+            default:
+                return null;
+        }
+        
+        return {
+            time,
+            price,
+            label,
+            timestamp: analysis.timestamp,
+            candle: candle
+        };
+    }).filter(Boolean);
+    
+    // Detect trend sequences
+    const trends = detectTrendSequences(swingPoints);
+    
+    // Draw trend lines for each sequence using the main price scale
+    trends.forEach((trend, index) => {
+        if (trend.points.length >= 2) {
+            const startPoint = trend.points[0];
+            const endPoint = trend.points[trend.points.length - 1];
+            
+            // Create data array that includes intermediate points to ensure line continuity
+            const trendLineData = [];
+            
+            // Add start point
+            trendLineData.push({ 
+                time: startPoint.time, 
+                value: startPoint.price 
+            });
+            
+            // Calculate slope for linear interpolation
+            const timeDiff = endPoint.time - startPoint.time;
+            const priceDiff = endPoint.price - startPoint.price;
+            const slope = priceDiff / timeDiff;
+            
+            // Add intermediate points for smooth line rendering
+            // Get all candles between start and end points
+            const intermediateCandles = candles.filter(candle => {
+                const candleTime = Math.floor(new Date(candle.timestamp).getTime() / 1000);
+                return candleTime > startPoint.time && candleTime < endPoint.time;
+            });
+            
+            // Add interpolated points for each intermediate candle
+            intermediateCandles.forEach(candle => {
+                const candleTime = Math.floor(new Date(candle.timestamp).getTime() / 1000);
+                const interpolatedPrice = startPoint.price + slope * (candleTime - startPoint.time);
+                trendLineData.push({
+                    time: candleTime,
+                    value: interpolatedPrice
+                });
+            });
+            
+            // Add end point
+            trendLineData.push({ 
+                time: endPoint.time, 
+                value: endPoint.price 
+            });
+            
+            // Sort by time to ensure proper ordering
+            trendLineData.sort((a, b) => a.time - b.time);
+            
+            // Create a line series for this trend line that overlays on the main chart
+            const trendLineSeries = chart.addLineSeries({
+                color: trend.type === 'uptrend' ? '#00FF00' : '#FF0000', // Green for uptrend, red for downtrend
+                lineWidth: 2,
+                lineStyle: 1, // Dashed line
+                priceScaleId: '', // Use main price scale to overlay with candlesticks
+                title: `${trend.type === 'uptrend' ? 'Uptrend' : 'Downtrend'} Line ${index + 1}`,
+                crosshairMarkerVisible: false,
+                priceLineVisible: false, // Don't show price line
+                lastValueVisible: false, // Don't show last value
+            });
+            
+            // Set the trend line data with all interpolated points
+            trendLineSeries.setData(trendLineData);
+        }
+    });
+};
+
+// Function to detect trend sequences from swing points
+const detectTrendSequences = (swingPoints: any[]) => {
+    const trends: { type: 'uptrend' | 'downtrend', points: any[] }[] = [];
+    let currentTrend: { type: 'uptrend' | 'downtrend', points: any[] } | null = null;
+    
+    for (let i = 0; i < swingPoints.length; i++) {
+        const point = swingPoints[i];
+        
+        // Determine if this point indicates uptrend or downtrend
+        const isUptrendPoint = point.label === 'HH' || point.label === 'HL';
+        const isDowntrendPoint = point.label === 'LH' || point.label === 'LL';
+        
+        if (isUptrendPoint) {
+            // If we're not in an uptrend or switching from downtrend, start new uptrend
+            if (!currentTrend || currentTrend.type !== 'uptrend') {
+                // Save the previous trend if it exists and has enough points
+                if (currentTrend && currentTrend.points.length >= 2) {
+                    trends.push(currentTrend);
+                }
+                currentTrend = { type: 'uptrend', points: [point] };
+            } else {
+                // Continue the current uptrend
+                currentTrend.points.push(point);
+            }
+        } else if (isDowntrendPoint) {
+            // If we're not in a downtrend or switching from uptrend, start new downtrend
+            if (!currentTrend || currentTrend.type !== 'downtrend') {
+                // Save the previous trend if it exists and has enough points
+                if (currentTrend && currentTrend.points.length >= 2) {
+                    trends.push(currentTrend);
+                }
+                currentTrend = { type: 'downtrend', points: [point] };
+            } else {
+                // Continue the current downtrend
+                currentTrend.points.push(point);
+            }
+        }
+    }
+    
+    // Don't forget to add the last trend
+    if (currentTrend && currentTrend.points.length >= 2) {
+        trends.push(currentTrend);
+    }
+    
+    return trends;
+};
+
 export const OHLCChart: React.FC<OHLCChartProps> = ({
     candles,
     vixData,
@@ -478,9 +626,16 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
         if (Array.isArray(propAnalysisList) && propAnalysisList.length > 0) {
             try {
-                console.log(propAnalysisList);
+                console.log('Analysis List:', propAnalysisList);
                 const markers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
-                propAnalysisList.forEach((analysis) => {
+                
+                // Sort analysis list by timestamp to ensure correct order
+                const sortedAnalysis = propAnalysisList
+                    .filter(item => item.swingLabel) // Only items with swing labels
+                    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+                // Process swing point markers
+                sortedAnalysis.forEach((analysis) => {
                     const time = Math.floor(new Date(analysis.timestamp).getTime() / 1000);
                     const candle = candles.find(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === time);
 
@@ -528,7 +683,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         });
                     }
                 });
+
+                // Set markers on the candlestick series
                 candlestickSeries.setMarkers(markers);
+
+                // Now draw trend lines
+                drawTrendLines(sortedAnalysis, candles, chart);
+
             } catch (err) {
                 console.error('Swing points error:', err);
                 toast.error('Error displaying swing points', { duration: 4000 });
