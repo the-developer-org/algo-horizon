@@ -1047,7 +1047,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 </div>
             )}
             {/* Stats section */}
-            <div style={{ position: 'absolute', top: -230, right: 16, zIndex: 203, background: 'rgba(255,255,255,0.96)', padding: '8px 20px', borderRadius: 10, fontWeight: 600, fontSize: 15, color: '#333', boxShadow: '0 2px 12px rgba(0,0,0,0.10)', border: '2px solid #bdbdbd', minWidth: 400, width: 420, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ position: 'absolute', top: -80, left: 16, zIndex: 203, background: 'rgba(255,255,255,0.96)', padding: '8px 20px', borderRadius: 10, fontWeight: 600, fontSize: 15, color: '#333', boxShadow: '0 2px 12px rgba(0,0,0,0.10)', border: '2px solid #bdbdbd', minWidth: 400, width: 420, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={{ fontWeight: 700, fontSize: 15, color: '#333' }}>Stats</span>
                 {(() => {
                     const gapInfo = getPrevCloseToTodayOpenGap(ohlcInfo ? { ...ohlcInfo, timestamp: (candles.find(c => c.close === ohlcInfo.close && c.open === ohlcInfo.open && c.high === ohlcInfo.high && c.low === ohlcInfo.low && c.volume === ohlcInfo.volume)?.timestamp) || candles[candles.length - 1].timestamp } : candles[candles.length - 1]);
@@ -1108,7 +1108,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 <div style={{
                     position: 'absolute',
                     top: 55, // Position it closer to the OHLC info
-                    left: -3, // Moved further left with a negative value
+                    left: -3,
                     zIndex: 200,
                     background: 'rgba(255,255,255,0.92)',
                     padding: '8px 20px',

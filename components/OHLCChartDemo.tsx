@@ -18,7 +18,7 @@ export const OHLCChartDemo: React.FC = () => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [selectedInstrumentKey, setSelectedInstrumentKey] = useState<string>('');
-  const [analysisList, setAnalysisList] = useState<{ timestamp: string; swingLabel?: string;}[]>([]);
+  const [analysisList, setAnalysisList] = useState<{ timestamp: string; swingLabel?: string; }[]>([]);
   const [support, setSupport] = useState<{ value: number } | null>(null);
   const [resistance, setResistance] = useState<{ value: number } | null>(null);
   // Boom Days data
@@ -67,12 +67,12 @@ export const OHLCChartDemo: React.FC = () => {
   const handleSelectCompany = (companyName: string) => {
     // Check if this is a different company than currently selected
     const isNewCompany = companyName !== selectedCompany;
-    
+
     setSelectedCompany(companyName);
     setSelectedInstrumentKey(keyMapping[companyName]);
     setSearchTerm(companyName);
     setSuggestions([]);
-    
+
     // If selecting a new company, we'll want to handle it like a first load
     // so the next time they fetch data, it will default to chart view
     if (isNewCompany) {
@@ -94,7 +94,7 @@ export const OHLCChartDemo: React.FC = () => {
         const resistanceData = res.data.historicalDataLocal.resistance || null;
         const boomDays = res.data.historicalDataLocal.backTestDataList || [];
         const avgVolume = res.data.historicalDataLocal.avgVolume || 0;
-        
+
         // Calculate EMA and RSI indicators before setting the candles
         const candlesWithIndicators = calculateIndicators(candlesData, 200, 14);
         setCandles(candlesWithIndicators);
@@ -102,14 +102,14 @@ export const OHLCChartDemo: React.FC = () => {
         setBoomDaysData(boomDays);
         setHasBoomDaysData(boomDays && boomDays.length > 0);
         setAvgVolume(avgVolume);
-        
-        
+
+
         // Only reset to chart view on first load, otherwise preserve current view
         if (isFirstLoad) {
           setShowBoomDays(false);
           setIsFirstLoad(false);
         }
-        
+
         // Extract support and resistance values
         // Check if the data structure is as expected (either an array or an object with value)
         if (Array.isArray(supportData) && supportData.length > 0) {
@@ -124,7 +124,7 @@ export const OHLCChartDemo: React.FC = () => {
         } else {
           setSupport(null);
         }
-        
+
         // Same logic for resistance
         if (Array.isArray(resistanceData) && resistanceData.length > 0) {
           setResistance({ value: resistanceData[0] });
@@ -135,7 +135,7 @@ export const OHLCChartDemo: React.FC = () => {
         } else {
           setResistance(null);
         }
-        
+
         setVixData([]);
         setIsLoading(false);
       })
@@ -163,11 +163,8 @@ export const OHLCChartDemo: React.FC = () => {
         </h2>
       )}
       <div className="mb-4 flex flex-col items-center p-4">
-        {/* Compact layout with title and toggles in one row */}
-        
-  
         {/* Search bar positioned at the left end */}
-        <div className="flex flex-wrap items-center w-full max-w-4xl gap-4">
+        <div className="flex flex-wrap items-center w-full max-w-4xl gap-4 mx-auto">
           <div className="order-first w-64 relative">
             <input
               type="text"
@@ -196,16 +193,16 @@ export const OHLCChartDemo: React.FC = () => {
               </ul>
             )}
           </div>
-          
+
           {/* Spacer to push other items to the right */}
-          <div className="flex-grow"></div>
+
           <button
             onClick={handleFetchData}
             className="bg-blue-500 text-white px-4 py-2 rounded-md"
           >
             Load Data
           </button>
-          
+
           {/* Boom Days button - now always visible */}
           {showBoomDays ? (
             <button
@@ -223,7 +220,7 @@ export const OHLCChartDemo: React.FC = () => {
               Boom Days
             </button>
           )}
-          
+
           {/* Stats button - always visible */}
           <a
             href="/backtest-stats"
@@ -231,8 +228,8 @@ export const OHLCChartDemo: React.FC = () => {
           >
             Overall Stats
           </a>
-      
-         {/* <div className="flex gap-2 bg-white bg-opacity-90 p-2 rounded-lg border border-gray-300 shadow-sm">
+
+          {/* <div className="flex gap-2 bg-white bg-opacity-90 p-2 rounded-lg border border-gray-300 shadow-sm">
             <label className="flex items-center gap-1 text-sm font-semibold">
               <input
                 type="checkbox"
@@ -273,7 +270,7 @@ export const OHLCChartDemo: React.FC = () => {
               SWING
             </label>
           </div> */}
-          </div>
+        </div>
       </div>
 
       {/* Display content based on loading and view state */}
@@ -286,7 +283,7 @@ export const OHLCChartDemo: React.FC = () => {
             </div>
           );
         }
-        
+
         // If not showing boom days, show chart
         if (!showBoomDays) {
           return (
@@ -307,14 +304,14 @@ export const OHLCChartDemo: React.FC = () => {
             />
           );
         }
-        
+
         // Otherwise show boom days table
         return (
           <div className="p-4 mb-40"> {/* Increased bottom margin to ensure pagination is visible */}
             {boomDaysData.length > 0 ? (
               <div className="mb-20"> {/* Added bottom margin container for extra space */}
-                <BoomDaysTable 
-                  data={boomDaysData} 
+                <BoomDaysTable
+                  data={boomDaysData}
                   stockName={selectedCompany}
                   avgVolume={avgVolume}
                 />
