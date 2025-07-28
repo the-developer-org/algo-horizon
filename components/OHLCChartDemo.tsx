@@ -163,9 +163,9 @@ export const OHLCChartDemo: React.FC = () => {
         </h2>
       )}
       <div className="mb-4 flex flex-col items-center p-4">
-        {/* Search bar positioned at the left end */}
-        <div className="flex flex-wrap items-center w-full max-w-4xl gap-4 mx-auto">
-          <div className="order-first w-64 relative">
+        {/* Search bar and controls centered */}
+        <div className="flex flex-wrap items-center justify-center w-full max-w-4xl gap-4 mx-auto">
+          <div className="w-64 relative">
             <input
               type="text"
               value={searchTerm}
