@@ -20,6 +20,9 @@ export const BackTestStatsTable: React.FC<BackTestStatsTableProps> = ({ stats })
   const totalBoomDays = sortedStats.reduce((sum, stat) => sum + stat.totalBoomDaysFound, 0);
   const totalProfits = sortedStats.reduce((sum, stat) => sum + stat.profitCount, 0);
   const totalLosses = sortedStats.reduce((sum, stat) => sum + stat.lossCount, 0);
+  const totalDownTrends = sortedStats.reduce((sum, stat) => sum + (stat.isInDownTrend === 1 ? 1 : 0), 0);
+  const totalCandlesMissing = sortedStats.reduce((sum, stat) => sum + (stat.percCandleMissing === 1 ? 1 : 0), 0);
+  const totalVolumeExceptions = sortedStats.reduce((sum, stat) => sum + stat.volumeExceptionsCount, 0);
   const successRate = totalProfits + totalLosses > 0 
     ? (totalProfits / (totalProfits + totalLosses) * 100).toFixed(2) 
     : '0.00';
@@ -81,7 +84,7 @@ export const BackTestStatsTable: React.FC<BackTestStatsTableProps> = ({ stats })
       {/* Summary stats */}
       <div className="mb-6 p-4 bg-gray-100 rounded-lg">
         <h2 className="text-xl font-bold mb-4 text-center">Backtest Statistics Summary</h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white p-3 rounded shadow border-l-4 border-blue-500 text-center">
             <div className="text-gray-500">Total Companies</div>
             <div className="text-xl font-bold">{totalCompanies}</div>
@@ -98,9 +101,24 @@ export const BackTestStatsTable: React.FC<BackTestStatsTableProps> = ({ stats })
             <div className="text-gray-500">Total Losses</div>
             <div className="text-xl font-bold text-red-600">{totalLosses}</div>
           </div>
+        </div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
           <div className="bg-white p-3 rounded shadow border-l-4 border-purple-500 text-center">
             <div className="text-gray-500">Success Rate</div>
             <div className="text-xl font-bold">{successRate}%</div>
+          </div>
+          <div className="bg-white p-3 rounded shadow border-l-4 border-orange-500 text-center">
+            <div className="text-gray-500">Down Trend Count</div>
+            <div className="text-xl font-bold">{totalDownTrends}</div>
+          </div>
+          <div className="bg-white p-3 rounded shadow border-l-4 border-teal-500 text-center">
+            <div className="text-gray-500">Candles Missing Count</div>
+            <div className="text-xl font-bold">{totalCandlesMissing}</div>
+          </div>
+          <div className="bg-white p-3 rounded shadow border-l-4 border-indigo-500 text-center">
+            <div className="text-gray-500">Volume Exceptions</div>
+            <div className="text-xl font-bold">{totalVolumeExceptions}</div>
           </div>
         </div>
       </div>
@@ -117,7 +135,7 @@ export const BackTestStatsTable: React.FC<BackTestStatsTableProps> = ({ stats })
                 <th className="py-3 px-4 text-center align-middle border-r border-gray-700">Loss Count</th>
                 <th className="py-3 px-4 text-center align-middle border-r border-gray-700">Volume Exceptions</th>
                 <th className="py-3 px-4 text-center align-middle border-r border-gray-700">Down Trend</th>
-                <th className="py-3 px-4 text-center align-middle border-r border-gray-700">% Candles Missing</th>
+                <th className="py-3 px-4 text-center align-middle border-r border-gray-700">Entry Candle Missed</th>
                 <th className="py-3 px-4 text-center align-middle">Avg Days for Profit</th>
               </tr>
             </thead>
@@ -132,10 +150,12 @@ export const BackTestStatsTable: React.FC<BackTestStatsTableProps> = ({ stats })
                   <td className="py-3 px-4 text-center align-middle border-r border-gray-200 text-green-600 font-semibold">{stat.profitCount}</td>
                   <td className="py-3 px-4 text-center align-middle border-r border-gray-200 text-red-600 font-semibold">{stat.lossCount}</td>
                   <td className="py-3 px-4 text-center align-middle border-r border-gray-200">{stat.volumeExceptionsCount}</td>
-                  <td className="py-3 px-4 text-center align-middle border-r border-gray-200">{stat.isInDownTrend ? 'Yes' : 'No'}</td>
-                  <td className="py-3 px-4 text-center align-middle border-r border-gray-200">{stat.percCandleMissing}%</td>
+                  <td className="py-3 px-4 text-center align-middle border-r border-gray-200">{stat.isInDownTrend}</td>
+                  <td className="py-3 px-4 text-center align-middle border-r border-gray-200">{stat.percCandleMissing}</td>
                   <td className="py-3 px-4 text-center align-middle">
-                    {stat.avgTimeTakenForProfit > 0 ? `${stat.avgTimeTakenForProfit.toFixed(1)} days` : 'N/A'}
+                    {!isNaN(stat.avgTimeTakenForProfit) && stat.avgTimeTakenForProfit > 0 
+                      ? `${stat.avgTimeTakenForProfit.toFixed(1)} days` 
+                      : 'N/A'}
                   </td>
                 </tr>
               ))}
@@ -161,17 +181,19 @@ export const BackTestStatsTable: React.FC<BackTestStatsTableProps> = ({ stats })
             </button>
             
             <div className="hidden sm:flex">
-              {pageNumbers.map((number, i) => 
-                number === 'ellipsis' ? (
+              {pageNumbers.map((number, i) => {
+                // Create unique keys that are stable across renders but unique for each item
+                const position = indexOfFirstItem + i;
+                return number === 'ellipsis' ? (
                   <span 
-                    key={`ellipsis-${i === 0 ? 'left' : 'right'}`}
+                    key={`ellipsis-position-${position}`}
                     className="px-4 py-2 border-t border-b border-r bg-white text-gray-400"
                   >
                     ...
                   </span>
                 ) : (
                   <button
-                    key={`page-${number}`}
+                    key={`page-number-${position}`}
                     onClick={() => handlePageChange(number as number)}
                     className={`px-4 py-2 border-t border-b border-r ${
                       currentPage === number
@@ -181,8 +203,8 @@ export const BackTestStatsTable: React.FC<BackTestStatsTableProps> = ({ stats })
                   >
                     {number}
                   </button>
-                )
-              )}
+                );
+              })}
             </div>
             
             <div className="flex sm:hidden">

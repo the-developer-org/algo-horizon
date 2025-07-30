@@ -65,19 +65,12 @@ export const OHLCChartDemo: React.FC = () => {
 
   // Handle selection from suggestions
   const handleSelectCompany = (companyName: string) => {
-    // Check if this is a different company than currently selected
-    const isNewCompany = companyName !== selectedCompany;
-
     setSelectedCompany(companyName);
     setSelectedInstrumentKey(keyMapping[companyName]);
     setSearchTerm(companyName);
     setSuggestions([]);
 
-    // If selecting a new company, we'll want to handle it like a first load
-    // so the next time they fetch data, it will default to chart view
-    if (isNewCompany) {
-      setIsFirstLoad(true);
-    }
+    // We preserve the current view (either chart view or boom days) when selecting a new company
   };
 
   // Fetch candles for selected company/instrument
@@ -100,15 +93,23 @@ export const OHLCChartDemo: React.FC = () => {
         setCandles(candlesWithIndicators);
         setAnalysisList(analysisData);
         setBoomDaysData(boomDays);
-        setHasBoomDaysData(boomDays && boomDays.length > 0);
+        
+        // Set hasBoomDaysData based on whether we have boom days data
+        const hasBoomDaysDataValue = boomDays && boomDays.length > 0;
+        setHasBoomDaysData(hasBoomDaysDataValue);
         setAvgVolume(avgVolume);
-
-
-        // Only reset to chart view on first load, otherwise preserve current view
+        
+        // If this is the first load of the application and we have no view preference yet
         if (isFirstLoad) {
           setShowBoomDays(false);
           setIsFirstLoad(false);
+        } 
+        // If we're showing boom days but new data has no boom days, switch to chart view
+        else if (showBoomDays && !hasBoomDaysDataValue) {
+          setShowBoomDays(false);
+          // No toast message - just switch to chart view silently
         }
+        // Otherwise preserve the current view
 
         // Extract support and resistance values
         // Check if the data structure is as expected (either an array or an object with value)
@@ -173,7 +174,7 @@ export const OHLCChartDemo: React.FC = () => {
                 setSearchTerm(e.target.value);
                 setSelectedCompany('');
                 setSelectedInstrumentKey('');
-                setIsFirstLoad(true); // Reset to first load when search term changes
+                // Don't reset isFirstLoad to preserve the current view when changing search term
               }}
               placeholder="Search for a company..."
               className="p-2 border border-gray-300 rounded-md w-full"
@@ -214,7 +215,12 @@ export const OHLCChartDemo: React.FC = () => {
           ) : (
             <button
               onClick={() => hasBoomDaysData && setShowBoomDays(true)}
-              className={`px-4 py-2 rounded-md transition-colors ${hasBoomDaysData ? 'bg-yellow-500 text-white' : 'bg-yellow-300 text-gray-700'}`}
+              disabled={!hasBoomDaysData}
+              className={`px-4 py-2 rounded-md transition-colors ${
+                hasBoomDaysData 
+                  ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
               title={hasBoomDaysData ? 'View boom days analysis' : 'No boom days data available'}
             >
               Boom Days

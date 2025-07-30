@@ -13,10 +13,23 @@ export const BoomDaysTable: React.FC<BoomDaysTableProps> = ({ data, stockName, a
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
+  
+  // Multiplier filter state
+  const [selectedMultiplier, setSelectedMultiplier] = useState<number | null>(null);
+  
+  // Get unique multipliers from data
+  const uniqueMultipliers = [...new Set(data.filter(item => item.multiplier !== undefined).map(item => item.multiplier))]
+    .filter((multiplier): multiplier is number => multiplier !== undefined)
+    .sort((a, b) => a - b);
+  
+  // Filter data by selected multiplier
+  const filteredData = selectedMultiplier === null 
+    ? data 
+    : data.filter(item => item.multiplier === selectedMultiplier);
 
   // Calculate stats
-  const totalTrades = data.length;
-  const successfulTrades = data.filter(item => item.status === 'SUCCESS').length;
+  const totalTrades = filteredData.length;
+  const successfulTrades = filteredData.filter(item => item.status === 'SUCCESS').length;
   const failedTrades = totalTrades - successfulTrades;
   const successRate = totalTrades > 0 ? (successfulTrades / totalTrades) * 100 : 0;
   
@@ -31,14 +44,20 @@ export const BoomDaysTable: React.FC<BoomDaysTableProps> = ({ data, stockName, a
   // No need to calculate peak volume as it's displayed in the UI directly
   
   // Calculate pagination
-  const totalPages = Math.ceil(data.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = data.slice(indexOfFirstItem, indexOfLastItem);
+  const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
   
   // Handle page changes
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber);
+  };
+  
+  // Handle multiplier filter changes
+  const handleMultiplierChange = (multiplier: number | null) => {
+    setSelectedMultiplier(multiplier);
+    setCurrentPage(1); // Reset to first page when changing filter
   };
 
   // Generate array of page numbers for pagination with ellipsis when there are many pages
@@ -86,6 +105,39 @@ export const BoomDaysTable: React.FC<BoomDaysTableProps> = ({ data, stockName, a
     <div className="w-full shadow-md rounded-lg">
       <div className="mb-6 p-4 bg-gray-100 rounded-lg">
         <h2 className="text-2xl font-bold mb-4 text-center">{stockName} Boom Days Analysis</h2>
+        
+        {/* Multiplier filter buttons */}
+        {uniqueMultipliers.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold mb-2">Filter by Multiplier:</h3>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleMultiplierChange(null)}
+                className={`px-3 py-1 rounded-md border ${
+                  selectedMultiplier === null 
+                    ? 'bg-blue-600 text-white border-blue-700' 
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                All
+              </button>
+              {uniqueMultipliers.map((multiplier) => (
+                <button
+                  key={`multiplier-${multiplier}`}
+                  onClick={() => handleMultiplierChange(multiplier)}
+                  className={`px-3 py-1 rounded-md border ${
+                    selectedMultiplier === multiplier 
+                      ? 'bg-blue-600 text-white border-blue-700' 
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {multiplier}x
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-white p-3 rounded shadow border-l-4 border-blue-500 text-center">
             <div className="text-gray-500">Total Trades</div>
@@ -123,7 +175,7 @@ export const BoomDaysTable: React.FC<BoomDaysTableProps> = ({ data, stockName, a
       </div>
 
       <div className="overflow-x-auto">
-        <div className="overflow-y-auto" style={{ maxHeight: 'unset' }}>
+        <div className="overflow-y-auto" style={{ maxHeight: '600px' }}>
           <table className="min-w-full bg-white rounded-lg overflow-hidden border border-gray-200">
             <thead className="bg-gradient-to-r from-gray-800 to-gray-700 text-white sticky top-0 z-10">
               <tr>
@@ -136,6 +188,9 @@ export const BoomDaysTable: React.FC<BoomDaysTableProps> = ({ data, stockName, a
                 <th className="py-3 px-4 text-center align-middle border-r border-gray-700">Days Taken</th>
                 <th className="py-3 px-4 text-center align-middle border-r border-gray-700">Avg. Vol. Crossed</th>
                 <th className="py-3 px-4 text-center align-middle border-r border-gray-700">Boom Volume</th>
+                <th className="py-3 px-4 text-center align-middle border-r border-gray-700 bg-blue-800">Support</th>
+                <th className="py-3 px-4 text-center align-middle border-r border-gray-700 bg-purple-800">Resistance</th>
+                <th className="py-3 px-4 text-center align-middle border-r border-gray-700 bg-yellow-800">Multiplier</th>
                 <th className="py-3 px-4 text-center align-middle border-r border-gray-700">Status</th>
                 <th className="py-3 px-4 text-center align-middle">P/L %</th>
               </tr>
@@ -167,9 +222,24 @@ export const BoomDaysTable: React.FC<BoomDaysTableProps> = ({ data, stockName, a
                       })()}
                     </td>
                     <td className={`py-3 px-4 text-center align-middle border-r border-gray-200 font-semibold ${
+                      item.support ? 'text-blue-700' : 'text-red-500 bg-red-50'
+                    }`}>
+                      {item.support ? item.support.toFixed(2) : 'N/A'}
+                    </td>
+                    <td className={`py-3 px-4 text-center align-middle border-r border-gray-200 font-semibold ${
+                      item.resistance ? 'text-purple-700' : 'text-red-500 bg-red-50'
+                    }`}>
+                      {item.resistance ? item.resistance.toFixed(2) : 'N/A'}
+                    </td>
+                    <td className={`py-3 px-4 text-center align-middle border-r border-gray-200 font-semibold ${
+                      item.multiplier ? 'text-yellow-700' : 'text-gray-500'
+                    }`}>
+                      {item.multiplier ? `${item.multiplier}x` : 'N/A'}
+                    </td>
+                    <td className={`py-3 px-4 text-center align-middle border-r border-gray-200 font-semibold ${
                       item.status === 'SUCCESS' ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {item.status || 'PENDING'}
+                      {item.status}
                     </td>
                     <td className={`py-3 px-4 text-center align-middle font-semibold ${
                       profitLoss !== null && profitLoss > 0 ? 'text-green-600' : 'text-red-600'
@@ -249,6 +319,12 @@ export const BoomDaysTable: React.FC<BoomDaysTableProps> = ({ data, stockName, a
       {data.length === 0 && (
         <div className="w-full p-8 text-center text-gray-500 border border-gray-200 rounded-lg">
           No boom days data available for this stock
+        </div>
+      )}
+      
+      {data.length > 0 && filteredData.length === 0 && (
+        <div className="w-full p-8 text-center text-gray-500 border border-gray-200 rounded-lg">
+          No data matches the selected multiplier filter. <button onClick={() => handleMultiplierChange(null)} className="text-blue-600 underline">Show all data</button>
         </div>
       )}
     </div>
