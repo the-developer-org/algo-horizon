@@ -9,8 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { CallType, Trend, StrikeAnalysisRequest } from '@/components/types/strike-analysis';
 import Link from 'next/link';
-import StrykeFormPage from './StrykeFormPage';
-import StrykeListPage from './StrykeListPage';
 
 // Define the Stryke interface based on the provided model
 interface Candle {
@@ -207,7 +205,6 @@ export default function StrikeAnalysisPage() {
     try {
         const response = await axios.get('http://localhost:8090/api/stryke/fetch-all');
         const data: StrykeListResponse = response.data;
-        
         setStrykeList(data.strykeList.map((stryke) => ({
             ...stryke,
             stockUuid: stryke.stockUuid, // Add stockUuid key
