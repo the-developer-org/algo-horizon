@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { CallType, Trend, StrikeAnalysisRequest } from '@/components/types/strike-analysis';
 import Link from 'next/link';
+import StrykeFormPage from './StrykeFormPage';
+import StrykeListPage from './StrykeListPage';
 
 // Define the Stryke interface based on the provided model
 interface Candle {
@@ -63,6 +65,7 @@ interface Stryke {
   highestPriceTime: string;
   lowestPriceTime: string;
   remarks: string;
+  stockUuid: string; // Add stockUuid property
 }
 
 interface StrykeListResponse {
@@ -202,45 +205,47 @@ export default function StrikeAnalysisPage() {
   const fetchStrykes = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('http://localhost:8090/api/stryke/fetch-all');
-      const data: StrykeListResponse = response.data;
-      setStrykeList(data.strykeList.map((stryke) => ({
-        ...stryke,
-        entryDate: new Date(stryke.entryTime).toLocaleDateString('en-GB'),
-        emadto: {
-          ema5: stryke.emadto?.ema5 ?? '-',
-          ema8: stryke.emadto?.ema8 ?? '-',
-          ema13: stryke.emadto?.ema13 ?? '-',
-          ema21: stryke.emadto?.ema21 ?? '-',
-        },
-        rsi: stryke.rsi ?? '-',
-        stopLoss: stryke.stopLoss ?? '-',
-        target: stryke.target ?? '-',
-        dipAfterEntry20M: stryke.dipAfterEntry20M ?? '-',
-        hitStopLoss: stryke.hitStopLoss ?? '-',
-        hitTarget: stryke.hitTarget ?? '-',
-        peakIn30M: stryke.peakIn30M ?? '-',
-        dipIn30M: stryke.dipIn30M ?? '-',
-        profit: stryke.profit ?? '-',
-        daysTakenToProfit: stryke.daysTakenToProfit ?? '-',
-        loss: stryke.loss ?? '-',
-        daysTakenToLoss: stryke.daysTakenToLoss ?? '-',
-        highestPrice: stryke.highestPrice ?? '-',
-        lowestPrice: stryke.lowestPrice ?? '-',
-        maxDrawDownPercentage: stryke.maxDrawDownPercentage ?? '-',
-        highestPriceTime: stryke.highestPriceTime ?? '-',
-        lowestPriceTime: stryke.lowestPriceTime ?? '-',
-        remarks: stryke.remarks ?? '-',
-      })));
+        const response = await axios.get('http://localhost:8090/api/stryke/fetch-all');
+        const data: StrykeListResponse = response.data;
+        
+        setStrykeList(data.strykeList.map((stryke) => ({
+            ...stryke,
+            stockUuid: stryke.stockUuid, // Add stockUuid key
+            entryDate: new Date(stryke.entryTime).toLocaleDateString('en-GB'),
+            emadto: {
+                ema5: stryke.emadto?.ema5 ?? '-',
+                ema8: stryke.emadto?.ema8 ?? '-',
+                ema13: stryke.emadto?.ema13 ?? '-',
+                ema21: stryke.emadto?.ema21 ?? '-',
+            },
+            rsi: stryke.rsi ?? '-',
+            stopLoss: stryke.stopLoss ?? '-',
+            target: stryke.target ?? '-',
+            dipAfterEntry20M: stryke.dipAfterEntry20M ?? '-',
+            hitStopLoss: stryke.hitStopLoss ?? '-',
+            hitTarget: stryke.hitTarget ?? '-',
+            peakIn30M: stryke.peakIn30M ?? '-',
+            dipIn30M: stryke.dipIn30M ?? '-',
+            profit: stryke.profit ?? '-',
+            daysTakenToProfit: stryke.daysTakenToProfit ?? '-',
+            loss: stryke.loss ?? '-',
+            daysTakenToLoss: stryke.daysTakenToLoss ?? '-',
+            highestPrice: stryke.highestPrice ?? '-',
+            lowestPrice: stryke.lowestPrice ?? '-',
+            maxDrawDownPercentage: stryke.maxDrawDownPercentage ?? '-',
+            highestPriceTime: stryke.highestPriceTime ?? '-',
+            lowestPriceTime: stryke.lowestPriceTime ?? '-',
+            remarks: stryke.remarks ?? '-',
+        })));
 
-      toast.success(data.statusText || 'Stryke list fetched successfully');
+        toast.success(data.statusText || 'Stryke list fetched successfully');
     } catch (error) {
-      console.error('Error fetching stryke list:', error);
-      toast.error('Failed to fetch stryke list');
+        console.error('Error fetching stryke list:', error);
+        toast.error('Failed to fetch stryke list');
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
-  };
+};
 
   // Helper functions for conditional rendering
   const getCallTypeClasses = (stryke: Stryke): string => {
@@ -304,15 +309,15 @@ export default function StrikeAnalysisPage() {
     return Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60));
   }
 
-  const deleteStryke = async (id: string) => {
+  const deleteStryke = async (stockUuid: string) => {
     try {
-      const strykeId = String(id); // Ensure ID is a string
-      await axios.get(`http://localhost:8090/api/stryke/delete-stryke/${strykeId}`);
-      setStrykeList((prevList) => prevList.filter((stryke) => stryke.id !== id));
-      toast.success('Stryke analysis deleted successfully');
+      
+        await axios.get(`http://localhost:8090/api/stryke/delete-stryke/${stockUuid}`);
+        setStrykeList((prevList) => prevList.filter((stryke) => stryke.stockUuid !== stockUuid));
+        toast.success('Stryke analysis deleted successfully');
     } catch (error) {
-      console.error('Error deleting stryke analysis:', error);
-      toast.error('Failed to delete stryke analysis');
+        console.error('Error deleting stryke analysis:', error);
+        toast.error('Failed to delete stryke analysis');
     }
   };
 
@@ -356,6 +361,14 @@ export default function StrikeAnalysisPage() {
                   Show Stryke Form
                 </Button>
               )}
+              <Button
+                onClick={() => {
+                  fetchStrykes();
+                }}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+              >
+                Refresh List
+              </Button>
             </div>
           </div>
 
@@ -647,24 +660,16 @@ export default function StrikeAnalysisPage() {
                           <span className="text-xs text-gray-500">
                              <span>{`${stryke?.entryTime}`}</span>
                           </span>
-                          <span
-                            role="button"
-                            tabIndex={0}
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteStryke(stryke.id);
+                              deleteStryke(stryke.stockUuid);
                             }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                deleteStryke(stryke.id);
-                              }
-                            }}
-                            className="text-red-500 hover:text-red-700 ml-2 cursor-pointer"
+                            className="text-red-500 hover:text-red-700 ml-2"
                             aria-label="Delete Stryke"
                           >
                             🗑️
-                          </span>
+                          </button>
                         </div>
                         <div className="flex gap-2 mt-1">
                           <span className={`text-xs px-1.5 py-0.5 rounded-full ${
