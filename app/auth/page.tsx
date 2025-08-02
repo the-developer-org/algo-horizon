@@ -70,6 +70,7 @@ export default function AuthPage() {
         throw new Error('Invalid PIN');
       }
     } catch (err) {
+      console.error('Error:', err);
       setError('Invalid PIN. Please try again.');
       setPin(''); // Clear PIN on error
       setIsInvalid(true); // Set invalid state to trigger red UI
@@ -85,6 +86,8 @@ export default function AuthPage() {
       </div>
     );
   }
+
+  const buttonClass = isInvalid ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600';
 
   return (
     <main 
@@ -128,9 +131,7 @@ export default function AuthPage() {
             className={`w-[200px] h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 
                      ${isSubmitting || pin.length < 4 || pin.length > 6 
                        ? 'bg-gray-500 cursor-not-allowed' 
-                       : isInvalid 
-                         ? 'bg-red-500 hover:bg-red-600'
-                         : 'bg-green-500 hover:bg-green-600'}`}
+                       : buttonClass}`}
           >
             {isSubmitting ? (
               <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
@@ -142,4 +143,4 @@ export default function AuthPage() {
       </div>
     </main>
   );
-} 
+}

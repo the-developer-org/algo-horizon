@@ -87,6 +87,13 @@ export default function Home() {
             >
               View OHLC Chart
             </Button>
+            
+            <Button
+              onClick={() => router.push('/strike-analysis')}
+              className={`${buttonClass} bg-purple-500 hover:bg-purple-600`}
+            >
+              Strike Analysis
+            </Button>
 
             <div
               className={`${buttonClass} ${

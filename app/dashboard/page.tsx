@@ -23,6 +23,7 @@ export default function Dashboard() {
 
         setIsLoading(false);
       } catch (err) {
+        console.error('Error:', err);
         setError('Failed to authenticate. Please try logging in again.');
         setIsLoading(false);
       }
@@ -65,4 +66,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-} 
+}
