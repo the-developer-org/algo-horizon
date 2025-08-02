@@ -178,7 +178,7 @@ export default function StrikeAnalysisPage() {
       const addedStock = response.data.stryke;
       setAnalysisResult({
         ...addedStock,
-        entryDate: new Date(addedStock.entryAt).toLocaleDateString('en-GB'),
+        entryDate: new Date(addedStock.entryTime).toLocaleDateString('en-GB'),
       }); // Display the added stock details
       toast.success('Stock added successfully');
 
@@ -186,7 +186,7 @@ export default function StrikeAnalysisPage() {
       setStrykeList((prevList) => [
         {
           ...addedStock,
-          entryDate: new Date(addedStock.entryAt).toLocaleDateString('en-GB'),
+          entryDate: new Date(addedStock.entryTime).toLocaleDateString('en-GB'),
         },
         ...prevList,
       ]);
@@ -206,7 +206,7 @@ export default function StrikeAnalysisPage() {
       const data: StrykeListResponse = response.data;
       setStrykeList(data.strykeList.map((stryke) => ({
         ...stryke,
-        entryDate: new Date(stryke.entryAt).toLocaleDateString('en-GB'),
+        entryDate: new Date(stryke.entryTime).toLocaleDateString('en-GB'),
         emadto: {
           ema5: stryke.emadto?.ema5 ?? '-',
           ema8: stryke.emadto?.ema8 ?? '-',
@@ -244,22 +244,75 @@ export default function StrikeAnalysisPage() {
 
   // Helper functions for conditional rendering
   const getCallTypeClasses = (stryke: Stryke): string => {
-    if (stryke.hitTarget) {
-      return 'bg-green-100 text-green-700';
-    } else if (stryke.hitStopLoss) {
-      return 'bg-red-100 text-red-700';
+    if (stryke?.hitTarget) {
+      return 'bg-green-300 text-green-900';
+    } else if (stryke?.hitStopLoss) {
+      return 'bg-red-300 text-red-900';
     } else {
-      return 'bg-gray-100 text-gray-700';
+      return 'bg-gray-300 text-gray-900';
     }
   };
 
   const getStatusText = (stryke: Stryke): string => {
-    if (stryke.hitTarget) {
-      return `Profit: ₹${stryke.profit.toFixed(2)}`;
-    } else if (stryke.hitStopLoss) {
-      return `Loss: ₹${stryke.loss.toFixed(2)}`;
+    if (stryke?.hitTarget) {
+      return `Profit: ₹${stryke?.profit.toFixed(2)}`;
+    } else if (stryke?.hitStopLoss) {
+      return `Loss: ₹${stryke?.loss.toFixed(2)}`;
     } else {
       return 'In progress';
+    }
+  };
+
+  // Restore state from localStorage
+  useEffect(() => {
+    // Restore state from localStorage
+    const savedShowStrykeForm = localStorage.getItem('showStrykeForm');
+    const savedShowAllStrykes = localStorage.getItem('showAllStrykes');
+
+    if (savedShowStrykeForm !== null) {
+      setShowStrykeForm(savedShowStrykeForm === 'true');
+    }
+
+    if (savedShowAllStrykes !== null) {
+      setShowAllStrykes(savedShowAllStrykes === 'true');
+      if (savedShowAllStrykes === 'true') {
+        fetchStrykes();
+      }
+    }
+  }, []);
+
+  const handleToggleView = (showForm: boolean, showAll: boolean) => {
+    setShowStrykeForm(showForm);
+    setShowAllStrykes(showAll);
+
+    // Save state to localStorage
+    localStorage.setItem('showStrykeForm', showForm.toString());
+    localStorage.setItem('showAllStrykes', showAll.toString());
+  };
+
+  // Utility function to parse date strings
+  function parseDateString(dateString: string): Date {
+    return new Date(dateString);
+  }
+
+  function calculateTimeDifference(startTime: string, endTime: string): number {
+    const startDate = parseDateString(startTime);
+    const endDate = parseDateString(endTime);
+    console.log('Start Date:', startDate);
+    console.log('End Date:', endDate);
+    console.log('Time Difference (minutes):', Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60)));
+    return Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60));
+  }
+
+  const deleteStryke = async (id: string) => {
+    try {
+      const strykeId = String(id); // Ensure ID is a string
+      await axios.get(`http://localhost:8090/api/stryke/delete-stryke/${strykeId}`);
+      setStrykeList((prevList) => prevList.filter((stryke) => stryke.id !== id));
+      toast.success('Stryke analysis deleted successfully');
+    } catch (error) {
+      console.error('Error deleting stryke analysis:', error);
+      toast.error('Failed to delete stryke analysis');
     }
   };
 
@@ -285,7 +338,10 @@ export default function StrikeAnalysisPage() {
             <div className="flex gap-2">
               {(showStrykeForm && !showAllStrykes) ? (
                 <Button
-                  onClick={() => { setShowStrykeForm(false); setShowAllStrykes(true); fetchStrykes(); }}
+                  onClick={() => {
+                    handleToggleView(false, true);
+                    fetchStrykes();
+                  }}
                   className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                 >
                   Fetch All Stryke Analysis
@@ -293,8 +349,7 @@ export default function StrikeAnalysisPage() {
               ) : (
                 <Button
                   onClick={() => {
-                    setShowStrykeForm(true);
-                    setShowAllStrykes(false);
+                    handleToggleView(true, false);
                   }}
                   className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                 >
@@ -328,9 +383,9 @@ export default function StrikeAnalysisPage() {
                       />
                       {suggestions.length > 0 && !selectedCompany && (
                         <ul className="absolute z-50 w-full mt-1 border border-gray-300 rounded-md max-h-60 overflow-auto bg-white shadow-lg">
-                          {suggestions.map((name) => (
+                          {suggestions.map((name, index) => (
                             <button
-                              key={name}
+                              key={`${name}-${index}`}
                               type="button"
                               onClick={() => handleSelectCompany(name)}
                               className="p-2 cursor-pointer hover:bg-gray-100 w-full text-left"
@@ -482,7 +537,7 @@ export default function StrikeAnalysisPage() {
 
                     <div className="flex justify-between items-center pb-1 border-b">
                       <span className="font-medium">Date & Time:</span>
-                      <span>{`${analysisResult.entryAt[2]}-${analysisResult.entryAt[1]}-${analysisResult.entryAt[0]} | ${analysisResult.entryAt[3]}:${analysisResult.entryAt[4]}`}</span>
+                      <span>{`${analysisResult.entryTime}`}</span>
                     </div>
 
                     <div className="flex justify-between items-center pb-1 border-b">
@@ -561,8 +616,8 @@ export default function StrikeAnalysisPage() {
           {showAllStrykes && (
             <div className="flex flex-col md:flex-row h-[calc(100vh-120px)] border rounded-lg overflow-hidden">
               {/* Left Sidebar - Stryke List (WhatsApp-like) */}
-              <div className="w-full md:w-1/3 border-r bg-gray-50 overflow-y-auto">
-                <div className="p-3 bg-gray-100 border-b sticky top-0 z-10">
+              <div className="w-full md:w-1/3 border-r bg-indigo-50 overflow-y-auto">
+                <div className="p-3 bg-indigo-100 border-b sticky top-0 z-10">
                   <Input
                     type="text"
                     placeholder="Search strykes..."
@@ -582,46 +637,63 @@ export default function StrikeAnalysisPage() {
                   <div className="divide-y">
                     {strykeList.map((stryke, index) => (
                       <button 
-                        key={stryke.id} 
-                        className={`w-full text-left p-3 hover:bg-gray-100 cursor-pointer transition-colors ${selectedStryke?.id === stryke.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}
+                        key={`${stryke?.id}-${index}`} 
+                        className={`w-full text-left p-3 hover:bg-teal-100 cursor-pointer transition-colors ${selectedStryke?.id === stryke?.id ? 'bg-teal-50 border-l-4 border-teal-500' : ''}`}
                         onClick={() => setSelectedStryke(stryke)}
-                        aria-pressed={selectedStryke?.id === stryke.id}
+                        aria-pressed={selectedStryke?.id === stryke?.id}
                       >
                         <div className="flex justify-between items-start">
-                          <h3 className="font-medium text-gray-800">{stryke.companyName}</h3>
+                          <h3 className="font-medium text-gray-800">{stryke?.companyName}</h3>
                           <span className="text-xs text-gray-500">
-                            {new Date(stryke.entryCandle.time).toLocaleDateString('en-GB')}
+                             <span>{`${stryke?.entryTime}`}</span>
+                          </span>
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteStryke(stryke.id);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                deleteStryke(stryke.id);
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-700 ml-2 cursor-pointer"
+                            aria-label="Delete Stryke"
+                          >
+                            🗑️
                           </span>
                         </div>
                         <div className="flex gap-2 mt-1">
                           <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                            stryke.hitTarget 
-                              ? 'bg-green-100 text-green-700' 
-                              : stryke.hitStopLoss 
-                                ? 'bg-red-100 text-red-700' 
-                                : 'bg-gray-100 text-gray-700'
+                            stryke?.hitTarget 
+                              ? 'bg-green-200 text-green-800' 
+                              : stryke?.hitStopLoss 
+                                ? 'bg-red-200 text-red-800' 
+                                : 'bg-gray-200 text-gray-800'
                           }`}>
-                            {stryke.callType}
+                            {stryke?.callType}
                           </span>
                           <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                            stryke.preEntryTrend === 'BULLISH' 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-red-100 text-red-700'
+                            stryke?.postEntryTrend === 'BULLISH' 
+                              ? 'bg-green-200 text-green-800' 
+                              : stryke?.postEntryTrend === 'BEARISH' 
+                                ? 'bg-yellow-300 text-yellow-800' 
+                                : 'bg-yellow-300 text-yellow-800'
                           }`}>
-                            {stryke.preEntryTrend}
+                            {stryke?.postEntryTrend}
                           </span>
                         </div>
                         <div className="text-sm text-gray-600 mt-1 truncate">
-                          {stryke.hitTarget 
-                            ? `Profit: ₹${stryke.profit.toFixed(2)}` 
-                            : stryke.hitStopLoss 
-                              ? `Loss: ₹${stryke.loss.toFixed(2)}` 
+                          {stryke?.hitTarget 
+                            ? `Profit: ₹${stryke?.profit.toFixed(2)}` 
+                            : stryke?.hitStopLoss 
+                              ? `Loss: ₹${stryke?.loss.toFixed(2)}` 
                               : 'In progress'
                           }
                         </div>
-                        {index < strykeList.length - 1 && (
-                          <hr className="my-2 border-gray-300" />
-                        )}
                       </button>
                     ))}
                   </div>
@@ -631,15 +703,18 @@ export default function StrikeAnalysisPage() {
               {/* Right Content - Stryke Details */}
               <div className="w-full md:w-2/3 overflow-y-auto">
                 {selectedStryke ? (
-                  <div className="p-4">
+                  <div className="p-4 bg-teal-50">
                     <div className="flex justify-between items-center mb-4 pb-3 border-b">
-                      <h2 className="text-xl font-bold">{selectedStryke.companyName}</h2>
+                      <h2 className="text-xl font-bold text-gray-800">{selectedStryke?.companyName}</h2>
                       <div className="flex gap-2">
-                        <span className={`px-2 py-1 text-sm rounded-md ${selectedStryke.preEntryTrend === 'BULLISH' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                          {selectedStryke.preEntryTrend}
+                        <span className={`px-2 py-1 text-sm rounded-md ${selectedStryke?.preEntryTrend === 'BULLISH' ? 'bg-green-200 text-green-800' : selectedStryke?.preEntryTrend === 'BEARISH' ? 'bg-yellow-300 text-yellow-800' : 'bg-yellow-300 text-yellow-800'}`}>
+                          Pre Trend: {selectedStryke?.preEntryTrend}
                         </span>
-                        <span className="px-2 py-1 text-sm bg-gray-100 rounded-md">
-                          {selectedStryke.callType}
+                        <span className={`px-2 py-1 text-sm rounded-md ${selectedStryke?.postEntryTrend === 'BULLISH' ? 'bg-green-200 text-green-800' : selectedStryke?.postEntryTrend === 'BEARISH' ? 'bg-yellow-300 text-yellow-800' : 'bg-yellow-300 text-yellow-800'}`}>
+                          Post Trend: {selectedStryke?.postEntryTrend}
+                        </span>
+                        <span className="px-2 py-1 text-sm bg-gray-200 rounded-md">
+                          {selectedStryke?.callType}
                         </span>
                       </div>
                     </div>
@@ -648,62 +723,51 @@ export default function StrikeAnalysisPage() {
                       <div className="space-y-4">
                         <div>
                           <h3 className="text-sm font-medium text-gray-500">Entry Date & Time</h3>
-                          <p>{new Date(selectedStryke.entryTime).toLocaleString()}</p>
+                          <span>{`${selectedStryke?.entryTime}`}</span>
                         </div>
                         <div>
                           <h3 className="text-sm font-medium text-gray-500">Instrument Key</h3>
-                          <p className="font-mono text-sm">{selectedStryke.instrumentKey}</p>
+                          <p className="font-mono text-sm text-gray-800">{selectedStryke?.instrumentKey}</p>
                         </div>
                         <div>
                           <h3 className="text-sm font-medium text-gray-500">RSI</h3>
-                          <p>{selectedStryke.rsi.toFixed(2)}</p>
+                          <p>{selectedStryke?.rsi?.toFixed(2)}</p>
                         </div>
                       </div>
                       
                       <div className="space-y-4">
                         <div>
                           <h3 className="text-sm font-medium text-gray-500">Stop Loss & Target</h3>
-                          <p>SL: ₹{selectedStryke.stopLoss.toFixed(2)} | Target: ₹{selectedStryke.target.toFixed(2)}</p>
+                          <p>SL: ₹{selectedStryke?.stopLoss?.toFixed(2)} | Target: ₹{selectedStryke?.target?.toFixed(2)}</p>
                         </div>
                         <div>
                           <h3 className="text-sm font-medium text-gray-500">Status</h3>
                           <div className="flex gap-2">
-                            {selectedStryke.hitTarget && (
-                              <span className="px-2 py-0.5 text-sm bg-green-100 text-green-800 rounded">Target Hit</span>
+                            {selectedStryke?.hitTarget && (
+                              <span className="px-2 py-0.5 text-sm bg-green-200 text-green-800 rounded">Target Hit</span>
                             )}
-                            {selectedStryke.hitStopLoss && (
-                              <span className="px-2 py-0.5 text-sm bg-red-100 text-red-800 rounded">Stop Loss Hit</span>
+                            {selectedStryke?.hitStopLoss && (
+                              <span className="px-2 py-0.5 text-sm bg-red-200 text-red-800 rounded">Stop Loss Hit</span>
                             )}
-                            {!selectedStryke.hitTarget && !selectedStryke.hitStopLoss && (
-                              <span className="px-2 py-0.5 text-sm bg-amber-100 text-amber-800 rounded">In Progress</span>
+                            {!selectedStryke?.hitTarget && !selectedStryke?.hitStopLoss && (
+                              <span className="px-2 py-0.5 text-sm bg-yellow-200 text-yellow-800 rounded">In Progress</span>
                             )}
                           </div>
                         </div>
                         <div>
                           <h3 className="text-sm font-medium text-gray-500">Peak & Dip (30m)</h3>
-                          <p>Peak: ₹{selectedStryke.peakIn30M.toFixed(2)} | Dip: ₹{selectedStryke.dipIn30M.toFixed(2)}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mb-4">
-                      <h3 className="text-sm font-medium text-gray-500 mb-1">EMA Values</h3>
-                      <div className="grid grid-cols-4 gap-2 text-sm">
-                        <div className="bg-gray-50 p-2 rounded">
-                          <span className="block text-gray-500">EMA5</span>
-                          <span className="font-medium">{selectedStryke.emadto.ema5.toFixed(2)}</span>
-                        </div>
-                        <div className="bg-gray-50 p-2 rounded">
-                          <span className="block text-gray-500">EMA8</span>
-                          <span className="font-medium">{selectedStryke.emadto.ema8.toFixed(2)}</span>
-                        </div>
-                        <div className="bg-gray-50 p-2 rounded">
-                          <span className="block text-gray-500">EMA13</span>
-                          <span className="font-medium">{selectedStryke.emadto.ema13.toFixed(2)}</span>
-                        </div>
-                        <div className="bg-gray-50 p-2 rounded">
-                          <span className="block text-gray-500">EMA21</span>
-                          <span className="font-medium">{selectedStryke.emadto.ema21.toFixed(2)}</span>
+                          <p>
+                            Highest Price: ₹{selectedStryke.highestPrice?.toFixed(2)}
+                            <span className="block text-xs text-gray-500 mt-1">
+                              Time Taken: {calculateTimeDifference(selectedStryke.entryTime, selectedStryke.highestPriceTime)} minutes
+                            </span>
+                          </p>
+                          <p>
+                            Lowest Price: ₹{selectedStryke.lowestPrice?.toFixed(2)}
+                            <span className="block text-xs text-gray-500 mt-1">
+                              Time Taken: {calculateTimeDifference(selectedStryke.entryTime, selectedStryke.lowestPriceTime)} minutes
+                            </span>
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -713,16 +777,16 @@ export default function StrikeAnalysisPage() {
                         <h3 className="text-sm font-medium text-gray-500 mb-1">
                           {selectedStryke.profit > 0 ? 'Profit Details' : 'Loss Details'}
                         </h3>
-                        <div className="bg-gray-50 p-3 rounded">
+                        <div className="bg-teal-100 p-3 rounded">
                           {selectedStryke.profit > 0 ? (
                             <div className="flex justify-between">
-                              <span>Profit: <span className="text-green-600 font-medium">₹{selectedStryke.profit.toFixed(2)}</span></span>
-                              <span>Days to Profit: {selectedStryke.daysTakenToProfit}</span>
+                              <span>Profit: <span className="text-green-600 font-medium">₹{selectedStryke?.profit?.toFixed(2)}</span></span>
+                              <span>Days to Profit: {selectedStryke?.daysTakenToProfit}</span>
                             </div>
                           ) : (
                             <div className="flex justify-between">
-                              <span>Loss: <span className="text-red-600 font-medium">₹{selectedStryke.loss.toFixed(2)}</span></span>
-                              <span>Days to Loss: {selectedStryke.daysTakenToLoss}</span>
+                              <span>Loss: <span className="text-red-600 font-medium">₹{selectedStryke?.loss?.toFixed(2)}</span></span>
+                              <span>Days to Loss: {selectedStryke?.daysTakenToLoss}</span>
                             </div>
                           )}
                         </div>
@@ -732,27 +796,27 @@ export default function StrikeAnalysisPage() {
                     <div className="mb-4">
                       <h3 className="text-sm font-medium text-gray-500 mb-1">Price Extremes</h3>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-gray-50 p-3 rounded">
+                        <div className="bg-teal-100 p-3 rounded">
                           <span className="block text-gray-500">Highest Price</span>
-                          <span className="font-medium">₹{selectedStryke.highestPrice.toFixed(2)}</span>
+                          <span className="font-medium">₹{selectedStryke?.highestPrice?.toFixed(2)}</span>
                           <span className="block text-xs text-gray-500 mt-1">
-                            {new Date(selectedStryke.highestPriceTime).toLocaleString()}
+                            {new Date(selectedStryke?.highestPriceTime).toLocaleString()}
                           </span>
                         </div>
-                        <div className="bg-gray-50 p-3 rounded">
+                        <div className="bg-teal-100 p-3 rounded">
                           <span className="block text-gray-500">Lowest Price</span>
-                          <span className="font-medium">₹{selectedStryke.lowestPrice.toFixed(2)}</span>
+                          <span className="font-medium">₹{selectedStryke?.lowestPrice?.toFixed(2)}</span>
                           <span className="block text-xs text-gray-500 mt-1">
-                            {new Date(selectedStryke.lowestPriceTime).toLocaleString()}
+                            {new Date(selectedStryke?.lowestPriceTime).toLocaleString()}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {selectedStryke.remarks && (
-                      <div className="mt-4 p-3 bg-gray-100 rounded-md">
+                    {selectedStryke?.remarks && (
+                      <div className="mt-4 p-3 bg-teal-100 rounded-md">
                         <h3 className="font-medium mb-2">Remarks:</h3>
-                        <p className="text-gray-700">{selectedStryke.remarks}</p>
+                        <p className="text-gray-700">{selectedStryke?.remarks}</p>
                       </div>
                     )}
                   </div>
