@@ -179,7 +179,8 @@ export default function StrikeAnalysisPage() {
   const addNewStock = async (strykeInbound: Partial<Stryke>) => {
     try {
       setIsLoading(true);
-      const response = await axios.post('http://localhost:8090/api/stryke/add-stock', strykeInbound);
+      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      const response = await axios.post(`${backEndBaseUrl}/api/stryke/add-stock`, strykeInbound);
       const addedStock = response.data.stryke;
       setAnalysisResult({
         ...addedStock,
@@ -206,7 +207,8 @@ export default function StrikeAnalysisPage() {
   const recalculateStrykeAnalysis = async () => {
     try {
       setIsLoading(true);
-      await axios.get('http://localhost:8090/api/stryke/recalculate');
+      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      await axios.get(`${backEndBaseUrl}/api/stryke/recalculate`);
       fetchStrykes();
     } catch (error) {
       console.error('Error recalculating stryke analysis:', error);
@@ -220,7 +222,8 @@ export default function StrikeAnalysisPage() {
   const fetchStrykes = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('http://localhost:8090/api/stryke/fetch-all');
+      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      const response = await axios.get(`${backEndBaseUrl}/api/stryke/fetch-all`);
       const data: StrykeListResponse = response.data;
       setStrykeList(data.strykeList.map((stryke) => ({
         ...stryke,
@@ -325,8 +328,8 @@ export default function StrikeAnalysisPage() {
 
   const deleteStryke = async (stockUuid: string) => {
     try {
-
-      await axios.get(`http://localhost:8090/api/stryke/delete-stryke/${stockUuid}`);
+      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      await axios.get(`${backEndBaseUrl}/api/stryke/delete-stryke/${stockUuid}`);
       setStrykeList((prevList) => prevList.filter((stryke) => stryke.stockUuid !== stockUuid));
       toast.success('Stryke analysis deleted successfully');
     } catch (error) {

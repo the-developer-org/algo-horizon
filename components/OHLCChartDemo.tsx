@@ -78,7 +78,8 @@ export const OHLCChartDemo: React.FC = () => {
     if (!selectedCompany || !selectedInstrumentKey) return;
     setIsLoading(true);
     const formattedInstrumentKey = selectedInstrumentKey.replace(/\|/g, '-');
-    const url = `http://localhost:8090/api/local-historical-data/get-candles/${selectedCompany}/${formattedInstrumentKey}`;
+    const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const url = `${backEndBaseUrl}/api/local-historical-data/get-candles/${selectedCompany}/${formattedInstrumentKey}`;
     axios.get(url)
       .then(res => {
         const candlesData = res.data.historicalDataLocal.candles;

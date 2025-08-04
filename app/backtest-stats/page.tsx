@@ -23,7 +23,8 @@ export default function BackTestStatsPage() {
     setLoading(true);
     setError(null); // Clear any previous errors
     try {
-      const response = await axios.get('http://localhost:8090/api/local-historical-data/back-test-stats');
+      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      const response = await axios.get(`${backEndBaseUrl}/api/local-historical-data/back-test-stats`);
       console.log('API Response:', response.data.backTestStats); // Debug log
       
       // Store raw response for debugging
