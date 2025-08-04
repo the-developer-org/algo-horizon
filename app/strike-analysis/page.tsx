@@ -94,6 +94,7 @@ export default function StrikeAnalysisPage() {
   const [selectedStryke, setSelectedStryke] = useState<Stryke | null>(null);
   const [showStrykeForm, setShowStrykeForm] = useState(true);
   const [showAllStrykes, setShowAllStrykes] = useState(false);
+  const [theme, setTheme] = useState<string>(localStorage.getItem('theme') || 'dark');
 
   // Fetch KeyMapping from Redis on mount
   useEffect(() => {
@@ -221,7 +222,6 @@ export default function StrikeAnalysisPage() {
     try {
       const response = await axios.get('http://localhost:8090/api/stryke/fetch-all');
       const data: StrykeListResponse = response.data;
-      debugger
       setStrykeList(data.strykeList.map((stryke) => ({
         ...stryke,
         stockUuid: stryke.stockUuid, // Add stockUuid key
@@ -348,6 +348,17 @@ export default function StrikeAnalysisPage() {
     return `${day}-${month}-${year}`;
   }
 
+  // Update theme on mount
+  useEffect(() => {
+    document.documentElement.className = theme;
+  }, [theme]);
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -414,6 +425,16 @@ export default function StrikeAnalysisPage() {
               )}
             </div>
           </div>
+
+          {/* Theme Toggle Button */}
+          {/* <div className="flex justify-end mb-4">
+            <Button
+              onClick={toggleTheme}
+              className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+            >
+              Switch to {theme === 'dark' ? 'Light' : 'Dark'} Mode
+            </Button>
+          </div> */}
 
           {showStrykeForm && (
             <div className="flex flex-col md:flex-row gap-4">
@@ -762,23 +783,24 @@ export default function StrikeAnalysisPage() {
 
                     <div className="space-y-6">
                       {/* Group 1: Profit Details */}
-                         {(selectedStryke.profit > 0 || selectedStryke.loss > 0) && (
+                         {(selectedStryke.profit > 0 || selectedStryke.loss < 0) && (
                       <div className="mb-6">
                         <h3 className="text-sm font-medium text-gray-500 mb-2">
                           {selectedStryke.profit > 0 ? 'Profit Details' : 'Loss Details'}
                         </h3>
                         <div className="bg-teal-100 p-4 rounded">
-                          {selectedStryke.profit > 0 ? (
+                          {selectedStryke.profit > 0 && (
                             <div className="flex justify-between">
                               <span>
-                                Profit: <span className="text-green-600 font-medium">₹{selectedStryke?.profit?.toFixed(2)}</span>
+                                Profit: <span className="text-green-600 font-medium">₹{selectedStryke?.profit?.toFixed(2)} ({calculatePercentageDifference(selectedStryke?.entryCandle.close, (selectedStryke?.entryCandle.close + selectedStryke?.profit))}%)</span>
                               </span>
                               <span>Days to Profit: {selectedStryke?.daysTakenToProfit}</span>
                             </div>
-                          ) : (
+                          )}
+                          {selectedStryke.loss < 0 && (
                             <div className="flex justify-between">
                               <span>
-                                Loss: <span className="text-red-600 font-medium">₹{selectedStryke?.loss?.toFixed(2)}</span>
+                                Loss: <span className="text-red-600 font-medium">₹{selectedStryke?.loss?.toFixed(2)} ({calculatePercentageDifference(selectedStryke?.entryCandle.close, (selectedStryke?.entryCandle.close - selectedStryke?.loss))}%)</span>
                               </span>
                               <span>Days to Loss: {selectedStryke?.daysTakenToLoss}</span>
                             </div>
