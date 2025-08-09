@@ -99,27 +99,9 @@ export default function StrikeAnalysisPage() {
   const [analysisResult, setAnalysisResult] = useState<Stryke | null>(null);
   const [strykeList, setStrykeList] = useState<Stryke[]>([]);
   const [selectedStryke, setSelectedStryke] = useState<Stryke | null>(null);
-  const [showStrykeForm, setShowStrykeForm] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem('showStrykeForm');
-      return saved === 'true';
-    }
-    return true;
-  });
-  const [showAllStrykes, setShowAllStrykes] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem('showAllStrykes');
-      return saved === 'true';
-    }
-    return false;
-  });
-  const [showStrykeStats, setShowStrykeStats] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem('showStrykeStats');
-      return saved === 'true';
-    }
-    return false;
-  });
+  const [showStrykeForm, setShowStrykeForm] = useState(() => true);
+  const [showAllStrykes, setShowAllStrykes] = useState(() => false);
+  const [showStrykeStats, setShowStrykeStats] = useState(() => false);
 
 
   // Fetch KeyMapping from Redis on mount
