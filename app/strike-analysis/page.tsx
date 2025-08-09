@@ -99,10 +99,28 @@ export default function StrikeAnalysisPage() {
   const [analysisResult, setAnalysisResult] = useState<Stryke | null>(null);
   const [strykeList, setStrykeList] = useState<Stryke[]>([]);
   const [selectedStryke, setSelectedStryke] = useState<Stryke | null>(null);
-  const [showStrykeForm, setShowStrykeForm] = useState(true);
-  const [showAllStrykes, setShowAllStrykes] = useState(false);
-  const [showStrykeStats, setShowStrykeStats] = useState(false);
-  const [theme, setTheme] = useState<string>(localStorage.getItem('theme') || 'dark');
+  const [showStrykeForm, setShowStrykeForm] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem('showStrykeForm');
+      return saved === 'true';
+    }
+    return true;
+  });
+  const [showAllStrykes, setShowAllStrykes] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem('showAllStrykes');
+      return saved === 'true';
+    }
+    return false;
+  });
+  const [showStrykeStats, setShowStrykeStats] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem('showStrykeStats');
+      return saved === 'true';
+    }
+    return false;
+  });
+  const [theme, setTheme] = useState<string>('dark');
 
   // Fetch KeyMapping from Redis on mount
   useEffect(() => {
@@ -293,36 +311,16 @@ export default function StrikeAnalysisPage() {
     }
   };
 
-  // Restore state from localStorage
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedShowStrykeForm = localStorage.getItem('showStrykeForm');
-      const savedShowAllStrykes = localStorage.getItem('showAllStrykes');
-      const savedShowStrykeStats = localStorage.getItem('showStrykeStats');
-
-      if (savedShowStrykeForm !== null) {
-        setShowStrykeForm(savedShowStrykeForm === 'true');
-      }
-
-      if (savedShowAllStrykes !== null || savedShowStrykeStats !== null) {
-        setShowAllStrykes(savedShowAllStrykes === 'true');
-        setShowStrykeStats(savedShowStrykeStats === 'true');
-        if (savedShowAllStrykes === 'true') {
-          fetchStrykes();
-        }
-      }
+    if (showAllStrykes) {
+      fetchStrykes();
     }
-  }, []);
+  }, [showAllStrykes]);
 
   const handleToggleView = (showForm: boolean, showAll: boolean, showStats: boolean) => {
     setShowStrykeForm(showForm);
     setShowAllStrykes(showAll);
     setShowStrykeStats(showStats);
-
-    // Save state to localStorage
-    localStorage.setItem('showStrykeForm', showForm.toString());
-    localStorage.setItem('showAllStrykes', showAll.toString());
-    localStorage.setItem('showStrykeStats', showStats.toString());
   };
 
   // Utility function to parse date strings
@@ -372,7 +370,6 @@ export default function StrikeAnalysisPage() {
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
   };
 
   const refreshStrykeData = async (stockUuid: string) => {
