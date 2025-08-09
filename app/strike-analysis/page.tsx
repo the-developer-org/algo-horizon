@@ -66,7 +66,14 @@ interface Stryke {
   remarks: string;
   stockUuid: string;
   lastClosingValue: number;
+  dayStatsMap: { [key: string]: dayStats };
   lastClosingValueDate: string;
+  
+}
+
+interface dayStats {
+  peak: number;
+  dip: number;
 }
 
 interface StrykeListResponse {
@@ -94,6 +101,7 @@ export default function StrikeAnalysisPage() {
   const [selectedStryke, setSelectedStryke] = useState<Stryke | null>(null);
   const [showStrykeForm, setShowStrykeForm] = useState(true);
   const [showAllStrykes, setShowAllStrykes] = useState(false);
+  const [showStrykeStats, setShowStrykeStats] = useState(false);
   const [theme, setTheme] = useState<string>(localStorage.getItem('theme') || 'dark');
 
   // Fetch KeyMapping from Redis on mount
@@ -196,9 +204,9 @@ export default function StrikeAnalysisPage() {
         },
         ...prevList,
       ]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding new stock:', error);
-      toast.error('Failed to add stock');
+      toast.error(error?.response?.data?.statusText || 'Failed to add stock');
     } finally {
       setIsLoading(false);
     }
@@ -290,26 +298,30 @@ export default function StrikeAnalysisPage() {
     // Restore state from localStorage
     const savedShowStrykeForm = localStorage.getItem('showStrykeForm');
     const savedShowAllStrykes = localStorage.getItem('showAllStrykes');
+    const savedShowStrykeStats = localStorage.getItem('showStrykeStats');
 
     if (savedShowStrykeForm !== null) {
       setShowStrykeForm(savedShowStrykeForm === 'true');
     }
 
-    if (savedShowAllStrykes !== null) {
+    if (savedShowAllStrykes !== null || savedShowStrykeStats !== null) {
       setShowAllStrykes(savedShowAllStrykes === 'true');
+      setShowStrykeStats(savedShowStrykeStats === 'true');
       if (savedShowAllStrykes === 'true') {
         fetchStrykes();
       }
     }
   }, []);
 
-  const handleToggleView = (showForm: boolean, showAll: boolean) => {
+  const handleToggleView = (showForm: boolean, showAll: boolean, showStats: boolean) => {
     setShowStrykeForm(showForm);
     setShowAllStrykes(showAll);
+    setShowStrykeStats(showStats);
 
     // Save state to localStorage
     localStorage.setItem('showStrykeForm', showForm.toString());
     localStorage.setItem('showAllStrykes', showAll.toString());
+    localStorage.setItem('showStrykeStats', showStats.toString());
   };
 
   // Utility function to parse date strings
@@ -362,6 +374,21 @@ export default function StrikeAnalysisPage() {
     localStorage.setItem('theme', newTheme);
   };
 
+  const refreshStrykeData = async (stockUuid: string) => {
+    try {
+      setIsLoading(true);
+      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      await axios.get(`${backEndBaseUrl}/api/stryke/recalculate/${stockUuid}`);
+      fetchStrykes();
+      toast.success('Stryke data recalculated successfully');
+    } catch (error) {
+      console.error('Error recalculating stryke data:', error);
+      toast.error('Failed to recalculate stryke data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -382,27 +409,33 @@ export default function StrikeAnalysisPage() {
               <h1 className="text-2xl font-bold">Stryke Analysis</h1>
             </div>
             <div className="flex gap-2">
-              {(showStrykeForm && !showAllStrykes) ? (
-                <Button
+            
+              {(!showStrykeForm) &&
+              (
+                    <Button
                   onClick={() => {
-                    handleToggleView(false, true);
+                    handleToggleView(true, false, false);
+                  }}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                >
+                  Show Stryke Form
+                </Button>
+
+              )}
+
+              {(!showAllStrykes) && (
+                 <Button
+                  onClick={() => {
+                    handleToggleView(false, true, false);
                     fetchStrykes();
                   }}
                   className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                 >
                   Fetch All Stryke Analysis
                 </Button>
-              ) : (
-                <Button
-                  onClick={() => {
-                    handleToggleView(true, false);
-                  }}
-                  className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                >
-                  Show Stryke Form
-                </Button>
               )}
-              {showAllStrykes && (
+
+              {(showAllStrykes || showStrykeStats) && (
                 <Button
                   onClick={() => {
                     fetchStrykes();
@@ -412,6 +445,20 @@ export default function StrikeAnalysisPage() {
                   Refresh List
                 </Button>
               )}
+
+              {!showStrykeStats && (
+                <Button
+                  onClick={() => {
+                    handleToggleView(false, false, true);
+                    fetchStrykes();
+                  }}
+            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+          >
+            Show Stryke Stats
+          </Button>
+                )
+              }
+
 
                {showAllStrykes && (
                 <Button
@@ -691,16 +738,17 @@ export default function StrikeAnalysisPage() {
             <div className="flex flex-col md:flex-row h-[calc(100vh-120px)] border rounded-lg overflow-hidden">
               {/* Left Sidebar - Stryke List (WhatsApp-like) */}
               <div className="w-full md:w-1/3 border-r bg-indigo-50 overflow-y-auto">
-                <div className="p-3 bg-indigo-100 border-b sticky top-0 z-10">
+                <div className="p-3 bg-indigo-100 border-b sticky top-0 z-10 flex items-center gap-4">
                   <Input
                     type="text"
                     placeholder="Search strykes..."
-                    className="w-full bg-white"
+                    className="w-3/4 bg-white"
                     onChange={(e) => {
                       const query = e.target.value.toLowerCase();
                       // Filter strykes (would implement if needed)
                     }}
                   />
+                  <span className="text-lg pl-5 font-bold">Total :{strykeList.length}</span>
                 </div>
 
                 {strykeList.length === 0 ? (
@@ -718,16 +766,28 @@ export default function StrikeAnalysisPage() {
                       >
                         <div className="flex justify-between items-start">
                           <h5 className="font-bold text-gray-800 bg-gradient-to-r from-teal-400 via-blue-500 to-purple-600 text-transparent bg-clip-text">{stryke?.companyName}</h5>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteStryke(stryke.stockUuid);
-                            }}
-                            className="text-red-500 hover:text-red-700 ml-2"
-                            aria-label="Delete Stryke"
-                          >
-                            🗑️
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteStryke(stryke.stockUuid);
+                              }}
+                              className="text-red-500 hover:text-red-700 ml-2"
+                              aria-label="Delete Stryke"
+                            >
+                              🗑️
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                refreshStrykeData(stryke.stockUuid);
+                              }}
+                              className="text-blue-500 hover:text-blue-700 ml-2"
+                              aria-label="Refresh Stryke"
+                            >
+                              🔄
+                            </button>
+                          </div>
                         </div>
                         <div className="flex gap-2 mt-1">
                           <span className="px-3 py-1 text-sm bg-gray-200 rounded-md">
@@ -873,6 +933,32 @@ export default function StrikeAnalysisPage() {
                       </div>
                     )}
 
+                    {/* Day Stats Table */}
+                    <div className="mt-6">
+                      <h3 className="text-lg font-medium text-gray-700 mb-4">Day Stats</h3>
+                      <div className="overflow-x-auto">
+                        <table className="table-auto w-full border-collapse border border-gray-300 text-center">
+                          <thead>
+                            <tr className="bg-gray-200">
+                              <th className="border border-gray-300 px-4 py-2">Date</th>
+                              <th className="border border-gray-300 px-4 py-2">Peak</th>
+                              <th className="border border-gray-300 px-4 py-2">Dip</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(selectedStryke?.dayStatsMap || {})
+                              .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
+                              .map(([date, stats]) => (
+                                <tr key={date} className="hover:bg-gray-100">
+                                  <td className="border border-gray-300 px-4 py-2 text-center align-middle">{new Date(date).toLocaleDateString()}</td>
+                                  <td className="border border-gray-300 px-4 py-2 text-center align-middle">₹{stats.peak.toFixed(2)}</td>
+                                  <td className="border border-gray-300 px-4 py-2 text-center align-middle">₹{stats.dip.toFixed(2)}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-gray-500">
@@ -883,6 +969,71 @@ export default function StrikeAnalysisPage() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+        
+
+
+
+          {/* Add a new stats page */}
+          {showStrykeStats&& (
+            <div className="container mx-auto py-4 px-4">
+              <h2 className="text-xl font-bold mb-4">Stryke Stats</h2>
+              <table className="table-auto w-full border-collapse border border-gray-300 text-center">
+                <thead>
+                  <tr className="bg-gray-200">
+                    <th className="border border-gray-300 px-4 py-2">Slno</th>
+                    <th className="border border-gray-300 px-4 py-2">Name</th>
+                    <th className="border border-gray-300 px-4 py-2">Added On</th>
+                    <th className="border border-gray-300 px-4 py-2">Entry At</th>
+                    <th className="border border-gray-300 px-4 py-2">Target</th>
+                    <th className="border border-gray-300 px-4 py-2">Stop Loss</th>
+                    <th className="border border-gray-300 px-4 py-2">Last Closing Value</th>
+                    <th className="border border-gray-300 px-4 py-2">Last Closing Value Date</th>
+                    
+                  
+                    <th className="border border-gray-300 px-4 py-2">Peak</th>
+                    <th className="border border-gray-300 px-4 py-2">Dip</th>
+                    <th className="border border-gray-300 px-4 py-2">Day Stats</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {strykeList.sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()).map((stryke, index) => (
+                    <tr key={stryke.stockUuid} className="hover:bg-gray-100">
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">{index + 1}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">{stryke.companyName}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">
+                        {formatDate(stryke.entryTime)} {new Date(stryke.entryTime).toLocaleTimeString()}
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">₹{stryke.entryCandle.close?.toFixed(2)}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">₹{stryke.target?.toFixed(2)}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">₹{stryke.stopLoss?.toFixed(2)}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">
+                        ₹{stryke.lastClosingValue?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.lastClosingValue)}%)
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">{formatDate(stryke.lastClosingValueDate)}</td>
+                    
+              
+                    
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">
+                        ₹{stryke.highestPrice?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.highestPrice)}%)
+                        <br />
+                        Time: {(calculateTimeDifference(stryke.entryTime, stryke.highestPriceTime) / (60 * 24)).toFixed(2)} Days
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">
+                        ₹{stryke.lowestPrice?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.lowestPrice)}%)
+                        <br />
+                        Time: {(calculateTimeDifference(stryke.entryTime, stryke.lowestPriceTime) / (60 * 24)).toFixed(2)} Days
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">
+                        {/* Day stats content can be added here if needed */}
+                        {JSON.stringify(stryke.dayStatsMap)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </>
