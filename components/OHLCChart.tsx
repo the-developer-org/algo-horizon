@@ -702,6 +702,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         priceScaleId: 'vix', // separate scale for VIX
                     });
                     vixSeriesRef.current.setData(formattedVix);
+                    // @ts-ignore
                     chart.priceScale('vix').applyOptions({
                         scaleMargins: { top: 0.1, bottom: 0.1 },
                         borderColor: '#FFD600',
