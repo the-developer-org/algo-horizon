@@ -295,20 +295,21 @@ export default function StrikeAnalysisPage() {
 
   // Restore state from localStorage
   useEffect(() => {
-    // Restore state from localStorage
-    const savedShowStrykeForm = localStorage.getItem('showStrykeForm');
-    const savedShowAllStrykes = localStorage.getItem('showAllStrykes');
-    const savedShowStrykeStats = localStorage.getItem('showStrykeStats');
+    if (typeof window !== "undefined") {
+      const savedShowStrykeForm = localStorage.getItem('showStrykeForm');
+      const savedShowAllStrykes = localStorage.getItem('showAllStrykes');
+      const savedShowStrykeStats = localStorage.getItem('showStrykeStats');
 
-    if (savedShowStrykeForm !== null) {
-      setShowStrykeForm(savedShowStrykeForm === 'true');
-    }
+      if (savedShowStrykeForm !== null) {
+        setShowStrykeForm(savedShowStrykeForm === 'true');
+      }
 
-    if (savedShowAllStrykes !== null || savedShowStrykeStats !== null) {
-      setShowAllStrykes(savedShowAllStrykes === 'true');
-      setShowStrykeStats(savedShowStrykeStats === 'true');
-      if (savedShowAllStrykes === 'true') {
-        fetchStrykes();
+      if (savedShowAllStrykes !== null || savedShowStrykeStats !== null) {
+        setShowAllStrykes(savedShowAllStrykes === 'true');
+        setShowStrykeStats(savedShowStrykeStats === 'true');
+        if (savedShowAllStrykes === 'true') {
+          fetchStrykes();
+        }
       }
     }
   }, []);
