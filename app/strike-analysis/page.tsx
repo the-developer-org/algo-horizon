@@ -120,7 +120,7 @@ export default function StrikeAnalysisPage() {
     }
     return false;
   });
-  const [theme, setTheme] = useState<string>('dark');
+
 
   // Fetch KeyMapping from Redis on mount
   useEffect(() => {
@@ -362,16 +362,6 @@ export default function StrikeAnalysisPage() {
     return `${day}-${month}-${year}`;
   }
 
-  // Update theme on mount
-  useEffect(() => {
-    document.documentElement.className = theme;
-  }, [theme]);
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(newTheme);
-  };
-
   const refreshStrykeData = async (stockUuid: string) => {
     try {
       setIsLoading(true);
@@ -396,7 +386,7 @@ export default function StrikeAnalysisPage() {
   }
 
   return (
-    <div className="container mx-auto py-4 px-4">
+    <div className="container mx-auto py-4 px-4 bg-cream">
       <Toaster position="top-right" />
 
 
