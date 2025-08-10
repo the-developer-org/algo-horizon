@@ -364,6 +364,7 @@ export default function StrikeAnalysisPage() {
   };
 
   function calculatePercentageDifference(baseValue: number, comparer: number): number {
+    if(baseValue === comparer) return 0;
     return parseFloat(((comparer - baseValue) / baseValue * 100).toFixed(2));
   }
 
@@ -378,9 +379,9 @@ export default function StrikeAnalysisPage() {
 
   const shouldShowEarlyProfits = (stryke: Stryke): boolean => {
 
-    const peakPerc: number = calculatePercentageDifference(stryke?.entryCandle.close, stryke?.highestPrice);
+    const peakPerc: number = Math.abs(calculatePercentageDifference(stryke?.entryCandle.close, stryke?.highestPrice));
     if( peakPerc === 0) return false;
-    const dipPerc : number = calculatePercentageDifference(stryke?.entryCandle.close, stryke?.lowestPrice);
+    const dipPerc : number = Math.abs(calculatePercentageDifference(stryke?.entryCandle.close, stryke?.lowestPrice));
     if ((stryke.lowestPriceTime < stryke.highestPriceTime) && dipPerc < 1) {
       return true;
     }
@@ -1023,9 +1024,15 @@ export default function StrikeAnalysisPage() {
                               .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
                               .map(([date, stats]) => (
                                 <tr key={date} className="hover:bg-gray-100">
-                                  <td className="border border-gray-300 px-4 py-2 text-center align-middle">{new Date(date).toLocaleDateString()}</td>
-                                  <td className="border border-gray-300 px-4 py-2 text-center align-middle">₹{stats.peak.toFixed(2)}</td>
-                                  <td className="border border-gray-300 px-4 py-2 text-center align-middle">₹{stats.dip.toFixed(2)}</td>
+                                  <td className="border border-gray-300 px-2 py-1 text-center align-middle">{new Date(date).toLocaleDateString()}</td>
+                                  <td className="border border-gray-300 px-2 py-1 text-center align-middle">
+                                    ₹{stats.peak.toFixed(2)}
+                                    <span className="text-sm text-gray-500"> ({calculatePercentageDifference(selectedStryke?.entryCandle.close, stats.peak)}%)</span>
+                                  </td>
+                                  <td className="border border-gray-300 px-2 py-1 text-center align-middle">
+                                    ₹{stats.dip.toFixed(2)}
+                                    <span className="text-sm text-gray-500"> ({calculatePercentageDifference(selectedStryke?.entryCandle.close, stats.dip)}%)</span>
+                                  </td>
                                 </tr>
                               ))}
                           </tbody>
@@ -1171,9 +1178,9 @@ export default function StrikeAnalysisPage() {
                         ₹{stryke.lastClosingValue?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.lastClosingValue)}%)
                       </td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">{formatDate(stryke.lastClosingValueDate)}</td>
-                      {Object.values(stryke.dayStatsMap || {}).flatMap((stats, index) => [
-                        <td key={`${index}-peak-value`} className="border border-gray-700 px-4 py-2">₹{stats.peak.toFixed(2)}</td>,
-                        <td key={`${index}-dip-value`} className="border border-gray-700 px-4 py-2">₹{stats.dip.toFixed(2)}</td>,
+                      {Object.values(stryke.dayStatsMap || {}).flatMap((stats) => [
+                        <td key={`${stryke.stockUuid}-peak-value`} className="border border-gray-700 px-4 py-2">₹{stats.peak.toFixed(2)}</td>,
+                        <td key={`${stryke.stockUuid}-dip-value`} className="border border-gray-700 px-4 py-2">₹{stats.dip.toFixed(2)}</td>,
                       ])}
                     </tr>
                   ))}
