@@ -48,7 +48,12 @@ export default function AuthPage() {
       setError('Invalid PIN');
       setIsInvalid(true);
       return;
+    
     }    
+
+     setPin(''); 
+      setIsInvalid(true);
+            router.replace('/');
       
   };
 
