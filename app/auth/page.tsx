@@ -42,41 +42,18 @@ export default function AuthPage() {
       return;
     }
 
+    if(pin !== '726746' && pin !== '2534') {
+      setError('Invalid PIN');
+      setIsInvalid(true);
+      return;
+    }
+
     setIsSubmitting(true);
     setError('');
     setIsInvalid(false);
 
-    try {
-      const numericPin = parseInt(pin, 10);
-
-      const response = await fetch(`${baseBackendUrl}/api/user/validate-pin/${numericPin}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      const data = await response.json();
+    
       
-      if (!response.ok) {
-        throw new Error('Failed to validate PIN');
-      }
-
-      if (data.isUserAuthorised === true) {
-        sessionStorage.setItem('isUserAuthorised', 'true');
-        router.replace('/');
-      } else {
-        setIsInvalid(true);
-        throw new Error('Invalid PIN');
-      }
-    } catch (err) {
-      console.error('Error:', err);
-      setError('Invalid PIN. Please try again.');
-      setPin(''); // Clear PIN on error
-      setIsInvalid(true); // Set invalid state to trigger red UI
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   if (isLoading || !shouldShow) {

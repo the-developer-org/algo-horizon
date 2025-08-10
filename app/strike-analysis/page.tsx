@@ -68,7 +68,7 @@ interface Stryke {
   lastClosingValue: number;
   dayStatsMap: { [key: string]: dayStats };
   lastClosingValueDate: string;
-  
+
 }
 
 interface dayStats {
@@ -98,6 +98,7 @@ export default function StrikeAnalysisPage() {
   const [target, setTarget] = useState<string>('0.00');
   const [analysisResult, setAnalysisResult] = useState<Stryke | null>(null);
   const [strykeList, setStrykeList] = useState<Stryke[]>([]);
+  const [filteredStrykeList, setFilteredStrykeList] = useState<Stryke[]>([]);
   const [selectedStryke, setSelectedStryke] = useState<Stryke | null>(null);
   const [showStrykeForm, setShowStrykeForm] = useState(() => true);
   const [showAllStrykes, setShowAllStrykes] = useState(() => false);
@@ -263,6 +264,9 @@ export default function StrikeAnalysisPage() {
         remarks: stryke.remarks ?? '-',
       })));
 
+      // Set the filtered list to initially show all strykes
+      setFilteredStrykeList(data.strykeList);
+
       toast.success(data.statusText || 'Stryke list fetched successfully');
     } catch (error) {
       console.error('Error fetching stryke list:', error);
@@ -379,22 +383,22 @@ export default function StrikeAnalysisPage() {
               <h1 className="text-2xl font-bold">Stryke Analysis</h1>
             </div>
             <div className="flex gap-2">
-            
-              {(!showStrykeForm) &&
-              (
-                    <Button
-                  onClick={() => {
-                    handleToggleView(true, false, false);
-                  }}
-                  className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                >
-                  Show Stryke Form
-                </Button>
 
-              )}
+              {(!showStrykeForm) &&
+                (
+                  <Button
+                    onClick={() => {
+                      handleToggleView(true, false, false);
+                    }}
+                    className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                  >
+                    Show Stryke Form
+                  </Button>
+
+                )}
 
               {(!showAllStrykes) && (
-                 <Button
+                <Button
                   onClick={() => {
                     handleToggleView(false, true, false);
                     fetchStrykes();
@@ -422,15 +426,15 @@ export default function StrikeAnalysisPage() {
                     handleToggleView(false, false, true);
                     fetchStrykes();
                   }}
-            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-          >
-            Show Stryke Stats
-          </Button>
-                )
+                  className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                >
+                  Show Stryke Stats
+                </Button>
+              )
               }
 
 
-               {showAllStrykes && (
+              {showAllStrykes && (
                 <Button
                   onClick={async () => {
                     setIsLoading(true);
@@ -705,29 +709,81 @@ export default function StrikeAnalysisPage() {
           )}
 
           {showAllStrykes && (
-            <div className="flex flex-col md:flex-row h-[calc(100vh-120px)] border rounded-lg overflow-hidden">
+            <div className="flex flex-col md:flex-row h-[calc(100vh-120px)] border rounded-lg overflow-hidden w-[calc(100vw-350px)] mx-auto">
               {/* Left Sidebar - Stryke List (WhatsApp-like) */}
               <div className="w-full md:w-1/3 border-r bg-indigo-50 overflow-y-auto">
                 <div className="p-3 bg-indigo-100 border-b sticky top-0 z-10 flex items-center gap-4">
                   <Input
                     type="text"
                     placeholder="Search strykes..."
-                    className="w-3/4 bg-white"
+                    className="w-1/2 bg-white"
                     onChange={(e) => {
                       const query = e.target.value.toLowerCase();
-                      // Filter strykes (would implement if needed)
+                      setFilteredStrykeList(
+                        strykeList.filter((stryke) =>
+                          stryke.companyName.toLowerCase().includes(query)
+                        )
+                      );
                     }}
                   />
-                  <span className="text-lg pl-5 font-bold">Total :{strykeList.length}</span>
+                  <select
+                    className="bg-white border rounded-md px-2 py-1"
+                    onChange={(e) => {
+                      const sortOption = e.target.value;
+                      if (sortOption === "date") {
+                        setFilteredStrykeList(
+                          [...filteredStrykeList].sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime())
+                        );
+                      } else if (sortOption === "name") {
+                        setFilteredStrykeList(
+                          [...filteredStrykeList].sort((a, b) => a.companyName.localeCompare(b.companyName))
+                        );
+                      }
+                    }}
+                  >
+                    <option value="">Sort By</option>
+                    <option value="date">Date</option>
+                    <option value="name">Name</option>
+                  </select>
+                  <select
+                    className="bg-white border rounded-md px-2 py-1"
+                    onChange={(e) => {
+                      const selectedMonth = e.target.value;
+                      if (selectedMonth) {
+                        setFilteredStrykeList(
+                          strykeList.filter((stryke) => {
+                            const monthYear = new Date(stryke.entryTime).toLocaleString("default", { month: "long", year: "numeric" });
+                            return monthYear === selectedMonth;
+                          })
+                        );
+                      } else {
+                        setFilteredStrykeList(strykeList);
+                      }
+                    }}
+                  >
+                    <option value="">All Months</option>
+                    {[...new Set(
+                      strykeList.map((stryke) =>
+                        new Date(stryke.entryTime).toLocaleString("default", { month: "long", year: "numeric" })
+                      )
+                    )]
+                      .sort((a, b) => new Date(`1 ${a}`).getTime() - new Date(`1 ${b}`).getTime())
+                      .map((monthYear) => (
+                        <option key={monthYear} value={monthYear}>
+                          {monthYear}
+                        </option>
+                      ))}
+                  </select>
+                  <span className="text-lg font-bold">Count: {filteredStrykeList.length}</span>
                 </div>
 
-                {strykeList.length === 0 ? (
+                {filteredStrykeList.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-64 text-gray-500">
                     <p className="text-center">No stryke analyses available</p>
                   </div>
                 ) : (
                   <div className="divide-y">
-                    {strykeList.map((stryke, index) => (
+                    {filteredStrykeList.map((stryke, index) => (
                       <button
                         key={`${stryke?.id}-${index}`}
                         className={`w-full text-left p-3 hover:bg-teal-100 cursor-pointer transition-colors ${selectedStryke?.id === stryke?.id ? 'bg-teal-50 border-l-4 border-teal-500' : ''}`}
@@ -760,17 +816,17 @@ export default function StrikeAnalysisPage() {
                           </div>
                         </div>
                         <div className="flex gap-2 mt-1">
-                          <span className="px-3 py-1 text-sm bg-gray-200 rounded-md">
+                          {/* <span className="px-3 py-1 text-sm bg-gray-200 rounded-md">
                             {stryke?.callType}
-                          </span>
-                          <span className={`text-sm px-3 py-1 rounded-md ${stryke?.postEntryTrend === 'BULLISH'
+                          </span> */}
+                          {/* <span className={`text-sm px-3 py-1 rounded-md ${stryke?.postEntryTrend === 'BULLISH'
                             ? 'bg-green-200 text-green-800'
                             : stryke?.postEntryTrend === 'BEARISH'
                               ? 'bg-red-300 text-red-800'
                               : 'bg-yellow-300 text-yellow-800'
                             }`}>
                             {stryke?.postEntryTrend}
-                          </span>
+                          </span> */}
                           <span className={`text-sm px-3 py-1 rounded-md ${stryke?.hitTarget
                             ? 'bg-green-200 text-green-800'
                             : stryke?.hitStopLoss
@@ -778,15 +834,15 @@ export default function StrikeAnalysisPage() {
                               : 'bg-yellow-300 text-yellow-800'
                             }`}>
                             {stryke?.hitTarget
-                            ? `IN PROFITS`
-                            : stryke?.hitStopLoss
-                              ? `IN LOSS`
-                              : 'IN PROGRESS'
-                          }
+                              ? `IN PROFITS`
+                              : stryke?.hitStopLoss
+                                ? `IN LOSS`
+                                : 'IN PROGRESS'
+                            }
                           </span>
-                          
+
                         </div>
-                    
+
                       </button>
                     ))}
                   </div>
@@ -816,31 +872,31 @@ export default function StrikeAnalysisPage() {
 
                     <div className="space-y-6">
                       {/* Group 1: Profit Details */}
-                         {(selectedStryke.profit > 0 || selectedStryke.loss < 0) && (
-                      <div className="mb-6">
-                        <h3 className="text-sm font-medium text-gray-500 mb-2">
-                          {selectedStryke.profit > 0 ? 'Profit Details' : 'Loss Details'}
-                        </h3>
-                        <div className="bg-teal-100 p-4 rounded">
-                          {selectedStryke.profit > 0 && (
-                            <div className="flex justify-between">
-                              <span>
-                                Profit: <span className="text-green-600 font-medium">₹{selectedStryke?.profit?.toFixed(2)} ({calculatePercentageDifference(selectedStryke?.entryCandle.close, (selectedStryke?.entryCandle.close + selectedStryke?.profit))}%)</span>
-                              </span>
-                              <span>Days to Profit: {selectedStryke?.daysTakenToProfit}</span>
-                            </div>
-                          )}
-                          {selectedStryke.loss < 0 && (
-                            <div className="flex justify-between">
-                              <span>
-                                Loss: <span className="text-red-600 font-medium">₹{selectedStryke?.loss?.toFixed(2)} ({calculatePercentageDifference(selectedStryke?.entryCandle.close, (selectedStryke?.entryCandle.close - selectedStryke?.loss))}%)</span>
-                              </span>
-                              <span>Days to Loss: {selectedStryke?.daysTakenToLoss}</span>
-                            </div>
-                          )}
+                      {(selectedStryke.profit > 0 || selectedStryke.loss < 0) && (
+                        <div className="mb-6">
+                          <h3 className="text-sm font-medium text-gray-500 mb-2">
+                            {selectedStryke.profit > 0 ? 'Profit Details' : 'Loss Details'}
+                          </h3>
+                          <div className="bg-teal-100 p-4 rounded">
+                            {selectedStryke.profit > 0 && (
+                              <div className="flex justify-between">
+                                <span>
+                                  Profit: <span className="text-green-600 font-medium">₹{selectedStryke?.profit?.toFixed(2)} ({calculatePercentageDifference(selectedStryke?.entryCandle.close, (selectedStryke?.entryCandle.close + selectedStryke?.profit))}%)</span>
+                                </span>
+                                <span>Days to Profit: {selectedStryke?.daysTakenToProfit}</span>
+                              </div>
+                            )}
+                            {selectedStryke.loss < 0 && (
+                              <div className="flex justify-between">
+                                <span>
+                                  Loss: <span className="text-red-600 font-medium">₹{selectedStryke?.loss?.toFixed(2)} ({calculatePercentageDifference(selectedStryke?.entryCandle.close, (selectedStryke?.entryCandle.close - selectedStryke?.loss))}%)</span>
+                                </span>
+                                <span>Days to Loss: {selectedStryke?.daysTakenToLoss}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                       {/* Group 2: Entry Details */}
                       <div className="space-y-4 bg-gray-100 p-4 rounded-md">
@@ -894,7 +950,7 @@ export default function StrikeAnalysisPage() {
                       </div>
                     </div>
 
-                
+
 
                     {selectedStryke?.remarks && (
                       <div className="mt-6 p-4 bg-teal-100 rounded-md">
@@ -942,64 +998,126 @@ export default function StrikeAnalysisPage() {
             </div>
           )}
 
-        
+
 
 
 
           {/* Add a new stats page */}
-          {showStrykeStats&& (
+          {showStrykeStats && (
             <div className="container mx-auto py-4 px-4">
               <h2 className="text-xl font-bold mb-4">Stryke Stats</h2>
-              <table className="table-auto w-full border-collapse border border-gray-300 text-center">
+
+              {/* Search, Sort, and Filter Controls */}
+              <div className="flex gap-2 items-center mb-4">
+                <input
+                  type="text"
+                  placeholder="Search by name..."
+                  className="border border-gray-300 rounded-md px-2 py-1"
+                  onChange={(e) => {
+                    const query = e.target.value.toLowerCase();
+                    setFilteredStrykeList(
+                      strykeList.filter((stryke) =>
+                        stryke.companyName.toLowerCase().includes(query)
+                      )
+                    );
+                  }}
+                />
+                <select
+                  className="border border-gray-300 rounded-md px-2 py-1"
+                  onChange={(e) => {
+                    const sortOption = e.target.value;
+                    if (sortOption === "date") {
+                      setFilteredStrykeList(
+                        [...filteredStrykeList].sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime())
+                      );
+                    } else if (sortOption === "name") {
+                      setFilteredStrykeList(
+                        [...filteredStrykeList].sort((a, b) => a.companyName.localeCompare(b.companyName))
+                      );
+                    }
+                  }}
+                >
+                  <option value="">Sort By</option>
+                  <option value="date">Date</option>
+                  <option value="name">Name</option>
+                </select>
+                <select
+                  className="border border-gray-300 rounded-md px-2 py-1"
+                  onChange={(e) => {
+                    const selectedMonth = e.target.value;
+                    if (selectedMonth) {
+                      setFilteredStrykeList(
+                        strykeList.filter((stryke) => {
+                          const monthYear = new Date(stryke.entryTime).toLocaleString("default", { month: "long", year: "numeric" });
+                          return monthYear === selectedMonth;
+                        })
+                      );
+                    } else {
+                      setFilteredStrykeList(strykeList);
+                    }
+                  }}
+                >
+                  <option value="">All Months</option>
+                  {[...new Set(
+                    strykeList.map((stryke) =>
+                      new Date(stryke.entryTime).toLocaleString("default", { month: "long", year: "numeric" })
+                    )
+                  )]
+                    .sort((a, b) => new Date(`1 ${a}`).getTime() - new Date(`1 ${b}`).getTime())
+                    .map((monthYear) => (
+                      <option key={monthYear} value={monthYear}>
+                        {monthYear}
+                      </option>
+                    ))}
+                </select>
+                <span className="text-lg font-bold">Count: {filteredStrykeList.length}</span>
+              </div>
+
+              <table className="table-auto w-full border-collapse border border-gray-700 text-center">
                 <thead>
                   <tr className="bg-gray-200">
-                    <th className="border border-gray-300 px-4 py-2">Slno</th>
-                    <th className="border border-gray-300 px-4 py-2">Name</th>
-                    <th className="border border-gray-300 px-4 py-2">Added On</th>
-                    <th className="border border-gray-300 px-4 py-2">Entry At</th>
-                    <th className="border border-gray-300 px-4 py-2">Target</th>
-                    <th className="border border-gray-300 px-4 py-2">Stop Loss</th>
-                    <th className="border border-gray-300 px-4 py-2">Last Closing Value</th>
-                    <th className="border border-gray-300 px-4 py-2">Last Closing Value Date</th>
-                    
-                  
-                    <th className="border border-gray-300 px-4 py-2">Peak</th>
-                    <th className="border border-gray-300 px-4 py-2">Dip</th>
-                    <th className="border border-gray-300 px-4 py-2">Day Stats</th>
+                    <th className="border border-gray-700 px-4 py-2">Slno</th>
+                    <th className="border border-gray-700 px-4 py-2">Name</th>
+                    <th className="border border-gray-700 px-4 py-2">Added On</th>
+                    <th className="border border-gray-700 px-4 py-2">Entry At</th>
+                    <th className="border border-gray-700 px-4 py-2">Target</th>
+                    <th className="border border-gray-700 px-4 py-2">Stop Loss</th>
+                    <th className="border border-gray-700 px-4 py-2">Last Closing Value</th>
+                    <th className="border border-gray-700 px-4 py-2">Last Closing Value Date</th>
+                    {Object.keys(strykeList[0]?.dayStatsMap || {}).map((date) => (
+                      <th key={date} colSpan={2} className="border border-gray-700 px-4 py-2">
+                        {new Date(date).toLocaleDateString()}
+                        <span className="block h-px bg-gray-400 w-full"></span>
+                        <div className="flex justify-center space-x-2 mt-1">
+                          <td key={`${date}-peak`} className="px-4 py-2">Peak</td>
+                          <td className="px-0">
+                            <span className="block w-px h-full bg-gray-400 mr-3"></span>
+                          </td>
+                          <td key={`${date}-dip`} className="px-4 py-2">Dip</td>
+                        </div>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {strykeList.sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()).map((stryke, index) => (
+                  {filteredStrykeList.map((stryke, index) => (
                     <tr key={stryke.stockUuid} className="hover:bg-gray-100">
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">{index + 1}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">{stryke.companyName}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{index + 1}</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.companyName}</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">
                         {formatDate(stryke.entryTime)} {new Date(stryke.entryTime).toLocaleTimeString()}
                       </td>
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">₹{stryke.entryCandle.close?.toFixed(2)}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">₹{stryke.target?.toFixed(2)}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">₹{stryke.stopLoss?.toFixed(2)}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.entryCandle.close?.toFixed(2)}</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.target?.toFixed(2)}</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.stopLoss?.toFixed(2)}</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">
                         ₹{stryke.lastClosingValue?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.lastClosingValue)}%)
                       </td>
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">{formatDate(stryke.lastClosingValueDate)}</td>
-                    
-              
-                    
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">
-                        ₹{stryke.highestPrice?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.highestPrice)}%)
-                        <br />
-                        Time: {(calculateTimeDifference(stryke.entryTime, stryke.highestPriceTime) / (60 * 24)).toFixed(2)} Days
-                      </td>
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">
-                        ₹{stryke.lowestPrice?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.lowestPrice)}%)
-                        <br />
-                        Time: {(calculateTimeDifference(stryke.entryTime, stryke.lowestPriceTime) / (60 * 24)).toFixed(2)} Days
-                      </td>
-                      <td className="border border-gray-300 px-4 py-2 text-center align-middle">
-                        {/* Day stats content can be added here if needed */}
-                        {JSON.stringify(stryke.dayStatsMap)}
-                      </td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{formatDate(stryke.lastClosingValueDate)}</td>
+                      {Object.values(stryke.dayStatsMap || {}).flatMap((stats, index) => [
+                        <td key={`${index}-peak-value`} className="border border-gray-700 px-4 py-2">₹{stats.peak.toFixed(2)}</td>,
+                        <td key={`${index}-dip-value`} className="border border-gray-700 px-4 py-2">₹{stats.dip.toFixed(2)}</td>,
+                      ])}
                     </tr>
                   ))}
                 </tbody>
