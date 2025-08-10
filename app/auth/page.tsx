@@ -43,12 +43,14 @@ export default function AuthPage() {
     }
 
     // Hard check for PIN validation
+    debugger
     const validPins = ['726746', '2534'];
     if (!validPins.includes(pin)) {
       setError('Invalid PIN');
       setIsInvalid(true);
       setPin('');
     } else {
+      sessionStorage.setItem('isUserAuthorised', 'true');
       router.replace('/');
     }
   };
