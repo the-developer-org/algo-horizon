@@ -47,14 +47,10 @@ export default function AuthPage() {
     if (!validPins.includes(pin)) {
       setError('Invalid PIN');
       setIsInvalid(true);
-      return;
-    
-    }    
-
-     setPin(''); 
-      setIsInvalid(true);
-            router.replace('/');
-      
+      setPin('');
+    } else {
+      router.replace('/');
+    }
   };
 
   if (isLoading || !shouldShow) {
