@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { CallType, Trend, StrikeAnalysisRequest } from '@/components/types/strike-analysis';
+import { CallType } from '@/components/types/strike-analysis';
 import Link from 'next/link';
 import { debug } from 'console';
 
@@ -66,12 +66,12 @@ interface Stryke {
   remarks: string;
   stockUuid: string;
   lastClosingValue: number;
-  dayStatsMap: { [key: string]: dayStats };
+  dayStatsMap: { [key: string]: DayStats };
   lastClosingValueDate: string;
 
 }
 
-interface dayStats {
+interface DayStats {
   peak: number;
   dip: number;
 }
@@ -189,7 +189,11 @@ export default function StrikeAnalysisPage() {
     try {
       setIsLoading(true);
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      const response = await axios.post(`${backEndBaseUrl}/api/stryke/add-stock`, strykeInbound);
+      const response = await axios.post(`${backEndBaseUrl}/api/stryke/add-stock`, strykeInbound, {
+        headers: {
+          'accept': 'application/json',
+        },
+      });
       const addedStock = response.data.stryke;
       setAnalysisResult({
         ...addedStock,
@@ -217,7 +221,11 @@ export default function StrikeAnalysisPage() {
     try {
       setIsLoading(true);
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      await axios.get(`${backEndBaseUrl}/api/stryke/recalculate`);
+      await axios.get(`${backEndBaseUrl}/api/stryke/recalculate`, {
+        headers: {
+          'accept': 'application/json',
+        },
+      });
       fetchStrykes();
     } catch (error) {
       console.error('Error recalculating stryke analysis:', error);
@@ -232,8 +240,12 @@ export default function StrikeAnalysisPage() {
     setIsLoading(true);
     try {
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      const response = await axios.get(`${backEndBaseUrl}/api/stryke/fetch-all`);
-      const data: StrykeListResponse = response.data;
+      const response = await fetch(`${backEndBaseUrl}/api/stryke/fetch-all`, {
+        headers: {
+          'accept': 'application/json',
+        },
+      });
+      const data: StrykeListResponse = await response.json();
       setStrykeList(data.strykeList.map((stryke) => ({
         ...stryke,
         stockUuid: stryke.stockUuid, // Add stockUuid key
@@ -297,8 +309,20 @@ export default function StrikeAnalysisPage() {
     }
   };
 
+  const getTrendClass = (trend: string) => {
+    if (trend === 'BULLISH') return 'text-green-600';
+    if (trend === 'BEARISH') return 'text-red-600';
+    return 'text-orange-600';
+  };
+
+  const getStatusClass = (status: string) => {
+    if (status === 'Closed') return 'text-green-600';
+    if (status === 'In Progress') return 'text-orange-600';
+    return 'text-red-600';
+  };
+
   useEffect(() => {
-    if (showAllStrykes) {
+    if (showAllStrykes && strykeList.length === 0) {
       fetchStrykes();
     }
   }, [showAllStrykes]);
@@ -326,7 +350,11 @@ export default function StrikeAnalysisPage() {
   const deleteStryke = async (stockUuid: string) => {
     try {
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      await axios.get(`${backEndBaseUrl}/api/stryke/delete-stryke/${stockUuid}`);
+      await axios.get(`${backEndBaseUrl}/api/stryke/delete-stryke/${stockUuid}`, {
+        headers: {
+          'accept': 'application/json',
+        },
+      });
       setStrykeList((prevList) => prevList.filter((stryke) => stryke.stockUuid !== stockUuid));
       toast.success('Stryke analysis deleted successfully');
     } catch (error) {
@@ -335,8 +363,8 @@ export default function StrikeAnalysisPage() {
     }
   };
 
-  function calculatePercentageDifference(baseValue: number, comparer: number): string {
-    return ((comparer - baseValue) / baseValue * 100).toFixed(2);
+  function calculatePercentageDifference(baseValue: number, comparer: number): number {
+    return parseFloat(((comparer - baseValue) / baseValue * 100).toFixed(2));
   }
 
   // Format date from 'Fri Aug 01 00:00:00 IST 2025' to 'dd-mm-yyyy'
@@ -348,11 +376,26 @@ export default function StrikeAnalysisPage() {
     return `${day}-${month}-${year}`;
   }
 
+  const shouldShowEarlyProfits = (stryke: Stryke): boolean => {
+
+    const peakPerc: number = calculatePercentageDifference(stryke?.entryCandle.close, stryke?.highestPrice);
+    if( peakPerc === 0) return false;
+    const dipPerc : number = calculatePercentageDifference(stryke?.entryCandle.close, stryke?.lowestPrice);
+    if ((stryke.lowestPriceTime < stryke.highestPriceTime) && dipPerc < 1) {
+      return true;
+    }
+
+    return stryke.highestPriceTime < stryke.lowestPriceTime;
+  }
   const refreshStrykeData = async (stockUuid: string) => {
     try {
       setIsLoading(true);
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      await axios.get(`${backEndBaseUrl}/api/stryke/recalculate/${stockUuid}`);
+      await axios.get(`${backEndBaseUrl}/api/stryke/recalculate/${stockUuid}`, {
+        headers: {
+          'accept': 'application/json',
+        },
+      });
       fetchStrykes();
       toast.success('Stryke data recalculated successfully');
     } catch (error) {
@@ -362,6 +405,17 @@ export default function StrikeAnalysisPage() {
       setIsLoading(false);
     }
   };
+
+  // Define the handleRowClick function to fix the error
+  function handleRowClick(stryke: Stryke) {
+    setSelectedStryke(stryke);
+
+    // Ensure the selected row is scrolled into view on mobile
+    const rowElement = document.getElementById(`stryke-row-${stryke.id}`);
+    if (rowElement) {
+      rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
 
   if (isLoading) {
     return (
@@ -378,24 +432,19 @@ export default function StrikeAnalysisPage() {
 
       {!isLoading && (
         <>
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-4">
             <div className="flex items-center gap-4">
               <h1 className="text-2xl font-bold">Stryke Analysis</h1>
             </div>
-            <div className="flex gap-2">
-
-              {(!showStrykeForm) &&
-                (
-                  <Button
-                    onClick={() => {
-                      handleToggleView(true, false, false);
-                    }}
-                    className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                  >
-                    Show Stryke Form
-                  </Button>
-
-                )}
+            <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
+              {(!showStrykeForm) && (
+                <Button
+                  onClick={() => handleToggleView(true, false, false)}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                >
+                  Show Stryke Form
+                </Button>
+              )}
 
               {(!showAllStrykes) && (
                 <Button
@@ -411,9 +460,7 @@ export default function StrikeAnalysisPage() {
 
               {(showAllStrykes || showStrykeStats) && (
                 <Button
-                  onClick={() => {
-                    fetchStrykes();
-                  }}
+                  onClick={() => fetchStrykes()}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                 >
                   Refresh List
@@ -430,9 +477,7 @@ export default function StrikeAnalysisPage() {
                 >
                   Show Stryke Stats
                 </Button>
-              )
-              }
-
+              )}
 
               {showAllStrykes && (
                 <Button
@@ -449,16 +494,6 @@ export default function StrikeAnalysisPage() {
               )}
             </div>
           </div>
-
-          {/* Theme Toggle Button */}
-          {/* <div className="flex justify-end mb-4">
-            <Button
-              onClick={toggleTheme}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-            >
-              Switch to {theme === 'dark' ? 'Light' : 'Dark'} Mode
-            </Button>
-          </div> */}
 
           {showStrykeForm && (
             <div className="flex flex-col md:flex-row gap-4">
@@ -486,7 +521,7 @@ export default function StrikeAnalysisPage() {
                           <ul className="absolute z-50 w-full mt-1 border border-gray-300 rounded-md max-h-60 overflow-auto bg-white shadow-lg">
                             {suggestions.map((name, index) => (
                               <button
-                                key={`${name}-${index}`}
+                                key={name}
                                 type="button"
                                 onClick={() => handleSelectCompany(name)}
                                 className="p-2 cursor-pointer hover:bg-gray-100 w-full text-left"
@@ -505,7 +540,7 @@ export default function StrikeAnalysisPage() {
                     </div>
 
                     {/* Date & Time */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="date-select">Date</Label>
                         <Input
@@ -548,7 +583,7 @@ export default function StrikeAnalysisPage() {
                     </div>
 
                     {/* Stop Loss & Target */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="stop-loss">Stop Loss</Label>
                         <div className="relative">
@@ -709,14 +744,14 @@ export default function StrikeAnalysisPage() {
           )}
 
           {showAllStrykes && (
-            <div className="flex flex-col md:flex-row h-[calc(100vh-120px)] border rounded-lg overflow-hidden w-[calc(100vw-350px)] mx-auto">
-              {/* Left Sidebar - Stryke List (WhatsApp-like) */}
+            <div className="flex flex-col md:flex-row h-auto md:h-[calc(100vh-120px)] border rounded-lg overflow-hidden w-full md:w-[calc(100vw-350px)] mx-auto">
+              {/* Left Sidebar - Stryke List */}
               <div className="w-full md:w-1/3 border-r bg-indigo-50 overflow-y-auto">
-                <div className="p-3 bg-indigo-100 border-b sticky top-0 z-10 flex items-center gap-4">
+                <div className="p-3 bg-indigo-100 border-b sticky top-0 z-10 flex flex-col md:flex-row items-start md:items-center gap-4">
                   <Input
                     type="text"
                     placeholder="Search strykes..."
-                    className="w-1/2 bg-white"
+                    className="w-full md:w-1/2 bg-white"
                     onChange={(e) => {
                       const query = e.target.value.toLowerCase();
                       setFilteredStrykeList(
@@ -727,7 +762,7 @@ export default function StrikeAnalysisPage() {
                     }}
                   />
                   <select
-                    className="bg-white border rounded-md px-2 py-1"
+                    className="bg-white border rounded-md px-2 py-1 w-full md:w-auto"
                     onChange={(e) => {
                       const sortOption = e.target.value;
                       if (sortOption === "date") {
@@ -746,7 +781,7 @@ export default function StrikeAnalysisPage() {
                     <option value="name">Name</option>
                   </select>
                   <select
-                    className="bg-white border rounded-md px-2 py-1"
+                    className="bg-white border rounded-md px-2 py-1 w-full md:w-auto"
                     onChange={(e) => {
                       const selectedMonth = e.target.value;
                       if (selectedMonth) {
@@ -783,11 +818,12 @@ export default function StrikeAnalysisPage() {
                   </div>
                 ) : (
                   <div className="divide-y">
-                    {filteredStrykeList.map((stryke, index) => (
+                    {filteredStrykeList.map((stryke) => (
                       <button
-                        key={`${stryke?.id}-${index}`}
+                        key={stryke.id}
+                        id={`stryke-row-${stryke.id}`}
                         className={`w-full text-left p-3 hover:bg-teal-100 cursor-pointer transition-colors ${selectedStryke?.id === stryke?.id ? 'bg-teal-50 border-l-4 border-teal-500' : ''}`}
-                        onClick={() => setSelectedStryke(stryke)}
+                        onClick={() => handleRowClick(stryke)}
                         aria-pressed={selectedStryke?.id === stryke?.id}
                       >
                         <div className="flex justify-between items-start">
@@ -816,17 +852,6 @@ export default function StrikeAnalysisPage() {
                           </div>
                         </div>
                         <div className="flex gap-2 mt-1">
-                          {/* <span className="px-3 py-1 text-sm bg-gray-200 rounded-md">
-                            {stryke?.callType}
-                          </span> */}
-                          {/* <span className={`text-sm px-3 py-1 rounded-md ${stryke?.postEntryTrend === 'BULLISH'
-                            ? 'bg-green-200 text-green-800'
-                            : stryke?.postEntryTrend === 'BEARISH'
-                              ? 'bg-red-300 text-red-800'
-                              : 'bg-yellow-300 text-yellow-800'
-                            }`}>
-                            {stryke?.postEntryTrend}
-                          </span> */}
                           <span className={`text-sm px-3 py-1 rounded-md ${stryke?.hitTarget
                             ? 'bg-green-200 text-green-800'
                             : stryke?.hitStopLoss
@@ -853,10 +878,10 @@ export default function StrikeAnalysisPage() {
               <div className="w-full md:w-2/3 overflow-y-auto">
                 {selectedStryke ? (
                   <div className="p-6 bg-teal-50 rounded-lg shadow-md">
-                    <div className="flex justify-between items-center mb-6 pb-4 border-b">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 pb-4 border-b">
                       <h2 className="text-2xl font-bold text-gray-800 bg-gradient-to-r from-teal-400 via-blue-500 to-purple-600 text-transparent bg-clip-text">{selectedStryke?.companyName}</h2>
                       <h2 className="text-left text-xl font-semibold text-gray-800 bg-gradient-to-r from-yellow-400 via-orange-500 to-orange-600 text-transparent bg-clip-text">Listed {Math.max(calculateTimeDifference(selectedStryke?.entryTime, new Date().toDateString()) / (60 * 24), 0).toFixed(0)} days ago</h2>
-                      <div className="flex gap-3">
+                      <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
                         <span
                           className={`px-3 py-1 text-sm rounded-md ${selectedStryke?.preEntryTrend === 'BULLISH' ? 'bg-green-200 text-green-800' : selectedStryke?.preEntryTrend === 'BEARISH' ? 'bg-red-300 text-red-800' : 'bg-yellow-300 text-yellow-800'}`}
                         >
@@ -898,6 +923,25 @@ export default function StrikeAnalysisPage() {
                         </div>
                       )}
 
+                       {shouldShowEarlyProfits(selectedStryke) &&(
+                        <div className="mb-6">
+                          <h3 className="text-sm font-medium text-gray-500 mb-2">
+                            Minimum Profit Details
+                          </h3>
+                          <div className="bg-teal-100 p-4 rounded">
+                            { (
+                              <div className="flex justify-between">
+                                <span>
+                                  Earliest Profit: <span className="text-green-600 font-medium">₹{((selectedStryke.highestPrice - selectedStryke.entryCandle.close).toFixed(2))} ({((selectedStryke.highestPrice - selectedStryke.entryCandle.close) / selectedStryke.entryCandle.close * 100).toFixed(2)}%) in {(calculateTimeDifference(selectedStryke?.entryTime, selectedStryke?.highestPriceTime) / (60 * 24)).toFixed(2)} Days</span>
+                                </span>
+                                <span>If invested 1,00,000 then it would be  <span className="text-green-600 font-medium">₹{((100000 / selectedStryke.entryCandle.close) * selectedStryke.highestPrice).toFixed(2)}</span>
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Group 2: Entry Details */}
                       <div className="space-y-4 bg-gray-100 p-4 rounded-md">
                         <h3 className="text-lg font-medium text-gray-700">Entry Details</h3>
@@ -920,7 +964,10 @@ export default function StrikeAnalysisPage() {
                           { label: "Status", value: selectedStryke?.hitTarget ? "Closed" : selectedStryke?.hitStopLoss ? "Closed" : "In Progress", textColor: selectedStryke?.hitTarget ? "text-green-600" : selectedStryke?.hitStopLoss ? "text-red-600" : "text-orange-600" },
                           { label: "Last Closing Value", value: `₹${selectedStryke?.lastClosingValue?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.lastClosingValue)}%)` },
                           { label: "Last Closing Value Date", value: formatDate(selectedStryke?.lastClosingValueDate) },
-                          // { label: "RSI", value: selectedStryke?.rsi?.toFixed(2) },
+                          { label: "Volume", value: selectedStryke?.entryCandle.volume ?
+                              selectedStryke.entryCandle.volume >= 1000000 ? `${(selectedStryke.entryCandle.volume / 1000000).toFixed(2)}M` :
+                                selectedStryke.entryCandle.volume >= 1000 ? `${(selectedStryke.entryCandle.volume / 1000).toFixed(2)}K` :
+                                  selectedStryke.entryCandle.volume : 'N/A' },
                           { label: "Peak in 30 Minutes", value: selectedStryke?.peakIn30M === selectedStryke?.entryCandle.close ? "No Change" : `₹${selectedStryke?.peakIn30M?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.peakIn30M)}%)` },
                           { label: "Dip in 30 Minutes", value: selectedStryke?.dipIn30M === selectedStryke?.entryCandle.close ? "No Change" : `₹${selectedStryke?.dipIn30M?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.dipIn30M)}%)` },
                         ].map((item, index) => (
@@ -937,10 +984,10 @@ export default function StrikeAnalysisPage() {
                         {[
                           { label: "Stop Loss", value: `₹${selectedStryke?.stopLoss?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.stopLoss)}%)` },
                           { label: "Target", value: `₹${selectedStryke?.target?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.target)}%)` },
-                          { label: "Peak Price", value: `₹${selectedStryke?.highestPrice?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.highestPrice)}%)` },
-                          { label: "Time Taken (Peak)", value: `${(calculateTimeDifference(selectedStryke?.entryTime, selectedStryke?.highestPriceTime) / (60 * 24)).toFixed(2)} Days` },
-                          { label: "Dip Price", value: `₹${selectedStryke?.lowestPrice?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.lowestPrice)}%)` },
-                          { label: "Time Taken (Dip)", value: `${(calculateTimeDifference(selectedStryke?.entryTime, selectedStryke?.lowestPriceTime) / (60 * 24)).toFixed(2)} Days` },
+                          { label: "Peak Price", value: selectedStryke?.highestPrice === selectedStryke?.entryCandle.close ? "No Change" : `₹${selectedStryke?.highestPrice?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.highestPrice)}%)` },
+                          { label: "Time Taken (Peak)", value: selectedStryke?.highestPrice > selectedStryke?.entryCandle.close ? `${(calculateTimeDifference(selectedStryke?.entryTime, selectedStryke?.highestPriceTime) / (60 * 24)).toFixed(2)} Days` : "N/A" },
+                          { label: "Dip Price", value: selectedStryke?.lowestPrice === selectedStryke?.entryCandle.close ? "No Change" : `₹${selectedStryke?.lowestPrice?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.lowestPrice)}%)` },
+                          { label: "Time Taken (Dip)", value: selectedStryke?.lowestPrice < selectedStryke?.entryCandle.close ? `${(calculateTimeDifference(selectedStryke?.entryTime, selectedStryke?.lowestPriceTime) / (60 * 24)).toFixed(2)} Days` : "N/A" },
                         ].map((item, index) => (
                           <div key={index} className="flex justify-between items-center border-b pb-2">
                             <h3 className="text-sm font-medium text-gray-600">{item.label}</h3>
@@ -1082,6 +1129,7 @@ export default function StrikeAnalysisPage() {
                     <th className="border border-gray-700 px-4 py-2">Entry At</th>
                     <th className="border border-gray-700 px-4 py-2">Target</th>
                     <th className="border border-gray-700 px-4 py-2">Stop Loss</th>
+                    <th className='border border-gray-700 px-4 py-2'>Early Profits</th>
                     <th className="border border-gray-700 px-4 py-2">Last Closing Value</th>
                     <th className="border border-gray-700 px-4 py-2">Last Closing Value Date</th>
                     {Object.keys(strykeList[0]?.dayStatsMap || {}).map((date) => (
@@ -1110,6 +1158,15 @@ export default function StrikeAnalysisPage() {
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.entryCandle.close?.toFixed(2)}</td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.target?.toFixed(2)}</td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.stopLoss?.toFixed(2)}</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">
+                        {shouldShowEarlyProfits(stryke) ? (
+                          <span className="text-green-600 font-medium">
+                            ₹{((stryke.highestPrice - stryke.entryCandle.close).toFixed(2))} ({((stryke.highestPrice - stryke.entryCandle.close) / stryke.entryCandle.close * 100).toFixed(2)}%)
+                          </span>
+                        ) : (
+                          'N/A'
+                        )}
+                      </td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">
                         ₹{stryke.lastClosingValue?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.lastClosingValue)}%)
                       </td>
