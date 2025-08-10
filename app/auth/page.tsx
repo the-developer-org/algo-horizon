@@ -42,17 +42,13 @@ export default function AuthPage() {
       return;
     }
 
-    if(pin !== '726746' && pin !== '2534') {
+    // Hard check for PIN validation
+    const validPins = ['726746', '2534'];
+    if (!validPins.includes(pin)) {
       setError('Invalid PIN');
       setIsInvalid(true);
       return;
-    }
-
-    setIsSubmitting(true);
-    setError('');
-    setIsInvalid(false);
-
-    
+    }    
       
   };
 
