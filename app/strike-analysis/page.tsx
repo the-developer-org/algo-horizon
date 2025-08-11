@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { CallType } from '@/components/types/strike-analysis';
 import Link from 'next/link';
 import { debug } from 'console';
+import { stat } from 'fs';
 
 // Define the Stryke interface based on the provided model
 interface Candle {
@@ -66,6 +67,7 @@ interface Stryke {
   remarks: string;
   stockUuid: string;
   lastClosingValue: number;
+  avgVolume: number;
   dayStatsMap: { [key: string]: DayStats };
   lastClosingValueDate: string;
 
@@ -80,6 +82,9 @@ interface StrykeListResponse {
   strykeList: Stryke[];
   statusText: string;
 }
+
+// Define a type alias for filter order
+export type FilterOrder = 'asc' | 'desc' | null;
 
 export default function StrikeAnalysisPage() {
   // State
@@ -103,6 +108,14 @@ export default function StrikeAnalysisPage() {
   const [showStrykeForm, setShowStrykeForm] = useState(() => true);
   const [showAllStrykes, setShowAllStrykes] = useState(() => false);
   const [showStrykeStats, setShowStrykeStats] = useState(() => false);
+  const [activeFilter, setActiveFilter] = useState({
+    date: null as FilterOrder,
+    name: null as FilterOrder,
+    avgVolume: null as FilterOrder,
+    target: null as FilterOrder,
+    entry: null as FilterOrder,
+  });
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
 
   // Fetch KeyMapping from Redis on mount
@@ -364,7 +377,7 @@ export default function StrikeAnalysisPage() {
   };
 
   function calculatePercentageDifference(baseValue: number, comparer: number): number {
-    if(baseValue === comparer) return 0;
+    if (baseValue === comparer) return 0;
     return parseFloat(((comparer - baseValue) / baseValue * 100).toFixed(2));
   }
 
@@ -380,8 +393,8 @@ export default function StrikeAnalysisPage() {
   const shouldShowEarlyProfits = (stryke: Stryke): boolean => {
 
     const peakPerc: number = Math.abs(calculatePercentageDifference(stryke?.entryCandle.close, stryke?.highestPrice));
-    if( peakPerc === 0) return false;
-    const dipPerc : number = Math.abs(calculatePercentageDifference(stryke?.entryCandle.close, stryke?.lowestPrice));
+    if (peakPerc === 0) return false;
+    const dipPerc: number = Math.abs(calculatePercentageDifference(stryke?.entryCandle.close, stryke?.lowestPrice));
     if ((stryke.lowestPriceTime < stryke.highestPriceTime) && dipPerc < 1) {
       return true;
     }
@@ -762,54 +775,81 @@ export default function StrikeAnalysisPage() {
                       );
                     }}
                   />
-                  <select
-                    className="bg-white border rounded-md px-2 py-1 w-full md:w-auto"
-                    onChange={(e) => {
-                      const sortOption = e.target.value;
-                      if (sortOption === "date") {
+                  {/* Individual Filter Buttons */}
+                  <div className="flex gap-2 items-center mb-4">
+                    <button
+                      className="bg-blue-500 text-white px-3 py-1 rounded-md"
+                      onClick={() => {
                         setFilteredStrykeList(
-                          [...filteredStrykeList].sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime())
+                          [...strykeList].sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime())
                         );
-                      } else if (sortOption === "name") {
+                      }}
+                    >
+                      Sort by Date
+                    </button>
+
+                    <button
+                      className="bg-blue-500 text-white px-3 py-1 rounded-md"
+                      onClick={() => {
                         setFilteredStrykeList(
-                          [...filteredStrykeList].sort((a, b) => a.companyName.localeCompare(b.companyName))
+                          [...strykeList].sort((a, b) => a.companyName.localeCompare(b.companyName))
                         );
-                      }
-                    }}
-                  >
-                    <option value="">Sort By</option>
-                    <option value="date">Date</option>
-                    <option value="name">Name</option>
-                  </select>
-                  <select
-                    className="bg-white border rounded-md px-2 py-1 w-full md:w-auto"
-                    onChange={(e) => {
-                      const selectedMonth = e.target.value;
-                      if (selectedMonth) {
+                      }}
+                    >
+                      Sort by Name
+                    </button>
+
+                    <button
+                      className="bg-blue-500 text-white px-3 py-1 rounded-md"
+                      onClick={() => {
                         setFilteredStrykeList(
-                          strykeList.filter((stryke) => {
-                            const monthYear = new Date(stryke.entryTime).toLocaleString("default", { month: "long", year: "numeric" });
-                            return monthYear === selectedMonth;
-                          })
+                          [...strykeList].sort((a, b) => a.avgVolume - b.avgVolume)
                         );
-                      } else {
-                        setFilteredStrykeList(strykeList);
-                      }
-                    }}
-                  >
-                    <option value="">All Months</option>
-                    {[...new Set(
-                      strykeList.map((stryke) =>
-                        new Date(stryke.entryTime).toLocaleString("default", { month: "long", year: "numeric" })
-                      )
-                    )]
-                      .sort((a, b) => new Date(`1 ${a}`).getTime() - new Date(`1 ${b}`).getTime())
-                      .map((monthYear) => (
+                      }}
+                    >
+                      Sort by Avg Volume (Asc)
+                    </button>
+
+                    <button
+                      className="bg-blue-500 text-white px-3 py-1 rounded-md"
+                      onClick={() => {
+                        setFilteredStrykeList(
+                          [...strykeList].sort((a, b) => b.avgVolume - a.avgVolume)
+                        );
+                      }}
+                    >
+                      Sort by Avg Volume (Desc)
+                    </button>
+                  </div>
+                  <div className="flex gap-2 items-center mb-4">
+                    <select
+                      className="border border-gray-300 rounded-md px-2 py-1"
+                      value={selectedMonth || ''}
+                      onChange={(e) => {
+                        const monthYear = e.target.value;
+                        setSelectedMonth(monthYear || null);
+                        setFilteredStrykeList(
+                          monthYear
+                            ? strykeList.filter((stryke) => {
+                              const addedMonthYear = new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' });
+                              return addedMonthYear === monthYear;
+                            })
+                            : strykeList
+                        );
+                      }}
+                    >
+                      <option value="">All Months</option>
+                      {Array.from(new Set(
+                        strykeList.map((stryke) =>
+                          new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' })
+                        )
+                      )).map((monthYear) => (
                         <option key={monthYear} value={monthYear}>
                           {monthYear}
                         </option>
                       ))}
-                  </select>
+                    </select>
+                  </div>
                   <span className="text-lg font-bold">Count: {filteredStrykeList.length}</span>
                 </div>
 
@@ -924,13 +964,13 @@ export default function StrikeAnalysisPage() {
                         </div>
                       )}
 
-                       {shouldShowEarlyProfits(selectedStryke) &&(
+                      {shouldShowEarlyProfits(selectedStryke) && (
                         <div className="mb-6">
                           <h3 className="text-sm font-medium text-gray-500 mb-2">
                             Minimum Profit Details
                           </h3>
                           <div className="bg-teal-100 p-4 rounded">
-                            { (
+                            {(
                               <div className="flex justify-between">
                                 <span>
                                   Earliest Profit: <span className="text-green-600 font-medium">₹{((selectedStryke.highestPrice - selectedStryke.entryCandle.close).toFixed(2))} ({((selectedStryke.highestPrice - selectedStryke.entryCandle.close) / selectedStryke.entryCandle.close * 100).toFixed(2)}%) in {(calculateTimeDifference(selectedStryke?.entryTime, selectedStryke?.highestPriceTime) / (60 * 24)).toFixed(2)} Days</span>
@@ -965,10 +1005,26 @@ export default function StrikeAnalysisPage() {
                           { label: "Status", value: selectedStryke?.hitTarget ? "Closed" : selectedStryke?.hitStopLoss ? "Closed" : "In Progress", textColor: selectedStryke?.hitTarget ? "text-green-600" : selectedStryke?.hitStopLoss ? "text-red-600" : "text-orange-600" },
                           { label: "Last Closing Value", value: `₹${selectedStryke?.lastClosingValue?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.lastClosingValue)}%)` },
                           { label: "Last Closing Value Date", value: formatDate(selectedStryke?.lastClosingValueDate) },
-                          { label: "Volume", value: selectedStryke?.entryCandle.volume ?
-                              selectedStryke.entryCandle.volume >= 1000000 ? `${(selectedStryke.entryCandle.volume / 1000000).toFixed(2)}M` :
-                                selectedStryke.entryCandle.volume >= 1000 ? `${(selectedStryke.entryCandle.volume / 1000).toFixed(2)}K` :
-                                  selectedStryke.entryCandle.volume : 'N/A' },
+                          {
+                            label: "Entry Day Volume", value: (() => {
+                              if (!selectedStryke?.entryDaysCandle.volume) return 'N/A';
+                              const vol = selectedStryke.entryDaysCandle.volume;
+                              const avgVol = selectedStryke.avgVolume;
+                              const formattedVol = vol >= 1000000 ? `${(vol / 1000000).toFixed(2)}M` : vol >= 1000 ? `${(vol / 1000).toFixed(2)}K` : vol;
+                              if (!avgVol) return `${formattedVol} (N/A)`;
+                              const diffRatio = (vol / avgVol).toFixed(2);
+                              return `${formattedVol} (${diffRatio}x)`;
+                            })()
+                          },
+                          {
+                            label: "Average Volume", value: (() => {
+                              if (!selectedStryke?.avgVolume) return 'N/A';
+                              const avgVol = selectedStryke.avgVolume;
+                              if (avgVol >= 1000000) return `${(avgVol / 1000000).toFixed(2)}M`;
+                              if (avgVol >= 1000) return `${(avgVol / 1000).toFixed(2)}K`;
+                              return avgVol;
+                            })()
+                          },
                           { label: "Peak in 30 Minutes", value: selectedStryke?.peakIn30M === selectedStryke?.entryCandle.close ? "No Change" : `₹${selectedStryke?.peakIn30M?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.peakIn30M)}%)` },
                           { label: "Dip in 30 Minutes", value: selectedStryke?.dipIn30M === selectedStryke?.entryCandle.close ? "No Change" : `₹${selectedStryke?.dipIn30M?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.dipIn30M)}%)` },
                         ].map((item, index) => (
@@ -1023,7 +1079,7 @@ export default function StrikeAnalysisPage() {
                             {Object.entries(selectedStryke?.dayStatsMap || {})
                               .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
                               .map(([date, stats]) => (
-                                <tr key={date} className="hover:bg-gray-100">
+                                <tr key={`${selectedStryke.id}-${date}`} className="hover:bg-gray-100">
                                   <td className="border border-gray-300 px-2 py-1 text-center align-middle">{new Date(date).toLocaleDateString()}</td>
                                   <td className="border border-gray-300 px-2 py-1 text-center align-middle">
                                     ₹{stats.peak.toFixed(2)}
@@ -1062,7 +1118,8 @@ export default function StrikeAnalysisPage() {
               <h2 className="text-xl font-bold mb-4">Stryke Stats</h2>
 
               {/* Search, Sort, and Filter Controls */}
-              <div className="flex gap-2 items-center mb-4">
+              <div className="flex flex-wrap gap-2 items-center mb-4">
+                {/* Search Input */}
                 <input
                   type="text"
                   placeholder="Search by name..."
@@ -1076,79 +1133,149 @@ export default function StrikeAnalysisPage() {
                     );
                   }}
                 />
+
+                {/* Month Filter */}
                 <select
                   className="border border-gray-300 rounded-md px-2 py-1"
+                  value={selectedMonth || ''}
                   onChange={(e) => {
-                    const sortOption = e.target.value;
-                    if (sortOption === "date") {
-                      setFilteredStrykeList(
-                        [...filteredStrykeList].sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime())
-                      );
-                    } else if (sortOption === "name") {
-                      setFilteredStrykeList(
-                        [...filteredStrykeList].sort((a, b) => a.companyName.localeCompare(b.companyName))
-                      );
-                    }
-                  }}
-                >
-                  <option value="">Sort By</option>
-                  <option value="date">Date</option>
-                  <option value="name">Name</option>
-                </select>
-                <select
-                  className="border border-gray-300 rounded-md px-2 py-1"
-                  onChange={(e) => {
-                    const selectedMonth = e.target.value;
-                    if (selectedMonth) {
-                      setFilteredStrykeList(
-                        strykeList.filter((stryke) => {
-                          const monthYear = new Date(stryke.entryTime).toLocaleString("default", { month: "long", year: "numeric" });
-                          return monthYear === selectedMonth;
+                    const monthYear = e.target.value;
+                    setSelectedMonth(monthYear || null);
+                    setFilteredStrykeList(
+                      monthYear
+                        ? strykeList.filter((stryke) => {
+                          const addedMonthYear = new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' });
+                          return addedMonthYear === monthYear;
                         })
-                      );
-                    } else {
-                      setFilteredStrykeList(strykeList);
-                    }
+                        : strykeList
+                    );
                   }}
                 >
                   <option value="">All Months</option>
-                  {[...new Set(
+                  {Array.from(new Set(
                     strykeList.map((stryke) =>
-                      new Date(stryke.entryTime).toLocaleString("default", { month: "long", year: "numeric" })
+                      new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' })
                     )
-                  )]
-                    .sort((a, b) => new Date(`1 ${a}`).getTime() - new Date(`1 ${b}`).getTime())
-                    .map((monthYear) => (
-                      <option key={monthYear} value={monthYear}>
-                        {monthYear}
-                      </option>
-                    ))}
+                  )).map((monthYear) => (
+                    <option key={monthYear} value={monthYear}>
+                      {monthYear}
+                    </option>
+                  ))}
                 </select>
+
+                {/* Buttons */}
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.date ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, date: newOrder });
+                    setFilteredStrykeList(
+                      [...strykeList].sort((a, b) =>
+                        newOrder === 'asc'
+                          ? new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()
+                          : new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime()
+                      )
+                    );
+                  }}
+                >
+                  Sort by Date ({activeFilter.date || 'off'})
+                </button>
+
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.name ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const newOrder = activeFilter.name === 'asc' ? 'desc' : activeFilter.name === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, name: newOrder });
+                    setFilteredStrykeList(
+                      [...strykeList].sort((a, b) =>
+                        newOrder === 'asc'
+                          ? a.companyName.localeCompare(b.companyName)
+                          : b.companyName.localeCompare(a.companyName)
+                      )
+                    );
+                  }}
+                >
+                  Sort by Name ({activeFilter.name || 'off'})
+                </button>
+
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.entry ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const newOrder = activeFilter.entry === 'asc' ? 'desc' : activeFilter.entry === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, entry: newOrder });
+                    setFilteredStrykeList(
+                      newOrder
+                        ? [...strykeList].sort((a, b) =>
+                          newOrder === 'asc' ? a.entryCandle.close - b.entryCandle.close : b.entryCandle.close - a.entryCandle.close
+                        )
+                        : strykeList
+                    );
+                  }}
+                >
+                  Sort by Entry ({activeFilter.entry || 'off'})
+                </button>
+
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.target ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const newOrder = activeFilter.target === 'asc' ? 'desc' : activeFilter.target === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, target: newOrder });
+                    setFilteredStrykeList(
+                      newOrder
+                        ? [...strykeList].sort((a, b) =>
+                          newOrder === 'asc' ? a.target - b.target : b.target - a.target
+                        )
+                        : strykeList
+                    );
+                  }}
+                >
+                  Sort by Target ({activeFilter.target || 'off'})
+                </button>
+
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.avgVolume ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const newOrder = activeFilter.avgVolume === 'asc' ? 'desc' : activeFilter.avgVolume === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, avgVolume: newOrder });
+                    setFilteredStrykeList(
+                      newOrder
+                        ? [...strykeList].sort((a, b) =>
+                          newOrder === 'asc' ? a.avgVolume - b.avgVolume : b.avgVolume - a.avgVolume
+                        )
+                        : strykeList
+                    );
+                  }}
+                >
+                  Sort by Avg Volume ({activeFilter.avgVolume || 'off'})
+                </button>
+
+                {/* Count */}
                 <span className="text-lg font-bold">Count: {filteredStrykeList.length}</span>
               </div>
+
 
               <table className="table-auto w-full border-collapse border border-gray-700 text-center">
                 <thead>
                   <tr className="bg-gray-200">
                     <th className="border border-gray-700 px-4 py-2">Slno</th>
-                    <th className="border border-gray-700 px-4 py-2">Name</th>
-                    <th className="border border-gray-700 px-4 py-2">Added On</th>
+                    <th className="border border-gray-700 px-8 py-2">Name</th>
+                    <th className="border border-gray-700 px-10 py-2">Added On</th>
                     <th className="border border-gray-700 px-4 py-2">Entry At</th>
                     <th className="border border-gray-700 px-4 py-2">Target</th>
                     <th className="border border-gray-700 px-4 py-2">Stop Loss</th>
-                    <th className='border border-gray-700 px-4 py-2'>Early Profits</th>
-                    <th className="border border-gray-700 px-4 py-2">Last Closing Value</th>
-                    <th className="border border-gray-700 px-4 py-2">Last Closing Value Date</th>
-                    {Object.keys(strykeList[0]?.dayStatsMap || {}).map((date) => (
-                      <th key={date} colSpan={2} className="border border-gray-700 px-4 py-2">
-                        {new Date(date).toLocaleDateString()}
+                    <th className='border border-gray-700 px-8 py-2'>Early Profits</th>
+                    <th className="border border-gray-700 px-4 py-2">Entry Day Volume</th>
+                    <th className="border border-gray-700 px-4 py-2">Avg. Volume</th>
+                    {[...Array(7)].map((_, i) => (
+                      <th key={`day-${i + 1}`} colSpan={2} className="border border-gray-700 px-4 py-2">
+                        Day -{i + 1}
                         <span className="block h-px bg-gray-400 w-full"></span>
                         <div className="flex justify-center space-x-2 mt-1">
-                          <td key={`${date}-peak`} className="px-4 py-2">Peak</td>
+                          <td key={`day-${i + 1}-peak`} className="px-4 py-2">Peak</td>
                           <td className="px-0">
                             <span className="block w-px h-full bg-gray-400 mr-3"></span>
                           </td>
-                          <td key={`${date}-dip`} className="px-4 py-2">Dip</td>
+                          <td key={`day-${i + 1}-dip`} className="px-4 py-2">Dip</td>
                         </div>
                       </th>
                     ))}
@@ -1163,24 +1290,40 @@ export default function StrikeAnalysisPage() {
                         {formatDate(stryke.entryTime)} {new Date(stryke.entryTime).toLocaleTimeString()}
                       </td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.entryCandle.close?.toFixed(2)}</td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.target?.toFixed(2)}</td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.stopLoss?.toFixed(2)}</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.target?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.target)})</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.stopLoss?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.stopLoss)})</td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">
                         {shouldShowEarlyProfits(stryke) ? (
                           <span className="text-green-600 font-medium">
-                            ₹{((stryke.highestPrice - stryke.entryCandle.close).toFixed(2))} ({((stryke.highestPrice - stryke.entryCandle.close) / stryke.entryCandle.close * 100).toFixed(2)}%)
+                            ₹{((stryke.highestPrice - stryke.entryCandle.close).toFixed(2))} ({((stryke.highestPrice - stryke.entryCandle.close) / stryke.entryCandle.close * 100).toFixed(2)}%) {(calculateTimeDifference(stryke?.entryTime, stryke?.highestPriceTime) / (60 * 24)).toFixed(2)} Days
                           </span>
                         ) : (
                           'N/A'
                         )}
                       </td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">
-                        ₹{stryke.lastClosingValue?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.lastClosingValue)}%)
+                        {(() => {
+                          if (!stryke?.entryDaysCandle.volume) return 'N/A';
+                          const vol = stryke.entryDaysCandle.volume;
+                          const avgVol = stryke.avgVolume;
+                          const formattedVol = vol >= 1000000 ? `${(vol / 1000000).toFixed(2)}M` : vol >= 1000 ? `${(vol / 1000).toFixed(2)}K` : vol;
+                          if (!avgVol) return `${formattedVol} (N/A)`;
+                          const diffRatio = (vol / avgVol).toFixed(2);
+                          return `${formattedVol} (${diffRatio}x)`;
+                        })()}
                       </td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{formatDate(stryke.lastClosingValueDate)}</td>
-                      {Object.values(stryke.dayStatsMap || {}).flatMap((stats) => [
-                        <td key={`${stryke.stockUuid}-peak-value`} className="border border-gray-700 px-4 py-2">₹{stats.peak.toFixed(2)}</td>,
-                        <td key={`${stryke.stockUuid}-dip-value`} className="border border-gray-700 px-4 py-2">₹{stats.dip.toFixed(2)}</td>,
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">
+                        {(() => {
+                          if (!stryke?.avgVolume) return <span>N/A</span>;
+                          const avgVol = stryke.avgVolume;
+                          if (avgVol >= 1000000) return <span>{(avgVol / 1000000).toFixed(2)}M</span>;
+                          if (avgVol >= 1000) return <span>{(avgVol / 1000).toFixed(2)}K</span>;
+                          return <span>{avgVol}</span>;
+                        })()}
+                      </td>
+                      {Object.values(stryke.dayStatsMap || {}).flatMap((stats, index2) => [
+                        <td key={`${stryke.stockUuid}-${index2}-peak-value`} className={`border border-gray-700 px-4 py-2 ${calculatePercentageDifference(stryke.entryCandle.close, stats.peak) > 0 ? 'text-green-600' : 'text-red-600'}`}>₹{stats.peak.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stats.peak)})</td>,
+                        <td key={`${stryke.stockUuid}-${index2}-dip-value`} className={`border border-gray-700 px-4 py-2 ${calculatePercentageDifference(stryke.entryCandle.close, stats.dip) > 0 ? 'text-green-600' : 'text-red-600'}`}>₹{stats.dip.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stats.dip)})</td>,
                       ])}
                     </tr>
                   ))}
