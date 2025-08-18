@@ -23,7 +23,7 @@ export default function IncompleteCompaniesPage() {
     setError(null);
     try {
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      const response = await axios.get(`${backEndBaseUrl}/api/local-historical-data/get-incomplete-companies`);
+      const response = await axios.get(`${backEndBaseUrl}/api/chart-historical-data/get-incomplete-companies`);
       console.log('API Response:', response.data.incompleteList);
       
       // Store raw response for debugging

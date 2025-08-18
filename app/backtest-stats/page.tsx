@@ -24,7 +24,7 @@ export default function BackTestStatsPage() {
     setError(null); // Clear any previous errors
     try {
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      const response = await axios.get(`${backEndBaseUrl}/api/local-historical-data/back-test-stats`);
+      const response = await axios.get(`${backEndBaseUrl}/api/chart-historical-data/back-test-stats`);
       console.log('API Response:', response.data.backTestStats); // Debug log
       
       // Store raw response for debugging

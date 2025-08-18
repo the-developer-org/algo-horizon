@@ -85,6 +85,7 @@ interface StrykeListResponse {
 
 // Define a type alias for filter order
 export type FilterOrder = 'asc' | 'desc' | null;
+export type TrendFilter = 'BULLISH' | 'BEARISH' | null;
 
 export default function StrikeAnalysisPage() {
   // State
@@ -114,6 +115,7 @@ export default function StrikeAnalysisPage() {
     avgVolume: null as FilterOrder,
     target: null as FilterOrder,
     entry: null as FilterOrder,
+  trend: null as TrendFilter,
   });
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
@@ -430,6 +432,121 @@ export default function StrikeAnalysisPage() {
       rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }
+
+  // Helpers to export Stryke Stats table
+  const csvEscape = (val: any) => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (/[",\n]/.test(str)) {
+      return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+  };
+
+  const buildStrykeStatsRows = () => {
+    const header: string[] = [
+      'Slno',
+      'Name',
+      'Added On',
+      'Entry At',
+      'Target',
+      'Stop Loss',
+      'Early Profits',
+      'Entry Day Volume',
+      'Avg. Volume',
+      'Day -1 Peak', 'Day -1 Dip',
+      'Day -2 Peak', 'Day -2 Dip',
+      'Day -3 Peak', 'Day -3 Dip',
+      'Day -4 Peak', 'Day -4 Dip',
+      'Day -5 Peak', 'Day -5 Dip',
+      'Day -6 Peak', 'Day -6 Dip',
+      'Day -7 Peak', 'Day -7 Dip',
+    ];
+
+    const rows: string[][] = [header];
+
+    filteredStrykeList.forEach((stryke, index) => {
+      const addedOn = `${formatDate(stryke.entryTime)} ${new Date(stryke.entryTime).toLocaleTimeString()}`;
+      const entryAt = `₹${stryke.entryCandle.close?.toFixed(2)}`;
+      const target = `₹${stryke.target?.toFixed(2)} (${calculatePercentageDifference(stryke.entryCandle.close, stryke.target)})`;
+      const stopLoss = `₹${stryke.stopLoss?.toFixed(2)} (${calculatePercentageDifference(stryke.entryCandle.close, stryke.stopLoss)})`;
+
+      const earlyProfits = (() => {
+        if (!shouldShowEarlyProfits(stryke)) return 'N/A';
+        const diffVal = (stryke.highestPrice - stryke.entryCandle.close);
+        const pct = ((diffVal / stryke.entryCandle.close) * 100).toFixed(2);
+        const days = (calculateTimeDifference(stryke?.entryTime, stryke?.highestPriceTime) / (60 * 24)).toFixed(2);
+        return `₹${diffVal.toFixed(2)} (${pct}%) ${days} Days`;
+      })();
+
+      const entryDayVol = (() => {
+        const vol = stryke?.entryDaysCandle?.volume;
+        if (!vol) return 'N/A';
+        const avgVol = stryke.avgVolume;
+        const formattedVol = vol >= 1000000 ? `${(vol / 1000000).toFixed(2)}M` : vol >= 1000 ? `${(vol / 1000).toFixed(2)}K` : String(vol);
+        if (!avgVol) return `${formattedVol} (N/A)`;
+        const diffRatio = (vol / avgVol).toFixed(2);
+        return `${formattedVol} (${diffRatio}x)`;
+      })();
+
+      const avgVolStr = (() => {
+        const avgVol = stryke?.avgVolume;
+        if (!avgVol) return 'N/A';
+        if (avgVol >= 1000000) return `${(avgVol / 1000000).toFixed(2)}M`;
+        if (avgVol >= 1000) return `${(avgVol / 1000).toFixed(2)}K`;
+        return String(avgVol);
+      })();
+
+    const statsArr: any[] = Object.values(stryke.dayStatsMap || {});
+      const dayCols: string[] = [];
+      for (let i = 0; i < 7; i++) {
+        const s: any = statsArr[i];
+        if (s) {
+          const peakStr = `₹${Number(s.peak).toFixed(2)} (${calculatePercentageDifference(stryke.entryCandle.close, s.peak)})`;
+          const dipStr = `₹${Number(s.dip).toFixed(2)} (${calculatePercentageDifference(stryke.entryCandle.close, s.dip)})`;
+          dayCols.push(peakStr, dipStr);
+        } else {
+          dayCols.push('', '');
+        }
+      }
+
+      rows.push([
+        String(index + 1),
+        String(stryke.companyName ?? ''),
+        addedOn,
+        entryAt,
+        target,
+        stopLoss,
+        earlyProfits,
+        entryDayVol,
+        avgVolStr,
+        ...dayCols,
+      ]);
+    });
+
+    return rows;
+  };
+
+  const exportStrykeStatsToCSV = () => {
+    const rows = buildStrykeStatsRows();
+    const csv = rows.map(r => r.map(csvEscape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stryke-stats-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportStrykeStatsToExcel = async () => {
+    const rows = buildStrykeStatsRows();
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stryke Stats');
+    XLSX.writeFile(wb, `stryke-stats-${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
 
   if (isLoading) {
     return (
@@ -1165,6 +1282,22 @@ export default function StrikeAnalysisPage() {
 
                 {/* Buttons */}
                 <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.trend ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const next = activeFilter.trend === null ? 'BULLISH' : activeFilter.trend === 'BULLISH' ? 'BEARISH' : null;
+                    setActiveFilter({ ...activeFilter, trend: next });
+                    if (next) {
+                      setFilteredStrykeList(
+                        strykeList.filter((s) => (s.preEntryTrend || '').toUpperCase() === next)
+                      );
+                    } else {
+                      setFilteredStrykeList(strykeList);
+                    }
+                  }}
+                >
+                  Trend: {activeFilter.trend ?? 'off'}
+                </button>
+                <button
                   className={`px-3 py-1 rounded-md ${activeFilter.date ? 'bg-green-500' : 'bg-red-500'} text-white`}
                   onClick={() => {
                     const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
@@ -1247,6 +1380,20 @@ export default function StrikeAnalysisPage() {
                   }}
                 >
                   Sort by Avg Volume ({activeFilter.avgVolume || 'off'})
+                </button>
+
+                {/* Export Buttons */}
+                <button
+                  className="px-3 py-1 rounded-md bg-indigo-500 text-white"
+                  onClick={exportStrykeStatsToCSV}
+                >
+                  Export CSV
+                </button>
+                <button
+                  className="px-3 py-1 rounded-md bg-emerald-500 text-white"
+                  onClick={exportStrykeStatsToExcel}
+                >
+                  Export Excel
                 </button>
 
                 {/* Count */}
