@@ -8,9 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { CallType } from '@/components/types/strike-analysis';
-import Link from 'next/link';
-import { debug } from 'console';
-import { stat } from 'fs';
 
 // Define the Stryke interface based on the provided model
 interface Candle {
@@ -454,13 +451,13 @@ export default function StrikeAnalysisPage() {
       'Early Profits',
       'Entry Day Volume',
       'Avg. Volume',
-      'Day -1 Peak', 'Day -1 Dip',
-      'Day -2 Peak', 'Day -2 Dip',
-      'Day -3 Peak', 'Day -3 Dip',
-      'Day -4 Peak', 'Day -4 Dip',
-      'Day -5 Peak', 'Day -5 Dip',
-      'Day -6 Peak', 'Day -6 Dip',
-      'Day -7 Peak', 'Day -7 Dip',
+      'Day - 1 Peak', 'Day - 1 Dip',
+      'Day - 2 Peak', 'Day - 2 Dip',
+      'Day - 3 Peak', 'Day - 3 Dip',
+      'Day - 4 Peak', 'Day - 4 Dip',
+      'Day - 5 Peak', 'Day - 5 Dip',
+      'Day - 6 Peak', 'Day - 6 Dip',
+      'Day - 7 Peak', 'Day - 7 Dip',
     ];
 
     const rows: string[][] = [header];
@@ -539,8 +536,82 @@ export default function StrikeAnalysisPage() {
     URL.revokeObjectURL(url);
   };
 
+  // Build numeric-only rows for Excel so filters work properly
+  const buildStrykeStatsRowsForExcel = () => {
+    const header: string[] = [
+      'Slno',
+      'Name',
+      'Added On',
+      'Entry At',
+      'Target',
+      'Stop Loss',
+      'Early Profit Amt',
+      'Entry Day Volume',
+      'Avg. Volume',
+      'Day - 1 Peak', 'Day - 1 Dip',
+      'Day - 2 Peak', 'Day - 2 Dip',
+      'Day - 3 Peak', 'Day - 3 Dip',
+      'Day - 4 Peak', 'Day - 4 Dip',
+      'Day - 5 Peak', 'Day - 5 Dip',
+      'Day - 6 Peak', 'Day - 6 Dip',
+      'Day - 7 Peak', 'Day - 7 Dip',
+    ];
+
+    const rows: (string | number)[][] = [header];
+
+    filteredStrykeList.forEach((stryke, index) => {
+      // Added On: keep as human-readable text to avoid timezone/date serial confusion
+      const addedOn = `${formatDate(stryke.entryTime)} ${new Date(stryke.entryTime).toLocaleTimeString()}`;
+
+      const entryAtNum = Number(stryke.entryCandle.close ?? 0) || 0;
+      const targetNum = Number(stryke.target ?? 0) || 0;
+      const stopLossNum = Number(stryke.stopLoss ?? 0) || 0;
+
+      // Early profit amount (positive number) or blank
+      const earlyProfitAmt = (() => {
+        if (!shouldShowEarlyProfits(stryke)) return '';
+        const diffVal = (stryke.highestPrice - stryke.entryCandle.close);
+        return Number(diffVal.toFixed(2));
+      })();
+
+      // Raw volumes
+      const entryDayVolNum = Number(stryke?.entryDaysCandle?.volume ?? '') || (stryke?.entryDaysCandle?.volume === 0 ? 0 : '');
+      const avgVolNum = Number(stryke?.avgVolume ?? '') || (stryke?.avgVolume === 0 ? 0 : '');
+
+      // Day columns: raw prices only
+      const statsArr: any[] = Object.values(stryke.dayStatsMap || {});
+      const dayCols: (string | number)[] = [];
+      for (let i = 0; i < 7; i++) {
+        const s: any = statsArr[i];
+        if (s) {
+          const peakNum = Number(s.peak);
+          const dipNum = Number(s.dip);
+          dayCols.push(isFinite(peakNum) ? Number(peakNum.toFixed(2)) : '', isFinite(dipNum) ? Number(dipNum.toFixed(2)) : '');
+        } else {
+          dayCols.push('', '');
+        }
+      }
+
+      rows.push([
+        index + 1,
+        String(stryke.companyName ?? ''),
+        addedOn,
+        Number(entryAtNum.toFixed(2)),
+        Number(targetNum.toFixed(2)),
+        Number(stopLossNum.toFixed(2)),
+        earlyProfitAmt as any,
+        entryDayVolNum as any,
+        avgVolNum as any,
+        ...dayCols,
+      ]);
+    });
+
+    return rows;
+  };
+
   const exportStrykeStatsToExcel = async () => {
-    const rows = buildStrykeStatsRows();
+    // Use numeric-only rows for Excel
+    const rows = buildStrykeStatsRowsForExcel();
     const XLSX = await import('xlsx');
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -893,51 +964,7 @@ export default function StrikeAnalysisPage() {
                     }}
                   />
                   {/* Individual Filter Buttons */}
-                  <div className="flex gap-2 items-center mb-4">
-                    <button
-                      className="bg-blue-500 text-white px-3 py-1 rounded-md"
-                      onClick={() => {
-                        setFilteredStrykeList(
-                          [...strykeList].sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime())
-                        );
-                      }}
-                    >
-                      Sort by Date
-                    </button>
-
-                    <button
-                      className="bg-blue-500 text-white px-3 py-1 rounded-md"
-                      onClick={() => {
-                        setFilteredStrykeList(
-                          [...strykeList].sort((a, b) => a.companyName.localeCompare(b.companyName))
-                        );
-                      }}
-                    >
-                      Sort by Name
-                    </button>
-
-                    <button
-                      className="bg-blue-500 text-white px-3 py-1 rounded-md"
-                      onClick={() => {
-                        setFilteredStrykeList(
-                          [...strykeList].sort((a, b) => a.avgVolume - b.avgVolume)
-                        );
-                      }}
-                    >
-                      Sort by Avg Volume (Asc)
-                    </button>
-
-                    <button
-                      className="bg-blue-500 text-white px-3 py-1 rounded-md"
-                      onClick={() => {
-                        setFilteredStrykeList(
-                          [...strykeList].sort((a, b) => b.avgVolume - a.avgVolume)
-                        );
-                      }}
-                    >
-                      Sort by Avg Volume (Desc)
-                    </button>
-                  </div>
+               
                   <div className="flex gap-2 items-center mb-4">
                     <select
                       className="border border-gray-300 rounded-md px-2 py-1"
@@ -1235,7 +1262,7 @@ export default function StrikeAnalysisPage() {
               <h2 className="text-xl font-bold mb-4">Stryke Stats</h2>
 
               {/* Search, Sort, and Filter Controls */}
-              <div className="flex flex-wrap gap-2 items-center mb-4">
+              <div className="flex flex-wrap gap-1 items-center mb-4">
                 {/* Search Input */}
                 <input
                   type="text"
@@ -1383,12 +1410,6 @@ export default function StrikeAnalysisPage() {
                 </button>
 
                 {/* Export Buttons */}
-                <button
-                  className="px-3 py-1 rounded-md bg-indigo-500 text-white"
-                  onClick={exportStrykeStatsToCSV}
-                >
-                  Export CSV
-                </button>
                 <button
                   className="px-3 py-1 rounded-md bg-emerald-500 text-white"
                   onClick={exportStrykeStatsToExcel}

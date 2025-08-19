@@ -425,6 +425,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const rsiSeriesRef = useRef<any>(null);
     const vixSeriesRef = useRef<any>(null);
     const swingPointsSeriesRef = useRef<any>(null);
+    const volumeSeriesRef = useRef<any>(null);
+    const avgVolumeLineRef = useRef<any>(null);
     const propAnalysisList = analysisList || []; // Use propAnalysisList if provided
     // Refs for SR price lines so we can update/remove them
     const staticSupportLineRef = useRef<any>(null);
@@ -496,6 +498,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 priceFormat: { type: 'volume' },
                 priceScaleId: 'volume',
             });
+            volumeSeriesRef.current = volumeSeries;
+            // @ts-ignore
+            chartRef.current.volumeSeries = volumeSeries;
             // @ts-ignore
             chart.priceScale('volume').applyOptions({
                 scaleMargins: { top: 0.75, bottom: 0 },
@@ -518,7 +523,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         candlestickSeries.setData(formattedData);
 
         // Set volume data if enabled
-        if (showVolume && volumeSeries) {
+    if (showVolume && volumeSeries) {
             // @ts-ignore: TypeScript types are too strict, but this works at runtime
             const volumeData = candles.map(candle => ({
                 time: Math.floor(new Date(candle.timestamp).getTime() / 1000),
@@ -581,9 +586,52 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            try {
+                // Clean up avg volume line if present
+                if (avgVolumeLineRef.current && volumeSeriesRef.current) {
+                    // @ts-ignore
+                    volumeSeriesRef.current.removePriceLine(avgVolumeLineRef.current);
+                }
+            } catch {}
             chart.remove();
+            volumeSeriesRef.current = null;
+            avgVolumeLineRef.current = null;
         };
     }, [candles, height, width, showVolume, vixData]); // Removed indicator toggles from dependencies
+
+    // Manage Avg Volume reference line on the volume histogram
+    useEffect(() => {
+        const series = volumeSeriesRef.current;
+
+        // If no volume series (e.g., showVolume is false or chart not ready), nothing to do
+        if (!series) return;
+
+        // Remove any existing avg volume price line first
+        if (avgVolumeLineRef.current) {
+            try {
+                // @ts-ignore
+                series.removePriceLine(avgVolumeLineRef.current);
+            } catch {}
+            avgVolumeLineRef.current = null;
+        }
+
+        // Only add when we have a positive avgVolume and volume display is enabled
+        if (!showVolume || !avgVolume || avgVolume <= 0) return;
+
+        try {
+            // @ts-ignore
+            avgVolumeLineRef.current = series.createPriceLine({
+                price: avgVolume,
+                color: '#FFD600',
+                lineWidth: 2,
+                lineStyle: 0, // solid
+                axisLabelVisible: true,
+                title: 'Avg Volume',
+            });
+        } catch (e) {
+            // noop
+        }
+    }, [avgVolume, showVolume, candles]);
 
     // Separate effect for EMA indicator management
     useEffect(() => {
@@ -1207,7 +1255,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             if (typeof dynR === 'number' && !isNaN(dynR)) {
                 dynamicResistanceLineRef.current = series.createPriceLine({
                     price: dynR,
-                    color: '#D32F2F',
+                    color: '#FF0000',
                     lineWidth: 2,
                     lineStyle: 0, // Solid line to match static styling
                     axisLabelVisible: true,
@@ -1217,7 +1265,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             if (typeof dynS === 'number' && !isNaN(dynS)) {
                 dynamicSupportLineRef.current = series.createPriceLine({
                     price: dynS,
-                    color: '#2E7D32',
+                    color: '#00AA00',
                     lineWidth: 2,
                     lineStyle: 0, // Solid line to match static styling
                     axisLabelVisible: true,
