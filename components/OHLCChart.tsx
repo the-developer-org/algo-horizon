@@ -426,6 +426,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const vixSeriesRef = useRef<any>(null);
     const swingPointsSeriesRef = useRef<any>(null);
     const propAnalysisList = analysisList || []; // Use propAnalysisList if provided
+    // Refs for SR price lines so we can update/remove them
+    const staticSupportLineRef = useRef<any>(null);
+    const staticResistanceLineRef = useRef<any>(null);
+    const dynamicSupportLineRef = useRef<any>(null);
+    const dynamicResistanceLineRef = useRef<any>(null);
 
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
@@ -1004,37 +1009,235 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         return atr;
     };
 
+    // Draw backend-provided SR as "static" lines (used when viewing latest)
     useEffect(() => {
-        // Add support and resistance lines from props
-        if (candles.length > 0 && chartRef.current?.candlestickSeries) {
-            // Add resistance level
-            if (resistanceLevel !== undefined) {
-                chartRef.current.candlestickSeries.createPriceLine({
+        if (!chartRef.current?.candlestickSeries) return;
+
+        const series = chartRef.current.candlestickSeries;
+
+        // Clean up existing static lines first
+        if (staticSupportLineRef.current) {
+            try { series.removePriceLine(staticSupportLineRef.current); } catch {}
+            staticSupportLineRef.current = null;
+        }
+        if (staticResistanceLineRef.current) {
+            try { series.removePriceLine(staticResistanceLineRef.current); } catch {}
+            staticResistanceLineRef.current = null;
+        }
+
+        // Create new static lines if levels provided
+        if (typeof resistanceLevel === 'number' && !isNaN(resistanceLevel)) {
+            staticResistanceLineRef.current = series.createPriceLine({
+                price: resistanceLevel,
+                color: '#FF0000',
+                lineWidth: 2,
+                lineStyle: 0,
+                axisLabelVisible: true,
+                title: 'Resistance',
+            });
+        }
+        if (typeof supportLevel === 'number' && !isNaN(supportLevel)) {
+            staticSupportLineRef.current = series.createPriceLine({
+                price: supportLevel,
+                color: '#00AA00',
+                lineWidth: 2,
+                lineStyle: 0,
+                axisLabelVisible: true,
+                title: 'Support',
+            });
+        }
+    }, [supportLevel, resistanceLevel]);
+
+    // Compute dynamic S/R for a given reference time within current/visible window
+    const computeDynamicSR = (refUnixTime: number, visibleFrom?: number, visibleTo?: number) => {
+        // Map candles to (time, high, low)
+        const candlePoints = candles.map(c => ({
+            time: Math.floor(new Date(c.timestamp).getTime() / 1000),
+            high: c.high,
+            low: c.low,
+        }));
+
+        const lastIdx = candlePoints.findIndex(p => p.time > refUnixTime);
+        const cutIdx = lastIdx === -1 ? candlePoints.length : lastIdx; // candles up to ref time
+
+        // Determine the working window: prefer visible range intersection
+        let windowPoints = candlePoints.slice(0, cutIdx);
+        if (typeof visibleFrom === 'number' && typeof visibleTo === 'number') {
+            windowPoints = windowPoints.filter(p => p.time >= visibleFrom && p.time <= visibleTo);
+            if (!windowPoints.length) {
+                // fallback to last N bars before ref time
+                windowPoints = candlePoints.slice(Math.max(0, cutIdx - 100), cutIdx);
+            }
+        } else {
+            // fallback to last N bars
+            windowPoints = candlePoints.slice(Math.max(0, cutIdx - 100), cutIdx);
+        }
+
+        // Try swing-point based SR first using analysisList
+        let dynSupport: number | undefined;
+        let dynResistance: number | undefined;
+
+        if (propAnalysisList && propAnalysisList.length) {
+            // Build fast candle lookup by time
+            const candleMap = new Map<number, { high: number; low: number }>();
+            candlePoints.forEach(p => candleMap.set(p.time, { high: p.high, low: p.low }));
+
+            let swingItems = propAnalysisList
+                .filter(a => a.swingLabel)
+                .map(a => ({ time: Math.floor(new Date(a.timestamp).getTime() / 1000), label: a.swingLabel! }));
+
+            // Strictly limit swing points to the visible window if available; otherwise up to ref time
+            if (typeof visibleFrom === 'number' && typeof visibleTo === 'number') {
+                swingItems = swingItems.filter(s => s.time >= visibleFrom && s.time <= visibleTo);
+            } else {
+                swingItems = swingItems.filter(s => s.time <= refUnixTime);
+            }
+
+            swingItems.sort((a, b) => a.time - b.time);
+
+            // Last swing low before ref time
+            for (let i = swingItems.length - 1; i >= 0; i--) {
+                const s = swingItems[i];
+                if ((s.label === 'HL' || s.label === 'LL') && candleMap.has(s.time)) {
+                    dynSupport = candleMap.get(s.time)!.low;
+                    break;
+                }
+            }
+            // Last swing high before ref time
+            for (let i = swingItems.length - 1; i >= 0; i--) {
+                const s = swingItems[i];
+                if ((s.label === 'HH' || s.label === 'LH') && candleMap.has(s.time)) {
+                    dynResistance = candleMap.get(s.time)!.high;
+                    break;
+                }
+            }
+        }
+
+        // Fallback: use window extremes
+        if (dynSupport === undefined && windowPoints.length) {
+            dynSupport = Math.min(...windowPoints.map(p => p.low));
+        }
+        if (dynResistance === undefined && windowPoints.length) {
+            dynResistance = Math.max(...windowPoints.map(p => p.high));
+        }
+
+        return { support: dynSupport, resistance: dynResistance };
+    };
+
+    // Subscribe to visible range changes and toggle SR lines dynamically for historical views
+    useEffect(() => {
+        if (!chartRef.current?.candlestickSeries || candles.length < 2) return;
+
+        const chart = chartRef.current;
+        const series = chart.candlestickSeries;
+
+        // Helper to remove dynamic lines
+        const clearDynamic = () => {
+            if (dynamicSupportLineRef.current) {
+                try { series.removePriceLine(dynamicSupportLineRef.current); } catch {}
+                dynamicSupportLineRef.current = null;
+            }
+            if (dynamicResistanceLineRef.current) {
+                try { series.removePriceLine(dynamicResistanceLineRef.current); } catch {}
+                dynamicResistanceLineRef.current = null;
+            }
+        };
+
+        // Helper to ensure static lines exist when on latest
+        const ensureStaticVisible = () => {
+            clearDynamic();
+            // Re-create static lines if missing
+            if (!staticResistanceLineRef.current && typeof resistanceLevel === 'number' && !isNaN(resistanceLevel)) {
+                staticResistanceLineRef.current = series.createPriceLine({
                     price: resistanceLevel,
                     color: '#FF0000',
                     lineWidth: 2,
-                    lineStyle: 0, // Solid line
+                    lineStyle: 0,
                     axisLabelVisible: true,
-                    title: `Resistance`,
+                    title: 'Resistance',
                 });
             }
-            
-            // Add support level
-            if (supportLevel !== undefined) {
-                chartRef.current.candlestickSeries.createPriceLine({
+            if (!staticSupportLineRef.current && typeof supportLevel === 'number' && !isNaN(supportLevel)) {
+                staticSupportLineRef.current = series.createPriceLine({
                     price: supportLevel,
-                    color: '#00FF00',
+                    color: '#00AA00',
                     lineWidth: 2,
-                    lineStyle: 0, // Solid line
+                    lineStyle: 0,
                     axisLabelVisible: true,
-                    title: `Support`,
+                    title: 'Support',
                 });
             }
-            
-            // Secondary levels are now managed by backend
-            // If you need to add secondary levels in the future, they would go here
-        }
-    }, [candles, supportLevel, resistanceLevel]);
+        };
+
+        const hideStatic = () => {
+            if (staticSupportLineRef.current) {
+                try { series.removePriceLine(staticSupportLineRef.current); } catch {}
+                staticSupportLineRef.current = null;
+            }
+            if (staticResistanceLineRef.current) {
+                try { series.removePriceLine(staticResistanceLineRef.current); } catch {}
+                staticResistanceLineRef.current = null;
+            }
+        };
+
+        const times = candles.map(c => Math.floor(new Date(c.timestamp).getTime() / 1000));
+        const lastTime = times[times.length - 1];
+        const candleDur = times[1] - times[0];
+        const epsilon = Math.max(1, Math.floor(candleDur / 2));
+
+        const handleRange = (range: { from: number; to: number } | null) => {
+            if (!range) return;
+
+            const isViewingLatest = (range.to >= lastTime - epsilon);
+
+            if (isViewingLatest) {
+                // Show backend/static SR at latest; hide dynamic
+                ensureStaticVisible();
+                return;
+            }
+
+            // Compute dynamic SR for the right edge (latest in view)
+            const { support: dynS, resistance: dynR } = computeDynamicSR(range.to, range.from, range.to);
+
+            // Replace dynamic lines
+            clearDynamic();
+            // Hide static while in historical view
+            hideStatic();
+
+            if (typeof dynR === 'number' && !isNaN(dynR)) {
+                dynamicResistanceLineRef.current = series.createPriceLine({
+                    price: dynR,
+                    color: '#D32F2F',
+                    lineWidth: 2,
+                    lineStyle: 2, // Dashed to indicate historical/dynamic
+                    axisLabelVisible: true,
+                    title: 'Historical Resistance',
+                });
+            }
+            if (typeof dynS === 'number' && !isNaN(dynS)) {
+                dynamicSupportLineRef.current = series.createPriceLine({
+                    price: dynS,
+                    color: '#2E7D32',
+                    lineWidth: 2,
+                    lineStyle: 2, // Dashed to indicate historical/dynamic
+                    axisLabelVisible: true,
+                    title: 'Historical Support',
+                });
+            }
+        };
+
+        // Initial run for current range
+        const currentRange = chart.timeScale().getVisibleRange?.();
+        if (currentRange) handleRange(currentRange);
+
+        // Subscribe to changes
+        chart.timeScale().subscribeVisibleTimeRangeChange(handleRange);
+
+        return () => {
+            try { chart.timeScale().unsubscribeVisibleTimeRangeChange(handleRange); } catch {}
+            clearDynamic();
+        };
+    }, [candles, propAnalysisList, supportLevel, resistanceLevel]);
 
     return (
         <div style={chartAreaStyle}>
