@@ -1209,7 +1209,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     price: dynR,
                     color: '#D32F2F',
                     lineWidth: 2,
-                    lineStyle: 2, // Dashed to indicate historical/dynamic
+                    lineStyle: 0, // Solid line to match static styling
                     axisLabelVisible: true,
                     title: 'Historical Resistance',
                 });
@@ -1219,7 +1219,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     price: dynS,
                     color: '#2E7D32',
                     lineWidth: 2,
-                    lineStyle: 2, // Dashed to indicate historical/dynamic
+                    lineStyle: 0, // Solid line to match static styling
                     axisLabelVisible: true,
                     title: 'Historical Support',
                 });
