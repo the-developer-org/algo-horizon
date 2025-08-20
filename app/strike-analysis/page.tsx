@@ -181,6 +181,7 @@ export default function StrikeAnalysisPage() {
 
     const strykeInbound = {
       instrumentKey: selectedInstrumentKey,
+      companyName: selectedCompany,
       entryDate: selectedDate,
       time: selectedTime,
       callType,
