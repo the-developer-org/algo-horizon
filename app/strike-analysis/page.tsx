@@ -50,6 +50,9 @@ interface Stryke {
   dipAfterEntry20M: boolean;
   hitStopLoss: boolean;
   hitTarget: boolean;
+  isInResistanceZone: boolean;
+  support: number;
+  resistance: number;
   peakIn30M: number;
   dipIn30M: number;
   profit: number;
@@ -67,6 +70,7 @@ interface Stryke {
   avgVolume: number;
   dayStatsMap: { [key: string]: DayStats };
   lastClosingValueDate: string;
+  inResistanceZone?: boolean;
 
 }
 
@@ -113,6 +117,7 @@ export default function StrikeAnalysisPage() {
     target: null as FilterOrder,
     entry: null as FilterOrder,
   trend: null as TrendFilter,
+  inResistanceZone: null as 'YES' | 'NO' | null,
   });
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
@@ -263,6 +268,7 @@ export default function StrikeAnalysisPage() {
         ...stryke,
         stockUuid: stryke.stockUuid, // Add stockUuid key
         entryDate: new Date(stryke.entryTime).toLocaleDateString('en-GB'),
+  inResistanceZone: (stryke as any).inResistanceZone ?? (stryke as any).InResistanceZone ?? false,
         emadto: {
           ema5: stryke.emadto?.ema5 ?? '-',
           ema8: stryke.emadto?.ema8 ?? '-',
@@ -495,7 +501,7 @@ export default function StrikeAnalysisPage() {
         return String(avgVol);
       })();
 
-    const statsArr: any[] = Object.values(stryke.dayStatsMap || {});
+      const statsArr: any[] = Object.values(stryke.dayStatsMap || {});
       const dayCols: string[] = [];
       for (let i = 0; i < 7; i++) {
         const s: any = statsArr[i];
@@ -532,7 +538,7 @@ export default function StrikeAnalysisPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `stryke-stats-${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `stryke-stats-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -617,7 +623,7 @@ export default function StrikeAnalysisPage() {
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Stryke Stats');
-    XLSX.writeFile(wb, `stryke-stats-${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `stryke-stats-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   if (isLoading) {
@@ -640,6 +646,13 @@ export default function StrikeAnalysisPage() {
               <h1 className="text-2xl font-bold">Stryke Analysis</h1>
             </div>
             <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
+               {/* Home button */}
+          <a
+            href="/"
+            className="px-4 py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
+          >
+            Home
+          </a>
               {(!showStrykeForm) && (
                 <Button
                   onClick={() => handleToggleView(true, false, false)}
@@ -685,9 +698,11 @@ export default function StrikeAnalysisPage() {
               {showAllStrykes && (
                 <Button
                   onClick={async () => {
-                    setIsLoading(true);
+                    const confirmed = window.confirm(
+                      'Recalculate all Stryke analysis? This may take a while.'
+                    );
+                    if (!confirmed) return;
                     await recalculateStrykeAnalysis();
-                    setIsLoading(false);
                   }}
                   className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition ${isLoading ? 'bg-gray-400 cursor-not-allowed' : ''}`}
                   disabled={isLoading}
@@ -965,7 +980,7 @@ export default function StrikeAnalysisPage() {
                     }}
                   />
                   {/* Individual Filter Buttons */}
-               
+
                   <div className="flex gap-2 items-center mb-4">
                     <select
                       className="border border-gray-300 rounded-md px-2 py-1"
@@ -1307,6 +1322,18 @@ export default function StrikeAnalysisPage() {
                     </option>
                   ))}
                 </select>
+              
+                   {/* Export Buttons */}
+                <button
+                  className="px-3 py-1 rounded-md bg-emerald-500 text-white"
+                  onClick={exportStrykeStatsToExcel}
+                >
+                  Export As Excel
+                </button>
+                  {/* Count */}
+                <span className="text-lg font-bold">Count: {filteredStrykeList.length}</span>
+                </div>
+                   <div className="flex flex-wrap gap-1 items-center mb-4">
 
                 {/* Buttons */}
                 <button
@@ -1324,6 +1351,27 @@ export default function StrikeAnalysisPage() {
                   }}
                 >
                   Trend: {activeFilter.trend ?? 'off'}
+                </button>
+                {/* InResistanceZone Filter (On/Off) */}
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.inResistanceZone === 'YES' ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const isOn = activeFilter.inResistanceZone === 'YES';
+                    const next: 'YES' | null = isOn ? null : 'YES';
+                    setActiveFilter({ ...activeFilter, inResistanceZone: next });
+                    if (next === 'YES') {
+                      setFilteredStrykeList(
+                        strykeList.filter((s: any) => {
+                          const inRes = (s.inResistanceZone ?? s.InResistanceZone);
+                          return inRes === true;
+                        })
+                      );
+                    } else {
+                      setFilteredStrykeList(strykeList);
+                    }
+                  }}
+                >
+                  In Resistance Zone: {activeFilter.inResistanceZone === 'YES' ? 'On' : 'Off'}
                 </button>
                 <button
                   className={`px-3 py-1 rounded-md ${activeFilter.date ? 'bg-green-500' : 'bg-red-500'} text-white`}
@@ -1410,16 +1458,9 @@ export default function StrikeAnalysisPage() {
                   Sort by Avg Volume ({activeFilter.avgVolume || 'off'})
                 </button>
 
-                {/* Export Buttons */}
-                <button
-                  className="px-3 py-1 rounded-md bg-emerald-500 text-white"
-                  onClick={exportStrykeStatsToExcel}
-                >
-                  Export Excel
-                </button>
+             
 
-                {/* Count */}
-                <span className="text-lg font-bold">Count: {filteredStrykeList.length}</span>
+        
               </div>
 
 

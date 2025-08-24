@@ -228,6 +228,14 @@ export const OHLCChartDemo: React.FC = () => {
             </button>
           )}
 
+          {/* Home button */}
+          <a
+            href="/"
+            className="px-4 py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
+          >
+            Home
+          </a>
+
           {/* Stats button - always visible */}
           <a
             href="/backtest-stats"
