@@ -17,11 +17,15 @@ export function calculateIndicators(
 
     const closes = candles.map(c => c.close);
     const emaValues = EMA.calculate({ period: emaPeriod, values: closes });
+    const ema8Values = EMA.calculate({ period: 8, values: closes });
+    const ema30Values = EMA.calculate({ period: 30, values: closes });
     const rsiValues = RSI.calculate({ period: rsiPeriod, values: closes });
 
     return candles.map((candle, i) => ({
         ...candle,
         ema: emaValues[i - (candles.length - emaValues.length)] ?? null,
+        ema8: ema8Values[i - (candles.length - ema8Values.length)] ?? null,
+        ema30: ema30Values[i - (candles.length - ema30Values.length)] ?? null,
         rsi: rsiValues[i - (candles.length - rsiValues.length)] ?? null,
     }));
 }

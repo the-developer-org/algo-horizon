@@ -7,6 +7,8 @@ export interface Candle {
   volume: number;
   openInterest: number;
   ema?: number;
+  ema8?: number;
+  ema30?: number;
   rsi?: number;
   isHigherHigh?: boolean;
   isHigherLow?: boolean;

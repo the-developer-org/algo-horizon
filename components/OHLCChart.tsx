@@ -421,7 +421,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const [emaError, setEmaError] = useState<string | null>(null);
     const [rsiError, setRsiError] = useState<string | null>(null);
     const [vixError, setVixError] = useState<string | null>(null);
-    const emaSeriesRef = useRef<any>(null);
+    const ema8SeriesRef = useRef<any>(null);
+    const ema30SeriesRef = useRef<any>(null);
     const rsiSeriesRef = useRef<any>(null);
     const vixSeriesRef = useRef<any>(null);
     const swingPointsSeriesRef = useRef<any>(null);
@@ -633,45 +634,66 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
     }, [avgVolume, showVolume, candles]);
 
-    // Separate effect for EMA indicator management
+    // Separate effect for EMA indicator management (EMA 8 and EMA 30)
     useEffect(() => {
         if (!chartRef.current) return;
 
         const chart = chartRef.current;
         setEmaError(null);
 
-        const handleEMA = () => {
-            if (showEMA) {
-                try {
-                    emaSeriesRef.current = chart.addLineSeries({
-                        color: '#1976D2',
-                        lineWidth: 2,
-                        priceScaleId: '',
-                    });
-                    const emaData = candles
-                        .map((c: Candle) => ({
-                            time: Math.floor(new Date(c.timestamp).getTime() / 1000),
-                            value: typeof c.ema === 'number' && !isNaN(c.ema) ? c.ema : null,
-                        }))
-                        .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value));
-                    if (!emaData.length) throw new Error('Insufficient EMA data');
-                    emaSeriesRef.current.setData(emaData);
-                } catch (err) {
-                    console.error('EMA calculation error:', err);
-                    setEmaError('Insufficient EMA data available');
-                    if (emaSeriesRef.current) {
-                        chart.removeSeries(emaSeriesRef.current);
-                        emaSeriesRef.current = null;
-                    }
-                }
-            } else if (emaSeriesRef.current) {
-                chart.removeSeries(emaSeriesRef.current);
-                emaSeriesRef.current = null;
-            }
+        // Always clean existing EMA series before updating
+        const removeEmaSeries = () => {
+            try {
+                if (ema8SeriesRef.current) { chart.removeSeries(ema8SeriesRef.current); ema8SeriesRef.current = null; }
+            } catch {}
+            try {
+                if (ema30SeriesRef.current) { chart.removeSeries(ema30SeriesRef.current); ema30SeriesRef.current = null; }
+            } catch {}
         };
 
-        handleEMA();
-    }, [showEMA]); // Removed candles dependency since EMA is pre-calculated
+        if (showEMA) {
+            try {
+                removeEmaSeries();
+                // EMA 8
+                ema8SeriesRef.current = chart.addLineSeries({
+                    color: '#03A9F4',
+                    lineWidth: 2,
+                    priceScaleId: '',
+                    title: 'EMA 8',
+                });
+                const ema8Data = candles
+                    .map((c: Candle) => ({
+                        time: Math.floor(new Date(c.timestamp).getTime() / 1000),
+                        value: typeof c.ema8 === 'number' && !isNaN(c.ema8) ? c.ema8 : null,
+                    }))
+                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value));
+
+                // EMA 30
+                ema30SeriesRef.current = chart.addLineSeries({
+                    color: '#FF9800',
+                    lineWidth: 2,
+                    priceScaleId: '',
+                    title: 'EMA 30',
+                });
+                const ema30Data = candles
+                    .map((c: Candle) => ({
+                        time: Math.floor(new Date(c.timestamp).getTime() / 1000),
+                        value: typeof c.ema30 === 'number' && !isNaN(c.ema30) ? c.ema30 : null,
+                    }))
+                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value));
+
+                if (!ema8Data.length && !ema30Data.length) throw new Error('Insufficient EMA data');
+                if (ema8Data.length) ema8SeriesRef.current.setData(ema8Data);
+                if (ema30Data.length) ema30SeriesRef.current.setData(ema30Data);
+            } catch (err) {
+                console.error('EMA calculation error:', err);
+                setEmaError('Insufficient EMA data available');
+                removeEmaSeries();
+            }
+        } else {
+            removeEmaSeries();
+        }
+    }, [showEMA, candles]);
 
     // Separate effect for RSI indicator management
     useEffect(() => {

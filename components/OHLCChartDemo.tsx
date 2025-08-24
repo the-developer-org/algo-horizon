@@ -82,12 +82,12 @@ export const OHLCChartDemo: React.FC = () => {
     const url = `${backEndBaseUrl}/api/chart-historical-data/get-candles/${selectedCompany}/${formattedInstrumentKey}`;
     axios.get(url)
       .then(res => {
-        const candlesData = res.data.historicalDataLocal.candles;
-        const analysisData = res.data.historicalDataLocal.analysisList || [];
-        const supportData = res.data.historicalDataLocal.support || null;
-        const resistanceData = res.data.historicalDataLocal.resistance || null;
-        const boomDays = res.data.historicalDataLocal.backTestDataList || [];
-        const avgVolume = res.data.historicalDataLocal.avgVolume || 0;
+        const candlesData = res.data.historicalData.candles;
+        const analysisData = res.data.historicalData.analysisList || [];
+        const supportData = res.data.historicalData.support || null;
+        const resistanceData = res.data.historicalData.resistance || null;
+        const boomDays = res.data.historicalData.backTestDataList || [];
+        const avgVolume = res.data.historicalData.avgVolume || 0;
 
         // Calculate EMA and RSI indicators before setting the candles
         const candlesWithIndicators = calculateIndicators(candlesData, 200, 14);
