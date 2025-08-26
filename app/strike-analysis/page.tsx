@@ -71,7 +71,7 @@ interface Stryke {
   dayStatsMap: { [key: string]: DayStats };
   lastClosingValueDate: string;
   inResistanceZone?: boolean;
-
+  onePercChangeMap: { [dateKey: string]: string }; // Map<LocalDate, LocalDateTime> equivalent in TypeScript
 }
 
 interface DayStats {
@@ -118,6 +118,7 @@ export default function StrikeAnalysisPage() {
     entry: null as FilterOrder,
   trend: null as TrendFilter,
   inResistanceZone: null as 'YES' | 'NO' | null,
+  onePercChange: null as 'YES' | 'NO' | null,
   });
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
@@ -1458,6 +1459,27 @@ export default function StrikeAnalysisPage() {
                   Sort by Avg Volume ({activeFilter.avgVolume || 'off'})
                 </button>
 
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.onePercChange === 'YES' ? 'bg-green-500' : activeFilter.onePercChange === 'NO' ? 'bg-red-500' : 'bg-gray-500'} text-white`}
+                  onClick={() => {
+                    const next = activeFilter.onePercChange === 'YES' ? 'NO' : activeFilter.onePercChange === 'NO' ? null : 'YES';
+                    setActiveFilter({ ...activeFilter, onePercChange: next });
+                    if (next === 'YES') {
+                      setFilteredStrykeList(
+                        strykeList.filter((s) => s.onePercChangeMap && Object.keys(s.onePercChangeMap).length > 0)
+                      );
+                    } else if (next === 'NO') {
+                      setFilteredStrykeList(
+                        strykeList.filter((s) => !s.onePercChangeMap || Object.keys(s.onePercChangeMap).length === 0)
+                      );
+                    } else {
+                      setFilteredStrykeList(strykeList);
+                    }
+                  }}
+                >
+                  1% Filter: {activeFilter.onePercChange || 'off'}
+                </button>
+
              
 
         
@@ -1476,6 +1498,7 @@ export default function StrikeAnalysisPage() {
                     <th className='border border-gray-700 px-8 py-2'>Early Profits</th>
                     <th className="border border-gray-700 px-4 py-2">Entry Day Volume</th>
                     <th className="border border-gray-700 px-4 py-2">Avg. Volume</th>
+                    <th className="border border-gray-700 px-0 py-2">1 % </th>
                     {[...Array(7)].map((_, i) => (
                       <th key={`day-${i + 1}`} colSpan={2} className="border border-gray-700 px-4 py-2">
                         Day -{i + 1}
@@ -1530,6 +1553,13 @@ export default function StrikeAnalysisPage() {
                           if (avgVol >= 1000) return <span>{(avgVol / 1000).toFixed(2)}K</span>;
                           return <span>{avgVol}</span>;
                         })()}
+                      </td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">
+                        {stryke.onePercChangeMap && Object.keys(stryke.onePercChangeMap).length > 0 ? (
+                          <span className="text-green-600 font-semibold">Yes</span>
+                        ) : (
+                          <span className="text-red-600 font-semibold">No</span>
+                        )}
                       </td>
                       {Object.values(stryke.dayStatsMap || {}).flatMap((stats, index2) => [
                         <td key={`${stryke.stockUuid}-${index2}-peak-value`} className={`border border-gray-700 px-4 py-2 ${calculatePercentageDifference(stryke.entryCandle.close, stats.peak) > 0 ? 'text-green-600' : 'text-red-600'}`}>₹{stats.peak.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stats.peak)})</td>,
