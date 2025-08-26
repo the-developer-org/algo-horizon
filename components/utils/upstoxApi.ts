@@ -1,15 +1,12 @@
 import axios from 'axios';
 import { Candle } from '../types/candle';
-import { Timeframe } from './timeframeUtils';
+import { Timeframe, convertToUpstoxTimeframe } from './timeframeUtils';
 
 // Interface for Upstox API v3 historical data response
 interface UpstoxHistoricalDataResponse {
   status: string;
   data: {
-    candles: [string, number, number, number, number, number][]; // [timestamp, open, high, low, close, volume]
-    more_candles_available?: boolean;
-    oldest_candle_time?: string;
-    newest_candle_time?: string;
+    candles: [string, number, number, number, number, number, number][]; // [timestamp, open, high, low, close, volume, open_interest]
   };
 }
 
@@ -32,17 +29,28 @@ export interface UpstoxPaginationResult {
 }
 
 /**
+ * Maps our app's timeframe format to Upstox API v3 unit and interval format
+ * @param timeframe Our app's timeframe
+ * @returns Object with unit and interval for Upstox API v3
+ */
+export const mapTimeframeToUpstoxV3 = (timeframe: string): { unit: string; interval: string } => {
+  return convertToUpstoxTimeframe(timeframe as Timeframe);
+};
+
+/**
  * Fetches historical data from Upstox API v3
  * @param instrumentKey The instrument key to fetch data for
- * @param interval The candle interval (1minute, 5minute, 15minute, 30minute, 60minute, 1day, 1week)
+ * @param unit The unit for candles (minutes, hours, days, weeks, months)
+ * @param interval The interval for candles
  * @param toDate End date (format: YYYY-MM-DD)
- * @param fromDate Start date (format: YYYY-MM-DD)
+ * @param fromDate Start date (format: YYYY-MM-DD) - optional
  * @param apiKey Your Upstox API key
  * @returns Processed candle data
  */
 export const fetchUpstoxHistoricalData = async (
   instrumentKey: string,
-  interval: string = '1day',
+  unit: string = 'days',
+  interval: string = '1',
   toDate?: string,
   fromDate?: string,
   apiKey?: string
@@ -59,17 +67,39 @@ export const fetchUpstoxHistoricalData = async (
     throw new Error('Upstox API key not provided');
   }
 
-  // Build the API URL with query parameters
-  let url = `https://api.upstox.com/v3/historical-candle/${instrumentKey}/${interval}`;
+  // Build the API URL according to V3 structure
+  // GET /v3/historical-candle/:instrument_key/:unit/:interval/:to_date/:from_date
+  const today = new Date().toISOString().split('T')[0];
+  const defaultToDate = toDate || today;
   
-  // Add date parameters if provided
-  const params: Record<string, string> = {};
-  if (toDate) params.to = toDate;
-  if (fromDate) params.from = fromDate;
+  // Validate date format and range
+  if (fromDate && toDate) {
+    const fromDateObj = new Date(fromDate);
+    const toDateObj = new Date(toDate);
+    const daysDiff = Math.abs((toDateObj.getTime() - fromDateObj.getTime()) / (1000 * 60 * 60 * 24));
+    
+    console.log(`Date range validation: ${fromDate} to ${toDate} (${daysDiff} days)`);
+    
+    // Limit the range to prevent API errors
+    if (daysDiff > 365) {
+      console.warn('Date range exceeds 1 year, API might reject the request');
+    }
+  }
+  
+  // URL encode the instrument key to handle special characters like |
+  const encodedInstrumentKey = encodeURIComponent(instrumentKey);
+  
+  let url = `https://api.upstox.com/v3/historical-candle/${encodedInstrumentKey}/${unit}/${interval}/${defaultToDate}`;
+  
+  // Add from_date if provided
+  if (fromDate) {
+    url += `/${fromDate}`;
+  }
+
+  console.log('Upstox API URL:', url); // Debug log
 
   try {
     const response = await axios.get<UpstoxHistoricalDataResponse>(url, {
-      params,
       headers: {
         'Accept': 'application/json',
         'Authorization': `Bearer ${token}`
@@ -78,12 +108,13 @@ export const fetchUpstoxHistoricalData = async (
 
     // Check for successful response
     if (response.status !== 200 || response.data.status !== 'success') {
-      throw new Error(`API request failed: ${response.data.status}`);
+      console.error('API Response Error:', response.data);
+      throw new Error(`API request failed: ${response.data.status || 'Unknown error'}`);
     }
 
     // Transform Upstox candle format to our app's Candle format
     const candles: Candle[] = response.data.data.candles.map(candleData => {
-      const [timestamp, open, high, low, close, volume] = candleData;
+      const [timestamp, open, high, low, close, volume, openInterest] = candleData;
       return {
         timestamp,
         open,
@@ -91,40 +122,32 @@ export const fetchUpstoxHistoricalData = async (
         low,
         close,
         volume,
-        openInterest: 0, // Upstox might not provide this directly
+        openInterest: openInterest || 0,
       };
     });
 
+    // For V3 API, we need to determine if there's more data based on response length
+    // and implement our own pagination logic
+    const hasMoreCandles = candles.length > 0; // Assume more data exists if we got results
+    const oldestCandleTime = candles.length > 0 ? candles[0].timestamp : undefined;
+    const newestCandleTime = candles.length > 0 ? candles[candles.length - 1].timestamp : undefined;
+
     return {
       candles,
-      hasMoreCandles: response.data.data.more_candles_available || false,
-      oldestCandleTime: response.data.data.oldest_candle_time,
-      newestCandleTime: response.data.data.newest_candle_time
+      hasMoreCandles,
+      oldestCandleTime,
+      newestCandleTime
     };
   } catch (error) {
     console.error('Error fetching Upstox historical data:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
+      console.error('Response headers:', error.response?.headers);
+      throw new Error(`Upstox API Error (${error.response?.status}): ${error.response?.data?.message || error.message}`);
+    }
     throw error;
   }
-};
-
-/**
- * Maps our app's timeframe format to Upstox API interval format
- * @param timeframe Our app's timeframe
- * @returns Upstox API interval string
- */
-export const mapTimeframeToUpstoxInterval = (timeframe: string): string => {
-  const mapping: Record<string, string> = {
-    '1m': '1minute',
-    '5m': '5minute',
-    '15m': '15minute',
-    '30m': '30minute',
-    '1h': '60minute',
-    '4h': '240minute', // Note: Check if Upstox supports 4h candles
-    '1d': '1day',
-    '1w': '1week'
-  };
-  
-  return mapping[timeframe] || '1day'; // Default to 1day if unknown
 };
 
 /**
@@ -144,7 +167,7 @@ export const fetchPaginatedUpstoxData = async (
     limit = 200 
   } = params;
   
-  const interval = mapTimeframeToUpstoxInterval(timeframe);
+  const { unit, interval } = mapTimeframeToUpstoxV3(timeframe);
   
   try {
     // Extract date parts for the API call
@@ -153,6 +176,7 @@ export const fetchPaginatedUpstoxData = async (
     
     const result = await fetchUpstoxHistoricalData(
       instrumentKey,
+      unit,
       interval,
       toDate,
       fromDate,
@@ -182,7 +206,7 @@ export const fetchPaginatedUpstoxDataLegacy = async (
   toDate?: string,
   apiKey?: string
 ): Promise<Candle[]> => {
-  const interval = mapTimeframeToUpstoxInterval(timeframe);
+  const { unit, interval } = mapTimeframeToUpstoxV3(timeframe);
   let allCandles: Candle[] = [];
   let currentToDate = toDate || new Date().toISOString().split('T')[0]; // Use today if not specified
   let hasMoreCandles = true;
@@ -192,6 +216,7 @@ export const fetchPaginatedUpstoxDataLegacy = async (
     try {
       const result = await fetchUpstoxHistoricalData(
         instrumentKey,
+        unit,
         interval,
         currentToDate,
         undefined, // fromDate - we'll use pagination instead

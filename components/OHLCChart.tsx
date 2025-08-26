@@ -1,9 +1,80 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { createChart } from 'lightweight-charts';
 import { Candle } from './types/candle';
+
+// Performance optimization constants
+const MAX_VISIBLE_CANDLES = 2000; // Limit visible data points for ultra-fast performance
+const PERFORMANCE_SAMPLE_THRESHOLD = 5000; // Start sampling when data exceeds this
+const CHART_UPDATE_DEBOUNCE = 16; // ~60fps for smooth updates
+
+// Data sampling for performance optimization
+const sampleData = (data: any[], maxPoints: number): any[] => {
+  if (data.length <= maxPoints) return data;
+  
+  const step = Math.ceil(data.length / maxPoints);
+  const sampled = [];
+  
+  // Always include first and last points
+  sampled.push(data[0]);
+  
+  for (let i = step; i < data.length - 1; i += step) {
+    sampled.push(data[i]);
+  }
+  
+  sampled.push(data[data.length - 1]);
+  return sampled;
+};
+
+// Memoized data processing for ultra-fast performance
+const processChartData = (candles: Candle[]) => {
+  const formattedData = candles.map(candle => {
+    // Normalize timestamp to UTC to avoid timezone issues
+    let timestamp = candle.timestamp;
+    if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
+      timestamp = timestamp + 'Z'; // Treat as UTC if no timezone specified
+    }
+    
+    return {
+      time: Math.floor(new Date(timestamp).getTime() / 1000),
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+    };
+  }).filter((item, index, self) => 
+    // Remove duplicates and invalid entries
+    item.time && !isNaN(item.time) && 
+    index === self.findIndex(t => t.time === item.time)
+  ).sort((a, b) => a.time - b.time); // Ensure ascending order
+
+  // Apply performance sampling for large datasets
+  return sampleData(formattedData, MAX_VISIBLE_CANDLES);
+};
+
+// Memoized volume data processing
+const processVolumeData = (candles: Candle[]) => {
+  const volumeData = candles.map(candle => {
+    let timestamp = candle.timestamp;
+    if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
+      timestamp = timestamp + 'Z';
+    }
+    
+    return {
+      time: Math.floor(new Date(timestamp).getTime() / 1000),
+      value: candle.volume,
+      color: candle.close >= candle.open ? '#4caf50' : '#ef5350',
+    };
+  }).filter((item, index, self) => 
+    item.time && !isNaN(item.time) && 
+    index === self.findIndex(t => t.time === item.time)
+  ).sort((a, b) => a.time - b.time);
+
+  // Apply performance sampling for large datasets
+  return sampleData(volumeData, MAX_VISIBLE_CANDLES);
+};
 
 interface OHLCChartProps {
     candles: Candle[];
@@ -435,6 +506,41 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const dynamicSupportLineRef = useRef<any>(null);
     const dynamicResistanceLineRef = useRef<any>(null);
 
+    // Memoized data processing for ultra-fast performance
+    const processedChartData = useMemo(() => {
+        if (!candles.length) return [];
+        console.log(`Processing ${candles.length} candles for chart display`);
+        const start = performance.now();
+        const data = processChartData(candles);
+        console.log(`Chart data processed in ${(performance.now() - start).toFixed(2)}ms, showing ${data.length} points`);
+        return data;
+    }, [candles]);
+
+    const processedVolumeData = useMemo(() => {
+        if (!candles.length || !showVolume) return [];
+        const start = performance.now();
+        const data = processVolumeData(candles);
+        console.log(`Volume data processed in ${(performance.now() - start).toFixed(2)}ms`);
+        return data;
+    }, [candles, showVolume]);
+
+    // Debounced chart update for smooth performance
+    const updateChartData = useCallback((chart: any, candlestickSeries: any, volumeSeries: any | null) => {
+        const start = performance.now();
+        
+        // Update candlestick data with processed data
+        if (processedChartData.length > 0) {
+            candlestickSeries.setData(processedChartData);
+        }
+
+        // Update volume data if enabled
+        if (showVolume && volumeSeries && processedVolumeData.length > 0) {
+            volumeSeries.setData(processedVolumeData);
+        }
+        
+        console.log(`Chart updated in ${(performance.now() - start).toFixed(2)}ms`);
+    }, [processedChartData, processedVolumeData, showVolume]);
+
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
     useEffect(() => {
@@ -455,6 +561,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             timeScale: {
                 timeVisible: true,
                 secondsVisible: false,
+                // Fix timezone handling for better chart display
+                fixLeftEdge: true,
+                fixRightEdge: true,
+                borderVisible: true,
             },
             crosshair: {
                 mode: 0,
@@ -510,27 +620,51 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
 
         // Format data for the chart using candles
-        // @ts-ignore: TypeScript types are too strict, but this works at runtime
-        const formattedData = candles.map(candle => ({
-            time: Math.floor(new Date(candle.timestamp).getTime() / 1000),
-            open: candle.open,
-            high: candle.high,
-            low: candle.low,
-            close: candle.close,
-        }));
+        // Ensure consistent timestamp handling to prevent chart distortion
+        const formattedData = candles.map(candle => {
+            // Normalize timestamp to UTC to avoid timezone issues
+            let timestamp = candle.timestamp;
+            if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
+                timestamp = timestamp + 'Z'; // Treat as UTC if no timezone specified
+            }
+            
+            return {
+                time: Math.floor(new Date(timestamp).getTime() / 1000),
+                open: candle.open,
+                high: candle.high,
+                low: candle.low,
+                close: candle.close,
+            };
+        }).filter((item, index, self) => 
+            // Remove duplicates and invalid entries
+            item.time && !isNaN(item.time) && 
+            index === self.findIndex(t => t.time === item.time)
+        ).sort((a, b) => a.time - b.time); // Ensure ascending order
 
         // Set candlestick data
         // @ts-ignore: TypeScript types are too strict, but this works at runtime
         candlestickSeries.setData(formattedData);
 
         // Set volume data if enabled
-    if (showVolume && volumeSeries) {
-            // @ts-ignore: TypeScript types are too strict, but this works at runtime
-            const volumeData = candles.map(candle => ({
-                time: Math.floor(new Date(candle.timestamp).getTime() / 1000),
-                value: candle.volume,
-                color: candle.close >= candle.open ? '#4caf50' : '#ef5350', // Lighter colors for volume
-            }));
+        if (showVolume && volumeSeries) {
+            // Apply the same timestamp normalization for volume data
+            const volumeData = candles.map(candle => {
+                let timestamp = candle.timestamp;
+                if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
+                    timestamp = timestamp + 'Z'; // Treat as UTC if no timezone specified
+                }
+                
+                return {
+                    time: Math.floor(new Date(timestamp).getTime() / 1000),
+                    value: candle.volume,
+                    color: candle.close >= candle.open ? '#4caf50' : '#ef5350',
+                };
+            }).filter((item, index, self) => 
+                // Remove duplicates and invalid entries
+                item.time && !isNaN(item.time) && 
+                index === self.findIndex(t => t.time === item.time)
+            ).sort((a, b) => a.time - b.time); // Ensure ascending order
+            
             // @ts-ignore: TypeScript types are too strict, but this works at runtime
             volumeSeries.setData(volumeData);
         }
@@ -654,6 +788,26 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         if (showEMA) {
             try {
                 removeEmaSeries();
+                
+                // Check raw EMA values in candles
+                const candlesWithEma8 = candles.filter(c => typeof c.ema8 === 'number' && !isNaN(c.ema8));
+                const candlesWithEma30 = candles.filter(c => typeof c.ema30 === 'number' && !isNaN(c.ema30));
+                
+                // Debug logging for EMA data analysis
+                console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length})`);
+                
+                // Debug timestamp ordering - check if data might be in reverse order
+                if (candles.length >= 2) {
+                    const first = candles[0];
+                    const last = candles[candles.length - 1];
+                    const firstTime = Math.floor(new Date(first.timestamp.endsWith('Z') || first.timestamp.includes('+') ? first.timestamp : first.timestamp + 'Z').getTime() / 1000);
+                    const lastTime = Math.floor(new Date(last.timestamp.endsWith('Z') || last.timestamp.includes('+') ? last.timestamp : last.timestamp + 'Z').getTime() / 1000);
+                    console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
+                    if (firstTime > lastTime) {
+                        console.warn('⚠️ Data appears to be in reverse chronological order!');
+                    }
+                }
+                
                 // EMA 8
                 ema8SeriesRef.current = chart.addLineSeries({
                     color: '#03A9F4',
@@ -662,11 +816,24 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     title: 'EMA 8',
                 });
                 const ema8Data = candles
-                    .map((c: Candle) => ({
-                        time: Math.floor(new Date(c.timestamp).getTime() / 1000),
-                        value: typeof c.ema8 === 'number' && !isNaN(c.ema8) ? c.ema8 : null,
-                    }))
-                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value));
+                    .map((c: Candle) => {
+                        // Use same timestamp normalization as main chart data
+                        let timestamp = c.timestamp;
+                        if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
+                            timestamp = timestamp + 'Z';
+                        }
+                        return {
+                            time: Math.floor(new Date(timestamp).getTime() / 1000),
+                            value: typeof c.ema8 === 'number' && !isNaN(c.ema8) ? c.ema8 : null,
+                        };
+                    })
+                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
+                    .sort((a, b) => a.time - b.time); // Ensure ascending time order
+
+                console.log(`EMA8 chart data points: ${ema8Data.length}`);
+                if (ema8Data.length > 0) {
+                    console.log(`EMA8 time range: ${new Date(ema8Data[0].time * 1000).toISOString()} to ${new Date(ema8Data[ema8Data.length - 1].time * 1000).toISOString()}`);
+                }
 
                 // EMA 30
                 ema30SeriesRef.current = chart.addLineSeries({
@@ -676,15 +843,44 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     title: 'EMA 30',
                 });
                 const ema30Data = candles
-                    .map((c: Candle) => ({
-                        time: Math.floor(new Date(c.timestamp).getTime() / 1000),
-                        value: typeof c.ema30 === 'number' && !isNaN(c.ema30) ? c.ema30 : null,
-                    }))
-                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value));
+                    .map((c: Candle) => {
+                        // Use same timestamp normalization as main chart data
+                        let timestamp = c.timestamp;
+                        if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
+                            timestamp = timestamp + 'Z';
+                        }
+                        return {
+                            time: Math.floor(new Date(timestamp).getTime() / 1000),
+                            value: typeof c.ema30 === 'number' && !isNaN(c.ema30) ? c.ema30 : null,
+                        };
+                    })
+                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
+                    .sort((a, b) => a.time - b.time); // Ensure ascending time order
 
-                if (!ema8Data.length && !ema30Data.length) throw new Error('Insufficient EMA data');
-                if (ema8Data.length) ema8SeriesRef.current.setData(ema8Data);
-                if (ema30Data.length) ema30SeriesRef.current.setData(ema30Data);
+                console.log(`EMA30 chart data points: ${ema30Data.length}`);
+                if (ema30Data.length > 0) {
+                    console.log(`EMA30 time range: ${new Date(ema30Data[0].time * 1000).toISOString()} to ${new Date(ema30Data[ema30Data.length - 1].time * 1000).toISOString()}`);
+                }
+
+                // Enhanced error checking with detailed logging
+                if (!ema8Data.length && !ema30Data.length) {
+                    console.error('❌ EMA Error Details:');
+                    console.error(`- Total candles: ${candles.length}`);
+                    console.error(`- Candles with EMA8: ${candlesWithEma8.length}`);
+                    console.error(`- Candles with EMA30: ${candlesWithEma30.length}`);
+                    console.error(`- EMA8 data points after processing: ${ema8Data.length}`);
+                    console.error(`- EMA30 data points after processing: ${ema30Data.length}`);
+                    throw new Error('Insufficient EMA data - both EMA8 and EMA30 arrays are empty');
+                }
+                
+                if (ema8Data.length) {
+                    ema8SeriesRef.current.setData(ema8Data);
+                    console.log('✅ EMA8 data set successfully');
+                }
+                if (ema30Data.length) {
+                    ema30SeriesRef.current.setData(ema30Data);
+                    console.log('✅ EMA30 data set successfully');
+                }
             } catch (err) {
                 console.error('EMA calculation error:', err);
                 setEmaError('Insufficient EMA data available');
@@ -711,11 +907,19 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     priceScaleId: rsiPaneId,
                 });
                 const rsiData = candles
-                    .map((c: Candle) => ({
-                        time: Math.floor(new Date(c.timestamp).getTime() / 1000),
-                        value: typeof c.rsi === 'number' && !isNaN(c.rsi) ? c.rsi : null,
-                    }))
-                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value));
+                    .map((c: Candle) => {
+                        // Use same timestamp normalization as main chart data
+                        let timestamp = c.timestamp;
+                        if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
+                            timestamp = timestamp + 'Z';
+                        }
+                        return {
+                            time: Math.floor(new Date(timestamp).getTime() / 1000),
+                            value: typeof c.rsi === 'number' && !isNaN(c.rsi) ? c.rsi : null,
+                        };
+                    })
+                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
+                    .sort((a, b) => a.time - b.time); // Ensure ascending time order
                 if (!rsiData.length) throw new Error('Insufficient RSI data');
                 rsiSeriesRef.current.setData(rsiData);
                 chart.priceScale(rsiPaneId).applyOptions({
@@ -769,7 +973,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             lastVix = vixMap.get(t)!;
                         }
                         return { time: t, value: typeof lastVix === 'number' && !isNaN(lastVix) ? lastVix : undefined };
-                    }).filter(item => typeof item.value === 'number' && !isNaN(item.value)) as { time: number; value: number }[];
+                    }).filter(item => typeof item.value === 'number' && !isNaN(item.value))
+                     .sort((a, b) => a.time - b.time) as { time: number; value: number }[]; // Ensure ascending time order
                     if (!formattedVix.length) throw new Error('Insufficient VIX data');
                     vixSeriesRef.current = chart.addLineSeries({
                         color: '#FFD600', // bright yellow

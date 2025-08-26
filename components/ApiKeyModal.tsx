@@ -32,7 +32,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 
   const handleSave = () => {
     if (!apiKey.trim()) {
-      toast.error('API key cannot be empty');
+      toast.error('API key is required to fetch data from Upstox');
       return;
     }
 
@@ -43,7 +43,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     onSave(apiKey);
     
     // Show success message
-    toast.success('API key saved successfully');
+    toast.success('API key saved successfully! You can now fetch data from Upstox.');
     
     // Close the modal
     onClose();
@@ -72,23 +72,36 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
         <DialogHeader>
           <DialogTitle>Upstox API Configuration</DialogTitle>
           <DialogDescription>
-            Enter your Upstox API key to fetch historical data directly from Upstox API v3.
+            Enter your Upstox API key to fetch historical data directly from Upstox API v3. This key is required to access real-time market data.
           </DialogDescription>
         </DialogHeader>
         
         <div className="flex flex-col gap-4 py-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="apiKey">API Key</Label>
+            <Label htmlFor="apiKey">API Key *</Label>
             <Input
               id="apiKey"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="Enter your Upstox API key"
               className="w-full"
+              required
             />
           </div>
-          <div className="text-xs text-gray-500">
-            Your API key is stored locally in your browser and is never sent to our servers.
+          <div className="text-xs text-gray-500 space-y-1">
+            <p>Your API key is stored locally in your browser and is never sent to our servers. The key is required to fetch data from Upstox API.</p>
+            <p className="text-blue-600">
+              <strong>How to get API key:</strong> Login to{' '}
+              <a 
+                href="https://developer.upstox.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="underline hover:text-blue-800"
+              >
+                Upstox Developer Portal
+              </a>
+              {' '}→ Create App → Copy API Key
+            </p>
           </div>
         </div>
         
@@ -104,8 +117,8 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>
-              Save API Key
+            <Button onClick={handleSave} disabled={!apiKey.trim()}>
+              Save & Connect to Upstox
             </Button>
           </div>
         </DialogFooter>

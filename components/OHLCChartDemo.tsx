@@ -1,16 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { OHLCChart } from './OHLCChart';
 import { BoomDaysTable } from './BoomDaysTable';
 import { Candle } from './types/candle';
 import { calculateIndicators } from './utils/indicators';
-import { BackTest } from './types/backtest';
+import { Timeframe, processTimeframeData } from './utils/timeframeUtils';
+import { fetchPaginatedUpstoxData, UpstoxPaginationParams } from './utils/upstoxApi';
+import { ApiKeyModal } from './ApiKeyModal';
+
+// Performance optimization constants
+const MAX_CANDLES_FOR_CHART = 3000; // Limit for ultra-fast performance
+const PAGINATION_CHUNK_SIZE = 500; // Smaller chunks for faster loading
 
 export const OHLCChartDemo: React.FC = () => {
   const [candles, setCandles] = useState<Candle[]>([]);
+  const [rawCandles, setRawCandles] = useState<Candle[]>([]);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1d');
   const [vixData, setVixData] = useState<{ timestamp: string; value: number }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
@@ -28,10 +35,66 @@ export const OHLCChartDemo: React.FC = () => {
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [avgVolume, setAvgVolume] = useState<number>(0);
   // Chart indicator toggles
-  const [showEMA, setShowEMA] = useState(false);
-  const [showRSI, setShowRSI] = useState(false);
-  const [showVIX, setShowVIX] = useState(false);
-  const [showSwingPoints, setShowSwingPoints] = useState(false);
+  const [showEMA] = useState(true);
+  const [showRSI] = useState(false);
+  const [showVIX] = useState(false);
+  const [showSwingPoints] = useState(false);
+  // Pagination state for Upstox API
+  const [hasMoreCandles, setHasMoreCandles] = useState(false);
+  const [loadingOlderData, setLoadingOlderData] = useState(false);
+  const [oldestCandleTime, setOldestCandleTime] = useState<string | undefined>(undefined);
+  const [newestCandleTime, setNewestCandleTime] = useState<string | undefined>(undefined);
+  // API Key modal
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [upstoxApiKey, setUpstoxApiKey] = useState('alpha');
+
+  /**
+   * Calculate the optimal date range based on timeframe to fetch approximately 100 candles
+   * @param baseDate The base date to calculate from
+   * @param timeframe The selected timeframe
+   * @returns Date object set to appropriate historical point
+   */
+  const calculateFromDate = (baseDate: Date, timeframe: Timeframe): Date => {
+    const from = new Date(baseDate);
+    
+    // Calculate based on typical trading hours and market days to get ~100 candles
+    switch (timeframe) {
+      case '1m':
+        from.setDate(from.getDate() - 3); // 375 per Day * 3 days = 1125 Candles
+        break;
+      case '5m':
+        from.setDate(from.getDate() - 10); // 75 per Day * 10 days = 750 Candles
+        break;
+      case '15m':
+        from.setDate(from.getDate() - 21); // 375 per Week * 3 weeks = 1125 Candles
+        break;
+      case '30m':
+        from.setMonth(from.getMonth() - 2); // 12 per Day * 60 days = 720 Candles
+        break;
+      case '1h':
+        from.setMonth(from.getMonth() - 4); // 6 per Day *  4 months = 528 Candles
+        break;
+      case '4h':
+        from.setMonth(from.getMonth() - 12); // 33 per Month * 12 months = 396 Candles
+        break;
+      case '1d':
+        from.setMonth(from.getMonth() - 6); // ~6 months = ~130 trading days (reduced from 2 years)
+        break;
+      case '1w':
+        from.setFullYear(from.getFullYear() - 2); // ~2 years = ~104 weeks (reduced from 3 years)
+        break;
+      default:
+        from.setMonth(from.getMonth() - 3); // Default fallback
+    }
+    
+    return from;
+  };
+
+  // Initialize API key from localStorage after hydration
+  useEffect(() => {
+    const savedApiKey = localStorage.getItem('upstoxApiKey') || '';
+    setUpstoxApiKey(savedApiKey);
+  }, []);
 
   // Fetch KeyMapping from Redis on mount
   useEffect(() => {
@@ -73,79 +136,322 @@ export const OHLCChartDemo: React.FC = () => {
     // We preserve the current view (either chart view or boom days) when selecting a new company
   };
 
-  // Fetch candles for selected company/instrument
-  const handleFetchData = () => {
-    if (!selectedCompany || !selectedInstrumentKey) return;
-    setIsLoading(true);
-    const formattedInstrumentKey = selectedInstrumentKey.replace(/\|/g, '-');
-    const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-    const url = `${backEndBaseUrl}/api/chart-historical-data/get-candles/${selectedCompany}/${formattedInstrumentKey}`;
-    axios.get(url)
-      .then(res => {
-        const candlesData = res.data.historicalData.candles;
-        const analysisData = res.data.historicalData.analysisList || [];
-        const supportData = res.data.historicalData.support || null;
-        const resistanceData = res.data.historicalData.resistance || null;
-        const boomDays = res.data.historicalData.backTestDataList || [];
-        const avgVolume = res.data.historicalData.avgVolume || 0;
+  // Performance optimization: limit displayed candles to prevent slowdown
+  const optimizedCandles = useMemo(() => {
+    if (candles.length <= MAX_CANDLES_FOR_CHART) {
+      return candles;
+    }
+    
+    // Keep the most recent candles for better performance
+    const recentCandles = candles.slice(-MAX_CANDLES_FOR_CHART);
+    console.log(`Performance optimization: Showing ${recentCandles.length} of ${candles.length} candles`);
+    return recentCandles;
+  }, [candles]);
 
-        // Calculate EMA and RSI indicators before setting the candles
-        const candlesWithIndicators = calculateIndicators(candlesData, 200, 14);
-        setCandles(candlesWithIndicators);
-        setAnalysisList(analysisData);
-        setBoomDaysData(boomDays);
+  // Fetch candles for selected company/instrument using Upstox API
+  const handleFetchData = async () => {
+    if (!selectedCompany || !selectedInstrumentKey) {
+      toast.error('Please select a company from the search dropdown first.', {
+        duration: 3000
+      });
+      return;
+    }
+    
+    if (!upstoxApiKey) {
+      toast.error('Upstox API key is required to fetch market data. Please configure your API key first.', {
+        duration: 4000
+      });
+      handleOpenApiKeyModal();
+      return;
+    }
+
+    setIsLoading(true);
+    setCandles([]);
+    setRawCandles([]);
+    setHasMoreCandles(false);
+    setOldestCandleTime(undefined);
+    setNewestCandleTime(undefined);
+    
+    try {
+      
+      // Calculate dynamic date range based on timeframe to limit candles to ~100
+      const to = new Date().toISOString();
+      const from = calculateFromDate(new Date(), selectedTimeframe);
+      
+      const params: UpstoxPaginationParams = {
+        instrumentKey: selectedInstrumentKey,
+        timeframe: selectedTimeframe,
+        apiKey: upstoxApiKey,
+        from: from.toISOString(),
+        to: to,
+        limit: PAGINATION_CHUNK_SIZE // Use smaller chunks for faster loading
+      };
+      
+      const result = await fetchPaginatedUpstoxData(params);
+      
+      if (result.candles.length > 0) {
+        // Sort candles by timestamp in ascending order (oldest first) and remove duplicates
+        // Apply consistent UTC timestamp handling to prevent chart distortion
+        const sortedCandles = [...result.candles]
+          .filter((candle, index, self) =>
+            index === self.findIndex((c) => c.timestamp === candle.timestamp)
+          )
+          .sort((a, b) => {
+            // Ensure consistent UTC timestamp comparison
+            const timeA = new Date(a.timestamp.endsWith('Z') ? a.timestamp : a.timestamp + 'Z').getTime();
+            const timeB = new Date(b.timestamp.endsWith('Z') ? b.timestamp : b.timestamp + 'Z').getTime();
+            return timeA - timeB;
+          });
         
-        // Set hasBoomDaysData based on whether we have boom days data
-        const hasBoomDaysDataValue = boomDays && boomDays.length > 0;
-        setHasBoomDaysData(hasBoomDaysDataValue);
-        setAvgVolume(avgVolume);
+        // Process candles with indicators
+        console.log(`🔄 Processing ${sortedCandles.length} candles with indicators after API fetch`);
+        const processedCandles = calculateIndicators(sortedCandles);
+        setRawCandles(processedCandles);
         
-        // If this is the first load of the application and we have no view preference yet
+        // Apply selected timeframe processing
+        const timeframeProcessedData = processTimeframeData(
+          processedCandles,
+          selectedTimeframe
+        );
+        
+        setCandles(timeframeProcessedData);
+        setHasMoreCandles(result.hasMore);
+        setOldestCandleTime(result.oldestTimestamp);
+        setNewestCandleTime(result.newestTimestamp);
+
+        // Calculate average volume
+        const volumes = processedCandles.map((candle) => candle.volume);
+        const avgVol = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+        setAvgVolume(avgVol);
+        
+        // Set placeholder values for other data (since Upstox doesn't provide these)
+        setAnalysisList([]);
+        setBoomDaysData([]);
+        setHasBoomDaysData(false);
+        setSupport(null);
+        setResistance(null);
+        
+        // First load handling
         if (isFirstLoad) {
           setShowBoomDays(false);
           setIsFirstLoad(false);
-        } 
-        // If we're showing boom days but new data has no boom days, switch to chart view
-        else if (showBoomDays && !hasBoomDaysDataValue) {
-          setShowBoomDays(false);
-          // No toast message - just switch to chart view silently
         }
-        // Otherwise preserve the current view
+        
+        toast.success(`Loaded data from Upstox for ${selectedCompany}`);
+      } else {
+        toast.error('No data available for the selected timeframe');
+      }
+    } catch (error) {
+      console.error('Error fetching data from Upstox:', error);
+      toast.error('Failed to fetch data from Upstox API. Please check your API key and try again.');
+    } finally {
+      setIsLoading(false);
+      setVixData([]); // Clear any VIX data
+    }
+  };
 
-        // Extract support and resistance values
-        // Check if the data structure is as expected (either an array or an object with value)
-        if (Array.isArray(supportData) && supportData.length > 0) {
-          // If it's an array, use the first item
-          setSupport({ value: supportData[0] });
-        } else if (supportData && typeof supportData === 'object' && 'value' in supportData) {
-          // If it's an object with a value property
-          setSupport(supportData);
-        } else if (typeof supportData === 'number') {
-          // If it's a direct number
-          setSupport({ value: supportData });
-        } else {
-          setSupport(null);
-        }
-
-        // Same logic for resistance
-        if (Array.isArray(resistanceData) && resistanceData.length > 0) {
-          setResistance({ value: resistanceData[0] });
-        } else if (resistanceData && typeof resistanceData === 'object' && 'value' in resistanceData) {
-          setResistance(resistanceData);
-        } else if (typeof resistanceData === 'number') {
-          setResistance({ value: resistanceData });
-        } else {
-          setResistance(null);
-        }
-
-        setVixData([]);
-        setIsLoading(false);
-      })
-      .catch((error) => {
-        console.error('Error fetching data:', error);
-        setIsLoading(false);
-        toast.error('Failed to fetch data');
+  // Function to load more historical data (pagination)
+  const loadMoreHistoricalData = async () => {
+    if (!selectedInstrumentKey || !newestCandleTime || loadingOlderData || !upstoxApiKey) {
+      return;
+    }
+    
+    setLoadingOlderData(true);
+    const loadingToast = toast.loading('Loading more historical data...');
+    
+    try {
+      // Don't format the instrument key - use it as is from the mapping
+      // The key mapping should already have the correct format
+      
+      // Convert newestCandleTime to a date - this will be our "to" date
+      const newestDate = new Date(newestCandleTime);
+      
+      // Set the "to" date as our newest candle time (end point for fetching older data)
+      const to = newestDate.toISOString();
+      
+      // Set the "from" date dynamically based on timeframe to get ~100 more candles
+      // This goes further back in time from the newest candle
+      const from = calculateFromDate(newestDate, selectedTimeframe);
+      
+      console.log('Pagination request details:', {
+        instrumentKey: selectedInstrumentKey,
+        timeframe: selectedTimeframe,
+        from: from.toISOString(),
+        to: to,
+        newestCandleTime
       });
+      
+      const params: UpstoxPaginationParams = {
+        instrumentKey: selectedInstrumentKey, // Use the original instrument key
+        timeframe: selectedTimeframe,
+        apiKey: upstoxApiKey,
+        from: from.toISOString(),
+        to: to,
+        limit: PAGINATION_CHUNK_SIZE // Use smaller chunks for better performance
+      };
+      
+      const result = await fetchPaginatedUpstoxData(params);
+      
+      if (result.candles.length > 0) {
+        // Update oldest candle time for next pagination
+        setOldestCandleTime(result.oldestTimestamp);
+        setNewestCandleTime(result.newestTimestamp);
+        setHasMoreCandles(result.hasMore);
+        
+        // Merge with existing candles
+        const combinedCandles = [...result.candles, ...rawCandles];
+        
+        // Remove duplicates (by timestamp) with consistent UTC handling
+        const uniqueCandles = combinedCandles.filter((candle, index, self) =>
+          index === self.findIndex((c) => c.timestamp === candle.timestamp)
+        );
+        
+        // Sort by timestamp (oldest to newest) with UTC consistency
+        uniqueCandles.sort((a, b) => {
+          const timeA = new Date(a.timestamp.endsWith('Z') ? a.timestamp : a.timestamp + 'Z').getTime();
+          const timeB = new Date(b.timestamp.endsWith('Z') ? b.timestamp : b.timestamp + 'Z').getTime();
+          return timeA - timeB;
+        });
+
+        // Performance optimization: limit total stored candles to prevent memory issues
+        const maxStoredCandles = MAX_CANDLES_FOR_CHART * 2; // Store 2x what we display for pagination
+        const optimizedUnique = uniqueCandles.length > maxStoredCandles 
+          ? uniqueCandles.slice(-maxStoredCandles) // Keep most recent candles
+          : uniqueCandles;
+        
+        console.log(`Memory optimization: Storing ${optimizedUnique.length} of ${uniqueCandles.length} total candles`);
+        
+        // Update raw candles
+        setRawCandles(optimizedUnique);
+        
+        // Process with the selected timeframe
+        const processedCandles = processTimeframeData(optimizedUnique, selectedTimeframe);
+        console.log(`🔄 Processing ${processedCandles.length} candles with indicators during pagination`);
+        const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14);
+        setCandles(candlesWithIndicators);
+        
+        toast.success(`Loaded ${result.candles.length} more candles`, {
+          id: loadingToast
+        });
+      } else {
+        toast.error('No more historical data available', {
+          id: loadingToast
+        });
+        setHasMoreCandles(false);
+      }
+    } catch (error) {
+      console.error('Error loading more historical data:', error);
+      toast.error('Failed to load more data', {
+        id: loadingToast
+      });
+    } finally {
+      setLoadingOlderData(false);
+    }
+  };
+
+  // Handle timeframe change
+  const handleTimeframeChange = (timeframe: Timeframe) => {
+    setSelectedTimeframe(timeframe);
+    
+    // Check if we need to fetch new data for the timeframe
+    const needsNewData = shouldFetchNewDataForTimeframe(selectedTimeframe, timeframe);
+    
+    if (needsNewData && selectedInstrumentKey && upstoxApiKey) {
+      // Fetch fresh data for the new timeframe
+      toast.loading('Fetching data for new timeframe...', { duration: 2000 });
+      fetchDataForTimeframe(timeframe);
+    } else if (rawCandles.length) {
+      // Use existing data and process it for the new timeframe
+      const processedCandles = processTimeframeData(rawCandles, timeframe);
+      console.log(`🔄 Processing ${processedCandles.length} candles with indicators during timeframe change`);
+      const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14);
+      setCandles(candlesWithIndicators);
+    }
+  };
+
+  // Helper function to determine if we need to fetch new data
+  const shouldFetchNewDataForTimeframe = (currentTf: Timeframe, newTf: Timeframe): boolean => {
+    // Define timeframe hierarchy (lower index = higher resolution)
+    const timeframeOrder = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
+    const currentIndex = timeframeOrder.indexOf(currentTf);
+    const newIndex = timeframeOrder.indexOf(newTf);
+    
+    // If switching to a higher resolution timeframe, we need new data
+    return newIndex < currentIndex;
+  };
+
+  // Function to fetch data for a specific timeframe
+  const fetchDataForTimeframe = async (timeframe: Timeframe) => {
+    if (!selectedInstrumentKey || !upstoxApiKey) return;
+    
+    setIsLoading(true);
+    
+    try {
+      // Calculate dynamic date range based on timeframe
+      const to = new Date().toISOString();
+      const from = calculateFromDate(new Date(), timeframe);
+      
+      const params: UpstoxPaginationParams = {
+        instrumentKey: selectedInstrumentKey,
+        timeframe: timeframe,
+        apiKey: upstoxApiKey,
+        from: from.toISOString(),
+        to: to,
+        limit: PAGINATION_CHUNK_SIZE // Use smaller chunks for faster fetching
+      };
+      
+      const result = await fetchPaginatedUpstoxData(params);
+      
+      if (result.candles.length > 0) {
+        // Sort candles by timestamp and remove duplicates with UTC consistency
+        const sortedCandles = [...result.candles]
+          .filter((candle, index, self) =>
+            index === self.findIndex((c) => c.timestamp === candle.timestamp)
+          )
+          .sort((a, b) => {
+            const timeA = new Date(a.timestamp.endsWith('Z') ? a.timestamp : a.timestamp + 'Z').getTime();
+            const timeB = new Date(b.timestamp.endsWith('Z') ? b.timestamp : b.timestamp + 'Z').getTime();
+            return timeA - timeB;
+          });
+        
+        // Process candles with indicators
+        console.log(`🔄 Processing ${sortedCandles.length} candles with indicators during timeframe fetch`);
+        const processedCandles = calculateIndicators(sortedCandles);
+        setRawCandles(processedCandles);
+        
+        // Apply timeframe processing
+        const timeframeProcessedData = processTimeframeData(processedCandles, timeframe);
+        setCandles(timeframeProcessedData);
+        
+        setHasMoreCandles(result.hasMore);
+        setOldestCandleTime(result.oldestTimestamp);
+        
+        toast.success(`Loaded ${timeframe} data for ${selectedCompany}`);
+      } else {
+        toast.error('No data available for the selected timeframe');
+      }
+    } catch (error) {
+      console.error('Error fetching timeframe data:', error);
+      toast.error('Failed to fetch data for new timeframe');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle API key modal
+  const handleOpenApiKeyModal = () => {
+    setIsApiKeyModalOpen(true);
+  };
+
+  const handleCloseApiKeyModal = () => {
+    setIsApiKeyModalOpen(false);
+  };
+
+  const handleSaveApiKey = (newApiKey: string) => {
+    setUpstoxApiKey(newApiKey);
+    if (newApiKey) {
+      toast.success('API key saved. You can now fetch data from Upstox.');
+    }
   };
 
   if (isLoading) {
@@ -205,6 +511,21 @@ export const OHLCChartDemo: React.FC = () => {
             Load Data
           </button>
 
+          {/* API Key Configuration Button */}
+          <button
+            onClick={handleOpenApiKeyModal}
+            className={`px-4 py-2 rounded-md flex items-center gap-1 transition-colors ${
+              upstoxApiKey 
+                ? 'bg-green-600 text-white hover:bg-green-700' 
+                : 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z" />
+            </svg>
+            {upstoxApiKey ? 'Upstox Connected ✓' : 'Connect Upstox API'}
+          </button>
+
           {/* Boom Days button - now always visible */}
           {showBoomDays ? (
             <button
@@ -244,47 +565,41 @@ export const OHLCChartDemo: React.FC = () => {
             Overall Stats
           </a>
 
-          {/* <div className="flex gap-2 bg-white bg-opacity-90 p-2 rounded-lg border border-gray-300 shadow-sm">
-            <label className="flex items-center gap-1 text-sm font-semibold">
-              <input
-                type="checkbox"
-                checked={showEMA}
-                onChange={e => setShowEMA(e.target.checked)}
-              />
-              EMA (200)
-            </label>
-            <label className="flex items-center gap-1 text-sm font-semibold">
-              <input
-                type="checkbox"
-                checked={showRSI}
-                onChange={e => setShowRSI(e.target.checked)}
-              />
-              RSI (14)
-            </label>
-            <label className="flex items-center gap-1 text-sm font-semibold">
-              <input
-                type="checkbox"
-                checked={showVIX}
-                onChange={e => {
-                  if (e.target.checked && (!vixData || vixData.length === 0)) {
-                    toast.error('Insufficient VIX data available', { duration: 4000 });
-                    setShowVIX(false);
-                  } else {
-                    setShowVIX(e.target.checked);
-                  }
-                }}
-              />
-              VIX
-            </label>
-            <label className="flex items-center gap-1 text-sm font-semibold">
-              <input
-                type="checkbox"
-                checked={showSwingPoints}
-                onChange={e => setShowSwingPoints(e.target.checked)}
-              />
-              SWING
-            </label>
-          </div> */}
+          {/* Timeframe selector */}
+          {!showBoomDays && candles.length > 0 && (
+            <div className="flex bg-white bg-opacity-90 border border-gray-300 rounded-lg overflow-hidden shadow-sm">
+              {(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'] as Timeframe[]).map((tf) => (
+                <button
+                  key={tf}
+                  onClick={() => handleTimeframeChange(tf)}
+                  className={`px-3 py-1 text-sm font-medium transition-colors ${
+                    selectedTimeframe === tf
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={`View ${tf} timeframe`}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {/* Load More Historical Data button */}
+          {!showBoomDays && candles.length > 0 && hasMoreCandles && (
+            <button
+              onClick={loadMoreHistoricalData}
+              disabled={loadingOlderData}
+              className={`px-4 py-2 rounded-md ${
+                loadingOlderData
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              {loadingOlderData ? 'Loading...' : 'Load More History'}
+            </button>
+          )}
+
         </div>
       </div>
 
@@ -302,21 +617,51 @@ export const OHLCChartDemo: React.FC = () => {
         // If not showing boom days, show chart
         if (!showBoomDays) {
           return (
-            <OHLCChart
-              candles={candles}
-              vixData={vixData}
-              title="OHLC Chart"
-              height={500}
-              showVolume={true}
-              showEMA={showEMA}
-              showRSI={showRSI}
-              showVIX={showVIX}
-              showSwingPoints={showSwingPoints}
-              analysisList={analysisList}
-              supportLevel={support?.value}
-              resistanceLevel={resistance?.value}
-              avgVolume={avgVolume}
-            />
+            <>
+              {candles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 bg-gray-50 border border-gray-200 rounded-lg m-4">
+                  <div className="text-center space-y-3">
+                    <div className="text-4xl text-gray-400">📊</div>
+                    <h3 className="text-lg font-semibold text-gray-600">No Chart Data</h3>
+                    <p className="text-gray-500 max-w-md">
+                      {(() => {
+                        if (!upstoxApiKey) {
+                          return 'Please connect your Upstox API first, then select a company and click "Load Data".';
+                        }
+                        if (!selectedCompany) {
+                          return 'Please select a company from the search dropdown and click "Load Data".';
+                        }
+                        return 'Click "Load Data" to fetch historical data for the selected company.';
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <OHLCChart
+                  candles={optimizedCandles}
+                  vixData={vixData}
+                  title={`${selectedCompany || 'Select a company'} - ${selectedTimeframe} Chart`}
+                  height={700}
+                  showVolume={true}
+                  showEMA={showEMA}
+                  showRSI={showRSI}
+                  showVIX={showVIX}
+                  showSwingPoints={showSwingPoints}
+                  analysisList={analysisList}
+                  supportLevel={support?.value}
+                  resistanceLevel={resistance?.value}
+                  avgVolume={avgVolume}
+                />
+              )}
+              
+              {/* Loading older data indicator */}
+              {loadingOlderData && (
+                <div className="flex items-center justify-center p-4 bg-green-50 border border-green-200 rounded-md m-4">
+                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-green-500 mr-3"></div>
+                  <span className="text-green-800">Loading historical data...</span>
+                </div>
+              )}
+            </>
           );
         }
 
@@ -340,6 +685,14 @@ export const OHLCChartDemo: React.FC = () => {
           </div>
         );
       })()}
+      
+      {/* API Key Modal */}
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={handleCloseApiKeyModal}
+        onSave={handleSaveApiKey}
+        initialApiKey={upstoxApiKey}
+      />
     </div>
   );
 };

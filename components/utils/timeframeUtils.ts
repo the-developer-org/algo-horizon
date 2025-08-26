@@ -2,6 +2,39 @@ import { Candle } from '../types/candle';
 
 export type Timeframe = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w';
 
+export interface UpstoxTimeframe {
+  unit: 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
+  interval: string;
+}
+
+/**
+ * Converts internal timeframe format to Upstox API format
+ * @param timeframe Internal timeframe (e.g., '5m', '1h', '1d')
+ * @returns Object with unit and interval for Upstox API
+ */
+export const convertToUpstoxTimeframe = (timeframe: Timeframe): UpstoxTimeframe => {
+  switch (timeframe) {
+    case '1m':
+      return { unit: 'minutes', interval: '1' };
+    case '5m':
+      return { unit: 'minutes', interval: '5' };
+    case '15m':
+      return { unit: 'minutes', interval: '15' };
+    case '30m':
+      return { unit: 'minutes', interval: '30' };
+    case '1h':
+      return { unit: 'hours', interval: '1' };
+    case '4h':
+      return { unit: 'hours', interval: '4' };
+    case '1d':
+      return { unit: 'days', interval: '1' };
+    case '1w':
+      return { unit: 'weeks', interval: '1' };
+    default:
+      return { unit: 'days', interval: '1' }; // Default to daily
+  }
+};
+
 /**
  * Consolidates candles to the specified timeframe
  * @param sourceCandles Original candles data
@@ -29,32 +62,33 @@ export const consolidateCandles = (sourceCandles: Candle[], timeframe: Timeframe
   
   // Function to get the interval timestamp for grouping
   const getIntervalTimestamp = (date: Date, tf: Timeframe): string => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
+    // Use UTC to avoid timezone issues that can cause chart distortion
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
+    const hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
     
     if (tf === '1w') {
-      // For weekly, get the start of the week (Sunday)
-      const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
-      const startOfWeek = new Date(year, month, day - dayOfWeek);
+      // For weekly, get the start of the week (Sunday) in UTC
+      const dayOfWeek = date.getUTCDay(); // 0 = Sunday, 6 = Saturday
+      const startOfWeek = new Date(Date.UTC(year, month, day - dayOfWeek, 0, 0, 0, 0));
       return startOfWeek.toISOString();
     } else if (tf === '1d') {
-      // For daily, use the start of the day
-      return new Date(year, month, day).toISOString();
+      // For daily, use the start of the day in UTC
+      return new Date(Date.UTC(year, month, day, 0, 0, 0, 0)).toISOString();
     } else if (tf === '4h') {
-      // For 4-hour, round down to nearest 4-hour block
+      // For 4-hour, round down to nearest 4-hour block in UTC
       const fourHourBlock = Math.floor(hours / 4) * 4;
-      return new Date(year, month, day, fourHourBlock).toISOString();
+      return new Date(Date.UTC(year, month, day, fourHourBlock, 0, 0, 0)).toISOString();
     } else if (tf === '1h') {
-      // For hourly, use the start of the hour
-      return new Date(year, month, day, hours).toISOString();
+      // For hourly, use the start of the hour in UTC
+      return new Date(Date.UTC(year, month, day, hours, 0, 0, 0)).toISOString();
     } else {
-      // For minute-based timeframes, round down to the nearest interval
+      // For minute-based timeframes, round down to the nearest interval in UTC
       const minuteInterval = getMinutes(tf);
       const roundedMinutes = Math.floor(minutes / minuteInterval) * minuteInterval;
-      return new Date(year, month, day, hours, roundedMinutes).toISOString();
+      return new Date(Date.UTC(year, month, day, hours, roundedMinutes, 0, 0)).toISOString();
     }
   };
   
@@ -199,19 +233,18 @@ export const simulateIntradayData = (dailyCandles: Candle[], timeframe: Timefram
 };
 
 /**
- * Processes candles to the desired timeframe, simulating intraday data when needed
- * @param dailyCandles Original daily candles from API
+ * Processes candles to the desired timeframe - now uses actual API data for all timeframes
+ * @param candles Candles from API (can be any timeframe)
  * @param timeframe Target timeframe
  * @returns Processed candles in the requested timeframe
  */
-export const processTimeframeData = (dailyCandles: Candle[], timeframe: Timeframe): Candle[] => {
-  if (!dailyCandles.length) return [];
+export const processTimeframeData = (candles: Candle[], timeframe: Timeframe): Candle[] => {
+  if (!candles.length) return [];
   
-  // For daily and weekly, just consolidate directly
-  if (timeframe === '1d') return dailyCandles;
-  if (timeframe === '1w') return consolidateCandles(dailyCandles, timeframe);
+  // For direct use of API data - no simulation needed
+  // The Upstox API should provide data in the requested timeframe
+  // We just need to consolidate if we have higher resolution data
   
-  // For intraday timeframes, first simulate the intraday data
-  const intradayData = simulateIntradayData(dailyCandles, timeframe);
-  return intradayData;
+  // If we already have the data at the requested timeframe or lower resolution, use as-is
+  return consolidateCandles(candles, timeframe);
 };
