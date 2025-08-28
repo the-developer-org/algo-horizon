@@ -38,6 +38,292 @@ export const mapTimeframeToUpstoxV3 = (timeframe: string): { unit: string; inter
 };
 
 /**
+ * Get maximum duration limits for different timeframes based on Upstox API constraints
+ * @param unit The unit for candles (minutes, hours, days, weeks, months)
+ * @param interval The interval for candles
+ * @returns Maximum duration in days for the given timeframe
+ */
+export const getMaxDurationForTimeframe = (unit: string, interval: string): number => {
+  const timeframeKey = `${unit}_${interval}`;
+  
+  // Based on Upstox API documentation and real-world testing
+  // These limits prevent API errors for different timeframes
+  const maxDurations: Record<string, number> = {
+    // Minutes timeframes - shorter duration limits
+    'minutes_1': 7,     // 1m: 7 days max
+    'minutes_5': 30,    // 5m: 30 days max  
+    'minutes_15': 60,   // 15m: 60 days max
+    'minutes_30': 90,   // 30m: 90 days max
+    
+    // Hours timeframes - medium duration limits
+    'hours_1': 90,      // 1h: ~3 months max (based on your example: May 28 to Aug 27)
+    'hours_4': 180,     // 4h: ~6 months max
+    
+    // Days and larger timeframes - longer duration limits
+    'days_1': 365,      // 1d: 1 year max
+    'weeks_1': 1825,    // 1w: 5 years max
+    'months_1': 1825,   // 1M: 5 years max
+  };
+  
+  return maxDurations[timeframeKey] || 365; // Default to 1 year if not found
+};
+
+/**
+ * Calculate appropriate date range for a given timeframe
+ * @param timeframe The timeframe (e.g., '1h', '1d')
+ * @param toDate Optional end date (defaults to today)
+ * @param requestedDays Optional number of days requested (will be capped to max allowed)
+ * @returns Object with fromDate and toDate strings
+ */
+export const calculateOptimalDateRange = (
+  timeframe: Timeframe, 
+  toDate?: string, 
+  requestedDays?: number
+): { fromDate: string; toDate: string; actualDays: number; maxDays: number } => {
+  const { unit, interval } = convertToUpstoxTimeframe(timeframe);
+  const maxDuration = getMaxDurationForTimeframe(unit, interval);
+  
+  // Use provided toDate or default to today
+  const endDate = toDate ? new Date(toDate) : new Date();
+  const endDateString = endDate.toISOString().split('T')[0];
+  
+  // Determine how many days to go back
+  let daysToGoBack: number;
+  
+  if (requestedDays) {
+    // Use requested days but cap it to the maximum allowed
+    daysToGoBack = Math.min(requestedDays, maxDuration);
+  } else {
+    // Use reasonable defaults based on timeframe
+    const defaultDays: Record<string, number> = {
+      '1m': 3,     // 3 days for 1-minute data
+      '5m': 7,     // 1 week for 5-minute data
+      '15m': 14,   // 2 weeks for 15-minute data
+      '30m': 30,   // 1 month for 30-minute data
+      '1h': 60,    // 2 months for 1-hour data
+      '4h': 90,    // 3 months for 4-hour data
+      '1d': 180,   // 6 months for daily data
+      '1w': 365,   // 1 year for weekly data
+    };
+    
+    daysToGoBack = Math.min(defaultDays[timeframe] || 30, maxDuration);
+  }
+  
+  // Calculate fromDate
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - daysToGoBack);
+  const fromDateString = startDate.toISOString().split('T')[0];
+  
+  return {
+    fromDate: fromDateString,
+    toDate: endDateString,
+    actualDays: daysToGoBack,
+    maxDays: maxDuration
+  };
+};
+
+/**
+ * Helper to check if an error is a retryable "Invalid date range" error
+ */
+const isRetryableInvalidDateRangeError = (error: unknown): boolean => {
+  return axios.isAxiosError(error) && 
+    error.response?.status === 400 && 
+    error.response?.data?.message === "Invalid date range";
+};
+
+/**
+ * Helper to adjust fromDate by reducing range by specified days
+ */
+const adjustFromDateByDays = (fromDate: string, daysToReduce: number): string => {
+  const fromDateObj = new Date(fromDate);
+  fromDateObj.setDate(fromDateObj.getDate() + daysToReduce);
+  return fromDateObj.toISOString().split('T')[0];
+};
+
+/**
+ * Helper to rebuild URL with new fromDate
+ */
+const rebuildUrlWithFromDate = (
+  instrumentKey: string,
+  unit: string,
+  interval: string,
+  toDate: string,
+  fromDate: string
+): string => {
+  const encodedInstrumentKey = encodeURIComponent(instrumentKey);
+  return `https://api.upstox.com/v3/historical-candle/${encodedInstrumentKey}/${unit}/${interval}/${toDate}/${fromDate}`;
+};
+
+/**
+ * Helper to handle retry attempt for invalid date range error
+ */
+const handleRetryAttempt = (params: {
+  currentAttempt: number;
+  maxRetries: number;
+  currentFromDate: string;
+  instrumentKey: string;
+  unit: string;
+  interval: string;
+  toDate: string;
+  originalFromDate?: string;
+}): { shouldRetry: boolean; newFromDate: string; newUrl: string } => {
+  const { currentAttempt, maxRetries, currentFromDate, instrumentKey, unit, interval, toDate, originalFromDate } = params;
+  
+  if (currentAttempt > maxRetries || !currentFromDate) {
+    return { shouldRetry: false, newFromDate: currentFromDate, newUrl: '' };
+  }
+
+  console.warn(`⚠️ Attempt ${currentAttempt}: Invalid date range error detected`);
+  
+  // Reduce the date range by 10 days for retry
+  const newFromDate = adjustFromDateByDays(currentFromDate, 10);
+  const newUrl = rebuildUrlWithFromDate(instrumentKey, unit, interval, toDate, newFromDate);
+  
+  const originalDays = originalFromDate 
+    ? Math.abs((new Date(toDate).getTime() - new Date(originalFromDate).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+  const newDays = Math.abs((new Date(toDate).getTime() - new Date(newFromDate).getTime()) / (1000 * 60 * 60 * 24));
+  
+  console.log(`🔄 Retry ${currentAttempt}: Reducing range by 10 days`);
+  console.log(`   Original range: ${originalFromDate} to ${toDate} (${Math.round(originalDays)} days)`);
+  console.log(`   New range: ${newFromDate} to ${toDate} (${Math.round(newDays)} days)`);
+  
+  return { shouldRetry: true, newFromDate, newUrl };
+};
+
+/**
+ * Retry helper for Upstox API calls with automatic date range reduction
+ */
+const retryUpstoxApiCall = async (
+  url: string,
+  token: string,
+  instrumentKey: string,
+  unit: string,
+  interval: string,
+  toDate: string,
+  fromDate?: string
+): Promise<UpstoxHistoricalDataResponse> => {
+  const maxRetries = 3;
+  let currentAttempt = 0;
+  let currentFromDate = fromDate;
+  let currentUrl = url;
+
+  while (currentAttempt <= maxRetries) {
+    try {
+      console.log(`🔄 Attempt ${currentAttempt + 1}/${maxRetries + 1}`);
+      
+      const response = await axios.get<UpstoxHistoricalDataResponse>(currentUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.status !== 200 || response.data.status !== 'success') {
+        throw new Error(`API request failed: ${response.data.status || 'Unknown error'}`);
+      }
+
+      console.log(`✅ API request successful on attempt ${currentAttempt + 1}`);
+      return response.data;
+
+    } catch (error) {
+      currentAttempt++;
+      
+      if (isRetryableInvalidDateRangeError(error) && currentAttempt <= maxRetries) {
+        const retryResult = handleRetryAttempt({
+          currentAttempt,
+          maxRetries,
+          currentFromDate: currentFromDate || '',
+          instrumentKey,
+          unit,
+          interval,
+          toDate,
+          originalFromDate: fromDate
+        });
+        
+        if (retryResult.shouldRetry) {
+          currentFromDate = retryResult.newFromDate;
+          currentUrl = retryResult.newUrl;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+      }
+      
+      // Handle final error
+      if (currentAttempt > maxRetries) {
+        console.error(`❌ All ${maxRetries + 1} attempts failed`);
+        if (isRetryableInvalidDateRangeError(error)) {
+          console.error(`💡 Try a smaller date range. Reduced by ${maxRetries * 10} days but still too large.`);
+        }
+      }
+      
+      if (axios.isAxiosError(error)) {
+        throw new Error(`Upstox API Error (${error.response?.status}): ${error.response?.data?.message || error.message}`);
+      }
+      throw error;
+    }
+  }
+  
+  throw new Error('Unexpected end of retry logic');
+};
+
+/**
+ * Validate if a date range is acceptable for a given timeframe
+ * @param timeframe The timeframe to validate against
+ * @param fromDate Start date string
+ * @param toDate End date string
+ * @returns Validation result with details
+ */
+export const validateDateRangeForTimeframe = (
+  timeframe: Timeframe,
+  fromDate: string,
+  toDate: string
+): {
+  isValid: boolean;
+  daysDiff: number;
+  maxAllowed: number;
+  errorMessage?: string;
+  suggestedFromDate?: string;
+} => {
+  const { unit, interval } = convertToUpstoxTimeframe(timeframe);
+  const maxDuration = getMaxDurationForTimeframe(unit, interval);
+  
+  const fromDateObj = new Date(fromDate);
+  const toDateObj = new Date(toDate);
+  const daysDiff = Math.abs((toDateObj.getTime() - fromDateObj.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Check date order
+  if (fromDateObj > toDateObj) {
+    return {
+      isValid: false,
+      daysDiff: 0,
+      maxAllowed: maxDuration,
+      errorMessage: `fromDate (${fromDate}) must be earlier than toDate (${toDate})`
+    };
+  }
+  
+  // Check duration limit
+  if (daysDiff > maxDuration) {
+    const suggestedFromDate = new Date(toDateObj);
+    suggestedFromDate.setDate(suggestedFromDate.getDate() - maxDuration);
+    
+    return {
+      isValid: false,
+      daysDiff: Math.round(daysDiff),
+      maxAllowed: maxDuration,
+      errorMessage: `Date range (${Math.round(daysDiff)} days) exceeds maximum for ${timeframe} timeframe (${maxDuration} days)`,
+      suggestedFromDate: suggestedFromDate.toISOString().split('T')[0]
+    };
+  }
+  
+  return {
+    isValid: true,
+    daysDiff: Math.round(daysDiff),
+    maxAllowed: maxDuration
+  };
+};
+
+/**
  * Fetches historical data from Upstox API v3
  * @param instrumentKey The instrument key to fetch data for
  * @param unit The unit for candles (minutes, hours, days, weeks, months)
@@ -82,6 +368,9 @@ export const fetchUpstoxHistoricalData = async (
     today: todayString
   });
   
+  // Get the maximum duration for this specific timeframe
+  const maxDuration = getMaxDurationForTimeframe(unit, interval);
+  
   // Validate date format and range
   if (fromDate && toDate) {
     const fromDateObj = new Date(fromDate);
@@ -89,11 +378,27 @@ export const fetchUpstoxHistoricalData = async (
     const daysDiff = Math.abs((toDateObj.getTime() - fromDateObj.getTime()) / (1000 * 60 * 60 * 24));
     
     console.log(`Date range validation: ${fromDate} to ${toDate} (${daysDiff} days)`);
+    console.log(`Max duration for ${unit}/${interval}: ${maxDuration} days`);
     
-    // Limit the range to prevent API errors
-    if (daysDiff > 365) {
-      console.warn('Date range exceeds 1 year, API might reject the request');
+    // Check against timeframe-specific limits
+    if (daysDiff > maxDuration) {
+      console.warn(`⚠️ Date range (${daysDiff} days) exceeds maximum for ${unit}/${interval} timeframe (${maxDuration} days)`);
+      console.warn(`API might reject this request. Consider reducing the date range.`);
+      
+      // Optionally auto-adjust the fromDate to fit within limits
+      const adjustedFromDate = new Date(toDateObj);
+      adjustedFromDate.setDate(adjustedFromDate.getDate() - maxDuration);
+      const adjustedFromDateString = adjustedFromDate.toISOString().split('T')[0];
+      
+      console.log(`💡 Suggested adjustment: Use fromDate as ${adjustedFromDateString} instead of ${fromDate}`);
     }
+  } else if (!fromDate && toDate) {
+    // If only toDate is provided, we might want to auto-set a reasonable fromDate
+    const toDateObj = new Date(toDate);
+    const suggestedFromDate = new Date(toDateObj);
+    suggestedFromDate.setDate(suggestedFromDate.getDate() - Math.min(maxDuration, 30)); // Use smaller of max duration or 30 days
+    
+    console.log(`💡 No fromDate provided. For ${unit}/${interval}, consider using fromDate: ${suggestedFromDate.toISOString().split('T')[0]}`);
   }
   
   // URL encode the instrument key to handle special characters like |
@@ -109,24 +414,36 @@ export const fetchUpstoxHistoricalData = async (
   console.log('Upstox API URL:', url); // Debug log
 
   try {
-    const response = await axios.get<UpstoxHistoricalDataResponse>(url, {
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    // Check for successful response
-    if (response.status !== 200 || response.data.status !== 'success') {
-      console.error('API Response Error:', response.data);
-      throw new Error(`API request failed: ${response.data.status || 'Unknown error'}`);
-    }
+    // Use retry helper for API call with automatic date range reduction
+    const responseData = await retryUpstoxApiCall(
+      url, 
+      token, 
+      instrumentKey, 
+      unit, 
+      interval, 
+      defaultToDate, 
+      fromDate
+    );
 
     // Transform Upstox candle format to our app's Candle format
-    const candles: Candle[] = response.data.data.candles.map(candleData => {
+    const candles: Candle[] = responseData.data.candles.map((candleData: [string, number, number, number, number, number, number]) => {
       const [timestamp, open, high, low, close, volume, openInterest] = candleData;
+      
+      // Remove timezone information from timestamps to avoid date shifting issues
+      // Upstox returns timestamps like "2025-08-26T00:00:00+05:30"
+      // We want to treat this as local time: "2025-08-26T00:00:00"
+      let processedTimestamp: string;
+      
+  
+      if (typeof timestamp === 'string') {
+        // Remove timezone offset (+05:30, +00:00, Z, etc.) to treat as local time
+        processedTimestamp = timestamp.replace(/([+-]\d{2}:\d{2}|Z)$/, '');
+      } else {
+        processedTimestamp = timestamp;
+      }
+      
       return {
-        timestamp,
+        timestamp: processedTimestamp,
         open,
         high,
         low,
@@ -180,25 +497,58 @@ export const fetchPaginatedUpstoxData = async (
   const { unit, interval } = mapTimeframeToUpstoxV3(timeframe);
   
   try {
-    // Extract date parts for the API call
-    const toDate = to ? new Date(to).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-    const fromDate = from ? new Date(from).toISOString().split('T')[0] : undefined;
+    let processedFromDate: string | undefined;
+    let processedToDate: string;
     
-    console.log(`📅 Upstox API date processing:`, {
-      originalFrom: from,
-      originalTo: to,
-      processedFromDate: fromDate,
-      processedToDate: toDate
-    });
+    if (from && to) {
+      // Both dates provided - validate against timeframe limits
+      const fromDateObj = new Date(from);
+      const toDateObj = new Date(to);
+      const daysDiff = Math.abs((toDateObj.getTime() - fromDateObj.getTime()) / (1000 * 60 * 60 * 24));
+      const maxDuration = getMaxDurationForTimeframe(unit, interval);
+      
+      if (daysDiff > maxDuration) {
+        console.warn(`⚠️ Requested range (${daysDiff} days) exceeds maximum for ${timeframe} (${maxDuration} days)`);
+        console.warn(`Auto-adjusting to fit within API limits...`);
+        
+        // Auto-adjust fromDate to fit within limits
+        const adjustedFromDate = new Date(toDateObj);
+        adjustedFromDate.setDate(adjustedFromDate.getDate() - maxDuration);
+        processedFromDate = adjustedFromDate.toISOString().split('T')[0];
+        processedToDate = toDateObj.toISOString().split('T')[0];
+        
+        console.log(`📅 Adjusted date range: ${processedFromDate} to ${processedToDate} (${maxDuration} days)`);
+      } else {
+        processedFromDate = fromDateObj.toISOString().split('T')[0];
+        processedToDate = toDateObj.toISOString().split('T')[0];
+      }
+    } else {
+      // Use optimal date range calculation
+      const optimalRange = calculateOptimalDateRange(
+        timeframe, 
+        to, 
+        from ? undefined : 30 // Default to 30 days if no specific range requested
+      );
+      
+      processedFromDate = optimalRange.fromDate;
+      processedToDate = optimalRange.toDate;
+      
+      console.log(`📅 Using optimal date range for ${timeframe}:`, {
+        fromDate: processedFromDate,
+        toDate: processedToDate,
+        actualDays: optimalRange.actualDays,
+        maxAllowed: optimalRange.maxDays
+      });
+    }
     
     // Validate date order - fromDate should be earlier than toDate
-    if (fromDate && toDate) {
-      const fromDateObj = new Date(fromDate);
-      const toDateObj = new Date(toDate);
+    if (processedFromDate && processedToDate) {
+      const fromDateObj = new Date(processedFromDate);
+      const toDateObj = new Date(processedToDate);
       
       if (fromDateObj > toDateObj) {
-        console.warn(`⚠️ Date order issue: fromDate (${fromDate}) is after toDate (${toDate})`);
-        console.warn('This will likely cause API errors');
+        console.error(`❌ Date order issue: fromDate (${processedFromDate}) is after toDate (${processedToDate})`);
+        throw new Error(`Invalid date range: fromDate must be earlier than toDate`);
       }
     }
     
@@ -206,8 +556,8 @@ export const fetchPaginatedUpstoxData = async (
       instrumentKey,
       unit,
       interval,
-      toDate,
-      fromDate,
+      processedToDate,
+      processedFromDate,
       apiKey
     );
     

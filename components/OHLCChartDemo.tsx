@@ -236,25 +236,27 @@ export const OHLCChartDemo: React.FC = () => {
             index === self.findIndex((c) => c.timestamp === candle.timestamp)
           )
           .sort((a, b) => {
-            // Ensure consistent UTC timestamp comparison
-            const timeA = new Date(a.timestamp.endsWith('Z') ? a.timestamp : a.timestamp + 'Z').getTime();
-            const timeB = new Date(b.timestamp.endsWith('Z') ? b.timestamp : b.timestamp + 'Z').getTime();
+            // Use consistent timestamp comparison that matches our chart parsing logic
+            // Don't add 'Z' since timestamps are already processed as IST in the chart
+            const timeA = new Date(a.timestamp).getTime();
+            const timeB = new Date(b.timestamp).getTime();
             return timeA - timeB;
           });
         
         // Process candles with indicators
         console.log(`🔄 Processing ${sortedCandles.length} candles with indicators after API fetch`);
+      
         const processedCandles = calculateIndicators(sortedCandles);
         setRawCandles(processedCandles);
-        
         // Apply selected timeframe processing
         const timeframeProcessedData = processTimeframeData(
           processedCandles,
           selectedTimeframe
         );
         
+        
         setCandles(timeframeProcessedData);
-        setHasMoreCandles(result.hasMore);
+                 setHasMoreCandles(result.hasMore);
         setOldestCandleTime(result.oldestTimestamp);
         setNewestCandleTime(result.newestTimestamp);
 
@@ -357,10 +359,12 @@ export const OHLCChartDemo: React.FC = () => {
           index === self.findIndex((c) => c.timestamp === candle.timestamp)
         );
         
-        // Sort by timestamp (oldest to newest) with UTC consistency
+        // Sort by timestamp (oldest to newest) with IST consistency
         uniqueCandles.sort((a, b) => {
-          const timeA = new Date(a.timestamp.endsWith('Z') ? a.timestamp : a.timestamp + 'Z').getTime();
-          const timeB = new Date(b.timestamp.endsWith('Z') ? b.timestamp : b.timestamp + 'Z').getTime();
+          // Use consistent timestamp comparison that matches our chart parsing logic
+          // Don't add 'Z' since timestamps are already processed as IST in the chart
+          const timeA = new Date(a.timestamp).getTime();
+          const timeB = new Date(b.timestamp).getTime();
           return timeA - timeB;
         });
 
@@ -381,7 +385,7 @@ export const OHLCChartDemo: React.FC = () => {
         // Use full EMA calculation for now to ensure accuracy
         const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
         setCandles(candlesWithIndicators);
-        
+                 
         toast.success(`Loaded ${result.candles.length} more ${direction} candles`, {
           id: loadingToast
         });
@@ -436,7 +440,7 @@ export const OHLCChartDemo: React.FC = () => {
         console.log(`🔄 Processing ${processedCandles.length} candles with indicators during timeframe change`);
         const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14);
         setCandles(candlesWithIndicators);
-        toast.success(`Switched to ${newTimeframe} timeframe`);
+                 toast.success(`Switched to ${newTimeframe} timeframe`);
       } catch (error) {
         console.error('Failed to process data for new timeframe:', error);
         toast.error(`Failed to switch to ${newTimeframe}. Reverting to ${previousTimeframe}.`);

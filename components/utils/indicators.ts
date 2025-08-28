@@ -3,16 +3,16 @@ import { Candle } from '../types/candle';
 
 /**
  * TradingView-compatible EMA calculation
- * Uses the exact same algorithm as TradingView with proper SMA initialization
+ * Uses the exact same a        console.log(`🧪 Test EMA8 values: [${testEMA8.map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`;gorithm as TradingView with proper SMA initialization
  * @param prices - Array of price values (typically close prices)
  * @param period - EMA period (e.g., 8, 30, 200)
  * @param startingEMA - Optional starting EMA value for incremental calculation
  * @returns Array of EMA values
  */
-function calculateTradingViewEMA(prices: number[], period: number, startingEMA?: number): number[] {
+function calculateTradingViewEMA(prices: number[], period: number, startingEMA?: number): (number | null)[] {
     if (!prices.length || period <= 0) return [];
     
-    const emaValues: number[] = [];
+    const emaValues: (number | null)[] = [];
     const multiplier = 2 / (period + 1); // TradingView smoothing factor
     
     if (startingEMA !== undefined) {
@@ -42,7 +42,7 @@ function calculateIncrementalEMAValues(prices: number[], multiplier: number, sta
 /**
  * Calculate full EMA values starting with SMA initialization
  */
-function calculateFullEMAValues(prices: number[], period: number, multiplier: number): number[] {
+function calculateFullEMAValues(prices: number[], period: number, multiplier: number): (number | null)[] {
     console.log(`🔄 Starting calculateFullEMAValues for period ${period}`);
     console.log(`📊 Input: ${prices.length} prices, multiplier: ${multiplier.toFixed(6)}`);
     console.log(`📊 First 3 prices: [${prices.slice(0, 3).map(p => p.toFixed(2)).join(', ')}]`);
@@ -53,27 +53,30 @@ function calculateFullEMAValues(prices: number[], period: number, multiplier: nu
         return [];
     }
     
-    const emaValues: number[] = new Array(prices.length);
+    // Initialize array with null for early values
+    const emaValues: (number | null)[] = new Array(prices.length).fill(null);
     
     // Calculate SMA for the first EMA value (TradingView standard)
     const smaSum = prices.slice(0, period).reduce((sum, price) => sum + price, 0);
     emaValues[period - 1] = smaSum / period;
     console.log(`📍 SMA calculated for first ${period} prices: ${(smaSum / period).toFixed(4)} at index ${period - 1}`);
     
-    // Calculate EMA for subsequent values - this should continue to the end!
+    // Calculate EMA for subsequent values
     for (let i = period; i < prices.length; i++) {
-        emaValues[i] = (prices[i] * multiplier) + (emaValues[i - 1] * (1 - multiplier));
+        const prevEMA = emaValues[i - 1] as number; // Previous EMA value (guaranteed to be number)
+        emaValues[i] = (prices[i] * multiplier) + (prevEMA * (1 - multiplier));
         
         // Debug every 10th calculation and the last few
         if (i % 10 === 0 || i >= prices.length - 3) {
-            console.log(`  [${i}] Price: ${prices[i].toFixed(2)}, PrevEMA: ${emaValues[i - 1].toFixed(4)}, NewEMA: ${emaValues[i].toFixed(4)}`);
+            console.log(`  [${i}] Price: ${prices[i].toFixed(2)}, PrevEMA: ${prevEMA.toFixed(4)}, NewEMA: ${(emaValues[i] as number).toFixed(4)}`);
         }
     }
     
-    const definedValues = emaValues.filter(v => v !== undefined).length;
-    console.log(`✅ EMA${period} complete: ${definedValues}/${emaValues.length} defined values`);
-    console.log(`🎯 Last EMA value at index ${prices.length - 1}: ${emaValues[prices.length - 1]?.toFixed(4) || 'undefined'}`);
-    console.log(`🔍 EMA array structure: [${emaValues.slice(0, 3).map(v => v !== undefined ? v.toFixed(2) : 'undef').join(', ')}, ..., ${emaValues.slice(-3).map(v => v !== undefined ? v.toFixed(2) : 'undef').join(', ')}]`);
+    // Count valid EMA values (from period-1 onwards)
+    const validValues = emaValues.slice(period - 1).filter(v => v !== null).length;
+    console.log(`✅ EMA${period} complete: ${validValues} valid values from index ${period - 1} onwards`);
+    console.log(`🎯 Last EMA value at index ${prices.length - 1}: ${emaValues[prices.length - 1] !== null ? (emaValues[prices.length - 1] as number).toFixed(4) : 'null'}`);
+    console.log(`🔍 EMA array structure: [${emaValues.slice(0, 3).map(v => v !== null ? v.toFixed(2) : 'null').join(', ')}, ..., ${emaValues.slice(-3).map(v => v !== null ? v.toFixed(2) : 'null').join(', ')}]`);
     
     return emaValues;
 }
@@ -104,8 +107,8 @@ function calculateIncrementalEMA(existingCandles: Candle[], newCandles: Candle[]
         return allCandles.map((candle, i) => ({
             ...candle,
             ...(period === 8 
-                ? { ema8: (emaValues.length > 0 && i >= 7) ? emaValues[i] : undefined }
-                : { ema30: (emaValues.length > 0 && i >= 29) ? emaValues[i] : undefined }
+                ? { ema8: (emaValues.length > 0 && i >= 7) ? (emaValues[i] ?? undefined) : undefined }
+                : { ema30: (emaValues.length > 0 && i >= 29) ? (emaValues[i] ?? undefined) : undefined }
             )
         }));
     }
@@ -117,7 +120,7 @@ function calculateIncrementalEMA(existingCandles: Candle[], newCandles: Candle[]
     // Add EMA values to new candles
     const processedNewCandles = newCandles.map((candle, i) => ({
         ...candle,
-        ...(period === 8 ? { ema8: newEMAValues[i] } : { ema30: newEMAValues[i] })
+        ...(period === 8 ? { ema8: newEMAValues[i] ?? undefined } : { ema30: newEMAValues[i] ?? undefined })
     }));
     
     return [...existingCandles, ...processedNewCandles];
@@ -138,6 +141,10 @@ export function calculateIndicators(
     rsiPeriod: number = 14,
     preserveExistingEMA: boolean = false
 ): Candle[] {
+    console.log(`🚀 calculateIndicators CALLED with ${candles.length} candles`);
+    console.log(`🔍 First candle: ${candles[0]?.timestamp}, Close: ${candles[0]?.close}`);
+    console.log(`🔍 Last candle: ${candles[candles.length - 1]?.timestamp}, Close: ${candles[candles.length - 1]?.close}`);
+    
     if (!candles.length) {
         console.log('⚠️ calculateIndicators: No candles provided');
         return candles;
@@ -145,6 +152,26 @@ export function calculateIndicators(
 
     console.log(`📊 calculateIndicators: ${candles.length} candles, EMA periods: ${emaPeriod}/8/30 (TradingView-compatible), RSI: ${rsiPeriod}, preserveEMA: ${preserveExistingEMA}`);
     
+    // CRITICAL DEBUG: Test basic EMA calculation first
+    console.log(`🧪 URGENT DEBUGGING: Testing basic EMA calculation...`);
+    const testPrices = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115];
+    console.log(`🧪 Test prices: [${testPrices.join(', ')}]`);
+    try {
+        const testEMA8 = calculateTradingViewEMA(testPrices, 8);
+        console.log(`🧪 Test EMA8 result length: ${testEMA8.length}`);
+        console.log(`🧪 Test EMA8 values: [${testEMA8.map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
+        
+        if (testEMA8.length === 0) {
+            console.error(`❌ CRITICAL: calculateTradingViewEMA returned empty array for test data!`);
+        } else {
+            console.log(`✅ Basic EMA calculation works. Array length: ${testEMA8.length}`);
+        }
+    } catch (error) {
+        console.error(`❌ CRITICAL: calculateTradingViewEMA threw error:`, error);
+    }
+    
+
+
     // Critical: Check timestamp ordering to ensure we're calculating in the correct direction
     console.log(`🕐 TIMESTAMP ORDER CHECK:`);
     console.log(`  First candle: ${candles[0]?.timestamp} (index 0)`);
@@ -243,21 +270,21 @@ function calculateIndicatorsInChronologicalOrder(
         console.log(`- Last 5 closes: [${closes.slice(-5).map(c => c.toFixed(2)).join(', ')}]`);
         
         if (ema8Values.length > 0) {
-            const validEma8 = ema8Values.filter(v => v !== undefined);
+            const validEma8 = ema8Values.filter(v => v !== null && v !== undefined);
             console.log(`- EMA8 valid values: ${validEma8.length}/${ema8Values.length}`);
-            console.log(`- EMA8 first 10 values: [${ema8Values.slice(0, 10).map(v => v !== undefined ? v.toFixed(2) : 'undef').join(', ')}]`);
-            console.log(`- EMA8 last 5 values: [${ema8Values.slice(-5).map(v => v !== undefined ? v.toFixed(2) : 'undef').join(', ')}]`);
+            console.log(`- EMA8 first 10 values: [${ema8Values.slice(0, 10).map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
+            console.log(`- EMA8 last 5 values: [${ema8Values.slice(-5).map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
             if (validEma8.length > 0) {
-                console.log(`- EMA8 last 3 valid: [${validEma8.slice(-3).map(v => v.toFixed(2)).join(', ')}]`);
+                console.log(`- EMA8 last 3 valid: [${validEma8.slice(-3).map(v => v && typeof v === 'number' ? v.toFixed(2) : 'invalid').join(', ')}]`);
             }
         }
         
         if (ema30Values.length > 0) {
-            const validEma30 = ema30Values.filter(v => v !== undefined);
+            const validEma30 = ema30Values.filter(v => v !== null && v !== undefined);
             console.log(`- EMA30 valid values: ${validEma30.length}/${ema30Values.length}`);
-            console.log(`- EMA30 last 5 values: [${ema30Values.slice(-5).map(v => v !== undefined ? v.toFixed(2) : 'undef').join(', ')}]`);
+            console.log(`- EMA30 last 5 values: [${ema30Values.slice(-5).map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
             if (validEma30.length > 0) {
-                console.log(`- EMA30 last 3 valid: [${validEma30.slice(-3).map(v => v.toFixed(2)).join(', ')}]`);
+                console.log(`- EMA30 last 3 valid: [${validEma30.slice(-3).map(v => v && typeof v === 'number' ? v.toFixed(2) : 'invalid').join(', ')}]`);
             }
         }
     }
@@ -296,18 +323,26 @@ function calculateIndicatorsInChronologicalOrder(
     console.log(`  Last candle: ${candles[candles.length - 1]?.timestamp} (index ${candles.length - 1})`);
     
     const result = candles.map((candle, i) => {
-        const ema8Value = (ema8Values.length > 0 && i >= 7) ? ema8Values[i] : undefined;
-        const ema30Value = (ema30Values.length > 0 && i >= 29) ? ema30Values[i] : undefined;
+        // EMA8: values start at index 7 (period-1), EMA30: values start at index 29 (period-1)
+        // Convert null values to undefined for compatibility with Candle type
+        const ema8Raw = ema8Values[i];
+        const ema30Raw = ema30Values[i];
+        
+        // Be more permissive - pass through any valid number we get, regardless of index
+        const ema8Value = (ema8Raw !== null && ema8Raw !== undefined && typeof ema8Raw === 'number' && !isNaN(ema8Raw)) ? ema8Raw : undefined;
+        const ema30Value = (ema30Raw !== null && ema30Raw !== undefined && typeof ema30Raw === 'number' && !isNaN(ema30Raw)) ? ema30Raw : undefined;
         
         // Debug first few and last few mappings
-        if (i < 3 || i >= candles.length - 3 || (i >= 6 && i <= 8) || (i >= 28 && i <= 31)) {
-            console.log(`  [${i}] Time: ${candle.timestamp}, Close: ${candle.close.toFixed(2)}, EMA8: ${ema8Value !== undefined ? ema8Value.toFixed(4) : 'undef'}, EMA30: ${ema30Value !== undefined ? ema30Value.toFixed(4) : 'undef'}`);
+        if (i < 3 || i >= candles.length - 3 || (i >= 6 && i <= 9) || (i >= 28 && i <= 32)) {
+            console.log(`  [${i}] Time: ${candle.timestamp}, Close: ${candle.close.toFixed(2)}`);
+            console.log(`    - EMA8 raw[${i}]: ${ema8Raw !== null && typeof ema8Raw === 'number' ? ema8Raw.toFixed(4) : 'null'} → mapped: ${ema8Value !== undefined ? ema8Value.toFixed(4) : 'undef'}`);
+            console.log(`    - EMA30 raw[${i}]: ${ema30Raw !== null && typeof ema30Raw === 'number' ? ema30Raw.toFixed(4) : 'null'} → mapped: ${ema30Value !== undefined ? ema30Value.toFixed(4) : 'undef'}`);
         }
         
         return {
-            ...candle,
+            ...candle, // Preserve ALL original candle properties
             ema: emaValues[i - (candles.length - emaValues.length)] ?? undefined,
-            // EMA arrays now have full length, values available from period-1 onwards
+            // Pass through any valid EMA values we calculated
             ema8: ema8Value,
             ema30: ema30Value,
             rsi: rsiValues[i - (candles.length - rsiValues.length)] ?? undefined,
@@ -315,15 +350,15 @@ function calculateIndicatorsInChronologicalOrder(
     });
 
     // Verify the mapping results
-    const resultWithEma8 = result.filter(c => c.ema8 !== null && c.ema8 !== undefined);
-    const resultWithEma30 = result.filter(c => c.ema30 !== null && c.ema30 !== undefined);
+    const resultWithEma8 = result.filter(c => c.ema8 !== undefined);
+    const resultWithEma30 = result.filter(c => c.ema30 !== undefined);
     console.log(`- Final: ${result.length} candles with EMA8-TV(${resultWithEma8.length}) EMA30-TV(${resultWithEma30.length}) values`);
     
     // Debug: Check last few candles to see if EMA values are assigned properly
     console.log(`🔍 Last 3 candles EMA mapping:`);
     result.slice(-3).forEach((candle, idx) => {
         const globalIdx = result.length - 3 + idx;
-        console.log(`  [${globalIdx}] Close: ${candle.close.toFixed(2)}, EMA8: ${candle.ema8 !== undefined ? candle.ema8.toFixed(2) : 'undef'}, EMA30: ${candle.ema30 !== undefined ? candle.ema30.toFixed(2) : 'undef'}`);
+        console.log(`  [${globalIdx}] Close: ${candle.close.toFixed(2)}, EMA8: ${candle.ema8 !== null && candle.ema8 !== undefined ? candle.ema8.toFixed(2) : 'null/undef'}, EMA30: ${candle.ema30 !== null && candle.ema30 !== undefined ? candle.ema30.toFixed(2) : 'null/undef'}`);
     });
 
     return result;
@@ -340,7 +375,9 @@ export function calculateEMA(candles: Candle[], period: number = 200): Candle[] 
     // Use TradingView-compatible EMA for shorter periods, technicalindicators for longer periods
     let emaValues: number[];
     if (period <= 50) {
-        emaValues = calculateTradingViewEMA(closes, period);
+        const rawEmaValues = calculateTradingViewEMA(closes, period);
+        // Convert nulls to NaN and filter valid values for compatibility
+        emaValues = rawEmaValues.map(value => value ?? NaN).filter(value => !isNaN(value));
     } else {
         emaValues = EMA.calculate({ period, values: closes });
     }

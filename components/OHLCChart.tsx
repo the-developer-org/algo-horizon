@@ -5,6 +5,34 @@ import toast, { Toaster } from 'react-hot-toast';
 import { createChart } from 'lightweight-charts';
 import { Candle } from './types/candle';
 
+// Utility function to properly handle timestamps from API (without timezone)
+const parseTimestampToUnix = (timestamp: string): number => {
+  // API workflow:
+  // 1. Upstox API returns: "2025-08-26T09:30:00+05:30" (IST time)
+  // 2. upstoxApi.ts strips timezone: "2025-08-26T09:30:00" (no timezone info)
+  // 3. We treat this as UTC time for consistency across all timeframes
+  
+  console.log(`Original timestamp: ${timestamp}`);
+  
+  if (!timestamp.includes('T')) {
+    // If no 'T', assume it's already a date string, return as-is
+    const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
+    console.log(`Date-only timestamp: ${timestamp} -> Unix: ${unixTimestamp}`);
+    return unixTimestamp;
+  }
+  
+  // For all timeframes (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w):
+  // Treat the stripped timestamp as UTC by adding +00:00
+  // This ensures consistent behavior across all timeframes and prevents date shifting
+  
+  const utcTimestamp = timestamp + '+00:00';
+  const unixTimestamp = Math.floor(new Date(utcTimestamp).getTime() / 1000);
+  
+  console.log(`UTC timestamp: ${utcTimestamp} -> Unix: ${unixTimestamp} -> Back to date: ${new Date(unixTimestamp * 1000).toISOString()}`);
+  
+  return unixTimestamp;
+};
+
 // Performance optimization constants
 const MAX_VISIBLE_CANDLES = 2000; // Limit visible data points for ultra-fast performance
 const PERFORMANCE_SAMPLE_THRESHOLD = 5000; // Start sampling when data exceeds this
@@ -31,14 +59,8 @@ const sampleData = (data: any[], maxPoints: number): any[] => {
 // Memoized data processing for ultra-fast performance
 const processChartData = (candles: Candle[]) => {
   const formattedData = candles.map(candle => {
-    // Normalize timestamp to UTC to avoid timezone issues
-    let timestamp = candle.timestamp;
-    if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
-      timestamp = timestamp + 'Z'; // Treat as UTC if no timezone specified
-    }
-    
     return {
-      time: Math.floor(new Date(timestamp).getTime() / 1000),
+      time: parseTimestampToUnix(candle.timestamp),
       open: candle.open,
       high: candle.high,
       low: candle.low,
@@ -57,13 +79,8 @@ const processChartData = (candles: Candle[]) => {
 // Memoized volume data processing
 const processVolumeData = (candles: Candle[]) => {
   const volumeData = candles.map(candle => {
-    let timestamp = candle.timestamp;
-    if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
-      timestamp = timestamp + 'Z';
-    }
-    
     return {
-      time: Math.floor(new Date(timestamp).getTime() / 1000),
+      time: parseTimestampToUnix(candle.timestamp),
       value: candle.volume,
       color: candle.close >= candle.open ? '#4caf50' : '#ef5350',
     };
@@ -109,8 +126,8 @@ const chartHeight = maxHeight * 0.91; // Increase chart height to 91% of the vie
 const drawTrendLines = (sortedAnalysis: { timestamp: string; swingLabel?: string; }[], candles: Candle[], chart: any) => {
     // Group swing points by trend type with accurate price points
     const swingPoints = sortedAnalysis.map(analysis => {
-        const time = Math.floor(new Date(analysis.timestamp).getTime() / 1000);
-        const candle = candles.find(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === time);
+        const time = parseTimestampToUnix(analysis.timestamp);
+        const candle = candles.find(c => parseTimestampToUnix(c.timestamp) === time);
         
         if (!candle || !analysis.swingLabel) return null;
         
@@ -326,8 +343,8 @@ const projectTrendLine = (trend: { type: 'uptrend' | 'downtrend', points: any[] 
     // Project forward for a reasonable amount of time (e.g., 25% of the current trend length or 10 candles)
     const trendDuration = lastPoint.time - trend.points[0].time;
     // Estimate average candle duration from sample candles
-    const sampleTime1 = Math.floor(new Date(candles[1].timestamp).getTime() / 1000);
-    const sampleTime0 = Math.floor(new Date(candles[0].timestamp).getTime() / 1000);
+    const sampleTime1 = parseTimestampToUnix(candles[1].timestamp);
+    const sampleTime0 = parseTimestampToUnix(candles[0].timestamp);
     const avgCandleDuration = sampleTime1 - sampleTime0;
     
     const projectionLength = Math.max(trendDuration * 0.25, avgCandleDuration * 10);
@@ -665,16 +682,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
 
         // Format data for the chart using candles
-        // Ensure consistent timestamp handling to prevent chart distortion
+        // Use consistent timestamp handling to prevent chart distortion
         const formattedData = candles.map(candle => {
-            // Normalize timestamp to UTC to avoid timezone issues
-            let timestamp = candle.timestamp;
-            if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
-                timestamp = timestamp + 'Z'; // Treat as UTC if no timezone specified
-            }
-            
             return {
-                time: Math.floor(new Date(timestamp).getTime() / 1000),
+                time: parseTimestampToUnix(candle.timestamp),
                 open: candle.open,
                 high: candle.high,
                 low: candle.low,
@@ -712,15 +723,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
         // Set volume data if enabled
         if (showVolume && volumeSeries) {
-            // Apply the same timestamp normalization for volume data
+            // Use consistent timestamp handling for volume data
             const volumeData = candles.map(candle => {
-                let timestamp = candle.timestamp;
-                if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
-                    timestamp = timestamp + 'Z'; // Treat as UTC if no timezone specified
-                }
-                
                 return {
-                    time: Math.floor(new Date(timestamp).getTime() / 1000),
+                    time: parseTimestampToUnix(candle.timestamp),
                     value: candle.volume,
                     color: candle.close >= candle.open ? '#4caf50' : '#ef5350',
                 };
@@ -752,10 +758,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         chart.subscribeCrosshairMove(param => {
             if (param && param.time) {
                 // Find the candle for the hovered time
-                const hovered = candles.find((c: Candle) => Math.floor(new Date(c.timestamp).getTime() / 1000) === param.time);
+                const hovered = candles.find((c: Candle) => parseTimestampToUnix(c.timestamp) === param.time);
                 if (hovered) {
                     // Find previous candle for change calculation
-                    const idx = candles.findIndex((c: Candle) => Math.floor(new Date(c.timestamp).getTime() / 1000) === param.time);
+                    const idx = candles.findIndex((c: Candle) => parseTimestampToUnix(c.timestamp) === param.time);
                     const prevClose = idx > 0 ? candles[idx - 1].close : hovered.open;
                     setOhlcInfo({
                         open: hovered.open,
@@ -950,8 +956,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 if (candles.length >= 2) {
                     const first = candles[0];
                     const last = candles[candles.length - 1];
-                    const firstTime = Math.floor(new Date(first.timestamp.endsWith('Z') || first.timestamp.includes('+') ? first.timestamp : first.timestamp + 'Z').getTime() / 1000);
-                    const lastTime = Math.floor(new Date(last.timestamp.endsWith('Z') || last.timestamp.includes('+') ? last.timestamp : last.timestamp + 'Z').getTime() / 1000);
+                    const firstTime = parseTimestampToUnix(first.timestamp);
+                    const lastTime = parseTimestampToUnix(last.timestamp);
                     console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
                     if (firstTime > lastTime) {
                         console.warn('⚠️ Data appears to be in reverse chronological order!');
@@ -968,13 +974,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 console.log(`🎯 Creating EMA8 chart data...`);
                 const ema8Data = candles
                     .map((c: Candle, idx: number) => {
-                        // Use same timestamp normalization as main chart data
-                        let timestamp = c.timestamp;
-                        if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
-                            timestamp = timestamp + 'Z';
-                        }
                         const chartPoint = {
-                            time: Math.floor(new Date(timestamp).getTime() / 1000),
+                            time: parseTimestampToUnix(c.timestamp),
                             value: typeof c.ema8 === 'number' && !isNaN(c.ema8) ? c.ema8 : null,
                         };
                         
@@ -1021,13 +1022,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 });
                 const ema30Data = candles
                     .map((c: Candle) => {
-                        // Use same timestamp normalization as main chart data
-                        let timestamp = c.timestamp;
-                        if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
-                            timestamp = timestamp + 'Z';
-                        }
                         return {
-                            time: Math.floor(new Date(timestamp).getTime() / 1000),
+                            time: parseTimestampToUnix(c.timestamp),
                             value: typeof c.ema30 === 'number' && !isNaN(c.ema30) ? c.ema30 : null,
                         };
                     })
@@ -1088,13 +1084,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 });
                 const rsiData = candles
                     .map((c: Candle) => {
-                        // Use same timestamp normalization as main chart data
-                        let timestamp = c.timestamp;
-                        if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
-                            timestamp = timestamp + 'Z';
-                        }
                         return {
-                            time: Math.floor(new Date(timestamp).getTime() / 1000),
+                            time: parseTimestampToUnix(c.timestamp),
                             value: typeof c.rsi === 'number' && !isNaN(c.rsi) ? c.rsi : null,
                         };
                     })
@@ -1143,12 +1134,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     // Build a map for fast lookup
                     const vixMap = new Map<number, number>();
                     vixData.forEach(v => {
-                        const t = Math.floor(new Date(v.timestamp).getTime() / 1000);
+                        const t = parseTimestampToUnix(v.timestamp);
                         vixMap.set(t, v.value);
                     });
                     let lastVix = 0;
                     formattedVix = candles.map(candle => {
-                        const t = Math.floor(new Date(candle.timestamp).getTime() / 1000);
+                        const t = parseTimestampToUnix(candle.timestamp);
                         if (vixMap.has(t)) {
                             lastVix = vixMap.get(t)!;
                         }
@@ -1237,8 +1228,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
                 // Process swing point markers
                 sortedAnalysis.forEach((analysis) => {
-                    const time = Math.floor(new Date(analysis.timestamp).getTime() / 1000);
-                    const candle = candles.find(c => Math.floor(new Date(c.timestamp).getTime() / 1000) === time);
+                    const time = parseTimestampToUnix(analysis.timestamp);
+                    const candle = candles.find(c => parseTimestampToUnix(c.timestamp) === time);
 
                     if (analysis.swingLabel && candle) {
                         const label = analysis.swingLabel;
@@ -1325,10 +1316,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         const crosshairHandler = (param: any) => {
             if (param?.time) {
                 // Find the candle for the hovered time
-                const hovered = candles.find((c: Candle) => Math.floor(new Date(c.timestamp).getTime() / 1000) === param.time);
+                const hovered = candles.find((c: Candle) => parseTimestampToUnix(c.timestamp) === param.time);
                 if (hovered) {
                     // Find previous candle for change calculation
-                    const idx = candles.findIndex((c: Candle) => Math.floor(new Date(c.timestamp).getTime() / 1000) === param.time);
+                    const idx = candles.findIndex((c: Candle) => parseTimestampToUnix(c.timestamp) === param.time);
                     const prevClose = idx > 0 ? candles[idx - 1].close : hovered.open;
                     setOhlcInfo({
                         open: hovered.open,
@@ -1345,12 +1336,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 if (showVIX && vixData && vixData.length > 0) {
                     const vixMap = new Map<number, number>();
                     vixData.forEach(v => {
-                        const t = Math.floor(new Date(v.timestamp).getTime() / 1000);
+                        const t = parseTimestampToUnix(v.timestamp);
                         vixMap.set(t, v.value);
                     });
                     let lastVix = 0;
                     const formattedVix = candles.map(candle => {
-                        const t = Math.floor(new Date(candle.timestamp).getTime() / 1000);
+                        const t = parseTimestampToUnix(candle.timestamp);
                         if (vixMap.has(t)) {
                             lastVix = vixMap.get(t)!;
                         }
@@ -1372,9 +1363,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Error toast effect
     useEffect(() => {
-        if (emaError) toast.error(emaError, { duration: 4000 });
-        if (rsiError) toast.error(rsiError, { duration: 4000 });
-        if (vixError) toast.error(vixError, { duration: 4000 });
+        if (emaError) toast.error(emaError, { duration: 1000 });
+        if (rsiError) toast.error(rsiError, { duration: 1000 });
+        if (vixError) toast.error(vixError, { duration: 1000 });
     }, [emaError, rsiError, vixError]);
 
     if (!candles.length) {
@@ -1509,7 +1500,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const computeDynamicSR = (refUnixTime: number, visibleFrom?: number, visibleTo?: number) => {
         // Map candles to (time, high, low)
         const candlePoints = candles.map(c => ({
-            time: Math.floor(new Date(c.timestamp).getTime() / 1000),
+            time: parseTimestampToUnix(c.timestamp),
             high: c.high,
             low: c.low,
         }));
@@ -1541,7 +1532,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
             let swingItems = propAnalysisList
                 .filter(a => a.swingLabel)
-                .map(a => ({ time: Math.floor(new Date(a.timestamp).getTime() / 1000), label: a.swingLabel! }));
+                .map(a => ({ time: parseTimestampToUnix(a.timestamp), label: a.swingLabel! }));
 
             // Strictly limit swing points to the visible window if available; otherwise up to ref time
             if (typeof visibleFrom === 'number' && typeof visibleTo === 'number') {
@@ -1637,7 +1628,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             }
         };
 
-        const times = candles.map(c => Math.floor(new Date(c.timestamp).getTime() / 1000));
+        const times = candles.map(c => parseTimestampToUnix(c.timestamp));
         const lastTime = times[times.length - 1];
         const candleDur = times[1] - times[0];
         const epsilon = Math.max(1, Math.floor(candleDur / 2));
@@ -1708,8 +1699,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             if (!newRange || !candles.length) return;
             
             const dataRange = {
-                from: Math.floor(new Date(candles[0].timestamp).getTime() / 1000),
-                to: Math.floor(new Date(candles[candles.length - 1].timestamp).getTime() / 1000)
+                from: parseTimestampToUnix(candles[0].timestamp),
+                to: parseTimestampToUnix(candles[candles.length - 1].timestamp)
             };
             
             // Calculate thresholds for loading more data (when user is within 10% of edges)
