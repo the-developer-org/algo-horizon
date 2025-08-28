@@ -69,8 +69,18 @@ export const fetchUpstoxHistoricalData = async (
 
   // Build the API URL according to V3 structure
   // GET /v3/historical-candle/:instrument_key/:unit/:interval/:to_date/:from_date
-  const today = new Date().toISOString().split('T')[0];
-  const defaultToDate = toDate || today;
+  const today = new Date();
+  // Use today's date in YYYY-MM-DD format, ensure it's not in the future
+  const todayString = today.toISOString().split('T')[0];
+  const defaultToDate = toDate || todayString;
+  
+  console.log(`🔍 API URL construction:`, {
+    unit,
+    interval,
+    toDate: defaultToDate,
+    fromDate,
+    today: todayString
+  });
   
   // Validate date format and range
   if (fromDate && toDate) {
@@ -171,8 +181,26 @@ export const fetchPaginatedUpstoxData = async (
   
   try {
     // Extract date parts for the API call
-    const toDate = to ? new Date(to).toISOString().split('T')[0] : undefined;
+    const toDate = to ? new Date(to).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
     const fromDate = from ? new Date(from).toISOString().split('T')[0] : undefined;
+    
+    console.log(`📅 Upstox API date processing:`, {
+      originalFrom: from,
+      originalTo: to,
+      processedFromDate: fromDate,
+      processedToDate: toDate
+    });
+    
+    // Validate date order - fromDate should be earlier than toDate
+    if (fromDate && toDate) {
+      const fromDateObj = new Date(fromDate);
+      const toDateObj = new Date(toDate);
+      
+      if (fromDateObj > toDateObj) {
+        console.warn(`⚠️ Date order issue: fromDate (${fromDate}) is after toDate (${toDate})`);
+        console.warn('This will likely cause API errors');
+      }
+    }
     
     const result = await fetchUpstoxHistoricalData(
       instrumentKey,

@@ -15,6 +15,7 @@ const MAX_CANDLES_FOR_CHART = 3000; // Limit for ultra-fast performance
 const PAGINATION_CHUNK_SIZE = 500; // Smaller chunks for faster loading
 
 export const OHLCChartDemo: React.FC = () => {
+  console.log('🔥 OHLCChartDemo rendering...');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [rawCandles, setRawCandles] = useState<Candle[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1d');
@@ -49,15 +50,39 @@ export const OHLCChartDemo: React.FC = () => {
   const [upstoxApiKey, setUpstoxApiKey] = useState('alpha');
 
   /**
+   * Get the most recent trading day (excludes weekends and uses previous day)
+   * @param date The reference date
+   * @returns The most recent trading day
+   */
+  const getLastTradingDay = (date: Date): Date => {
+    const lastTradingDay = new Date(date);
+    
+    // Always go back one day from the current date since today's data might not be available
+    lastTradingDay.setDate(lastTradingDay.getDate() - 1);
+    
+    // If it's a weekend, go back to Friday
+    const dayOfWeek = lastTradingDay.getDay(); // 0 = Sunday, 6 = Saturday
+    
+    if (dayOfWeek === 0) { // Sunday
+      lastTradingDay.setDate(lastTradingDay.getDate() - 2); // Go back to Friday
+    } else if (dayOfWeek === 6) { // Saturday
+      lastTradingDay.setDate(lastTradingDay.getDate() - 1); // Go back to Friday
+    }
+    
+    return lastTradingDay;
+  };
+
+  /**
    * Calculate the optimal date range based on timeframe to fetch approximately 100 candles
-   * @param baseDate The base date to calculate from
+   * @param baseDate The base date to calculate from (should be current date/time)
    * @param timeframe The selected timeframe
-   * @returns Date object set to appropriate historical point
+   * @returns Date object set to appropriate historical point (always in the past)
    */
   const calculateFromDate = (baseDate: Date, timeframe: Timeframe): Date => {
     const from = new Date(baseDate);
     
     // Calculate based on typical trading hours and market days to get ~100 candles
+    // Always go backwards in time
     switch (timeframe) {
       case '1m':
         from.setDate(from.getDate() - 3); // 375 per Day * 3 days = 1125 Candles
@@ -66,25 +91,26 @@ export const OHLCChartDemo: React.FC = () => {
         from.setDate(from.getDate() - 10); // 75 per Day * 10 days = 750 Candles
         break;
       case '15m':
-        from.setDate(from.getDate() - 21); // 375 per Week * 3 weeks = 1125 Candles
+        from.setDate(from.getDate() - 21); // 25 per Day * 21 days = 525 Candles
         break;
       case '30m':
-        from.setMonth(from.getMonth() - 2); // 12 per Day * 60 days = 720 Candles
+        from.setDate(from.getDate() - 60); // 12 per Day * 60 days = 720 Candles
         break;
       case '1h':
-        from.setMonth(from.getMonth() - 4); // 6 per Day *  4 months = 528 Candles
+        from.setDate(from.getDate() - 120); // 6 per Day * 120 days = 720 Candles
         break;
       case '4h':
-        from.setMonth(from.getMonth() - 12); // 33 per Month * 12 months = 396 Candles
+        // Based on working URL: from 2025-05-27 to 2025-08-27 = ~3 months = ~90 days
+        from.setDate(from.getDate() - 90); // ~90 days for 4h timeframe
         break;
       case '1d':
-        from.setMonth(from.getMonth() - 6); // ~6 months = ~130 trading days (reduced from 2 years)
+        from.setDate(from.getDate() - 180); // ~6 months = ~130 trading days 
         break;
       case '1w':
-        from.setFullYear(from.getFullYear() - 2); // ~2 years = ~104 weeks (reduced from 3 years)
+        from.setDate(from.getDate() - 730); // ~2 years = ~104 weeks
         break;
       default:
-        from.setMonth(from.getMonth() - 3); // Default fallback
+        from.setDate(from.getDate() - 90); // Default fallback - 3 months
     }
     
     return from;
@@ -127,14 +153,14 @@ export const OHLCChartDemo: React.FC = () => {
   }, [searchTerm, keyMapping]);
 
   // Handle selection from suggestions
-  const handleSelectCompany = (companyName: string) => {
+  const handleSelectCompany = useCallback((companyName: string) => {
     setSelectedCompany(companyName);
     setSelectedInstrumentKey(keyMapping[companyName]);
     setSearchTerm(companyName);
     setSuggestions([]);
 
     // We preserve the current view (either chart view or boom days) when selecting a new company
-  };
+  }, [keyMapping]); // Add dependencies for useCallback
 
   // Performance optimization: limit displayed candles to prevent slowdown
   const optimizedCandles = useMemo(() => {
@@ -149,7 +175,8 @@ export const OHLCChartDemo: React.FC = () => {
   }, [candles]);
 
   // Fetch candles for selected company/instrument using Upstox API
-  const handleFetchData = async () => {
+  const handleFetchData = useCallback(async () => {
+    console.log('🚀 handleFetchData called', { selectedCompany, selectedInstrumentKey, upstoxApiKey: !!upstoxApiKey });
     if (!selectedCompany || !selectedInstrumentKey) {
       toast.error('Please select a company from the search dropdown first.', {
         duration: 3000
@@ -175,8 +202,20 @@ export const OHLCChartDemo: React.FC = () => {
     try {
       
       // Calculate dynamic date range based on timeframe to limit candles to ~100
-      const to = new Date().toISOString();
-      const from = calculateFromDate(new Date(), selectedTimeframe);
+      const now = new Date();
+      // Use the last trading day instead of today since today's data might not be available
+      const lastTradingDay = getLastTradingDay(now);
+      const to = lastTradingDay.toISOString();
+      const from = calculateFromDate(new Date(lastTradingDay), selectedTimeframe);
+      
+      console.log(`📅 Date range calculation:`, {
+        timeframe: selectedTimeframe,
+        from: from.toISOString(),
+        to: to,
+        daysDiff: Math.floor((new Date(to).getTime() - from.getTime()) / (1000 * 60 * 60 * 24)),
+        currentDate: now.toISOString(),
+        lastTradingDay: lastTradingDay.toISOString()
+      });
       
       const params: UpstoxPaginationParams = {
         instrumentKey: selectedInstrumentKey,
@@ -248,58 +287,70 @@ export const OHLCChartDemo: React.FC = () => {
       setIsLoading(false);
       setVixData([]); // Clear any VIX data
     }
-  };
+  }, [selectedCompany, selectedInstrumentKey, upstoxApiKey, selectedTimeframe, isFirstLoad]); // Add dependencies for useCallback
 
   // Function to load more historical data (pagination)
-  const loadMoreHistoricalData = async () => {
-    if (!selectedInstrumentKey || !newestCandleTime || loadingOlderData || !upstoxApiKey) {
+  const loadMoreHistoricalData = useCallback(async (direction: 'older' | 'newer' = 'older') => {
+    if (!selectedInstrumentKey || !upstoxApiKey || loadingOlderData) {
       return;
     }
     
     setLoadingOlderData(true);
-    const loadingToast = toast.loading('Loading more historical data...');
+    const loadingToast = toast.loading(`Loading ${direction} data...`);
     
     try {
-      // Don't format the instrument key - use it as is from the mapping
-      // The key mapping should already have the correct format
+      let to: string;
+      let from: Date;
       
-      // Convert newestCandleTime to a date - this will be our "to" date
-      const newestDate = new Date(newestCandleTime);
+      if (direction === 'older' && newestCandleTime) {
+        // Loading older data - use newest candle time as "to"
+        const newestDate = new Date(newestCandleTime);
+        to = newestDate.toISOString();
+        from = calculateFromDate(newestDate, selectedTimeframe);
+      } else if (direction === 'newer' && oldestCandleTime) {
+        // Loading newer data - use oldest candle time as "from" and last trading day as "to"
+        from = new Date(oldestCandleTime);
+        const lastTradingDay = getLastTradingDay(new Date());
+        to = lastTradingDay.toISOString();
+      } else {
+        // Fallback - use last trading day instead of current date
+        const lastTradingDay = getLastTradingDay(new Date());
+        to = lastTradingDay.toISOString();
+        from = calculateFromDate(new Date(lastTradingDay), selectedTimeframe);
+      }
       
-      // Set the "to" date as our newest candle time (end point for fetching older data)
-      const to = newestDate.toISOString();
-      
-      // Set the "from" date dynamically based on timeframe to get ~100 more candles
-      // This goes further back in time from the newest candle
-      const from = calculateFromDate(newestDate, selectedTimeframe);
-      
-      console.log('Pagination request details:', {
+      console.log(`Pagination request details (${direction}):`, {
         instrumentKey: selectedInstrumentKey,
         timeframe: selectedTimeframe,
         from: from.toISOString(),
         to: to,
-        newestCandleTime
+        direction
       });
       
       const params: UpstoxPaginationParams = {
-        instrumentKey: selectedInstrumentKey, // Use the original instrument key
+        instrumentKey: selectedInstrumentKey,
         timeframe: selectedTimeframe,
         apiKey: upstoxApiKey,
         from: from.toISOString(),
         to: to,
-        limit: PAGINATION_CHUNK_SIZE // Use smaller chunks for better performance
+        limit: PAGINATION_CHUNK_SIZE
       };
       
       const result = await fetchPaginatedUpstoxData(params);
       
       if (result.candles.length > 0) {
-        // Update oldest candle time for next pagination
-        setOldestCandleTime(result.oldestTimestamp);
-        setNewestCandleTime(result.newestTimestamp);
+        // Update pagination state
+        if (direction === 'older') {
+          setOldestCandleTime(result.oldestTimestamp);
+        } else {
+          setNewestCandleTime(result.newestTimestamp);
+        }
         setHasMoreCandles(result.hasMore);
         
         // Merge with existing candles
-        const combinedCandles = [...result.candles, ...rawCandles];
+        const combinedCandles = direction === 'older' 
+          ? [...result.candles, ...rawCandles] 
+          : [...rawCandles, ...result.candles];
         
         // Remove duplicates (by timestamp) with consistent UTC handling
         const uniqueCandles = combinedCandles.filter((candle, index, self) =>
@@ -326,48 +377,79 @@ export const OHLCChartDemo: React.FC = () => {
         
         // Process with the selected timeframe
         const processedCandles = processTimeframeData(optimizedUnique, selectedTimeframe);
-        console.log(`🔄 Processing ${processedCandles.length} candles with indicators during pagination`);
-        const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14);
+        console.log(`🔄 Processing ${processedCandles.length} candles with indicators during pagination (full calculation for now)`);
+        // Use full EMA calculation for now to ensure accuracy
+        const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
         setCandles(candlesWithIndicators);
         
-        toast.success(`Loaded ${result.candles.length} more candles`, {
+        toast.success(`Loaded ${result.candles.length} more ${direction} candles`, {
           id: loadingToast
         });
       } else {
-        toast.error('No more historical data available', {
+        toast.error(`No more ${direction} data available`, {
           id: loadingToast
         });
         setHasMoreCandles(false);
       }
     } catch (error) {
-      console.error('Error loading more historical data:', error);
-      toast.error('Failed to load more data', {
+      console.error(`Error loading more ${direction} data:`, error);
+      toast.error(`Failed to load more ${direction} data`, {
         id: loadingToast
       });
     } finally {
       setLoadingOlderData(false);
     }
-  };
+  }, [selectedInstrumentKey, upstoxApiKey, loadingOlderData, newestCandleTime, oldestCandleTime, selectedTimeframe, rawCandles]); // Add dependencies for useCallback
 
-  // Handle timeframe change
-  const handleTimeframeChange = (timeframe: Timeframe) => {
-    setSelectedTimeframe(timeframe);
+  // Handle timeframe change with proper error handling and rollback
+  const handleTimeframeChange = useCallback((newTimeframe: Timeframe) => {
+    const previousTimeframe = selectedTimeframe;
+    
+    // Optimistically update the timeframe
+    setSelectedTimeframe(newTimeframe);
     
     // Check if we need to fetch new data for the timeframe
-    const needsNewData = shouldFetchNewDataForTimeframe(selectedTimeframe, timeframe);
+    const needsNewData = shouldFetchNewDataForTimeframe(previousTimeframe, newTimeframe);
     
     if (needsNewData && selectedInstrumentKey && upstoxApiKey) {
       // Fetch fresh data for the new timeframe
-      toast.loading('Fetching data for new timeframe...', { duration: 2000 });
-      fetchDataForTimeframe(timeframe);
+      const loadingToast = toast.loading('Fetching data for new timeframe...', { duration: 10000 });
+      
+      fetchDataForTimeframe(newTimeframe)
+        .then(() => {
+          toast.success(`Successfully loaded ${newTimeframe} data`, { id: loadingToast });
+        })
+        .catch((error) => {
+          console.error('Failed to fetch data for new timeframe:', error);
+          toast.error(`Failed to load ${newTimeframe} data. Reverting to ${previousTimeframe}.`, { 
+            id: loadingToast,
+            duration: 4000 
+          });
+          
+          // Revert to previous timeframe on error
+          setSelectedTimeframe(previousTimeframe);
+        });
     } else if (rawCandles.length) {
       // Use existing data and process it for the new timeframe
-      const processedCandles = processTimeframeData(rawCandles, timeframe);
-      console.log(`🔄 Processing ${processedCandles.length} candles with indicators during timeframe change`);
-      const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14);
-      setCandles(candlesWithIndicators);
+      try {
+        const processedCandles = processTimeframeData(rawCandles, newTimeframe);
+        console.log(`🔄 Processing ${processedCandles.length} candles with indicators during timeframe change`);
+        const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14);
+        setCandles(candlesWithIndicators);
+        toast.success(`Switched to ${newTimeframe} timeframe`);
+      } catch (error) {
+        console.error('Failed to process data for new timeframe:', error);
+        toast.error(`Failed to switch to ${newTimeframe}. Reverting to ${previousTimeframe}.`);
+        
+        // Revert to previous timeframe on processing error
+        setSelectedTimeframe(previousTimeframe);
+      }
+    } else {
+      // No data available
+      toast.error(`No data available for ${newTimeframe}. Please fetch data first.`);
+      setSelectedTimeframe(previousTimeframe);
     }
-  };
+  }, [selectedTimeframe, selectedInstrumentKey, upstoxApiKey, rawCandles]); // Add dependencies for useCallback
 
   // Helper function to determine if we need to fetch new data
   const shouldFetchNewDataForTimeframe = (currentTf: Timeframe, newTf: Timeframe): boolean => {
@@ -380,16 +462,29 @@ export const OHLCChartDemo: React.FC = () => {
     return newIndex < currentIndex;
   };
 
-  // Function to fetch data for a specific timeframe
-  const fetchDataForTimeframe = async (timeframe: Timeframe) => {
-    if (!selectedInstrumentKey || !upstoxApiKey) return;
+  // Function to fetch data for a specific timeframe with proper error handling
+  const fetchDataForTimeframe = useCallback(async (timeframe: Timeframe): Promise<void> => {
+    if (!selectedInstrumentKey || !upstoxApiKey) {
+      throw new Error('Missing instrument key or API key');
+    }
     
     setIsLoading(true);
     
     try {
       // Calculate dynamic date range based on timeframe
-      const to = new Date().toISOString();
-      const from = calculateFromDate(new Date(), timeframe);
+      const now = new Date();
+      // Use the last trading day instead of today since today's data might not be available
+      const lastTradingDay = getLastTradingDay(now);
+      const to = lastTradingDay.toISOString();
+      const from = calculateFromDate(new Date(lastTradingDay), timeframe);
+      
+      console.log(`📅 Fetching data for timeframe ${timeframe}:`, {
+        from: from.toISOString(),
+        to: to,
+        instrumentKey: selectedInstrumentKey,
+        lastTradingDay: lastTradingDay.toISOString(),
+        currentDate: now.toISOString()
+      });
       
       const params: UpstoxPaginationParams = {
         instrumentKey: selectedInstrumentKey,
@@ -425,34 +520,35 @@ export const OHLCChartDemo: React.FC = () => {
         
         setHasMoreCandles(result.hasMore);
         setOldestCandleTime(result.oldestTimestamp);
+        setNewestCandleTime(result.newestTimestamp);
         
-        toast.success(`Loaded ${timeframe} data for ${selectedCompany}`);
+        console.log(`✅ Successfully loaded ${timeframe} data for ${selectedCompany}: ${sortedCandles.length} candles`);
       } else {
-        toast.error('No data available for the selected timeframe');
+        throw new Error(`No data available for ${timeframe} timeframe`);
       }
     } catch (error) {
-      console.error('Error fetching timeframe data:', error);
-      toast.error('Failed to fetch data for new timeframe');
+      console.error(`❌ Error fetching ${timeframe} data:`, error);
+      throw error; // Re-throw to allow proper error handling in handleTimeframeChange
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedInstrumentKey, upstoxApiKey, selectedCompany]); // Add dependencies for useCallback
 
   // Handle API key modal
-  const handleOpenApiKeyModal = () => {
+  const handleOpenApiKeyModal = useCallback(() => {
     setIsApiKeyModalOpen(true);
-  };
+  }, []);
 
-  const handleCloseApiKeyModal = () => {
+  const handleCloseApiKeyModal = useCallback(() => {
     setIsApiKeyModalOpen(false);
-  };
+  }, []);
 
-  const handleSaveApiKey = (newApiKey: string) => {
+  const handleSaveApiKey = useCallback((newApiKey: string) => {
     setUpstoxApiKey(newApiKey);
     if (newApiKey) {
       toast.success('API key saved. You can now fetch data from Upstox.');
     }
-  };
+  }, []);
 
   if (isLoading) {
     return (
@@ -568,27 +664,38 @@ export const OHLCChartDemo: React.FC = () => {
           {/* Timeframe selector */}
           {!showBoomDays && candles.length > 0 && (
             <div className="flex bg-white bg-opacity-90 border border-gray-300 rounded-lg overflow-hidden shadow-sm">
-              {(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'] as Timeframe[]).map((tf) => (
-                <button
-                  key={tf}
-                  onClick={() => handleTimeframeChange(tf)}
-                  className={`px-3 py-1 text-sm font-medium transition-colors ${
-                    selectedTimeframe === tf
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
-                  }`}
-                  title={`View ${tf} timeframe`}
-                >
-                  {tf}
-                </button>
-              ))}
+              {(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'] as Timeframe[]).map((tf) => {
+                const isSelected = selectedTimeframe === tf;
+                const baseClasses = 'px-3 py-1 text-sm font-medium transition-colors';
+                
+                let stateClasses: string;
+                if (isSelected) {
+                  stateClasses = 'bg-blue-500 text-white';
+                } else if (isLoading) {
+                  stateClasses = 'bg-gray-200 text-gray-400 cursor-not-allowed';
+                } else {
+                  stateClasses = 'bg-white text-gray-700 hover:bg-gray-100';
+                }
+                
+                return (
+                  <button
+                    key={tf}
+                    onClick={() => handleTimeframeChange(tf)}
+                    disabled={isLoading} // Disable during loading
+                    className={`${baseClasses} ${stateClasses}`}
+                    title={isLoading ? 'Loading...' : `View ${tf} timeframe`}
+                  >
+                    {tf}
+                  </button>
+                );
+              })}
             </div>
           )}
           
           {/* Load More Historical Data button */}
           {!showBoomDays && candles.length > 0 && hasMoreCandles && (
             <button
-              onClick={loadMoreHistoricalData}
+              onClick={() => loadMoreHistoricalData('older')}
               disabled={loadingOlderData}
               className={`px-4 py-2 rounded-md ${
                 loadingOlderData
@@ -641,7 +748,7 @@ export const OHLCChartDemo: React.FC = () => {
                   candles={optimizedCandles}
                   vixData={vixData}
                   title={`${selectedCompany || 'Select a company'} - ${selectedTimeframe} Chart`}
-                  height={700}
+                  height={1100}
                   showVolume={true}
                   showEMA={showEMA}
                   showRSI={showRSI}
@@ -651,6 +758,10 @@ export const OHLCChartDemo: React.FC = () => {
                   supportLevel={support?.value}
                   resistanceLevel={resistance?.value}
                   avgVolume={avgVolume}
+                  onLoadMoreData={undefined} // Temporarily disable automatic loading
+                  hasMoreOlderData={hasMoreCandles}
+                  hasMoreNewerData={false} // We typically only load historical data
+                  isLoadingMoreData={loadingOlderData}
                 />
               )}
               

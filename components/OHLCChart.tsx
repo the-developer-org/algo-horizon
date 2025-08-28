@@ -92,6 +92,11 @@ interface OHLCChartProps {
     supportLevel?: number; // Support level from backend
     resistanceLevel?: number; // Resistance level from backend
     avgVolume?: number; // Average volume for the stock
+    // Add callback for loading more data when user scrolls to edges
+    onLoadMoreData?: (direction: 'older' | 'newer') => Promise<void>;
+    hasMoreOlderData?: boolean;
+    hasMoreNewerData?: boolean;
+    isLoadingMoreData?: boolean;
 }
 
 const maxWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
@@ -483,7 +488,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     analysisList, // Destructure analysisList
     supportLevel, // Use backend-provided support level
     resistanceLevel, // Use backend-provided resistance level
-    avgVolume = 0 // Average volume with default value of 0
+    avgVolume = 0, // Average volume with default value of 0
+    onLoadMoreData, // Callback for loading more data
+    hasMoreOlderData = false,
+    hasMoreNewerData = false,
+    isLoadingMoreData = false
 }) => {
     const UnderstchartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
@@ -544,12 +553,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
     useEffect(() => {
+        console.log('🔄 Chart initialization effect triggered', { candlesLength: candles.length, height, width, showVolume });
         if (!UnderstchartContainerRef.current || !candles.length) return;
 
-        // Create chart with minimal configuration
+        // Create chart with enhanced navigation and zoom configuration
         const chart = createChart(UnderstchartContainerRef.current, {
             width: maxWidth,
-            height: 800 * 0.96, // Reduce height by 10%
+            height: 800 * 0.9, // Reduce height to leave space for x-axis
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
@@ -561,22 +571,57 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             timeScale: {
                 timeVisible: true,
                 secondsVisible: false,
-                // Fix timezone handling for better chart display
-                fixLeftEdge: true,
-                fixRightEdge: true,
+                // Enhanced navigation settings
+                fixLeftEdge: false,  // Allow scrolling beyond the leftmost data point
+                fixRightEdge: false, // Allow scrolling beyond the rightmost data point
+                lockVisibleTimeRangeOnResize: false, // Allow automatic adjustment on resize
                 borderVisible: true,
+                visible: true,
+                rightOffset: 50,     // Increased from 12 to provide more space for navigation
+                minBarSpacing: 0.5,  // Reduced from 3 to allow more zoom levels
+                borderColor: '#333333',
+                // Enhanced scroll and zoom behavior
+                shiftVisibleRangeOnNewBar: true, // Auto-scroll with new data
             },
             crosshair: {
-                mode: 0,
+                mode: 0, // Normal crosshair mode
+                vertLine: {
+                    color: '#758696',
+                    width: 1,
+                    style: 2, // Dashed line
+                    visible: true,
+                    labelVisible: true,
+                },
+                horzLine: {
+                    color: '#758696',
+                    width: 1,
+                    style: 2, // Dashed line
+                    visible: true,
+                    labelVisible: true,
+                },
             },
             handleScroll: {
-                mouseWheel: true,
-                pressedMouseMove: true,
+                mouseWheel: true,      // Enable mouse wheel scrolling
+                pressedMouseMove: true, // Enable drag scrolling
+                horzTouchDrag: true,    // Enable horizontal touch drag
+                vertTouchDrag: true,    // Enable vertical touch drag
             },
             handleScale: {
-                axisPressedMouseMove: true,
-                mouseWheel: true,
-                pinch: true,
+                axisPressedMouseMove: {
+                    time: true,  // Enable time axis scaling with mouse
+                    price: true, // Enable price axis scaling with mouse
+                },
+                mouseWheel: true,        // Enable mouse wheel scaling
+                pinch: true,            // Enable pinch scaling on touch devices
+                axisDoubleClickReset: {
+                    time: true,  // Double-click time axis to reset
+                    price: true, // Double-click price axis to reset
+                },
+            },
+            // Enhanced kinetic scrolling for better user experience
+            kineticScroll: {
+                touch: true,    // Enable kinetic scrolling on touch
+                mouse: false,   // Disable for mouse (can be distracting)
             },
         });
         chartRef.current = chart;
@@ -641,9 +686,29 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             index === self.findIndex(t => t.time === item.time)
         ).sort((a, b) => a.time - b.time); // Ensure ascending order
 
-        // Set candlestick data
+        // Set candlestick data with enhanced boundary handling
         // @ts-ignore: TypeScript types are too strict, but this works at runtime
         candlestickSeries.setData(formattedData);
+        
+        // Configure better viewport management for limited data
+        if (formattedData.length > 0) {
+            // Add padding to prevent empty space issues
+            const dataRange = {
+                from: formattedData[0].time,
+                to: formattedData[formattedData.length - 1].time
+            };
+            
+            // Set an appropriate initial visible range
+            const visibleCandleCount = Math.min(100, formattedData.length);
+            const startIndex = Math.max(0, formattedData.length - visibleCandleCount);
+            
+            chart.timeScale().setVisibleRange({
+                from: formattedData[startIndex].time as any,
+                to: formattedData[formattedData.length - 1].time as any
+            });
+            
+            console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
+        }
 
         // Set volume data if enabled
         if (showVolume && volumeSeries) {
@@ -705,7 +770,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             }
         });
 
-        // Handle resize
+        // Handle resize and auto-fit chart
         const handleResize = () => {
             if (UnderstchartContainerRef.current && chartRef.current) {
                 const containerWidth = UnderstchartContainerRef.current.clientWidth;
@@ -714,13 +779,88 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     width: containerWidth,
                     height: containerHeight,
                 });
+                
+                // Auto-fit the data to the viewport after resize
+                setTimeout(() => {
+                    if (chartRef.current && formattedData.length > 0) {
+                        chartRef.current.timeScale().fitContent();
+                    }
+                }, 100);
             }
         };
 
+        // Auto-fit content to the available space
+        const autoFitContent = () => {
+            if (chartRef.current && formattedData.length > 0) {
+                try {
+                    // Use a timeout to ensure the chart is fully rendered
+                    setTimeout(() => {
+                        if (chartRef.current) {
+                            chartRef.current.timeScale().fitContent();
+                        }
+                    }, 200);
+                } catch (error) {
+                    console.warn('Failed to auto-fit chart content:', error);
+                }
+            }
+        };
+
+        // Call auto-fit after chart is fully loaded
+        autoFitContent();
+
         window.addEventListener('resize', handleResize);
+
+        // Add keyboard shortcuts for better navigation
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (!chartRef.current) return;
+            
+            const timeScale = chartRef.current.timeScale();
+            
+            switch (event.key) {
+                case 'Home':
+                    // Go to the beginning of data
+                    if (formattedData.length > 0) {
+                        timeScale.setVisibleRange({
+                            from: formattedData[0].time as any,
+                            to: formattedData[Math.min(50, formattedData.length - 1)].time as any
+                        });
+                    }
+                    break;
+                case 'End':
+                    // Go to the end of data
+                    if (formattedData.length > 0) {
+                        const endIndex = formattedData.length - 1;
+                        const startIndex = Math.max(0, endIndex - 50);
+                        timeScale.setVisibleRange({
+                            from: formattedData[startIndex].time as any,
+                            to: formattedData[endIndex].time as any
+                        });
+                    }
+                    break;
+                case 'f':
+                case 'F':
+                    if (event.ctrlKey || event.metaKey) {
+                        // Ctrl+F or Cmd+F: Fit content
+                        event.preventDefault();
+                        timeScale.fitContent();
+                    }
+                    break;
+                case 'r':
+                case 'R':
+                    if (event.ctrlKey || event.metaKey) {
+                        // Ctrl+R or Cmd+R: Reset zoom
+                        event.preventDefault();
+                        timeScale.resetTimeScale();
+                    }
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            window.removeEventListener('keydown', handleKeyDown);
             try {
                 // Clean up avg volume line if present
                 if (avgVolumeLineRef.current && volumeSeriesRef.current) {
@@ -732,7 +872,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             volumeSeriesRef.current = null;
             avgVolumeLineRef.current = null;
         };
-    }, [candles, height, width, showVolume, vixData]); // Removed indicator toggles from dependencies
+    }, [candles, height, width, showVolume]); // Removed vixData to prevent unnecessary recreations
 
     // Manage Avg Volume reference line on the volume histogram
     useEffect(() => {
@@ -770,6 +910,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Separate effect for EMA indicator management (EMA 8 and EMA 30)
     useEffect(() => {
+        console.log('📊 EMA effect triggered', { showEMA, candlesLength: candles.length });
         if (!chartRef.current) return;
 
         const chart = chartRef.current;
@@ -796,6 +937,15 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 // Debug logging for EMA data analysis
                 console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length})`);
                 
+                // Debug raw candle data for EMA values
+                console.log(`📊 Raw EMA8 candle analysis:`);
+                console.log(`  First 5 candles EMA8: [${candles.slice(0, 5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
+                console.log(`  Last 5 candles EMA8: [${candles.slice(-5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
+                if (candlesWithEma8.length > 0) {
+                    console.log(`  EMA8 first valid candle: index ${candles.findIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles.find(c => typeof c.ema8 === 'number')?.timestamp}`);
+                    console.log(`  EMA8 last valid candle: index ${candles.findLastIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles[candles.findLastIndex(c => typeof c.ema8 === 'number')]?.timestamp}`);
+                }
+                
                 // Debug timestamp ordering - check if data might be in reverse order
                 if (candles.length >= 2) {
                     const first = candles[0];
@@ -815,24 +965,51 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     priceScaleId: '',
                     title: 'EMA 8',
                 });
+                console.log(`🎯 Creating EMA8 chart data...`);
                 const ema8Data = candles
-                    .map((c: Candle) => {
+                    .map((c: Candle, idx: number) => {
                         // Use same timestamp normalization as main chart data
                         let timestamp = c.timestamp;
                         if (!timestamp.endsWith('Z') && !timestamp.includes('+')) {
                             timestamp = timestamp + 'Z';
                         }
-                        return {
+                        const chartPoint = {
                             time: Math.floor(new Date(timestamp).getTime() / 1000),
                             value: typeof c.ema8 === 'number' && !isNaN(c.ema8) ? c.ema8 : null,
                         };
+                        
+                        // Debug key data points
+                        if (idx < 3 || idx >= candles.length - 3 || (idx >= 6 && idx <= 9)) {
+                            console.log(`  Chart[${idx}] EMA8: raw=${c.ema8?.toFixed(4) || 'null'} → chart=${chartPoint.value?.toFixed(4) || 'null'} at ${new Date(chartPoint.time * 1000).toISOString()}`);
+                        }
+                        
+                        return chartPoint;
                     })
-                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
+                    .filter((item: any) => {
+                        const isValid = typeof item.value === 'number' && !isNaN(item.value);
+                        return isValid;
+                    })
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
 
-                console.log(`EMA8 chart data points: ${ema8Data.length}`);
+                console.log(`📈 EMA8 chart data summary:`);
+                console.log(`  - Total candles processed: ${candles.length}`);
+                console.log(`  - Valid EMA8 chart points: ${ema8Data.length}`);
+                console.log(`  - Data reduction: ${candles.length - ema8Data.length} points filtered out`);
                 if (ema8Data.length > 0) {
-                    console.log(`EMA8 time range: ${new Date(ema8Data[0].time * 1000).toISOString()} to ${new Date(ema8Data[ema8Data.length - 1].time * 1000).toISOString()}`);
+                    console.log(`  - Time range: ${new Date(ema8Data[0].time * 1000).toISOString()} to ${new Date(ema8Data[ema8Data.length - 1].time * 1000).toISOString()}`);
+                    console.log(`  - Value range: ${ema8Data[0].value?.toFixed(4)} to ${ema8Data[ema8Data.length - 1].value?.toFixed(4)}`);
+                }
+
+                // Set EMA8 data with enhanced error handling
+                if (ema8Data.length > 0) {
+                    ema8SeriesRef.current.setData(ema8Data);
+                    console.log('✅ EMA8 data set successfully');
+                    
+                    // Ensure EMA series scales with the main chart
+                    ema8SeriesRef.current.applyOptions({
+                        lastValueVisible: true,
+                        priceLineVisible: false,
+                    });
                 }
 
                 // EMA 30
@@ -862,6 +1039,18 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     console.log(`EMA30 time range: ${new Date(ema30Data[0].time * 1000).toISOString()} to ${new Date(ema30Data[ema30Data.length - 1].time * 1000).toISOString()}`);
                 }
 
+                // Set EMA30 data with enhanced error handling
+                if (ema30Data.length > 0) {
+                    ema30SeriesRef.current.setData(ema30Data);
+                    console.log('✅ EMA30 data set successfully');
+                    
+                    // Ensure EMA series scales with the main chart
+                    ema30SeriesRef.current.applyOptions({
+                        lastValueVisible: true,
+                        priceLineVisible: false,
+                    });
+                }
+
                 // Enhanced error checking with detailed logging
                 if (!ema8Data.length && !ema30Data.length) {
                     console.error('❌ EMA Error Details:');
@@ -872,15 +1061,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     console.error(`- EMA30 data points after processing: ${ema30Data.length}`);
                     throw new Error('Insufficient EMA data - both EMA8 and EMA30 arrays are empty');
                 }
-                
-                if (ema8Data.length) {
-                    ema8SeriesRef.current.setData(ema8Data);
-                    console.log('✅ EMA8 data set successfully');
-                }
-                if (ema30Data.length) {
-                    ema30SeriesRef.current.setData(ema30Data);
-                    console.log('✅ EMA30 data set successfully');
-                }
             } catch (err) {
                 console.error('EMA calculation error:', err);
                 setEmaError('Insufficient EMA data available');
@@ -889,7 +1069,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         } else {
             removeEmaSeries();
         }
-    }, [showEMA, candles]);
+    }, [showEMA]); // Removed candles dependency since EMA is pre-calculated in candles data
 
     // Separate effect for RSI indicator management
     useEffect(() => {
@@ -1188,7 +1368,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         return () => {
             chart.unsubscribeCrosshairMove(crosshairHandler);
         };
-    }, [candles, showVIX, vixData]); // Removed candlesWithIndicators dependency
+    }, [showVIX, vixData]); // Removed candles dependency to prevent excessive re-subscriptions
 
     // Error toast effect
     useEffect(() => {
@@ -1232,6 +1412,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         height: '90vh', // Revert to original height
         zIndex: 1,
         background: '#fff',
+        // Add padding to ensure x-axis is visible
+        paddingBottom: '40px', // Add space for x-axis
         // Add negative margin to lift it up further
     };
 
@@ -1514,8 +1696,98 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         };
     }, [candles, propAnalysisList, supportLevel, resistanceLevel]);
 
+    // Enhanced effect for handling automatic data loading when scrolling to edges
+    useEffect(() => {
+        if (!chartRef.current || !onLoadMoreData || isLoadingMoreData) return;
+
+        const chart = chartRef.current;
+        let isLoadingOlder = false;
+        let isLoadingNewer = false;
+        
+        const handleVisibleTimeRangeChange = async (newRange: { from: number; to: number } | null) => {
+            if (!newRange || !candles.length) return;
+            
+            const dataRange = {
+                from: Math.floor(new Date(candles[0].timestamp).getTime() / 1000),
+                to: Math.floor(new Date(candles[candles.length - 1].timestamp).getTime() / 1000)
+            };
+            
+            // Calculate thresholds for loading more data (when user is within 10% of edges)
+            const dataSpan = dataRange.to - dataRange.from;
+            const threshold = dataSpan * 0.1; // 10% threshold
+            
+            // Check if user scrolled close to the left edge (older data)
+            if (hasMoreOlderData && !isLoadingOlder && (newRange.from <= dataRange.from + threshold)) {
+                isLoadingOlder = true;
+                console.log('📥 Loading older data due to scroll position');
+                
+                try {
+                    await onLoadMoreData('older');
+                    // Add a small delay to prevent rapid loading
+                    setTimeout(() => { isLoadingOlder = false; }, 1000);
+                } catch (error) {
+                    console.error('Failed to load older data:', error);
+                    isLoadingOlder = false;
+                }
+            }
+            
+            // Check if user scrolled close to the right edge (newer data)
+            if (hasMoreNewerData && !isLoadingNewer && (newRange.to >= dataRange.to - threshold)) {
+                isLoadingNewer = true;
+                console.log('📥 Loading newer data due to scroll position');
+                
+                try {
+                    await onLoadMoreData('newer');
+                    // Add a small delay to prevent rapid loading
+                    setTimeout(() => { isLoadingNewer = false; }, 1000);
+                } catch (error) {
+                    console.error('Failed to load newer data:', error);
+                    isLoadingNewer = false;
+                }
+            }
+        };
+
+        // Subscribe to visible time range changes
+        chart.timeScale().subscribeVisibleTimeRangeChange(handleVisibleTimeRangeChange);
+
+        return () => {
+            try {
+                chart.timeScale().unsubscribeVisibleTimeRangeChange(handleVisibleTimeRangeChange);
+            } catch (error) {
+                // Chart might have been destroyed
+                console.warn('Failed to unsubscribe from visible time range changes:', error);
+            }
+        };
+    }, [onLoadMoreData, hasMoreOlderData, hasMoreNewerData, isLoadingMoreData]); // Removed candles from dependencies
+
+    // Loading indicator overlay
+    const LoadingOverlay = () => {
+        if (!isLoadingMoreData) return null;
+        
+        return (
+            <div 
+                style={{
+                    position: 'absolute',
+                    top: 10,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: 'rgba(0, 0, 0, 0.8)',
+                    color: 'white',
+                    padding: '8px 16px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    zIndex: 1000,
+                    pointerEvents: 'none'
+                }}
+            >
+                Loading more data...
+            </div>
+        );
+    };
+
     return (
         <div style={chartAreaStyle}>
+            <LoadingOverlay />
             <Toaster position="top-right" />
             {/* Error messages for indicators */}
             {(emaError || rsiError || vixError) && (
@@ -1620,7 +1892,29 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             
            
             
-            <div ref={UnderstchartContainerRef} style={{ width: '100%', height: '100%' }} />
+            <div ref={UnderstchartContainerRef} style={{ 
+                width: '100%', 
+                height: 'calc(100% - 40px)', // Reduce height to leave space for x-axis
+                paddingBottom: '10px' // Additional padding for x-axis visibility
+            }} />
+            
+            {/* Navigation hints */}
+            <div style={{
+                position: 'absolute',
+                bottom: 5,
+                right: 16,
+                zIndex: 200,
+                background: 'rgba(0, 0, 0, 0.7)',
+                color: 'white',
+                padding: '4px 12px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                pointerEvents: 'none'
+            }}>
+                <div>🖱️ Scroll: Pan • Wheel: Zoom • Home/End: Navigate edges • Ctrl+F: Fit • Ctrl+R: Reset</div>
+                {hasMoreOlderData && <div>📈 Scroll left for more historical data</div>}
+                {hasMoreNewerData && <div>📈 Scroll right for newer data</div>}
+            </div>
         </div>
     );
 };
