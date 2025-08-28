@@ -95,6 +95,17 @@ export default function Home() {
               Strike Analysis
             </Button>
 
+            <Button
+              onClick={() => {
+                // Set admin flag for demo purposes
+                localStorage.setItem('isAdmin', 'true');
+                router.push('/admin');
+              }}
+              className={`${buttonClass} bg-red-500 hover:bg-red-600`}
+            >
+              Admin Panel
+            </Button>
+
             <div
               className={`${buttonClass} ${
                 isConnected ? "bg-green-500" : "bg-red-500"
