@@ -12,12 +12,10 @@ const parseTimestampToUnix = (timestamp: string): number => {
   // 2. upstoxApi.ts strips timezone: "2025-08-26T09:30:00" (no timezone info)
   // 3. We treat this as UTC time for consistency across all timeframes
   
-  console.log(`Original timestamp: ${timestamp}`);
   
   if (!timestamp.includes('T')) {
     // If no 'T', assume it's already a date string, return as-is
     const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
-    console.log(`Date-only timestamp: ${timestamp} -> Unix: ${unixTimestamp}`);
     return unixTimestamp;
   }
   
@@ -28,7 +26,6 @@ const parseTimestampToUnix = (timestamp: string): number => {
   const utcTimestamp = timestamp + '+00:00';
   const unixTimestamp = Math.floor(new Date(utcTimestamp).getTime() / 1000);
   
-  console.log(`UTC timestamp: ${utcTimestamp} -> Unix: ${unixTimestamp} -> Back to date: ${new Date(unixTimestamp * 1000).toISOString()}`);
   
   return unixTimestamp;
 };
@@ -1193,9 +1190,16 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         const chart = chartRef.current;
         
         // Clean up any existing trend lines from previous renders
-        if (trendLinesRef.current && trendLinesRef.current.length) {
+        if (trendLinesRef.current && trendLinesRef.current.length && chart) {
             trendLinesRef.current.forEach(line => {
-                if (line) chart.removeSeries(line);
+                if (line && chart) {
+                    try {
+                        chart.removeSeries(line);
+                    } catch (err) {
+                        // Ignore cleanup errors - chart may already be destroyed
+                        console.warn('Error cleaning up trend line:', err);
+                    }
+                }
             });
             trendLinesRef.current = [];
         }
@@ -1299,7 +1303,14 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             // Clean up trend lines when component unmounts or dependencies change
             if (trendLinesRef.current && trendLinesRef.current.length && chart) {
                 trendLinesRef.current.forEach(line => {
-                    if (line) chart.removeSeries(line);
+                    if (line && chart) {
+                        try {
+                            chart.removeSeries(line);
+                        } catch (err) {
+                            // Ignore cleanup errors - chart may already be destroyed
+                            console.warn('Error cleaning up trend line:', err);
+                        }
+                    }
                 });
                 trendLinesRef.current = [];
             }
