@@ -15,7 +15,6 @@ const MAX_CANDLES_FOR_CHART = 3000; // Limit for ultra-fast performance
 const PAGINATION_CHUNK_SIZE = 500; // Smaller chunks for faster loading
 
 export const OHLCChartDemo: React.FC = () => {
-  console.log('🔥 OHLCChartDemo rendering...');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [rawCandles, setRawCandles] = useState<Candle[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1d');
@@ -621,7 +620,7 @@ export const OHLCChartDemo: React.FC = () => {
             }`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1 1 21 9z" />
             </svg>
             {upstoxApiKey ? 'Upstox Connected ✓' : 'Connect Upstox API'}
           </button>

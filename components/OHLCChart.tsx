@@ -101,7 +101,6 @@ interface OHLCChartProps {
     showRSI?: boolean;
     showVIX?: boolean;
     showSwingPoints?: boolean;
-    showTrendLines?: boolean;
     analysisList?: { timestamp: string; swingLabel?: string; }[]; // Added analysisList prop
     supportLevel?: number; // Support level from backend
     resistanceLevel?: number; // Resistance level from backend
@@ -119,372 +118,225 @@ const chartHeight = maxHeight * 0.91; // Increase chart height to 91% of the vie
 
 // Support and resistance levels are now provided by backend
 
-// Function to draw trend lines connecting swing points
-const drawTrendLines = (sortedAnalysis: { timestamp: string; swingLabel?: string; }[], candles: Candle[], chart: any) => {
-    // Group swing points by trend type with accurate price points
-    const swingPoints = sortedAnalysis.map(analysis => {
-        const time = parseTimestampToUnix(analysis.timestamp);
-        const candle = candles.find(c => parseTimestampToUnix(c.timestamp) === time);
+// Function to calculate swing points directly from OHLC data
+const calculateSwingPointsFromCandles = (candles: Candle[], lookback: number = 5) => {
+    if (candles.length < lookback * 2 + 1) {
+        console.log('❌ Insufficient candles for swing point calculation');
+        return [];
+    }
+
+    // First, identify all potential swing highs and lows
+    const potentialSwings: any[] = [];
+    
+    for (let i = lookback; i < candles.length - lookback; i++) {
+        const currentCandle = candles[i];
+        const currentHigh = currentCandle.high;
+        const currentLow = currentCandle.low;
         
-        if (!candle || !analysis.swingLabel) return null;
+        // Check for swing high (current high is higher than lookback candles on both sides)
+        let isSwingHigh = true;
+        let isSwingLow = true;
         
-        const label = analysis.swingLabel;
-        let price: number;
-        
-        // Ensure we use the exact high/low price point for the swing point type
-        switch (label) {
-            case 'HH': // Higher High - use exact high price
-                price = candle.high;
-                break;
-            case 'LH': // Lower High - use exact high price
-                price = candle.high;
-                break;
-            case 'HL': // Higher Low - use exact low price
-                price = candle.low;
-                break;
-            case 'LL': // Lower Low - use exact low price
-                price = candle.low;
-                break;
-            default:
-                return null;
+        for (let j = 1; j <= lookback; j++) {
+            // Check left side
+            if (candles[i - j].high >= currentHigh) {
+                isSwingHigh = false;
+            }
+            if (candles[i - j].low <= currentLow) {
+                isSwingLow = false;
+            }
+            
+            // Check right side
+            if (candles[i + j].high >= currentHigh) {
+                isSwingHigh = false;
+            }
+            if (candles[i + j].low <= currentLow) {
+                isSwingLow = false;
+            }
         }
         
-        return {
-            time,
-            price,
+        if (isSwingHigh) {
+            potentialSwings.push({
+                time: parseTimestampToUnix(currentCandle.timestamp),
+                price: currentHigh,
+                type: 'high',
+                timestamp: currentCandle.timestamp,
+                candle: currentCandle,
+                index: i
+            });
+        }
+        
+        if (isSwingLow) {
+            potentialSwings.push({
+                time: parseTimestampToUnix(currentCandle.timestamp),
+                price: currentLow,
+                type: 'low',
+                timestamp: currentCandle.timestamp,
+                candle: currentCandle,
+                index: i
+            });
+        }
+    }
+    
+    // Sort potential swings chronologically
+    potentialSwings.sort((a, b) => a.time - b.time);
+    
+    // Apply proper swing labeling logic
+    const swingPoints: any[] = [];
+    
+    for (let i = 0; i < potentialSwings.length; i++) {
+        const current = potentialSwings[i];
+        let label = '';
+        
+        if (current.type === 'high') {
+            // Find the last swing high
+            const lastSwingHigh = [...swingPoints].reverse().find(p => p.label === 'HH' || p.label === 'LH');
+            
+            if (!lastSwingHigh) {
+                label = 'HH'; // First high
+            } else {
+                label = current.price > lastSwingHigh.price ? 'HH' : 'LH';
+            }
+        } else { // current.type === 'low'
+            // Find the last swing low
+            const lastSwingLow = [...swingPoints].reverse().find(p => p.label === 'HL' || p.label === 'LL');
+            
+            if (!lastSwingLow) {
+                label = 'HL'; // First low
+            } else {
+                label = current.price > lastSwingLow.price ? 'HL' : 'LL';
+            }
+        }
+        
+        swingPoints.push({
+            time: current.time,
+            price: current.price,
             label,
-            timestamp: analysis.timestamp,
-            candle
-        };
-    }).filter(Boolean);
-    
-    // Separate swing points by type for more accurate trend line drawing
-    // We already filtered out nulls with .filter(Boolean) so these are safe to access
-    const hhPoints = swingPoints.filter((p: any) => p && p.label === 'HH');
-    const lhPoints = swingPoints.filter((p: any) => p && p.label === 'LH');
-    const hlPoints = swingPoints.filter((p: any) => p && p.label === 'HL');
-    const llPoints = swingPoints.filter((p: any) => p && p.label === 'LL');
-    
-    // Store all trend lines for cleanup if needed later
-    const trendLines: any[] = [];
-    
-    // Draw uptrend lines (connecting HL points)
-    if (hlPoints.length >= 2) {
-        // Sort by time to ensure proper sequence
-        const sortedHLs = [...hlPoints].sort((a: any, b: any) => a.time - b.time);
-        
-        // Create an uptrend line series
-        const uptrendSeries = chart.addLineSeries({
-            color: '#4CAF50', // Green for uptrend
-            lineWidth: 2,
-            lineStyle: 1, // Solid line
-            priceScaleId: '', // Use main price scale
-            title: 'Uptrend Line',
-            crosshairMarkerVisible: false,
-            priceLineVisible: false,
-            lastValueVisible: false,
+            timestamp: current.timestamp,
+            candle: current.candle,
+            index: current.index
         });
-        
-        // Prepare data points for the line
-        const uptrendData = sortedHLs.map((point: any) => ({
-            time: point.time,
-            value: point.price
-        }));
-        
-        // Set the uptrend data
-        uptrendSeries.setData(uptrendData);
-        trendLines.push(uptrendSeries);
     }
     
-    // Draw downtrend lines (connecting LH points)
-    if (lhPoints.length >= 2) {
-        // Sort by time to ensure proper sequence
-        const sortedLHs = [...lhPoints].sort((a: any, b: any) => a.time - b.time);
-        
-        // Create a downtrend line series
-        const downtrendSeries = chart.addLineSeries({
-            color: '#F44336', // Red for downtrend
-            lineWidth: 2,
-            lineStyle: 1, // Solid line
-            priceScaleId: '', // Use main price scale
-            title: 'Downtrend Line',
-            crosshairMarkerVisible: false,
-            priceLineVisible: false,
-            lastValueVisible: false,
-        });
-        
-        // Prepare data points for the line
-        const downtrendData = sortedLHs.map((point: any) => ({
-            time: point.time,
-            value: point.price
-        }));
-        
-        // Set the downtrend data
-        downtrendSeries.setData(downtrendData);
-        trendLines.push(downtrendSeries);
-    }
+    // Now fix missing alternating points
+    const finalSwingPoints: any[] = [];
     
-    // Also generate combined trend lines using the original algorithm for more complex patterns
-    const trends = detectTrendSequences(swingPoints);
-    
-    trends.forEach((trend) => {
-        // Only process trends with enough points
-        if (trend.points.length < 2) return;
+    for (let i = 0; i < swingPoints.length; i++) {
+        const current = swingPoints[i];
         
-        // Filter points by swing label type based on trend direction
-        let relevantPoints;
-        
-        if (trend.type === 'uptrend') {
-            // For uptrend, we primarily connect Higher Lows (HL)
-            relevantPoints = trend.points.filter(p => p.label === 'HL');
+        if (finalSwingPoints.length > 0) {
+            const last = finalSwingPoints[finalSwingPoints.length - 1];
             
-            // If we don't have enough HL points, fall back to all points
-            if (relevantPoints.length < 2) {
-                relevantPoints = trend.points;
-            }
-        } else { // downtrend
-            // For downtrend, we primarily connect Lower Highs (LH)
-            relevantPoints = trend.points.filter(p => p.label === 'LH');
+            // Check if we have consecutive points of same type
+            const lastIsHigh = last.label === 'HH' || last.label === 'LH';
+            const currentIsHigh = current.label === 'HH' || current.label === 'LH';
             
-            // If we don't have enough LH points, fall back to all points
-            if (relevantPoints.length < 2) {
-                relevantPoints = trend.points;
-            }
-        }
-        
-        // Skip if we still don't have enough points
-        if (relevantPoints.length < 2) return;
-        
-        // Sort points by time
-        relevantPoints.sort((a, b) => a.time - b.time);
-        
-        // Create the series with appropriate styling
-        const trendLineSeries = chart.addLineSeries({
-            color: trend.type === 'uptrend' ? '#4CAF50' : '#F44336',
-            lineWidth: 2,
-            lineStyle: 1, // Solid line
-            priceScaleId: '', // Use main price scale
-            title: `${trend.type === 'uptrend' ? 'Uptrend' : 'Downtrend'} Line`,
-            crosshairMarkerVisible: false,
-            priceLineVisible: false,
-            lastValueVisible: false,
-        });
-        
-        // Convert points to line data format
-        const lineData = relevantPoints.map((point: any) => ({
-            time: point.time,
-            value: point.price
-        }));
-        
-        // Set data for the line
-        trendLineSeries.setData(lineData);
-        trendLines.push(trendLineSeries);
-    });
-    
-    return trendLines;
-};
-
-// Calculate trend strength based on consistency of price movements, number of points, and duration
-const calculateTrendStrength = (trend: { type: 'uptrend' | 'downtrend', points: any[] }): number => {
-    if (trend.points.length < 2) return 0;
-    
-    // More points means more confirmed trend
-    const pointsScore = Math.min(trend.points.length / 6, 1); // Max score at 6+ points
-    
-    // Calculate consistency (are the swings getting stronger or weaker?)
-    let consistencyScore = 0;
-    if (trend.points.length >= 3) {
-        let consistentCount = 0;
-        for (let i = 2; i < trend.points.length; i++) {
-            const prevDiff = Math.abs(trend.points[i-1].price - trend.points[i-2].price);
-            const currDiff = Math.abs(trend.points[i].price - trend.points[i-1].price);
-            
-            // For uptrend: HH should be higher than previous HH, HL higher than previous HL
-            // For downtrend: LH should be lower than previous LH, LL lower than previous LL
-            if ((trend.type === 'uptrend' && 
-                ((trend.points[i].label === 'HH' && trend.points[i].price > trend.points[i-2].price) ||
-                 (trend.points[i].label === 'HL' && trend.points[i].price > trend.points[i-2].price))) ||
-                (trend.type === 'downtrend' && 
-                ((trend.points[i].label === 'LH' && trend.points[i].price < trend.points[i-2].price) ||
-                 (trend.points[i].label === 'LL' && trend.points[i].price < trend.points[i-2].price)))) {
-                consistentCount++;
-            }
-        }
-        consistencyScore = consistentCount / (trend.points.length - 2);
-    } else {
-        consistencyScore = 0.5; // Default for 2 points
-    }
-    
-    // Calculate duration score
-    const duration = trend.points[trend.points.length - 1].time - trend.points[0].time;
-    // Normalize duration - longer trends are more significant up to a point
-    const durationScore = Math.min(duration / (86400 * 7), 1); // Cap at 1 week
-    
-    // Weighted average of scores
-    return pointsScore * 0.4 + consistencyScore * 0.4 + durationScore * 0.2;
-};
-
-// Project trend line into the future
-const projectTrendLine = (trend: { type: 'uptrend' | 'downtrend', points: any[] }, lastTime: number, candles: Candle[], chart: any) => {
-    // Need at least 2 points to project a line
-    if (trend.points.length < 2) return null;
-    
-    const lastPoint = trend.points[trend.points.length - 1];
-    const secondLastPoint = trend.points[trend.points.length - 2];
-    
-    // Calculate slope based on the last two points
-    const timeDiff = lastPoint.time - secondLastPoint.time;
-    const priceDiff = lastPoint.price - secondLastPoint.price;
-    const slope = priceDiff / timeDiff;
-    
-    // Project forward for a reasonable amount of time (e.g., 25% of the current trend length or 10 candles)
-    const trendDuration = lastPoint.time - trend.points[0].time;
-    // Estimate average candle duration from sample candles
-    const sampleTime1 = parseTimestampToUnix(candles[1].timestamp);
-    const sampleTime0 = parseTimestampToUnix(candles[0].timestamp);
-    const avgCandleDuration = sampleTime1 - sampleTime0;
-    
-    const projectionLength = Math.max(trendDuration * 0.25, avgCandleDuration * 10);
-    
-    const projectionEndTime = lastPoint.time + projectionLength;
-    const projectionEndPrice = lastPoint.price + slope * projectionLength;
-    
-    // Create a series for the projection
-    const projectionSeries = chart.addLineSeries({
-        color: trend.type === 'uptrend' ? 'rgba(0, 200, 83, 0.6)' : 'rgba(213, 0, 0, 0.6)',
-        lineWidth: 1,
-        lineStyle: 2, // Dotted line for projection
-        priceScaleId: '', // Use main price scale
-        title: `${trend.type === 'uptrend' ? 'Uptrend' : 'Downtrend'} Projection`,
-        crosshairMarkerVisible: false,
-        priceLineVisible: false,
-        lastValueVisible: false,
-    });
-    
-    // Set projection data
-    projectionSeries.setData([
-        { time: lastPoint.time, value: lastPoint.price },
-        { time: projectionEndTime, value: projectionEndPrice }
-    ]);
-    
-    return projectionSeries;
-}
-
-// Function to detect trend sequences from swing points
-const detectTrendSequences = (swingPoints: any[]) => {
-    const trends: { type: 'uptrend' | 'downtrend', points: any[], startTime?: number, endTime?: number }[] = [];
-    let currentTrend: { type: 'uptrend' | 'downtrend', points: any[], startTime?: number, endTime?: number } | null = null;
-    
-    // First, sort swing points chronologically to ensure correct sequence
-    const sortedSwingPoints = [...swingPoints].sort((a, b) => a.time - b.time);
-    
-    // Group swing points by pattern sequences
-    for (let i = 0; i < sortedSwingPoints.length; i++) {
-        const point = sortedSwingPoints[i];
-        
-        // Determine point type
-        const isHH = point.label === 'HH';
-        const isHL = point.label === 'HL';
-        const isLH = point.label === 'LH';
-        const isLL = point.label === 'LL';
-        
-        // Enhanced trend detection logic:
-        // An uptrend consists of both HL and HH points (HL->HH->HL->HH...)
-        // A downtrend consists of both LL and LH points (LH->LL->LH->LL...)
-        
-        if (isHH || isHL) {
-            if (!currentTrend || currentTrend.type !== 'uptrend') {
-                // Save previous trend if it exists and has enough points
-                if (currentTrend && currentTrend.points.length >= 2) {
-                    currentTrend.endTime = currentTrend.points[currentTrend.points.length - 1].time;
-                    trends.push(currentTrend);
-                }
+            if (lastIsHigh === currentIsHigh) {
+                // Same type consecutive - need to insert missing alternating point
+                const startIndex = last.index;
+                const endIndex = current.index;
                 
-                // Start a new uptrend
-                currentTrend = { 
-                    type: 'uptrend', 
-                    points: [point],
-                    startTime: point.time 
-                };
-            } else {
-                // Continue the current uptrend - check for proper alternation (HL-HH-HL-HH...)
-                const lastPoint = currentTrend.points[currentTrend.points.length - 1];
-                
-                // Only add this point if it maintains the pattern
-                if ((isHH && lastPoint.label === 'HL') || 
-                    (isHL && lastPoint.label === 'HH') ||
-                    // Allow for double HH or double HL in certain cases
-                    (isHH && lastPoint.label === 'HH' && point.price > lastPoint.price) || 
-                    (isHL && lastPoint.label === 'HL' && point.price > lastPoint.price)) {
+                if (lastIsHigh) {
+                    // Both are highs, need to find lowest point between them
+                    let lowestPrice = Infinity;
+                    let lowestCandle = null;
+                    let lowestIndex = -1;
                     
-                    currentTrend.points.push(point);
-                }
-            }
-        } else if (isLH || isLL) {
-            if (!currentTrend || currentTrend.type !== 'downtrend') {
-                // Save previous trend if it exists
-                if (currentTrend && currentTrend.points.length >= 2) {
-                    currentTrend.endTime = currentTrend.points[currentTrend.points.length - 1].time;
-                    trends.push(currentTrend);
-                }
-                
-                // Start a new downtrend
-                currentTrend = { 
-                    type: 'downtrend', 
-                    points: [point],
-                    startTime: point.time 
-                };
-            } else {
-                // Continue the current downtrend - check for proper alternation (LH-LL-LH-LL...)
-                const lastPoint = currentTrend.points[currentTrend.points.length - 1];
-                
-                // Only add this point if it maintains the pattern
-                if ((isLH && lastPoint.label === 'LL') || 
-                    (isLL && lastPoint.label === 'LH') ||
-                    // Allow for double LH or double LL in certain cases
-                    (isLH && lastPoint.label === 'LH' && point.price < lastPoint.price) || 
-                    (isLL && lastPoint.label === 'LL' && point.price < lastPoint.price)) {
+                    for (let j = startIndex + 1; j < endIndex; j++) {
+                        if (candles[j].low < lowestPrice) {
+                            lowestPrice = candles[j].low;
+                            lowestCandle = candles[j];
+                            lowestIndex = j;
+                        }
+                    }
                     
-                    currentTrend.points.push(point);
+                    if (lowestCandle) {
+                        // Determine if it's HL or LL
+                        const lastSwingLow = [...finalSwingPoints].reverse().find(p => p.label === 'HL' || p.label === 'LL');
+                        const lowLabel = !lastSwingLow || lowestPrice > lastSwingLow.price ? 'HL' : 'LL';
+                        
+                        finalSwingPoints.push({
+                            time: parseTimestampToUnix(lowestCandle.timestamp),
+                            price: lowestPrice,
+                            label: lowLabel,
+                            timestamp: lowestCandle.timestamp,
+                            candle: lowestCandle,
+                            index: lowestIndex
+                        });
+                    }
+                } else {
+                    // Both are lows, need to find highest point between them
+                    let highestPrice = -Infinity;
+                    let highestCandle = null;
+                    let highestIndex = -1;
+                    
+                    for (let j = startIndex + 1; j < endIndex; j++) {
+                        if (candles[j].high > highestPrice) {
+                            highestPrice = candles[j].high;
+                            highestCandle = candles[j];
+                            highestIndex = j;
+                        }
+                    }
+                    
+                    if (highestCandle) {
+                        // Determine if it's HH or LH
+                        const lastSwingHigh = [...finalSwingPoints].reverse().find(p => p.label === 'HH' || p.label === 'LH');
+                        const highLabel = !lastSwingHigh || highestPrice > lastSwingHigh.price ? 'HH' : 'LH';
+                        
+                        finalSwingPoints.push({
+                            time: parseTimestampToUnix(highestCandle.timestamp),
+                            price: highestPrice,
+                            label: highLabel,
+                            timestamp: highestCandle.timestamp,
+                            candle: highestCandle,
+                            index: highestIndex
+                        });
+                    }
                 }
             }
         }
+        
+        finalSwingPoints.push(current);
     }
     
-    // Add the last trend
-    if (currentTrend && currentTrend.points.length >= 2) {
-        currentTrend.endTime = currentTrend.points[currentTrend.points.length - 1].time;
-        trends.push(currentTrend);
+    // Sort final swing points chronologically
+    finalSwingPoints.sort((a, b) => a.time - b.time);
+    
+    // Console log all swing points in descending order by price
+    if (finalSwingPoints.length > 0) {
+        console.log('\n🔥 SWING POINTS ANALYSIS (Calculated from OHLC - Descending Order by Price):');
+        console.log('=' .repeat(70));
+        
+        const sortedSwingPoints = [...finalSwingPoints].sort((a, b) => b.price - a.price);
+        
+        sortedSwingPoints.forEach((point, index) => {
+            const date = new Date(point.timestamp).toLocaleDateString();
+            const time = new Date(point.timestamp).toLocaleTimeString();
+            console.log(`${index + 1}. ${point.label} - ₹${point.price.toFixed(2)} | ${date} ${time} | Candle #${point.index}`);
+        });
+        
+        // Separate swing points by type
+        const hhPoints = finalSwingPoints.filter(p => p.label === 'HH');
+        const lhPoints = finalSwingPoints.filter(p => p.label === 'LH');
+        const hlPoints = finalSwingPoints.filter(p => p.label === 'HL');
+        const llPoints = finalSwingPoints.filter(p => p.label === 'LL');
+        
+        console.log('\n📊 SWING POINTS BY TYPE:');
+        console.log(`🟢 HH (Higher Highs): ${hhPoints.length} points`);
+        console.log(`🔴 LH (Lower Highs): ${lhPoints.length} points`);
+        console.log(`🟡 HL (Higher Lows): ${hlPoints.length} points`);
+        console.log(`🔵 LL (Lower Lows): ${llPoints.length} points`);
+        
+        console.log('\n📅 SWING POINTS CHRONOLOGICAL ORDER:');
+        finalSwingPoints.forEach((point, index) => {
+            const date = new Date(point.timestamp).toLocaleDateString();
+            const time = new Date(point.timestamp).toLocaleTimeString();
+            console.log(`${index + 1}. ${point.label} - ₹${point.price.toFixed(2)} | ${date} ${time} | Candle #${point.index}`);
+        });
+        console.log('=' .repeat(70));
     }
     
-    // Filter out invalid trends (trend points should form a reasonable line)
-    const validTrends = trends.filter(trend => {
-        if (trend.points.length < 3) return true; // Short trends are kept as is
-        
-        // For longer trends, calculate linear regression error to ensure points form a reasonable line
-        const points = trend.points;
-        const times = points.map(p => p.time);
-        const prices = points.map(p => p.price);
-        
-        // Calculate r-squared (simplified approach)
-        const n = points.length;
-        const sumX = times.reduce((a, b) => a + b, 0);
-        const sumY = prices.reduce((a, b) => a + b, 0);
-        const sumXY = times.reduce((acc, time, i) => acc + time * prices[i], 0);
-        const sumXX = times.reduce((acc, time) => acc + time * time, 0);
-        const sumYY = prices.reduce((acc, price) => acc + price * price, 0);
-        
-        const numerator = n * sumXY - sumX * sumY;
-        const denominator = Math.sqrt((n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY));
-        
-        const r = denominator === 0 ? 0 : numerator / denominator;
-        const rSquared = r * r;
-        
-        // Require reasonably strong linear trend (r-squared > 0.7)
-        return rSquared > 0.7;
-    });
-    
-    return validTrends;
+    return finalSwingPoints;
 };
 
 export const OHLCChart: React.FC<OHLCChartProps> = ({
@@ -498,7 +350,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     showRSI = true,
     showVIX = true,
     showSwingPoints = true,
-    showTrendLines = true, // Add default for trend lines
     analysisList, // Destructure analysisList
     supportLevel, // Use backend-provided support level
     resistanceLevel, // Use backend-provided resistance level
@@ -532,10 +383,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     // Memoized data processing for ultra-fast performance
     const processedChartData = useMemo(() => {
         if (!candles.length) return [];
-        console.log(`Processing ${candles.length} candles for chart display`);
+       //console.log(`Processing ${candles.length} candles for chart display`);
         const start = performance.now();
         const data = processChartData(candles);
-        console.log(`Chart data processed in ${(performance.now() - start).toFixed(2)}ms, showing ${data.length} points`);
+       //console.log(`Chart data processed in ${(performance.now() - start).toFixed(2)}ms, showing ${data.length} points`);
         return data;
     }, [candles]);
 
@@ -543,7 +394,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         if (!candles.length || !showVolume) return [];
         const start = performance.now();
         const data = processVolumeData(candles);
-        console.log(`Volume data processed in ${(performance.now() - start).toFixed(2)}ms`);
+       //console.log(`Volume data processed in ${(performance.now() - start).toFixed(2)}ms`);
         return data;
     }, [candles, showVolume]);
 
@@ -561,13 +412,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             volumeSeries.setData(processedVolumeData);
         }
         
-        console.log(`Chart updated in ${(performance.now() - start).toFixed(2)}ms`);
+       //console.log(`Chart updated in ${(performance.now() - start).toFixed(2)}ms`);
     }, [processedChartData, processedVolumeData, showVolume]);
 
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
     useEffect(() => {
-        console.log('🔄 Chart initialization effect triggered', { candlesLength: candles.length, height, width, showVolume });
+       //console.log('🔄 Chart initialization effect triggered', { candlesLength: candles.length, height, width, showVolume });
         if (!UnderstchartContainerRef.current || !candles.length) return;
 
         // Create chart with enhanced navigation and zoom configuration
@@ -715,7 +566,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 to: formattedData[formattedData.length - 1].time as any
             });
             
-            console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
+           //console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
         }
 
         // Set volume data if enabled
@@ -913,7 +764,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Separate effect for EMA indicator management (EMA 8 and EMA 30)
     useEffect(() => {
-        console.log('📊 EMA effect triggered', { showEMA, candlesLength: candles.length });
+       //console.log('📊 EMA effect triggered', { showEMA, candlesLength: candles.length });
         if (!chartRef.current) return;
 
         const chart = chartRef.current;
@@ -938,15 +789,15 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 const candlesWithEma30 = candles.filter(c => typeof c.ema30 === 'number' && !isNaN(c.ema30));
                 
                 // Debug logging for EMA data analysis
-                console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length})`);
+               //console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length})`);
                 
                 // Debug raw candle data for EMA values
-                console.log(`📊 Raw EMA8 candle analysis:`);
-                console.log(`  First 5 candles EMA8: [${candles.slice(0, 5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
-                console.log(`  Last 5 candles EMA8: [${candles.slice(-5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
+               //console.log(`📊 Raw EMA8 candle analysis:`);
+               //console.log(`  First 5 candles EMA8: [${candles.slice(0, 5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
+               //console.log(`  Last 5 candles EMA8: [${candles.slice(-5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
                 if (candlesWithEma8.length > 0) {
-                    console.log(`  EMA8 first valid candle: index ${candles.findIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles.find(c => typeof c.ema8 === 'number')?.timestamp}`);
-                    console.log(`  EMA8 last valid candle: index ${candles.findLastIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles[candles.findLastIndex(c => typeof c.ema8 === 'number')]?.timestamp}`);
+                   //console.log(`  EMA8 first valid candle: index ${candles.findIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles.find(c => typeof c.ema8 === 'number')?.timestamp}`);
+                   //console.log(`  EMA8 last valid candle: index ${candles.findLastIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles[candles.findLastIndex(c => typeof c.ema8 === 'number')]?.timestamp}`);
                 }
                 
                 // Debug timestamp ordering - check if data might be in reverse order
@@ -955,7 +806,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     const last = candles[candles.length - 1];
                     const firstTime = parseTimestampToUnix(first.timestamp);
                     const lastTime = parseTimestampToUnix(last.timestamp);
-                    console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
+                   //console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
                     if (firstTime > lastTime) {
                         console.warn('⚠️ Data appears to be in reverse chronological order!');
                     }
@@ -968,7 +819,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     priceScaleId: '',
                     title: 'EMA 8',
                 });
-                console.log(`🎯 Creating EMA8 chart data...`);
+               //console.log(`🎯 Creating EMA8 chart data...`);
                 const ema8Data = candles
                     .map((c: Candle, idx: number) => {
                         const chartPoint = {
@@ -978,7 +829,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         
                         // Debug key data points
                         if (idx < 3 || idx >= candles.length - 3 || (idx >= 6 && idx <= 9)) {
-                            console.log(`  Chart[${idx}] EMA8: raw=${c.ema8?.toFixed(4) || 'null'} → chart=${chartPoint.value?.toFixed(4) || 'null'} at ${new Date(chartPoint.time * 1000).toISOString()}`);
+                           //console.log(`  Chart[${idx}] EMA8: raw=${c.ema8?.toFixed(4) || 'null'} → chart=${chartPoint.value?.toFixed(4) || 'null'} at ${new Date(chartPoint.time * 1000).toISOString()}`);
                         }
                         
                         return chartPoint;
@@ -989,19 +840,19 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     })
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
 
-                console.log(`📈 EMA8 chart data summary:`);
-                console.log(`  - Total candles processed: ${candles.length}`);
-                console.log(`  - Valid EMA8 chart points: ${ema8Data.length}`);
-                console.log(`  - Data reduction: ${candles.length - ema8Data.length} points filtered out`);
+               //console.log(`📈 EMA8 chart data summary:`);
+               //console.log(`  - Total candles processed: ${candles.length}`);
+               //console.log(`  - Valid EMA8 chart points: ${ema8Data.length}`);
+               //console.log(`  - Data reduction: ${candles.length - ema8Data.length} points filtered out`);
                 if (ema8Data.length > 0) {
-                    console.log(`  - Time range: ${new Date(ema8Data[0].time * 1000).toISOString()} to ${new Date(ema8Data[ema8Data.length - 1].time * 1000).toISOString()}`);
-                    console.log(`  - Value range: ${ema8Data[0].value?.toFixed(4)} to ${ema8Data[ema8Data.length - 1].value?.toFixed(4)}`);
+                   //console.log(`  - Time range: ${new Date(ema8Data[0].time * 1000).toISOString()} to ${new Date(ema8Data[ema8Data.length - 1].time * 1000).toISOString()}`);
+                   //console.log(`  - Value range: ${ema8Data[0].value?.toFixed(4)} to ${ema8Data[ema8Data.length - 1].value?.toFixed(4)}`);
                 }
 
                 // Set EMA8 data with enhanced error handling
                 if (ema8Data.length > 0) {
                     ema8SeriesRef.current.setData(ema8Data);
-                    console.log('✅ EMA8 data set successfully');
+                   //console.log('✅ EMA8 data set successfully');
                     
                     // Ensure EMA series scales with the main chart
                     ema8SeriesRef.current.applyOptions({
@@ -1027,15 +878,15 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
 
-                console.log(`EMA30 chart data points: ${ema30Data.length}`);
+               //console.log(`EMA30 chart data points: ${ema30Data.length}`);
                 if (ema30Data.length > 0) {
-                    console.log(`EMA30 time range: ${new Date(ema30Data[0].time * 1000).toISOString()} to ${new Date(ema30Data[ema30Data.length - 1].time * 1000).toISOString()}`);
+                   //console.log(`EMA30 time range: ${new Date(ema30Data[0].time * 1000).toISOString()} to ${new Date(ema30Data[ema30Data.length - 1].time * 1000).toISOString()}`);
                 }
 
                 // Set EMA30 data with enhanced error handling
                 if (ema30Data.length > 0) {
                     ema30SeriesRef.current.setData(ema30Data);
-                    console.log('✅ EMA30 data set successfully');
+                   //console.log('✅ EMA30 data set successfully');
                     
                     // Ensure EMA series scales with the main chart
                     ema30SeriesRef.current.applyOptions({
@@ -1204,8 +1055,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             trendLinesRef.current = [];
         }
         
-        // If swing points are disabled, don't proceed
-        if (!showSwingPoints) return;
         
         // Ensure the candlestick series is initialized
         const candlestickSeries = chart.candlestickSeries || chart.addCandlestickSeries({
@@ -1221,81 +1070,73 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             chart.candlestickSeries = candlestickSeries;
         }
 
-        if (Array.isArray(propAnalysisList) && propAnalysisList.length > 0) {
+        // Calculate swing points directly from OHLC data and display dotted lines
+        if (candles.length >= 11) { // Need at least 11 candles for lookback of 5
             try {
-                const markers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
+                const calculatedSwingPoints = calculateSwingPointsFromCandles(candles, 5);
+                console.log(`✅ Calculated ${calculatedSwingPoints.length} swing points directly from OHLC data`);
                 
-                // Sort analysis list by timestamp to ensure correct order
-                const sortedAnalysis = propAnalysisList
-                    .filter(item => item.swingLabel) // Only items with swing labels
-                    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-                // Process swing point markers
-                sortedAnalysis.forEach((analysis) => {
-                    const time = parseTimestampToUnix(analysis.timestamp);
-                    const candle = candles.find(c => parseTimestampToUnix(c.timestamp) === time);
-
-                    if (analysis.swingLabel && candle) {
-                        const label = analysis.swingLabel;
-                        let position: 'aboveBar' | 'belowBar';
-                        let price: number;
-
-                        switch (label) {
-                            case 'HH':
-                            case 'LH':
-                                position = 'aboveBar';
-                                price = candle.high;
-                                break;
-                            case 'HL':
-                            case 'LL':
-                                position = 'belowBar';
-                                price = candle.low;
-                                break;
-                            default:
-                                console.warn(`Unknown swing label: ${label}`);
-                                return;
+                // Collect all markers for swing points
+                const allMarkers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
+                
+                // Create small dotted lines for each swing point
+                calculatedSwingPoints.forEach((swingPoint) => {
+                    const label = swingPoint.label;
+                    const color = getSwingPointColor(label);
+                    
+                    // Find the index of this swing point in the candles array
+                    const currentCandleIndex = swingPoint.index;
+                    
+                    // Create dotted line data (3 points on each side = 6 total points)
+                    const dottedLineData: { time: number; value: number }[] = [];
+                    const lineExtent = 3; // 3 points on each side
+                    
+                    for (let i = Math.max(0, currentCandleIndex - lineExtent); 
+                         i <= Math.min(candles.length - 1, currentCandleIndex + lineExtent); 
+                         i++) {
+                        // Create dotted effect by only adding every 2nd point
+                        if ((i - (currentCandleIndex - lineExtent)) % 2 === 0) {
+                            dottedLineData.push({
+                                time: parseTimestampToUnix(candles[i].timestamp),
+                                value: swingPoint.price
+                            });
                         }
-
-                        const color = getSwingPointColor(label);
-
-                        // Add marker for the swing point
-                        markers.push({
-                            time: time,
-                            position: position,
-                            color: color,
-                            shape: 'circle',
-                            text: label,
-                            size: 10,
-                        });
-
-                        // Add horizontal line for High/Low using candlestickSeries
-                        candlestickSeries.createPriceLine({
-                            price: price,
-                            color: color,
-                            lineWidth: 1.5,
-                            lineStyle: 2, // Dashed line for clearer visibility
-                            axisLabelVisible: true,
-                            title: `${label} (${price.toFixed(2)})`,
-                        });
                     }
+                    
+                    // Create a line series for this swing point's dotted line
+                    const dottedLineSeries = chart.addLineSeries({
+                        color: color,
+                        lineWidth: 2,
+                        lineStyle: 1, // Solid line (we create dotted effect with data points)
+                        title: `${label} - ₹${swingPoint.price.toFixed(2)}`,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                    
+                    // Set the dotted line data
+                    dottedLineSeries.setData(dottedLineData);
+                    
+                    // Add marker with label to the collection
+                    allMarkers.push({
+                        time: swingPoint.time,
+                        position: (label === 'HH' || label === 'LH') ? 'aboveBar' : 'belowBar',
+                        color: color,
+                        shape: 'circle',
+                        text: label,
+                        size: 2,
+                    });
                 });
-
-                // Set markers on the candlestick series
-                candlestickSeries.setMarkers(markers);
-
-                // Now draw trend lines if enabled
-                if (showTrendLines && sortedAnalysis.length >= 2) {
-                    const trendLines = drawTrendLines(sortedAnalysis, candles, chart);
-                    if (trendLines && trendLines.length) {
-                        trendLinesRef.current = trendLines;
-                    }
-                }
+                
+                // Set all markers at once
+                candlestickSeries.setMarkers(allMarkers);
+                
             } catch (err) {
-                console.error('Swing points error:', err);
-                toast.error('Error displaying swing points', { duration: 4000 });
+                console.error('Swing points calculation error:', err);
+                toast.error('Error calculating swing points', { duration: 4000 });
             }
-        } else if (showSwingPoints) {
-            toast.error('No swing point data available in analysisList.', { duration: 4000 });
+        } else {
+            console.log('❌ Insufficient candles for swing point calculation (need at least 11)');
         }
         
         // Return cleanup function
@@ -1315,7 +1156,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 trendLinesRef.current = [];
             }
         };
-    }, [showSwingPoints, showTrendLines, propAnalysisList, candles]);
+    }, [showSwingPoints, propAnalysisList, candles]);
 
     // Crosshair move handler effect - updates when chart changes
     useEffect(() => {
@@ -1721,7 +1562,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             // Check if user scrolled close to the left edge (older data)
             if (hasMoreOlderData && !isLoadingOlder && (newRange.from <= dataRange.from + threshold)) {
                 isLoadingOlder = true;
-                console.log('📥 Loading older data due to scroll position');
+               //console.log('📥 Loading older data due to scroll position');
                 
                 try {
                     await onLoadMoreData('older');
@@ -1736,7 +1577,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             // Check if user scrolled close to the right edge (newer data)
             if (hasMoreNewerData && !isLoadingNewer && (newRange.to >= dataRange.to - threshold)) {
                 isLoadingNewer = true;
-                console.log('📥 Loading newer data due to scroll position');
+               //console.log('📥 Loading newer data due to scroll position');
                 
                 try {
                     await onLoadMoreData('newer');
@@ -1919,4 +1760,4 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             </div>
         </div>
     );
-};
+}

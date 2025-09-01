@@ -43,13 +43,13 @@ function calculateIncrementalEMAValues(prices: number[], multiplier: number, sta
  * Calculate full EMA values starting with SMA initialization
  */
 function calculateFullEMAValues(prices: number[], period: number, multiplier: number): (number | null)[] {
-    console.log(`🔄 Starting calculateFullEMAValues for period ${period}`);
-    console.log(`📊 Input: ${prices.length} prices, multiplier: ${multiplier.toFixed(6)}`);
-    console.log(`📊 First 3 prices: [${prices.slice(0, 3).map(p => p.toFixed(2)).join(', ')}]`);
-    console.log(`📊 Last 3 prices: [${prices.slice(-3).map(p => p.toFixed(2)).join(', ')}]`);
+    //console.log(`🔄 Starting calculateFullEMAValues for period ${period}`);
+    //console.log(`📊 Input: ${prices.length} prices, multiplier: ${multiplier.toFixed(6)}`);
+    //console.log(`📊 First 3 prices: [${prices.slice(0, 3).map(p => p.toFixed(2)).join(', ')}]`);
+    //console.log(`📊 Last 3 prices: [${prices.slice(-3).map(p => p.toFixed(2)).join(', ')}]`);
     
     if (prices.length < period) {
-        console.log(`❌ Insufficient data: need ${period}, have ${prices.length}`);
+        //console.log(`❌ Insufficient data: need ${period}, have ${prices.length}`);
         return [];
     }
     
@@ -59,7 +59,7 @@ function calculateFullEMAValues(prices: number[], period: number, multiplier: nu
     // Calculate SMA for the first EMA value (TradingView standard)
     const smaSum = prices.slice(0, period).reduce((sum, price) => sum + price, 0);
     emaValues[period - 1] = smaSum / period;
-    console.log(`📍 SMA calculated for first ${period} prices: ${(smaSum / period).toFixed(4)} at index ${period - 1}`);
+    //console.log(`📍 SMA calculated for first ${period} prices: ${(smaSum / period).toFixed(4)} at index ${period - 1}`);
     
     // Calculate EMA for subsequent values
     for (let i = period; i < prices.length; i++) {
@@ -68,15 +68,15 @@ function calculateFullEMAValues(prices: number[], period: number, multiplier: nu
         
         // Debug every 10th calculation and the last few
         if (i % 10 === 0 || i >= prices.length - 3) {
-            console.log(`  [${i}] Price: ${prices[i].toFixed(2)}, PrevEMA: ${prevEMA.toFixed(4)}, NewEMA: ${(emaValues[i] as number).toFixed(4)}`);
+            //console.log(`  [${i}] Price: ${prices[i].toFixed(2)}, PrevEMA: ${prevEMA.toFixed(4)}, NewEMA: ${(emaValues[i] as number).toFixed(4)}`);
         }
     }
     
     // Count valid EMA values (from period-1 onwards)
     const validValues = emaValues.slice(period - 1).filter(v => v !== null).length;
-    console.log(`✅ EMA${period} complete: ${validValues} valid values from index ${period - 1} onwards`);
-    console.log(`🎯 Last EMA value at index ${prices.length - 1}: ${emaValues[prices.length - 1] !== null ? (emaValues[prices.length - 1] as number).toFixed(4) : 'null'}`);
-    console.log(`🔍 EMA array structure: [${emaValues.slice(0, 3).map(v => v !== null ? v.toFixed(2) : 'null').join(', ')}, ..., ${emaValues.slice(-3).map(v => v !== null ? v.toFixed(2) : 'null').join(', ')}]`);
+    //console.log(`✅ EMA${period} complete: ${validValues} valid values from index ${period - 1} onwards`);
+    //console.log(`🎯 Last EMA value at index ${prices.length - 1}: ${emaValues[prices.length - 1] !== null ? (emaValues[prices.length - 1] as number).toFixed(4) : 'null'}`);
+    //console.log(`🔍 EMA array structure: [${emaValues.slice(0, 3).map(v => v !== null ? v.toFixed(2) : 'null').join(', ')}, ..., ${emaValues.slice(-3).map(v => v !== null ? v.toFixed(2) : 'null').join(', ')}]`);
     
     return emaValues;
 }
@@ -141,30 +141,30 @@ export function calculateIndicators(
     rsiPeriod: number = 14,
     preserveExistingEMA: boolean = false
 ): Candle[] {
-    console.log(`🚀 calculateIndicators CALLED with ${candles.length} candles`);
-    console.log(`🔍 First candle: ${candles[0]?.timestamp}, Close: ${candles[0]?.close}`);
-    console.log(`🔍 Last candle: ${candles[candles.length - 1]?.timestamp}, Close: ${candles[candles.length - 1]?.close}`);
+    //console.log(`🚀 calculateIndicators CALLED with ${candles.length} candles`);
+    //console.log(`🔍 First candle: ${candles[0]?.timestamp}, Close: ${candles[0]?.close}`);
+    //console.log(`🔍 Last candle: ${candles[candles.length - 1]?.timestamp}, Close: ${candles[candles.length - 1]?.close}`);
     
     if (!candles.length) {
-        console.log('⚠️ calculateIndicators: No candles provided');
+        //console.log('⚠️ calculateIndicators: No candles provided');
         return candles;
     }
 
-    console.log(`📊 calculateIndicators: ${candles.length} candles, EMA periods: ${emaPeriod}/8/30 (TradingView-compatible), RSI: ${rsiPeriod}, preserveEMA: ${preserveExistingEMA}`);
+    //console.log(`📊 calculateIndicators: ${candles.length} candles, EMA periods: ${emaPeriod}/8/30 (TradingView-compatible), RSI: ${rsiPeriod}, preserveEMA: ${preserveExistingEMA}`);
     
     // CRITICAL DEBUG: Test basic EMA calculation first
-    console.log(`🧪 URGENT DEBUGGING: Testing basic EMA calculation...`);
+    //console.log(`🧪 URGENT DEBUGGING: Testing basic EMA calculation...`);
     const testPrices = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115];
-    console.log(`🧪 Test prices: [${testPrices.join(', ')}]`);
+    //console.log(`🧪 Test prices: [${testPrices.join(', ')}]`);
     try {
         const testEMA8 = calculateTradingViewEMA(testPrices, 8);
-        console.log(`🧪 Test EMA8 result length: ${testEMA8.length}`);
-        console.log(`🧪 Test EMA8 values: [${testEMA8.map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
+        //console.log(`🧪 Test EMA8 result length: ${testEMA8.length}`);
+        //console.log(`🧪 Test EMA8 values: [${testEMA8.map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
         
         if (testEMA8.length === 0) {
             console.error(`❌ CRITICAL: calculateTradingViewEMA returned empty array for test data!`);
         } else {
-            console.log(`✅ Basic EMA calculation works. Array length: ${testEMA8.length}`);
+            //console.log(`✅ Basic EMA calculation works. Array length: ${testEMA8.length}`);
         }
     } catch (error) {
         console.error(`❌ CRITICAL: calculateTradingViewEMA threw error:`, error);
@@ -173,14 +173,14 @@ export function calculateIndicators(
 
 
     // Critical: Check timestamp ordering to ensure we're calculating in the correct direction
-    console.log(`🕐 TIMESTAMP ORDER CHECK:`);
-    console.log(`  First candle: ${candles[0]?.timestamp} (index 0)`);
-    console.log(`  Second candle: ${candles[1]?.timestamp} (index 1)`);
-    console.log(`  Third candle: ${candles[2]?.timestamp} (index 2)`);
-    console.log(`  ...`);
-    console.log(`  Third last: ${candles[candles.length - 3]?.timestamp} (index ${candles.length - 3})`);
-    console.log(`  Second last: ${candles[candles.length - 2]?.timestamp} (index ${candles.length - 2})`);
-    console.log(`  Last candle: ${candles[candles.length - 1]?.timestamp} (index ${candles.length - 1})`);
+    //console.log(`🕐 TIMESTAMP ORDER CHECK:`);
+    //console.log(`  First candle: ${candles[0]?.timestamp} (index 0)`);
+    //console.log(`  Second candle: ${candles[1]?.timestamp} (index 1)`);
+    //console.log(`  Third candle: ${candles[2]?.timestamp} (index 2)`);
+    //console.log(`  ...`);
+    //console.log(`  Third last: ${candles[candles.length - 3]?.timestamp} (index ${candles.length - 3})`);
+    //console.log(`  Second last: ${candles[candles.length - 2]?.timestamp} (index ${candles.length - 2})`);
+    //console.log(`  Last candle: ${candles[candles.length - 1]?.timestamp} (index ${candles.length - 1})`);
     
     // Check if timestamps are in ascending or descending order
     if (candles.length >= 2) {
@@ -190,23 +190,23 @@ export function calculateIndicators(
         if (isAscending) orderDescription = 'ASCENDING (oldest first)';
         else if (isDescending) orderDescription = 'DESCENDING (newest first)';
         
-        console.log(`  Order: ${orderDescription}`);
+        //console.log(`  Order: ${orderDescription}`);
         
         if (isDescending) {
-            console.log(`⚠️ WARNING: Timestamps are in DESCENDING order - we need to reverse for proper EMA calculation!`);
-            console.log(`🔄 Reversing candles for chronological EMA calculation...`);
+            //console.log(`⚠️ WARNING: Timestamps are in DESCENDING order - we need to reverse for proper EMA calculation!`);
+            //console.log(`🔄 Reversing candles for chronological EMA calculation...`);
             
             // Reverse candles for proper chronological EMA calculation
             const reversedCandles = [...candles].reverse();
-            console.log(`🔄 After reversal:`);
-            console.log(`  First (oldest): ${reversedCandles[0]?.timestamp}`);
-            console.log(`  Last (newest): ${reversedCandles[reversedCandles.length - 1]?.timestamp}`);
+            //console.log(`🔄 After reversal:`);
+            //console.log(`  First (oldest): ${reversedCandles[0]?.timestamp}`);
+            //console.log(`  Last (newest): ${reversedCandles[reversedCandles.length - 1]?.timestamp}`);
             
             // Calculate EMA on reversed (chronological) data
             const reversedResult = calculateIndicatorsInChronologicalOrder(reversedCandles, emaPeriod, rsiPeriod, preserveExistingEMA);
             
             // Reverse the result back to match original order
-            console.log(`🔄 Reversing results back to original order...`);
+            //console.log(`🔄 Reversing results back to original order...`);
             return reversedResult.reverse();
         }
     }
@@ -233,7 +233,7 @@ function calculateIndicatorsInChronologicalOrder(
             const existingCandles = candles.slice(0, lastEMAIndex + 1);
             const newCandles = candles.slice(lastEMAIndex + 1);
             
-            console.log(`📊 Incremental EMA: ${existingCandles.length} existing, ${newCandles.length} new candles`);
+            //console.log(`📊 Incremental EMA: ${existingCandles.length} existing, ${newCandles.length} new candles`);
             
             // Calculate EMA incrementally for new candles only
             let result = calculateIncrementalEMA(existingCandles, newCandles, 8);
@@ -261,30 +261,30 @@ function calculateIndicatorsInChronologicalOrder(
     const ema30Values = calculateTradingViewEMA(closes, 30);
     
     // Debug: Let's see what we actually get
-    console.log(`🔍 Raw EMA calculation results:`);
-    console.log(`- Input closes length: ${closes.length}`);
-    console.log(`- EMA8 output length: ${ema8Values.length}`);
-    console.log(`- EMA30 output length: ${ema30Values.length}`);
+    //console.log(`🔍 Raw EMA calculation results:`);
+    //console.log(`- Input closes length: ${closes.length}`);
+    //console.log(`- EMA8 output length: ${ema8Values.length}`);
+    //console.log(`- EMA30 output length: ${ema30Values.length}`);
     if (closes.length >= 30) {
-        console.log(`- First 5 closes: [${closes.slice(0, 5).map(c => c.toFixed(2)).join(', ')}]`);
-        console.log(`- Last 5 closes: [${closes.slice(-5).map(c => c.toFixed(2)).join(', ')}]`);
+        //console.log(`- First 5 closes: [${closes.slice(0, 5).map(c => c.toFixed(2)).join(', ')}]`);
+        //console.log(`- Last 5 closes: [${closes.slice(-5).map(c => c.toFixed(2)).join(', ')}]`);
         
         if (ema8Values.length > 0) {
             const validEma8 = ema8Values.filter(v => v !== null && v !== undefined);
-            console.log(`- EMA8 valid values: ${validEma8.length}/${ema8Values.length}`);
-            console.log(`- EMA8 first 10 values: [${ema8Values.slice(0, 10).map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
-            console.log(`- EMA8 last 5 values: [${ema8Values.slice(-5).map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
+            //console.log(`- EMA8 valid values: ${validEma8.length}/${ema8Values.length}`);
+            //console.log(`- EMA8 first 10 values: [${ema8Values.slice(0, 10).map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
+            //console.log(`- EMA8 last 5 values: [${ema8Values.slice(-5).map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
             if (validEma8.length > 0) {
-                console.log(`- EMA8 last 3 valid: [${validEma8.slice(-3).map(v => v && typeof v === 'number' ? v.toFixed(2) : 'invalid').join(', ')}]`);
+                //console.log(`- EMA8 last 3 valid: [${validEma8.slice(-3).map(v => v && typeof v === 'number' ? v.toFixed(2) : 'invalid').join(', ')}]`);
             }
         }
         
         if (ema30Values.length > 0) {
             const validEma30 = ema30Values.filter(v => v !== null && v !== undefined);
-            console.log(`- EMA30 valid values: ${validEma30.length}/${ema30Values.length}`);
-            console.log(`- EMA30 last 5 values: [${ema30Values.slice(-5).map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
+            //console.log(`- EMA30 valid values: ${validEma30.length}/${ema30Values.length}`);
+            //console.log(`- EMA30 last 5 values: [${ema30Values.slice(-5).map(v => v !== null && v !== undefined ? v.toFixed(2) : 'null/undef').join(', ')}]`);
             if (validEma30.length > 0) {
-                console.log(`- EMA30 last 3 valid: [${validEma30.slice(-3).map(v => v && typeof v === 'number' ? v.toFixed(2) : 'invalid').join(', ')}]`);
+                //console.log(`- EMA30 last 3 valid: [${validEma30.slice(-3).map(v => v && typeof v === 'number' ? v.toFixed(2) : 'invalid').join(', ')}]`);
             }
         }
     }
@@ -292,17 +292,17 @@ function calculateIndicatorsInChronologicalOrder(
     // Continue using technicalindicators for RSI
     const rsiValues = RSI.calculate({ period: rsiPeriod, values: closes });
     
-    console.log(`- Calculated: EMA${emaPeriod}(${emaValues.length}), EMA8-TV(${ema8Values.length}), EMA30-TV(${ema30Values.length}), RSI(${rsiValues.length})`);
+    //console.log(`- Calculated: EMA${emaPeriod}(${emaValues.length}), EMA8-TV(${ema8Values.length}), EMA30-TV(${ema30Values.length}), RSI(${rsiValues.length})`);
     
     // Debug: Check EMA array structure
-    console.log(`📊 EMA Array Debug:`);
-    console.log(`- Total candles: ${candles.length}`);
-    console.log(`- EMA8 array length: ${ema8Values.length}`);
-    console.log(`- EMA30 array length: ${ema30Values.length}`);
-    console.log(`- EMA8 defined values: ${ema8Values.filter(v => v !== undefined).length}`);
-    console.log(`- EMA30 defined values: ${ema30Values.filter(v => v !== undefined).length}`);
-    console.log(`- EMA8 first defined at index: ${ema8Values.findIndex(v => v !== undefined)}`);
-    console.log(`- EMA30 first defined at index: ${ema30Values.findIndex(v => v !== undefined)}`);
+    //console.log(`📊 EMA Array Debug:`);
+    //console.log(`- Total candles: ${candles.length}`);
+    //console.log(`- EMA8 array length: ${ema8Values.length}`);
+    //console.log(`- EMA30 array length: ${ema30Values.length}`);
+    //console.log(`- EMA8 defined values: ${ema8Values.filter(v => v !== undefined).length}`);
+    //console.log(`- EMA30 defined values: ${ema30Values.filter(v => v !== undefined).length}`);
+    //console.log(`- EMA8 first defined at index: ${ema8Values.findIndex(v => v !== undefined)}`);
+    //console.log(`- EMA30 first defined at index: ${ema30Values.findIndex(v => v !== undefined)}`);
     
     // Debug: Show the actual values for the last candle for comparison with TradingView
     if (ema8Values.length > 0 && ema30Values.length > 0) {
@@ -310,17 +310,17 @@ function calculateIndicatorsInChronologicalOrder(
         const lastEma8 = ema8Values[ema8Values.length - 1];
         const lastEma30 = ema30Values[ema30Values.length - 1];
         
-        console.log(`📊 TradingView EMA Verification - Last Candle:`);
-        console.log(`- Close: ${lastCandle.close.toFixed(2)}`);
-        console.log(`- EMA8: ${lastEma8?.toFixed(2) || 'N/A'}`);
-        console.log(`- EMA30: ${lastEma30?.toFixed(2) || 'N/A'}`);
-        console.log(`- Expected Airtel: Close=1904.70, EMA8=1913.06, EMA30=1912.51`);
+        //console.log(`📊 TradingView EMA Verification - Last Candle:`);
+        //console.log(`- Close: ${lastCandle.close.toFixed(2)}`);
+        //console.log(`- EMA8: ${lastEma8?.toFixed(2) || 'N/A'}`);
+        //console.log(`- EMA30: ${lastEma30?.toFixed(2) || 'N/A'}`);
+        //console.log(`- Expected Airtel: Close=1904.70, EMA8=1913.06, EMA30=1912.51`);
     }
 
-    console.log(`🔍 Starting EMA mapping to ${candles.length} candles...`);
-    console.log(`📅 Candle time order check:`);
-    console.log(`  First candle: ${candles[0]?.timestamp} (index 0)`);
-    console.log(`  Last candle: ${candles[candles.length - 1]?.timestamp} (index ${candles.length - 1})`);
+    //console.log(`🔍 Starting EMA mapping to ${candles.length} candles...`);
+    //console.log(`📅 Candle time order check:`);
+    //console.log(`  First candle: ${candles[0]?.timestamp} (index 0)`);
+    //console.log(`  Last candle: ${candles[candles.length - 1]?.timestamp} (index ${candles.length - 1})`);
     
     const result = candles.map((candle, i) => {
         // EMA8: values start at index 7 (period-1), EMA30: values start at index 29 (period-1)
@@ -334,9 +334,9 @@ function calculateIndicatorsInChronologicalOrder(
         
         // Debug first few and last few mappings
         if (i < 3 || i >= candles.length - 3 || (i >= 6 && i <= 9) || (i >= 28 && i <= 32)) {
-            console.log(`  [${i}] Time: ${candle.timestamp}, Close: ${candle.close.toFixed(2)}`);
-            console.log(`    - EMA8 raw[${i}]: ${ema8Raw !== null && typeof ema8Raw === 'number' ? ema8Raw.toFixed(4) : 'null'} → mapped: ${ema8Value !== undefined ? ema8Value.toFixed(4) : 'undef'}`);
-            console.log(`    - EMA30 raw[${i}]: ${ema30Raw !== null && typeof ema30Raw === 'number' ? ema30Raw.toFixed(4) : 'null'} → mapped: ${ema30Value !== undefined ? ema30Value.toFixed(4) : 'undef'}`);
+            //console.log(`  [${i}] Time: ${candle.timestamp}, Close: ${candle.close.toFixed(2)}`);
+            //console.log(`    - EMA8 raw[${i}]: ${ema8Raw !== null && typeof ema8Raw === 'number' ? ema8Raw.toFixed(4) : 'null'} → mapped: ${ema8Value !== undefined ? ema8Value.toFixed(4) : 'undef'}`);
+            //console.log(`    - EMA30 raw[${i}]: ${ema30Raw !== null && typeof ema30Raw === 'number' ? ema30Raw.toFixed(4) : 'null'} → mapped: ${ema30Value !== undefined ? ema30Value.toFixed(4) : 'undef'}`);
         }
         
         return {
@@ -352,13 +352,13 @@ function calculateIndicatorsInChronologicalOrder(
     // Verify the mapping results
     const resultWithEma8 = result.filter(c => c.ema8 !== undefined);
     const resultWithEma30 = result.filter(c => c.ema30 !== undefined);
-    console.log(`- Final: ${result.length} candles with EMA8-TV(${resultWithEma8.length}) EMA30-TV(${resultWithEma30.length}) values`);
+    //console.log(`- Final: ${result.length} candles with EMA8-TV(${resultWithEma8.length}) EMA30-TV(${resultWithEma30.length}) values`);
     
     // Debug: Check last few candles to see if EMA values are assigned properly
-    console.log(`🔍 Last 3 candles EMA mapping:`);
+    //console.log(`🔍 Last 3 candles EMA mapping:`);
     result.slice(-3).forEach((candle, idx) => {
         const globalIdx = result.length - 3 + idx;
-        console.log(`  [${globalIdx}] Close: ${candle.close.toFixed(2)}, EMA8: ${candle.ema8 !== null && candle.ema8 !== undefined ? candle.ema8.toFixed(2) : 'null/undef'}, EMA30: ${candle.ema30 !== null && candle.ema30 !== undefined ? candle.ema30.toFixed(2) : 'null/undef'}`);
+        //console.log(`  [${globalIdx}] Close: ${candle.close.toFixed(2)}, EMA8: ${candle.ema8 !== null && candle.ema8 !== undefined ? candle.ema8.toFixed(2) : 'null/undef'}, EMA30: ${candle.ema30 !== null && candle.ema30 !== undefined ? candle.ema30.toFixed(2) : 'null/undef'}`);
     });
 
     return result;
