@@ -4,31 +4,7 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import toast, { Toaster } from 'react-hot-toast';
 import { createChart } from 'lightweight-charts';
 import { Candle } from './types/candle';
-
-// Utility function to properly handle timestamps from API (without timezone)
-const parseTimestampToUnix = (timestamp: string): number => {
-  // API workflow:
-  // 1. Upstox API returns: "2025-08-26T09:30:00+05:30" (IST time)
-  // 2. upstoxApi.ts strips timezone: "2025-08-26T09:30:00" (no timezone info)
-  // 3. We treat this as UTC time for consistency across all timeframes
-  
-  
-  if (!timestamp.includes('T')) {
-    // If no 'T', assume it's already a date string, return as-is
-    const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
-    return unixTimestamp;
-  }
-  
-  // For all timeframes (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w):
-  // Treat the stripped timestamp as UTC by adding +00:00
-  // This ensures consistent behavior across all timeframes and prevents date shifting
-  
-  const utcTimestamp = timestamp + '+00:00';
-  const unixTimestamp = Math.floor(new Date(utcTimestamp).getTime() / 1000);
-  
-  
-  return unixTimestamp;
-};
+import { calculateSwingPointsFromCandles, parseTimestampToUnix } from '../utils/swingPointCalculator';
 
 // Performance optimization constants
 const MAX_VISIBLE_CANDLES = 2000; // Limit visible data points for ultra-fast performance
@@ -117,227 +93,6 @@ const maxHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
 const chartHeight = maxHeight * 0.91; // Increase chart height to 91% of the viewport height
 
 // Support and resistance levels are now provided by backend
-
-// Function to calculate swing points directly from OHLC data
-const calculateSwingPointsFromCandles = (candles: Candle[], lookback: number = 5) => {
-    if (candles.length < lookback * 2 + 1) {
-        console.log('❌ Insufficient candles for swing point calculation');
-        return [];
-    }
-
-    // First, identify all potential swing highs and lows
-    const potentialSwings: any[] = [];
-    
-    for (let i = lookback; i < candles.length - lookback; i++) {
-        const currentCandle = candles[i];
-        const currentHigh = currentCandle.high;
-        const currentLow = currentCandle.low;
-        
-        // Check for swing high (current high is higher than lookback candles on both sides)
-        let isSwingHigh = true;
-        let isSwingLow = true;
-        
-        for (let j = 1; j <= lookback; j++) {
-            // Check left side
-            if (candles[i - j].high >= currentHigh) {
-                isSwingHigh = false;
-            }
-            if (candles[i - j].low <= currentLow) {
-                isSwingLow = false;
-            }
-            
-            // Check right side
-            if (candles[i + j].high >= currentHigh) {
-                isSwingHigh = false;
-            }
-            if (candles[i + j].low <= currentLow) {
-                isSwingLow = false;
-            }
-        }
-        
-        if (isSwingHigh) {
-            potentialSwings.push({
-                time: parseTimestampToUnix(currentCandle.timestamp),
-                price: currentHigh,
-                type: 'high',
-                timestamp: currentCandle.timestamp,
-                candle: currentCandle,
-                index: i
-            });
-        }
-        
-        if (isSwingLow) {
-            potentialSwings.push({
-                time: parseTimestampToUnix(currentCandle.timestamp),
-                price: currentLow,
-                type: 'low',
-                timestamp: currentCandle.timestamp,
-                candle: currentCandle,
-                index: i
-            });
-        }
-    }
-    
-    // Sort potential swings chronologically
-    potentialSwings.sort((a, b) => a.time - b.time);
-    
-    // Apply proper swing labeling logic
-    const swingPoints: any[] = [];
-    
-    for (let i = 0; i < potentialSwings.length; i++) {
-        const current = potentialSwings[i];
-        let label = '';
-        
-        if (current.type === 'high') {
-            // Find the last swing high
-            const lastSwingHigh = [...swingPoints].reverse().find(p => p.label === 'HH' || p.label === 'LH');
-            
-            if (!lastSwingHigh) {
-                label = 'HH'; // First high
-            } else {
-                label = current.price > lastSwingHigh.price ? 'HH' : 'LH';
-            }
-        } else { // current.type === 'low'
-            // Find the last swing low
-            const lastSwingLow = [...swingPoints].reverse().find(p => p.label === 'HL' || p.label === 'LL');
-            
-            if (!lastSwingLow) {
-                label = 'HL'; // First low
-            } else {
-                label = current.price > lastSwingLow.price ? 'HL' : 'LL';
-            }
-        }
-        
-        swingPoints.push({
-            time: current.time,
-            price: current.price,
-            label,
-            timestamp: current.timestamp,
-            candle: current.candle,
-            index: current.index
-        });
-    }
-    
-    // Now fix missing alternating points
-    const finalSwingPoints: any[] = [];
-    
-    for (let i = 0; i < swingPoints.length; i++) {
-        const current = swingPoints[i];
-        
-        if (finalSwingPoints.length > 0) {
-            const last = finalSwingPoints[finalSwingPoints.length - 1];
-            
-            // Check if we have consecutive points of same type
-            const lastIsHigh = last.label === 'HH' || last.label === 'LH';
-            const currentIsHigh = current.label === 'HH' || current.label === 'LH';
-            
-            if (lastIsHigh === currentIsHigh) {
-                // Same type consecutive - need to insert missing alternating point
-                const startIndex = last.index;
-                const endIndex = current.index;
-                
-                if (lastIsHigh) {
-                    // Both are highs, need to find lowest point between them
-                    let lowestPrice = Infinity;
-                    let lowestCandle = null;
-                    let lowestIndex = -1;
-                    
-                    for (let j = startIndex + 1; j < endIndex; j++) {
-                        if (candles[j].low < lowestPrice) {
-                            lowestPrice = candles[j].low;
-                            lowestCandle = candles[j];
-                            lowestIndex = j;
-                        }
-                    }
-                    
-                    if (lowestCandle) {
-                        // Determine if it's HL or LL
-                        const lastSwingLow = [...finalSwingPoints].reverse().find(p => p.label === 'HL' || p.label === 'LL');
-                        const lowLabel = !lastSwingLow || lowestPrice > lastSwingLow.price ? 'HL' : 'LL';
-                        
-                        finalSwingPoints.push({
-                            time: parseTimestampToUnix(lowestCandle.timestamp),
-                            price: lowestPrice,
-                            label: lowLabel,
-                            timestamp: lowestCandle.timestamp,
-                            candle: lowestCandle,
-                            index: lowestIndex
-                        });
-                    }
-                } else {
-                    // Both are lows, need to find highest point between them
-                    let highestPrice = -Infinity;
-                    let highestCandle = null;
-                    let highestIndex = -1;
-                    
-                    for (let j = startIndex + 1; j < endIndex; j++) {
-                        if (candles[j].high > highestPrice) {
-                            highestPrice = candles[j].high;
-                            highestCandle = candles[j];
-                            highestIndex = j;
-                        }
-                    }
-                    
-                    if (highestCandle) {
-                        // Determine if it's HH or LH
-                        const lastSwingHigh = [...finalSwingPoints].reverse().find(p => p.label === 'HH' || p.label === 'LH');
-                        const highLabel = !lastSwingHigh || highestPrice > lastSwingHigh.price ? 'HH' : 'LH';
-                        
-                        finalSwingPoints.push({
-                            time: parseTimestampToUnix(highestCandle.timestamp),
-                            price: highestPrice,
-                            label: highLabel,
-                            timestamp: highestCandle.timestamp,
-                            candle: highestCandle,
-                            index: highestIndex
-                        });
-                    }
-                }
-            }
-        }
-        
-        finalSwingPoints.push(current);
-    }
-    
-    // Sort final swing points chronologically
-    finalSwingPoints.sort((a, b) => a.time - b.time);
-    
-    // Console log all swing points in descending order by price
-    if (finalSwingPoints.length > 0) {
-        console.log('\n🔥 SWING POINTS ANALYSIS (Calculated from OHLC - Descending Order by Price):');
-        console.log('=' .repeat(70));
-        
-        const sortedSwingPoints = [...finalSwingPoints].sort((a, b) => b.price - a.price);
-        
-        sortedSwingPoints.forEach((point, index) => {
-            const date = new Date(point.timestamp).toLocaleDateString();
-            const time = new Date(point.timestamp).toLocaleTimeString();
-            console.log(`${index + 1}. ${point.label} - ₹${point.price.toFixed(2)} | ${date} ${time} | Candle #${point.index}`);
-        });
-        
-        // Separate swing points by type
-        const hhPoints = finalSwingPoints.filter(p => p.label === 'HH');
-        const lhPoints = finalSwingPoints.filter(p => p.label === 'LH');
-        const hlPoints = finalSwingPoints.filter(p => p.label === 'HL');
-        const llPoints = finalSwingPoints.filter(p => p.label === 'LL');
-        
-        console.log('\n📊 SWING POINTS BY TYPE:');
-        console.log(`🟢 HH (Higher Highs): ${hhPoints.length} points`);
-        console.log(`🔴 LH (Lower Highs): ${lhPoints.length} points`);
-        console.log(`🟡 HL (Higher Lows): ${hlPoints.length} points`);
-        console.log(`🔵 LL (Lower Lows): ${llPoints.length} points`);
-        
-        console.log('\n📅 SWING POINTS CHRONOLOGICAL ORDER:');
-        finalSwingPoints.forEach((point, index) => {
-            const date = new Date(point.timestamp).toLocaleDateString();
-            const time = new Date(point.timestamp).toLocaleTimeString();
-            console.log(`${index + 1}. ${point.label} - ₹${point.price.toFixed(2)} | ${date} ${time} | Candle #${point.index}`);
-        });
-        console.log('=' .repeat(70));
-    }
-    
-    return finalSwingPoints;
-};
 
 export const OHLCChart: React.FC<OHLCChartProps> = ({
     candles,
@@ -1091,6 +846,14 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     const dottedLineData: { time: number; value: number }[] = [];
                     const lineExtent = 3; // 3 points on each side
                     
+                    // Calculate offset for visual separation from candles
+                    const priceRange = Math.max(...candles.map(c => c.high)) - Math.min(...candles.map(c => c.low));
+                    const offset = priceRange * 0.002; // 0.2% of price range for gap
+                    
+                    // Add offset based on swing point type (above/below candles)
+                    const isHigh = label === 'HH' || label === 'LH';
+                    const adjustedPrice = isHigh ? swingPoint.price + offset : swingPoint.price - offset;
+                    
                     for (let i = Math.max(0, currentCandleIndex - lineExtent); 
                          i <= Math.min(candles.length - 1, currentCandleIndex + lineExtent); 
                          i++) {
@@ -1098,7 +861,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         if ((i - (currentCandleIndex - lineExtent)) % 2 === 0) {
                             dottedLineData.push({
                                 time: parseTimestampToUnix(candles[i].timestamp),
-                                value: swingPoint.price
+                                value: adjustedPrice
                             });
                         }
                     }

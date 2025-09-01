@@ -35,15 +35,8 @@ export default function AdminPage() {
   }
 
   return (
-    <main
-      className="min-h-screen bg-cover bg-center bg-fixed"
-      style={{
-        backgroundImage: `url('https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1')`,
-      }}
-    >
-      <div className="min-h-screen bg-black bg-opacity-70">
-        <AdminPanel />
-      </div>
+    <main className="min-h-screen bg-black">
+      <AdminPanel />
     </main>
   );
 }
