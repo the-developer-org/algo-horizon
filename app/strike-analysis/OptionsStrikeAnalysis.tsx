@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { CallType } from '@/components/types/strike-analysis';
+import { fetchKeyMapping } from '@/utils/apiUtils';
 
 // Define the Stryke interface based on the provided model
 interface Candle {
@@ -125,25 +126,16 @@ export default function StrikeAnalysisPage() {
 
   // Fetch KeyMapping from Redis on mount
   useEffect(() => {
-
-    fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-      },
-    })
-      .then(res => res.json())
-      .then(data => {
-        const mapping = JSON.parse(data.result);
+    const loadKeyMapping = async () => {
+      try {
+        const mapping = await fetchKeyMapping();
         setKeyMapping(mapping);
-
-      })
-      .catch(() => {
+      } catch (error) {
         toast.error('Failed to load company data');
+      }
+    };
 
-      });
-
-
+    loadKeyMapping();
   }, []);
 
   // Update suggestions as user types

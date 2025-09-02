@@ -48,6 +48,8 @@ export const OHLCChartDemo: React.FC = () => {
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [upstoxApiKey, setUpstoxApiKey] = useState('alpha');
 
+  const [shouldFetchIntraDay, setShouldFetchIntraDay] = useState(true);
+
   /**
    * Get the most recent trading day (excludes weekends and uses previous day)
    * @param date The reference date
@@ -224,9 +226,11 @@ export const OHLCChartDemo: React.FC = () => {
         to: to,
         limit: PAGINATION_CHUNK_SIZE // Use smaller chunks for faster loading
       };
-      
-      const result = await fetchPaginatedUpstoxData(params);
-      
+
+    
+      const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
+      setShouldFetchIntraDay(false);
+
       if (result.candles.length > 0) {
         // Sort candles by timestamp in ascending order (oldest first) and remove duplicates
         // Apply consistent UTC timestamp handling to prevent chart distortion
@@ -336,9 +340,10 @@ export const OHLCChartDemo: React.FC = () => {
         to: to,
         limit: PAGINATION_CHUNK_SIZE
       };
-      
-      const result = await fetchPaginatedUpstoxData(params);
-      
+
+      const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
+            setShouldFetchIntraDay(false);
+
       if (result.candles.length > 0) {
         // Update pagination state
         if (direction === 'older') {
@@ -417,8 +422,9 @@ export const OHLCChartDemo: React.FC = () => {
     if (needsNewData && selectedInstrumentKey && upstoxApiKey) {
       // Fetch fresh data for the new timeframe
       const loadingToast = toast.loading('Fetching data for new timeframe...', { duration: 10000 });
+
       
-      fetchDataForTimeframe(newTimeframe)
+      fetchDataForTimeframe(newTimeframe, true)
         .then(() => {
           toast.success(`Successfully loaded ${newTimeframe} data`, { id: loadingToast });
         })
@@ -466,7 +472,7 @@ export const OHLCChartDemo: React.FC = () => {
   };
 
   // Function to fetch data for a specific timeframe with proper error handling
-  const fetchDataForTimeframe = useCallback(async (timeframe: Timeframe): Promise<void> => {
+  const fetchDataForTimeframe = useCallback(async (timeframe: Timeframe, shouldFetchIntraDay: boolean): Promise<void> => {
     if (!selectedInstrumentKey || !upstoxApiKey) {
       throw new Error('Missing instrument key or API key');
     }
@@ -498,8 +504,9 @@ export const OHLCChartDemo: React.FC = () => {
         limit: PAGINATION_CHUNK_SIZE // Use smaller chunks for faster fetching
       };
       
-      const result = await fetchPaginatedUpstoxData(params);
-      
+      const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
+      setShouldFetchIntraDay(false);
+
       if (result.candles.length > 0) {
         // Sort candles by timestamp and remove duplicates with UTC consistency
         const sortedCandles = [...result.candles]

@@ -345,6 +345,7 @@ export const fetchUpstoxHistoricalData = async (
   hasMoreCandles: boolean;
   oldestCandleTime?: string;
   newestCandleTime?: string;
+  isFirstTimeCall?: boolean;
 }> => {
   // Use environment variable or passed apiKey
   const token = apiKey || process.env.NEXT_PUBLIC_UPSTOX_API_KEY;
@@ -402,16 +403,16 @@ export const fetchUpstoxHistoricalData = async (
   }
   
   // URL encode the instrument key to handle special characters like |
-  const encodedInstrumentKey = encodeURIComponent(instrumentKey);
+    const encodedInstrumentKey = encodeURIComponent(instrumentKey);
   
-  let url = `https://api.upstox.com/v3/historical-candle/${encodedInstrumentKey}/${unit}/${interval}/${defaultToDate}`;
-  
+    let url = `https://api.upstox.com/v3/historical-candle/${encodedInstrumentKey}/${unit}/${interval}/${defaultToDate}`;
+    
   // Add from_date if provided
-  if (fromDate) {
-    url += `/${fromDate}`;
-  }
+    if (fromDate) {
+      url += `/${fromDate}`;
+    }
 
-  console.log('Upstox API URL:', url); // Debug log
+    console.log('Upstox Historical API URL:', url);
 
   try {
     // Use retry helper for API call with automatic date range reduction
@@ -478,12 +479,181 @@ export const fetchUpstoxHistoricalData = async (
 };
 
 /**
+ * Fetches intraday candle data from Upstox API v3 (simplified version without retry logic)
+ * @param instrumentKey The instrument key to fetch data for
+ * @param unit The unit for candles (minutes, hours)
+ * @param interval The interval for candles
+ * @param apiKey Your Upstox API key
+ * @returns Processed intraday candle data
+ */
+export const fetchUpstoxIntradayData = async (
+  instrumentKey: string,
+  unit: string,
+  interval: string,
+  apiKey?: string
+): Promise<Candle[]> => {
+  const token = apiKey || process.env.NEXT_PUBLIC_UPSTOX_API_KEY;
+  
+  if (!token) {
+    throw new Error('Upstox API key not provided');
+  }
+
+  // URL encode the instrument key
+  const encodedInstrumentKey = encodeURIComponent(instrumentKey);
+  
+  // Intraday API endpoint
+  const url = `https://api.upstox.com/v3/historical-candle/intraday/${encodedInstrumentKey}/${unit}/${interval}`;
+  
+  console.log('🔴 Fetching intraday data from:', url);
+
+  try {
+    const response = await axios.get<UpstoxHistoricalDataResponse>(url, {
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (response.status !== 200 || response.data.status !== 'success') {
+      throw new Error(`Intraday API request failed: ${response.data.status || 'Unknown error'}`);
+    }
+
+    console.log(`✅ Intraday API request successful, got ${response.data.data.candles.length} candles`);
+
+    // Transform Upstox candle format to our app's Candle format
+    const candles: Candle[] = response.data.data.candles.map((candleData: [string, number, number, number, number, number, number]) => {
+      const [timestamp, open, high, low, close, volume, openInterest] = candleData;
+      
+      let processedTimestamp: string;
+      if (typeof timestamp === 'string') {
+        // Remove timezone offset to treat as local time
+        processedTimestamp = timestamp.replace(/([+-]\d{2}:\d{2}|Z)$/, '');
+      } else {
+        processedTimestamp = timestamp;
+      }
+      
+      return {
+        timestamp: processedTimestamp,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        openInterest: openInterest || 0,
+      };
+    });
+
+    return candles;
+  } catch (error) {
+    console.error('Error fetching Upstox intraday data:', error);
+    if (axios.isAxiosError(error)) {
+      throw new Error(`Upstox Intraday API Error (${error.response?.status}): ${error.response?.data?.message || error.message}`);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Fetches combined intraday and historical data from Upstox API v3
+ * Intraday data is fetched first and combined with historical data
+ * @param instrumentKey The instrument key to fetch data for
+ * @param unit The unit for candles (minutes, hours, days, weeks, months)
+ * @param interval The interval for candles
+ * @param toDate End date (format: YYYY-MM-DD)
+ * @param fromDate Start date (format: YYYY-MM-DD) - optional
+ * @param apiKey Your Upstox API key
+ * @returns Combined candle data with metadata
+ */
+
+export const fetchUpstoxCombinedData = async (
+  instrumentKey: string,
+  unit: string = 'days',
+  interval: string = '1',
+  toDate?: string,
+  fromDate?: string,
+  apiKey?: string
+): Promise<{
+  candles: Candle[];
+  hasMoreCandles: boolean;
+  oldestCandleTime?: string;
+  newestCandleTime?: string;
+  intradayCandles?: number;
+  historicalCandles?: number;
+}> => {
+  console.log(`📊 Fetching combined data for ${unit}/${interval}`);
+  
+  let intradayCandles: Candle[] = [];
+  let historicalCandles: Candle[] = [];
+
+  try {
+  
+    // Step 1: Fetch intraday data (only for intraday timeframes)
+    if (unit === 'minutes' || unit === 'hours' || unit === 'days') {
+      console.log(`🔴 Fetching intraday data for ${unit}/${interval}`);
+      
+      try {
+        intradayCandles = await fetchUpstoxIntradayData(instrumentKey, unit, interval, apiKey);
+        console.log(`✅ Fetched ${intradayCandles.length} intraday candles`);
+      } catch (intradayError) {
+        console.warn(`⚠️ Failed to fetch intraday data, continuing with historical only:`, intradayError);
+        // Continue with historical data even if intraday fails
+      }
+    }
+
+    // Step 2: Always fetch historical data
+    console.log(`📈 Fetching historical data for ${unit}/${interval}`);
+    
+    const historicalResult = await fetchUpstoxHistoricalData(
+      instrumentKey,
+      unit,
+      interval,
+      toDate,
+      fromDate,
+      apiKey
+    );
+    
+    historicalCandles = historicalResult.candles;
+    console.log(`✅ Fetched ${historicalCandles.length} historical candles`);
+
+    // Step 3: Combine intraday and historical candles (intraday first, then historical)
+    const combinedCandles = [...intradayCandles, ...historicalCandles];
+    
+    // Sort by timestamp to ensure proper order
+    combinedCandles.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    // Remove duplicates based on timestamp
+    const uniqueCandles = combinedCandles.filter((candle, index, self) => 
+      index === self.findIndex(c => c.timestamp === candle.timestamp)
+    );
+
+    console.log(`📊 Combined data: ${intradayCandles.length} intraday + ${historicalCandles.length} historical = ${uniqueCandles.length} unique candles`);
+
+    const hasMoreCandles = historicalResult.hasMoreCandles;
+    const oldestCandleTime = uniqueCandles.length > 0 ? uniqueCandles[0].timestamp : undefined;
+    const newestCandleTime = uniqueCandles.length > 0 ? uniqueCandles[uniqueCandles.length - 1].timestamp : undefined;
+
+    return {
+      candles: uniqueCandles,
+      hasMoreCandles,
+      oldestCandleTime,
+      newestCandleTime,
+      intradayCandles: intradayCandles.length,
+      historicalCandles: historicalCandles.length
+    };
+  } catch (error) {
+    console.error('Error fetching combined Upstox data:', error);
+    throw error;
+  }
+};
+
+/**
  * Fetches paginated historical data from Upstox with the new interface
  * @param params UpstoxPaginationParams object with request parameters
  * @returns UpstoxPaginationResult object with candles and pagination info
  */
 export const fetchPaginatedUpstoxData = async (
-  params: UpstoxPaginationParams
+  params: UpstoxPaginationParams, 
+  shouldFetchIntraDay: boolean
 ): Promise<UpstoxPaginationResult> => {
   const { 
     instrumentKey, 
@@ -552,15 +722,26 @@ export const fetchPaginatedUpstoxData = async (
       }
     }
     
-    const result = await fetchUpstoxHistoricalData(
-      instrumentKey,
-      unit,
-      interval,
-      processedToDate,
-      processedFromDate,
-      apiKey
-    );
-    
+
+    // Choose the appropriate fetch function based on shouldFetchIntraDay flag
+    const result = shouldFetchIntraDay 
+      ? await fetchUpstoxCombinedData(
+          instrumentKey,
+          unit,
+          interval,
+          processedToDate,
+          processedFromDate,
+          apiKey
+        )
+      : await fetchUpstoxHistoricalData(
+          instrumentKey,
+          unit,
+          interval,
+          processedToDate,
+          processedFromDate,
+          apiKey
+        );
+  
     return {
       candles: result.candles,
       hasMore: result.hasMoreCandles,

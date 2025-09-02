@@ -5,22 +5,20 @@ export const parseTimestampToUnix = (timestamp: string): number => {
     // Handle multiple timestamp formats
     let date: Date;
     
-    if (timestamp.includes('T') || timestamp.includes(' ')) {
-        // ISO format or space-separated format
-        date = new Date(timestamp);
-    } else {
-        // Handle YYYY-MM-DD format
-        const [year, month, day] = timestamp.split('-').map(Number);
-        date = new Date(year, month - 1, day); // month is 0-indexed
-    }
-    
-    if (isNaN(date.getTime())) {
-        console.error(`Invalid timestamp: ${timestamp}`);
-        return 0;
-    }
-    
-    return Math.floor(date.getTime() / 1000);
+    if (!timestamp.includes('T')) {
+    // If no 'T', assume it's already a date string, return as-is
+    const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
+    return unixTimestamp;
+  }   // Treat the stripped timestamp as UTC by adding +00:00
+  // This ensures consistent behavior across all timeframes and prevents date shifting
+  
+  const utcTimestamp = timestamp + '+00:00';
+  const unixTimestamp = Math.floor(new Date(utcTimestamp).getTime() / 1000);
+  
+  
+  return unixTimestamp;
 };
+
 
 // Interface for swing point data
 export interface SwingPoint {
