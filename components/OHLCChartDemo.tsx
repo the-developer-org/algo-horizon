@@ -40,7 +40,7 @@ export const OHLCChartDemo: React.FC = () => {
   const [showEMA] = useState(true);
   const [showRSI] = useState(false);
   const [showVIX] = useState(false);
-  const [showSwingPoints] = useState(false);
+  const [showSwingPoints] = useState(true);
   // Pagination state for Upstox API
   const [hasMoreCandles, setHasMoreCandles] = useState(false);
   const [loadingOlderData, setLoadingOlderData] = useState(false);

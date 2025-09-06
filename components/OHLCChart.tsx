@@ -1363,7 +1363,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
 
         // Calculate swing points directly from OHLC data and display dotted lines
-        if (candles.length >= 11) { // Need at least 11 candles for lookback of 5
+        if (showSwingPoints && candles.length >= 11) { // Need at least 11 candles for lookback of 5
             try {
                 const calculatedSwingPoints = calculateSwingPointsFromCandles(candles, 5);
                 
@@ -1396,7 +1396,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     const adjustedPrice = isHigh ? swingPoint.price + offset : swingPoint.price - offset;
                     
                     for (let i = Math.max(0, currentCandleIndex - lineExtent); 
-                         i <= Math.min(candles.length - 1, currentCandleIndex + lineExtent); 
+                         i <= Math.min(candles.length - 1, currentCandleIndex + lineExtent);
                          i++) {
                         // Create dotted effect by only adding every 2nd point
                         if ((i - (currentCandleIndex - lineExtent)) % 2 === 0) {
@@ -1421,77 +1421,107 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     // Set the dotted line data
                     dottedLineSeries.setData(dottedLineData);
                     
+                    // Store the line series for cleanup
+                    trendLinesRef.current.push(dottedLineSeries);
+                    
                     // Add marker with label to the collection
+                    // Use 'flag' and larger size so text labels render clearly on the chart
                     allMarkers.push({
                         time: swingPoint.time,
                         position: (label === 'HH' || label === 'LH') ? 'aboveBar' : 'belowBar',
                         color: color,
-                        shape: 'circle',
+                        shape: 'flag',
                         text: label,
-                        size: 2,
+                        size: 4,
                     });
                 });
                 
-                // Add entry date markers and dotted lines
-                entryCandleIndices.forEach((entryIndex) => {
-                    if (entryIndex < candles.length) {
-                        const entryCandle = candles[entryIndex];
-                        const entryTime = parseTimestampToUnix(entryCandle.timestamp);
-                        const entryPrice = (entryCandle.high + entryCandle.low) / 2; // Use mid-price for entry
-                        
-                        // Calculate offset for visual separation
-                        const priceRange = Math.max(...candles.map(c => c.high)) - Math.min(...candles.map(c => c.low));
-                        const offset = priceRange * 0.003; // Slightly larger offset for entry points
-                        const adjustedPrice = entryPrice + offset; // Place above the candle
-                        
-                        // Create dotted line data for entry point
-                        const dottedLineData: { time: number; value: number }[] = [];
-                        const lineExtent = 4; // Slightly longer line for entry points
-                        
-                        for (let i = Math.max(0, entryIndex - lineExtent); 
-                             i <= Math.min(candles.length - 1, entryIndex + lineExtent); 
-                             i++) {
-                            // Create dotted effect by only adding every 2nd point
-                            if ((i - (entryIndex - lineExtent)) % 2 === 0) {
-                                dottedLineData.push({
-                                    time: parseTimestampToUnix(candles[i].timestamp),
-                                    value: adjustedPrice
-                                });
+                // Add entry date markers and dotted lines only if we have Stryke entry dates
+                if (entryCandleIndices && entryCandleIndices.size > 0) {
+                    entryCandleIndices.forEach((entryIndex) => {
+                        if (entryIndex < candles.length) {
+                            const entryCandle = candles[entryIndex];
+                            const entryTime = parseTimestampToUnix(entryCandle.timestamp);
+                            const entryPrice = (entryCandle.high + entryCandle.low) / 2; // Use mid-price for entry
+                            
+                            // Calculate offset for visual separation
+                            const priceRange = Math.max(...candles.map(c => c.high)) - Math.min(...candles.map(c => c.low));
+                            const offset = priceRange * 0.003; // Slightly larger offset for entry points
+                            const adjustedPrice = entryPrice + offset; // Place above the candle
+                            
+                            // Create dotted line data for entry point
+                            const dottedLineData: { time: number; value: number }[] = [];
+                            const lineExtent = 4; // Slightly longer line for entry points
+                            
+                            for (let i = Math.max(0, entryIndex - lineExtent); 
+                                 i <= Math.min(candles.length - 1, entryIndex + lineExtent); 
+                                 i++) {
+                                // Create dotted effect by only adding every 2nd point
+                                if ((i - (entryIndex - lineExtent)) % 2 === 0) {
+                                    dottedLineData.push({
+                                        time: parseTimestampToUnix(candles[i].timestamp),
+                                        value: adjustedPrice
+                                    });
+                                }
                             }
+                            
+                            // Create a dotted line series for this entry point
+                            const entryLineSeries = chart.addLineSeries({
+                                color: '#FF6B35', // Orange color for entry points
+                                lineWidth: 3,
+                                lineStyle: 1, // Solid line (we create dotted effect with data points)
+                                title: `Entry - ₹${entryPrice.toFixed(2)}`,
+                                priceLineVisible: false,
+                                lastValueVisible: false,
+                                crosshairMarkerVisible: false,
+                            });
+                            
+                            // Set the dotted line data
+                            entryLineSeries.setData(dottedLineData);
+                            
+                            // Store the line series for cleanup
+                            trendLinesRef.current.push(entryLineSeries);
+                            
+                            // Add entry marker (Stryke) with flag shape so the label is visible
+                            allMarkers.push({
+                                time: entryTime,
+                                position: 'aboveBar',
+                                color: '#FF6B35', // Orange color for entry points
+                                shape: 'flag',
+                                text: 'Stryke',
+                                size: 5,
+                            });
                         }
-                        
-                        // Create a dotted line series for this entry point
-                        const entryLineSeries = chart.addLineSeries({
-                            color: '#FF6B35', // Orange color for entry points
-                            lineWidth: 3,
-                            lineStyle: 1, // Solid line (we create dotted effect with data points)
-                            title: `Entry - ₹${entryPrice.toFixed(2)}`,
-                            priceLineVisible: false,
-                            lastValueVisible: false,
-                            crosshairMarkerVisible: false,
-                        });
-                        
-                        // Set the dotted line data
-                        entryLineSeries.setData(dottedLineData);
-                        
-                        // Add entry marker
-                        allMarkers.push({
-                            time: entryTime,
-                            position: 'aboveBar',
-                            color: '#FF6B35', // Orange color for entry points
-                            shape: 'arrowDown',
-                            text: 'Stryke',
-                            size: 3,
-                        });
-                    }
-                });
+                    });
+                }
                 
+                // Ensure markers are ordered and unique by time before setting them
+                allMarkers.sort((a, b) => a.time - b.time);
+                // Deduplicate markers with same time and position (keep first)
+                const dedupedMarkers: typeof allMarkers = [];
+                const seen = new Set<string>();
+                for (const m of allMarkers) {
+                    const key = `${m.time}|${m.position}|${m.text}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        dedupedMarkers.push(m);
+                    }
+                }
+
                 // Set all markers at once
-                candlestickSeries.setMarkers(allMarkers);
+                candlestickSeries.setMarkers(dedupedMarkers);
                 
             } catch (err) {
                 console.error('Swing points calculation error:', err);
                 toast.error('Error calculating swing points', { duration: 4000 });
+            }
+        } else if (!showSwingPoints) {
+            // Clear swing points when disabled
+            calculatedSwingPointsRef.current = [];
+            
+            // Clear markers
+            if (chartRef.current?.candlestickSeries) {
+                chartRef.current.candlestickSeries.setMarkers([]);
             }
         } else {
             console.log('❌ Insufficient candles for swing point calculation (need at least 11)');
