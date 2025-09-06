@@ -189,7 +189,7 @@ export const OHLCChartDemo: React.FC = () => {
       const data: EntryDatesApiResponse = response.data;
       
       if (data.entryDates && Array.isArray(data.entryDates)) {
-        debugger
+        
         setStrykeEntryDates(data.entryDates);
         console.log('✅ Entry dates fetched successfully:', data.entryDates.length, 'dates');
       } else {
@@ -319,6 +319,7 @@ export const OHLCChartDemo: React.FC = () => {
         
         setCandles(timeframeProcessedData);
                  setHasMoreCandles(result.hasMore);
+                 
         setOldestCandleTime(result.oldestTimestamp);
         setNewestCandleTime(result.newestTimestamp);
 
@@ -353,45 +354,35 @@ export const OHLCChartDemo: React.FC = () => {
     }
   }, [selectedCompany, selectedInstrumentKey, upstoxApiKey, selectedTimeframe, isFirstLoad, fetchEntryDates]); // Add dependencies for useCallback
 
-  // Function to load more historical data (pagination)
-  const loadMoreHistoricalData = useCallback(async (direction: 'older' | 'newer' = 'older') => {
+  // Function to load more historical (older) data (pagination)
+  async function loadMoreHistoricalData() {
     if (!selectedInstrumentKey || !upstoxApiKey || loadingOlderData) {
       return;
     }
-    
+
     setLoadingOlderData(true);
-    const loadingToast = toast.loading(`Loading ${direction} data...`);
-    
+    const loadingToast = toast.loading(`Loading older historical data...`);
+
     try {
+      // Always fetch older data relative to the current newest candle
       let to: string;
       let from: Date;
+
       
-      if (direction === 'older' && newestCandleTime) {
-        debugger;
-        // Loading older data - use newest candle time as "to"
-        const newestDate = new Date(newestCandleTime);
+     
+        // Loading older data - use oldest candle time as "to"
+        const newestDate = new Date(newestCandleTime ?? new Date().toISOString());
         to = newestDate.toISOString();
         from = calculateFromDate(newestDate, selectedTimeframe);
-      } else if (direction === 'newer' && oldestCandleTime) {
-        // Loading newer data - use oldest candle time as "from" and last trading day as "to"
-        from = new Date(oldestCandleTime);
-        const lastTradingDay = getLastTradingDay(new Date());
-        to = lastTradingDay.toISOString();
-      } else {
-        // Fallback - use last trading day instead of current date
-        const lastTradingDay = getLastTradingDay(new Date());
-        to = lastTradingDay.toISOString();
-        from = calculateFromDate(new Date(lastTradingDay), selectedTimeframe);
-      }
-      
-      console.log(`Pagination request details (${direction}):`, {
+     
+
+      console.log(`Pagination request details (older):`, {
         instrumentKey: selectedInstrumentKey,
         timeframe: selectedTimeframe,
         from: from.toISOString(),
         to: to,
-        direction
       });
-      
+
       const params: UpstoxPaginationParams = {
         instrumentKey: selectedInstrumentKey,
         timeframe: selectedTimeframe,
@@ -402,73 +393,60 @@ export const OHLCChartDemo: React.FC = () => {
       };
 
       const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
-            setShouldFetchIntraDay(false);
+      setShouldFetchIntraDay(false);
 
       if (result.candles.length > 0) {
-        // Update pagination state
-        if (direction === 'older') {
-          setOldestCandleTime(result.oldestTimestamp);
-        } else {
-          setNewestCandleTime(result.newestTimestamp);
-        }
+        // Update pagination state for older fetches
+        setOldestCandleTime(result.oldestTimestamp);
         setHasMoreCandles(result.hasMore);
-        
-        // Merge with existing candles
-        const combinedCandles = direction === 'older' 
-          ? [...result.candles, ...rawCandles] 
-          : [...rawCandles, ...result.candles];
-        
-        // Remove duplicates (by timestamp) with consistent UTC handling
+
+        // Merge with existing candles: new older candles go before rawCandles
+        const combinedCandles = [...result.candles, ...rawCandles];
+
+        // Remove duplicates (by timestamp)
         const uniqueCandles = combinedCandles.filter((candle, index, self) =>
           index === self.findIndex((c) => c.timestamp === candle.timestamp)
         );
-        
-        // Sort by timestamp (oldest to newest) with IST consistency
-        uniqueCandles.sort((a, b) => {
-          // Use consistent timestamp comparison that matches our chart parsing logic
-          // Don't add 'Z' since timestamps are already processed as IST in the chart
-          const timeA = new Date(a.timestamp).getTime();
-          const timeB = new Date(b.timestamp).getTime();
-          return timeA - timeB;
-        });
 
-        // Performance optimization: limit total stored candles to prevent memory issues
+        // Sort by timestamp (oldest to newest)
+        uniqueCandles.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+        // Performance optimization: limit total stored candles
         const maxStoredCandles = MAX_CANDLES_FOR_CHART * 2; // Store 2x what we display for pagination
-        const optimizedUnique = uniqueCandles.length > maxStoredCandles 
+        const optimizedUnique = uniqueCandles.length > maxStoredCandles
           ? uniqueCandles.slice(-maxStoredCandles) // Keep most recent candles
           : uniqueCandles;
-        
+
         console.log(`Memory optimization: Storing ${optimizedUnique.length} of ${uniqueCandles.length} total candles`);
-        
+
         // Update raw candles
         setRawCandles(optimizedUnique);
-        
+
         // Process with the selected timeframe
         const processedCandles = processTimeframeData(optimizedUnique, selectedTimeframe);
         console.log(`🔄 Processing ${processedCandles.length} candles with indicators during pagination (full calculation for now)`);
-        // Use full EMA calculation for now to ensure accuracy
         const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
-        
+
         setCandles(candlesWithIndicators);
-                 
-        toast.success(`Loaded ${result.candles.length} more ${direction} candles`, {
+
+        toast.success(`Loaded ${result.candles.length} more historical candles`, {
           id: loadingToast
         });
       } else {
-        toast.error(`No more ${direction} data available`, {
+        toast.error(`No more historical data available`, {
           id: loadingToast
         });
         setHasMoreCandles(false);
       }
     } catch (error) {
-      console.error(`Error loading more ${direction} data:`, error);
-      toast.error(`Failed to load more ${direction} data`, {
+      console.error(`Error loading more historical data:`, error);
+      toast.error(`Failed to load more historical data`, {
         id: loadingToast
       });
     } finally {
       setLoadingOlderData(false);
     }
-  }, [selectedInstrumentKey, upstoxApiKey, loadingOlderData, newestCandleTime, oldestCandleTime, selectedTimeframe, rawCandles]); // Add dependencies for useCallback
+  }
 
   // Handle timeframe change with proper error handling and rollback
   const handleTimeframeChange = useCallback((newTimeframe: Timeframe) => {
@@ -779,7 +757,7 @@ export const OHLCChartDemo: React.FC = () => {
           {/* Load More Historical Data button */}
           {!showBoomDays && candles.length > 0 && hasMoreCandles && (
             <button
-              onClick={() => loadMoreHistoricalData('older')}
+              onClick={() => loadMoreHistoricalData()}
               disabled={loadingOlderData}
               className={`px-4 py-2 rounded-md ${
                 loadingOlderData

@@ -457,6 +457,7 @@ export const fetchUpstoxHistoricalData = async (
     // For V3 API, we need to determine if there's more data based on response length
     // and implement our own pagination logic
     const hasMoreCandles = candles.length > 0; // Assume more data exists if we got results
+    
     const oldestCandleTime = candles.length > 0 ? candles[0].timestamp : undefined;
     const newestCandleTime = candles.length > 0 ? candles[candles.length - 1].timestamp : undefined;
 
@@ -629,6 +630,7 @@ export const fetchUpstoxCombinedData = async (
     console.log(`📊 Combined data: ${intradayCandles.length} intraday + ${historicalCandles.length} historical = ${uniqueCandles.length} unique candles`);
 
     const hasMoreCandles = historicalResult.hasMoreCandles;
+    
     const oldestCandleTime = uniqueCandles.length > 0 ? uniqueCandles[0].timestamp : undefined;
     const newestCandleTime = uniqueCandles.length > 0 ? uniqueCandles[uniqueCandles.length - 1].timestamp : undefined;
 
@@ -721,6 +723,7 @@ export const fetchPaginatedUpstoxData = async (
         throw new Error(`Invalid date range: fromDate must be earlier than toDate`);
       }
     }
+    
     
 
     // Choose the appropriate fetch function based on shouldFetchIntraDay flag
