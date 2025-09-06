@@ -9,6 +9,8 @@ import { calculateIndicators } from './utils/indicators';
 import { Timeframe, processTimeframeData } from './utils/timeframeUtils';
 import { fetchPaginatedUpstoxData, UpstoxPaginationParams } from './utils/upstoxApi';
 import { ApiKeyModal } from './ApiKeyModal';
+import { EntryDatesApiResponse } from './types/entry-dates';
+import axios from 'axios';
 
 // Performance optimization constants
 const MAX_CANDLES_FOR_CHART = 3000; // Limit for ultra-fast performance
@@ -47,6 +49,9 @@ export const OHLCChartDemo: React.FC = () => {
   // API Key modal
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [upstoxApiKey, setUpstoxApiKey] = useState('alpha');
+  
+  // Entry dates state
+  const [strykeEntryDates, setStrykeEntryDates] = useState<string[]>([]);
 
   const [shouldFetchIntraDay, setShouldFetchIntraDay] = useState(true);
 
@@ -154,14 +159,64 @@ export const OHLCChartDemo: React.FC = () => {
   }, [searchTerm, keyMapping]);
 
   // Handle selection from suggestions
+  // Function to fetch entry dates for the selected instrument
+  const fetchEntryDates = useCallback(async (instrumentKey: string, companyName: string) => {
+    if (!instrumentKey?.includes('NSE')) {
+      console.warn('Invalid instrument key for entry dates fetch:', instrumentKey);
+      return;
+    }
+
+    try {
+      // Replace - with | for the API call
+      const apiInstrumentKey = instrumentKey.replace(/-/g, '|');
+      
+      console.log('🗓️ Fetching entry dates for:', apiInstrumentKey);
+      
+     const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+
+      const response = await axios.get(`${backEndBaseUrl}/api/stryke/get-entry-dates/${apiInstrumentKey}/${companyName}`, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`Failed to fetch entry dates: ${response.status}`);
+      }
+
+      const data: EntryDatesApiResponse = response.data;
+      
+      if (data.entryDates && Array.isArray(data.entryDates)) {
+        debugger
+        setStrykeEntryDates(data.entryDates);
+        console.log('✅ Entry dates fetched successfully:', data.entryDates.length, 'dates');
+      } else {
+        console.warn('No entry dates found in response');
+        setStrykeEntryDates([]);
+      }
+    } catch (error) {
+      console.error('Error fetching entry dates:', error);
+      setStrykeEntryDates([]);
+      // Don't show toast error as this is not critical for main functionality
+    }
+  }, []);
+
   const handleSelectCompany = useCallback((companyName: string) => {
     setSelectedCompany(companyName);
-    setSelectedInstrumentKey(keyMapping[companyName]);
+    const instrumentKey = keyMapping[companyName];
+    setSelectedInstrumentKey(instrumentKey);
     setSearchTerm(companyName);
     setSuggestions([]);
 
+    // Fetch entry dates when a new company is selected
+    if (instrumentKey && companyName) {
+      fetchEntryDates(instrumentKey, companyName);
+    }
+
     // We preserve the current view (either chart view or boom days) when selecting a new company
-  }, [keyMapping]); // Add dependencies for useCallback
+  }, [keyMapping, fetchEntryDates]); // Add dependencies for useCallback
 
   // Performance optimization: limit displayed candles to prevent slowdown
   const optimizedCandles = useMemo(() => {
@@ -199,6 +254,9 @@ export const OHLCChartDemo: React.FC = () => {
     setHasMoreCandles(false);
     setOldestCandleTime(undefined);
     setNewestCandleTime(undefined);
+    
+    // Fetch entry dates for the selected instrument
+    fetchEntryDates(selectedInstrumentKey, selectedCompany);
     
     try {
       
@@ -293,7 +351,7 @@ export const OHLCChartDemo: React.FC = () => {
       setIsLoading(false);
       setVixData([]); // Clear any VIX data
     }
-  }, [selectedCompany, selectedInstrumentKey, upstoxApiKey, selectedTimeframe, isFirstLoad]); // Add dependencies for useCallback
+  }, [selectedCompany, selectedInstrumentKey, upstoxApiKey, selectedTimeframe, isFirstLoad, fetchEntryDates]); // Add dependencies for useCallback
 
   // Function to load more historical data (pagination)
   const loadMoreHistoricalData = useCallback(async (direction: 'older' | 'newer' = 'older') => {
@@ -676,6 +734,17 @@ export const OHLCChartDemo: React.FC = () => {
             Overall Stats
           </a>
 
+          {/* Entry Dates Indicator */}
+          {strykeEntryDates && strykeEntryDates.length > 0 && (
+            <div className="px-3 py-2 rounded-md bg-orange-100 border border-orange-300 text-orange-800 text-sm font-medium flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              � {strykeEntryDates.length} Stryke Points
+            </div>
+          )}
+
           {/* Timeframe selector */}
           {!showBoomDays && candles.length > 0 && (
             <div className="flex bg-white bg-opacity-90 border border-gray-300 rounded-lg overflow-hidden shadow-sm">
@@ -773,6 +842,7 @@ export const OHLCChartDemo: React.FC = () => {
                   supportLevel={support?.value}
                   resistanceLevel={resistance?.value}
                   avgVolume={avgVolume}
+                  entryDates={strykeEntryDates} // Pass entry dates for highlighting
                   onLoadMoreData={undefined} // Temporarily disable automatic loading
                   hasMoreOlderData={hasMoreCandles}
                   hasMoreNewerData={false} // We typically only load historical data

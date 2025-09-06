@@ -438,6 +438,111 @@ const processVolumeData = (candles: Candle[]) => {
   return sampleData(volumeData, MAX_VISIBLE_CANDLES);
 };
 
+// Function to map entry dates to the correct candles based on timeframe
+const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timeframe: string): Set<number> => {
+  const entryCandleIndices = new Set<number>();
+  
+  if (!entryDates || entryDates.length === 0 || !candles || candles.length === 0) {
+    return entryCandleIndices;
+  }
+  
+  // Helper function to get timeframe duration in milliseconds
+  const getTimeframeDuration = (tf: string): number => {
+    switch (tf) {
+      case '1m': return 60 * 1000;
+      case '5m': return 5 * 60 * 1000;
+      case '15m': return 15 * 60 * 1000;
+      case '30m': return 30 * 60 * 1000;
+      case '1h': return 60 * 60 * 1000;
+      case '4h': return 4 * 60 * 60 * 1000;
+      case '1d': return 24 * 60 * 60 * 1000;
+      case '1w': return 7 * 24 * 60 * 60 * 1000;
+      default: return 60 * 60 * 1000; // Default to 1 hour
+    }
+  };
+  
+  const timeframeDuration = getTimeframeDuration(timeframe);
+  
+  entryDates.forEach(entryDateStr => {
+    try {
+      // Parse entry date - handle various formats
+      let entryTime: Date;
+      if (entryDateStr.includes('T')) {
+        // ISO format: "2024-09-06T09:33:00"
+        entryTime = new Date(entryDateStr);
+      } else if (entryDateStr.includes(' ')) {
+        // Format: "2024-09-06 09:33:00"
+        entryTime = new Date(entryDateStr.replace(' ', 'T'));
+      } else {
+        // Assume it's just time: "09:33:00" - use current date
+        const today = new Date().toISOString().split('T')[0];
+        entryTime = new Date(`${today}T${entryDateStr}`);
+      }
+      
+      if (isNaN(entryTime.getTime())) {
+        console.warn('Invalid entry date format:', entryDateStr);
+        return;
+      }
+      
+      const entryTimestamp = entryTime.getTime();
+      
+      // Find the candle that should contain this entry
+      let bestCandleIndex = -1;
+      let smallestTimeDiff = Infinity;
+      
+      for (let i = 0; i < candles.length; i++) {
+        const candleTime = new Date(candles[i].timestamp).getTime();
+        
+        if (timeframe === '1d') {
+          // For daily candles, check if same day
+          const candleDate = new Date(candleTime).toDateString();
+          const entryDate = entryTime.toDateString();
+          if (candleDate === entryDate) {
+            bestCandleIndex = i;
+            break;
+          }
+        } else {
+          // For intraday timeframes, find the candle that the entry time falls into
+          // The logic: if entry is at 9:33 and we have 5m candles at 9:30, 9:35, 9:40
+          // then 9:33 should map to the 9:35 candle (next boundary after entry)
+          
+          // Check if entry time is between this candle and the next one
+          if (i < candles.length - 1) {
+            const nextCandleTime = new Date(candles[i + 1].timestamp).getTime();
+            
+            // If entry falls between current and next candle, it belongs to the next candle
+            if (entryTimestamp > candleTime && entryTimestamp <= nextCandleTime) {
+              bestCandleIndex = i + 1;
+              break;
+            }
+          }
+          
+          // Alternative: find the closest candle after the entry time
+          if (candleTime >= entryTimestamp) {
+            const timeDiff = candleTime - entryTimestamp;
+            if (timeDiff < smallestTimeDiff) {
+              smallestTimeDiff = timeDiff;
+              bestCandleIndex = i;
+            }
+          }
+        }
+      }
+      
+      if (bestCandleIndex >= 0) {
+        entryCandleIndices.add(bestCandleIndex);
+        console.log(`📍 Entry at ${entryDateStr} mapped to candle ${bestCandleIndex} (${candles[bestCandleIndex].timestamp}) for ${timeframe} timeframe`);
+      } else {
+        console.warn(`⚠️ Could not map entry date ${entryDateStr} to any candle for ${timeframe} timeframe`);
+      }
+      
+    } catch (error) {
+      console.error('Error processing entry date:', entryDateStr, error);
+    }
+  });
+  
+  return entryCandleIndices;
+};
+
 interface OHLCChartProps {
     candles: Candle[];
     vixData?: { timestamp: string; value: number }[];
@@ -453,6 +558,7 @@ interface OHLCChartProps {
     supportLevel?: number; // Support level from backend
     resistanceLevel?: number; // Resistance level from backend
     avgVolume?: number; // Average volume for the stock
+    entryDates?: string[]; // Entry dates to highlight on chart
     // Add callback for loading more data when user scrolls to edges
     onLoadMoreData?: (direction: 'older' | 'newer') => Promise<void>;
     hasMoreOlderData?: boolean;
@@ -481,6 +587,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     supportLevel, // Use backend-provided support level
     resistanceLevel, // Use backend-provided resistance level
     avgVolume = 0, // Average volume with default value of 0
+    entryDates = [], // Entry dates to highlight
     onLoadMoreData, // Callback for loading more data
     hasMoreOlderData = false,
     hasMoreNewerData = false,
@@ -545,6 +652,40 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         
        //console.log(`Chart updated in ${(performance.now() - start).toFixed(2)}ms`);
     }, [processedChartData, processedVolumeData, showVolume]);
+
+    // Detect timeframe from candle intervals
+    const detectedTimeframe = useMemo(() => {
+        if (candles.length < 2) return '1d'; // Default timeframe
+        
+        const first = new Date(candles[0].timestamp).getTime();
+        const second = new Date(candles[1].timestamp).getTime();
+        const intervalMs = second - first;
+        
+        // Convert to minutes for easier comparison
+        const intervalMinutes = intervalMs / (1000 * 60);
+        
+        if (intervalMinutes <= 1) return '1m';
+        if (intervalMinutes <= 5) return '5m';
+        if (intervalMinutes <= 15) return '15m';
+        if (intervalMinutes <= 30) return '30m';
+        if (intervalMinutes <= 60) return '1h';
+        if (intervalMinutes <= 240) return '4h';
+        if (intervalMinutes <= 1440) return '1d';
+        return '1w';
+    }, [candles]);
+
+    // Map entry dates to candle indices
+    const entryCandleIndices = useMemo(() => {
+        const indices = mapEntryDatesToCandles(entryDates, candles, detectedTimeframe);
+        if (indices.size > 0) {
+            console.log(`🎯 Entry date mapping for ${detectedTimeframe} timeframe:`, {
+                entryDatesCount: entryDates.length,
+                mappedIndices: Array.from(indices),
+                totalCandles: candles.length
+            });
+        }
+        return indices;
+    }, [entryDates, candles, detectedTimeframe]);
 
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
@@ -877,7 +1018,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             volumeSeriesRef.current = null;
             avgVolumeLineRef.current = null;
         };
-    }, [candles, height, width, showVolume]); // Removed vixData to prevent unnecessary recreations
+    }, [candles, height, width, showVolume, entryCandleIndices]); // Added entryCandleIndices to dependencies
 
     // Manage Avg Volume reference line on the volume histogram
     useEffect(() => {
@@ -1291,6 +1432,60 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     });
                 });
                 
+                // Add entry date markers and dotted lines
+                entryCandleIndices.forEach((entryIndex) => {
+                    if (entryIndex < candles.length) {
+                        const entryCandle = candles[entryIndex];
+                        const entryTime = parseTimestampToUnix(entryCandle.timestamp);
+                        const entryPrice = (entryCandle.high + entryCandle.low) / 2; // Use mid-price for entry
+                        
+                        // Calculate offset for visual separation
+                        const priceRange = Math.max(...candles.map(c => c.high)) - Math.min(...candles.map(c => c.low));
+                        const offset = priceRange * 0.003; // Slightly larger offset for entry points
+                        const adjustedPrice = entryPrice + offset; // Place above the candle
+                        
+                        // Create dotted line data for entry point
+                        const dottedLineData: { time: number; value: number }[] = [];
+                        const lineExtent = 4; // Slightly longer line for entry points
+                        
+                        for (let i = Math.max(0, entryIndex - lineExtent); 
+                             i <= Math.min(candles.length - 1, entryIndex + lineExtent); 
+                             i++) {
+                            // Create dotted effect by only adding every 2nd point
+                            if ((i - (entryIndex - lineExtent)) % 2 === 0) {
+                                dottedLineData.push({
+                                    time: parseTimestampToUnix(candles[i].timestamp),
+                                    value: adjustedPrice
+                                });
+                            }
+                        }
+                        
+                        // Create a dotted line series for this entry point
+                        const entryLineSeries = chart.addLineSeries({
+                            color: '#FF6B35', // Orange color for entry points
+                            lineWidth: 3,
+                            lineStyle: 1, // Solid line (we create dotted effect with data points)
+                            title: `Entry - ₹${entryPrice.toFixed(2)}`,
+                            priceLineVisible: false,
+                            lastValueVisible: false,
+                            crosshairMarkerVisible: false,
+                        });
+                        
+                        // Set the dotted line data
+                        entryLineSeries.setData(dottedLineData);
+                        
+                        // Add entry marker
+                        allMarkers.push({
+                            time: entryTime,
+                            position: 'aboveBar',
+                            color: '#FF6B35', // Orange color for entry points
+                            shape: 'arrowDown',
+                            text: 'Stryke',
+                            size: 3,
+                        });
+                    }
+                });
+                
                 // Set all markers at once
                 candlestickSeries.setMarkers(allMarkers);
                 
@@ -1319,7 +1514,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 trendLinesRef.current = [];
             }
         };
-    }, [showSwingPoints, propAnalysisList, candles]);
+    }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices]); // Added entryCandleIndices
 
     // Crosshair move handler effect - updates when chart changes
     useEffect(() => {
