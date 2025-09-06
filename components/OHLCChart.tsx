@@ -11,6 +11,25 @@ const MAX_VISIBLE_CANDLES = 2000; // Limit visible data points for ultra-fast pe
 const PERFORMANCE_SAMPLE_THRESHOLD = 5000; // Start sampling when data exceeds this
 const CHART_UPDATE_DEBOUNCE = 16; // ~60fps for smooth updates
 
+// Interface for candle click analysis results
+interface CandleAnalysis {
+    clickedCandle: Candle;
+    clickedIndex: number;
+    trendReversalIndex: number;
+    trendReversalCandle: Candle;
+    maxProfitPrice: number;
+    maxLossPrice: number;
+    maxProfitPercent: number;
+    maxLossPercent: number;
+    finalProfitLoss: number;
+    finalProfitLossPercent: number;
+    candlesAnalyzed: number;
+    trendDirection: 'bullish' | 'bearish';
+    startDate: string;
+    endDate: string;
+    swingPointLabel: string;
+}
+
 // Data sampling for performance optimization
 const sampleData = (data: any[], maxPoints: number): any[] => {
   if (data.length <= maxPoints) return data;
@@ -47,6 +66,167 @@ const processChartData = (candles: Candle[]) => {
 
   // Apply performance sampling for large datasets
   return sampleData(formattedData, MAX_VISIBLE_CANDLES);
+};
+
+// Function to detect trend direction using simple moving averages and price action
+const detectTrendDirection = (candles: Candle[], startIndex: number): 'bullish' | 'bearish' => {
+  if (startIndex >= candles.length - 3) return 'bullish'; // Default for edge cases
+  
+  const current = candles[startIndex];
+  const next1 = candles[startIndex + 1];
+  const next2 = candles[startIndex + 2];
+  
+  // Use close prices to determine initial trend direction
+  const priceMovement1 = next1.close - current.close;
+  const priceMovement2 = next2.close - next1.close;
+  
+  // If both movements are positive, it's bullish; if both negative, bearish
+  if (priceMovement1 > 0 && priceMovement2 > 0) return 'bullish';
+  if (priceMovement1 < 0 && priceMovement2 < 0) return 'bearish';
+  
+  // For mixed signals, use overall direction
+  const overallMovement = next2.close - current.close;
+  return overallMovement >= 0 ? 'bullish' : 'bearish';
+};
+
+// Function to detect when trend/character changes
+const detectTrendReversal = (candles: Candle[], startIndex: number, initialTrend: 'bullish' | 'bearish'): number => {
+  const windowSize = 3; // Number of candles to confirm trend change
+  let consecutiveOpposite = 0;
+  
+  for (let i = startIndex + 1; i < candles.length - 1; i++) {
+    const current = candles[i];
+    const next = candles[i + 1];
+    
+    const priceMovement = next.close - current.close;
+    
+    if (initialTrend === 'bullish') {
+      // Looking for bearish reversal (consecutive down moves)
+      if (priceMovement < 0) {
+        consecutiveOpposite++;
+        if (consecutiveOpposite >= windowSize) {
+          return i - windowSize + 1; // Return the start of the reversal
+        }
+      } else {
+        consecutiveOpposite = 0; // Reset counter
+      }
+    } else {
+      // Looking for bullish reversal (consecutive up moves)
+      if (priceMovement > 0) {
+        consecutiveOpposite++;
+        if (consecutiveOpposite >= windowSize) {
+          return i - windowSize + 1; // Return the start of the reversal
+        }
+      } else {
+        consecutiveOpposite = 0; // Reset counter
+      }
+    }
+  }
+  
+  // If no clear reversal found, return the last index
+  return candles.length - 1;
+};
+
+// Function to analyze profit/loss from clicked candle using existing calculated swing points
+const analyzeCandleClick = (candles: Candle[], clickedIndex: number, calculatedSwingPoints: any[]): CandleAnalysis | null => {
+  if (clickedIndex < 0 || clickedIndex >= candles.length - 1) return null;
+  
+  const clickedCandle = candles[clickedIndex];
+  const entryPrice = clickedCandle.close; // Use close price as entry point
+  
+  // Use the existing calculated swing points to find the next relevant swing point
+  let endIndex = candles.length - 1;
+  let swingPointLabel = 'end of data';
+  
+  if (calculatedSwingPoints && calculatedSwingPoints.length > 0) {
+    // Find the most recent swing point before or at the clicked candle
+    const previousSwingPoint = calculatedSwingPoints
+      .filter(sp => sp.index <= clickedIndex)
+      .sort((a, b) => b.index - a.index)[0]; // Get the most recent swing point
+    
+    if (previousSwingPoint) {
+      const previousLabel = previousSwingPoint.label;
+      
+      // If clicked after LL or HL, look for next HH or LH
+      if (previousLabel === 'LL' || previousLabel === 'HL') {
+        const nextRelevantSwingPoint = calculatedSwingPoints.find(sp => 
+          sp.index > clickedIndex && (sp.label === 'HH' || sp.label === 'LH')
+        );
+        
+        if (nextRelevantSwingPoint) {
+          endIndex = nextRelevantSwingPoint.index;
+          swingPointLabel = nextRelevantSwingPoint.label;
+        }
+      }
+      // If clicked after HH or LH, look for next LL or HL
+      else if (previousLabel === 'HH' || previousLabel === 'LH') {
+        const nextRelevantSwingPoint = calculatedSwingPoints.find(sp => 
+          sp.index > clickedIndex && (sp.label === 'LL' || sp.label === 'HL')
+        );
+        
+        if (nextRelevantSwingPoint) {
+          endIndex = nextRelevantSwingPoint.index;
+          swingPointLabel = nextRelevantSwingPoint.label;
+        }
+      }
+    } else {
+      // If no previous swing point, just use the next swing point after clicked candle
+      const nextSwingPoint = calculatedSwingPoints.find(sp => sp.index > clickedIndex);
+      if (nextSwingPoint) {
+        endIndex = nextSwingPoint.index;
+        swingPointLabel = nextSwingPoint.label;
+      }
+    }
+  }
+  
+  const reversalCandle = candles[endIndex];
+  const finalPrice = reversalCandle.close;
+  
+  // Calculate profit/loss using close prices
+  const profitLoss = finalPrice - entryPrice;
+  const profitLossPercent = ((profitLoss / entryPrice) * 100);
+  
+  let maxProfitPrice = entryPrice;
+  let maxLossPrice = entryPrice;
+  
+  // Analyze each candle from entry through reversal (including reversal candle)
+  for (let i = clickedIndex + 1; i <= endIndex; i++) {
+    const currentCandle = candles[i];
+    
+    // Track maximum profit using close prices
+    if (currentCandle.close > maxProfitPrice) {
+      maxProfitPrice = currentCandle.close;
+    }
+    
+    // Track maximum loss using close prices
+    if (currentCandle.close < maxLossPrice) {
+      maxLossPrice = currentCandle.close;
+    }
+  }
+  
+  // Calculate max profit and loss percentages
+  const maxProfitPercent = ((maxProfitPrice - entryPrice) / entryPrice) * 100;
+  const maxLossPercent = ((maxLossPrice - entryPrice) / entryPrice) * 100;
+  
+  const candlesAnalyzed = endIndex - clickedIndex + 1;
+  
+  return {
+    clickedCandle,
+    clickedIndex,
+    trendReversalIndex: endIndex,
+    trendReversalCandle: reversalCandle,
+    maxProfitPrice,
+    maxLossPrice,
+    maxProfitPercent,
+    maxLossPercent,
+    finalProfitLoss: profitLoss,
+    finalProfitLossPercent: profitLossPercent,
+    candlesAnalyzed,
+    trendDirection: 'swing-based' as any,
+    startDate: new Date(clickedCandle.timestamp).toLocaleDateString(),
+    endDate: new Date(reversalCandle.timestamp).toLocaleDateString(),
+    swingPointLabel
+  };
 };
 
 // Memoized volume data processing
@@ -121,6 +301,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const [emaError, setEmaError] = useState<string | null>(null);
     const [rsiError, setRsiError] = useState<string | null>(null);
     const [vixError, setVixError] = useState<string | null>(null);
+    const [candleAnalysis, setCandleAnalysis] = useState<CandleAnalysis | null>(null);
     const ema8SeriesRef = useRef<any>(null);
     const ema30SeriesRef = useRef<any>(null);
     const rsiSeriesRef = useRef<any>(null);
@@ -134,6 +315,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const staticResistanceLineRef = useRef<any>(null);
     const dynamicSupportLineRef = useRef<any>(null);
     const dynamicResistanceLineRef = useRef<any>(null);
+    
+    // Store calculated swing points for reuse in click analysis
+    const calculatedSwingPointsRef = useRef<any[]>([]);
 
     // Memoized data processing for ultra-fast performance
     const processedChartData = useMemo(() => {
@@ -375,6 +559,26 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         volume: hovered.volume,
                         rsi: hovered.rsi,
                     });
+                }
+            }
+        });
+
+        // Handle candle click for profit/loss analysis
+        chart.subscribeClick(param => {
+            if (param && param.time) {
+                // Find the clicked candle index
+                const clickedIndex = candles.findIndex((c: Candle) => parseTimestampToUnix(c.timestamp) === param.time);
+                if (clickedIndex !== -1 && clickedIndex < candles.length - 1) {
+                    // Perform the analysis using calculated swing points
+                    const analysis = analyzeCandleClick(candles, clickedIndex, calculatedSwingPointsRef.current);
+                    if (analysis) {
+                        setCandleAnalysis(analysis);
+                        toast.success(`Analysis complete! Click lasted ${analysis.candlesAnalyzed} candles with ${analysis.finalProfitLossPercent.toFixed(2)}% ${analysis.finalProfitLoss >= 0 ? 'profit' : 'loss'}`, {
+                            duration: 5000
+                        });
+                    }
+                } else {
+                    toast.error('Cannot analyze the last candle or invalid selection');
                 }
             }
         });
@@ -829,6 +1033,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         if (candles.length >= 11) { // Need at least 11 candles for lookback of 5
             try {
                 const calculatedSwingPoints = calculateSwingPointsFromCandles(candles, 5);
+                
+                // Store swing points for use in click analysis
+                calculatedSwingPointsRef.current = calculatedSwingPoints;
             
                 console.log(`✅ Calculated ${calculatedSwingPoints.length} swing points directly from OHLC data`);
                 
@@ -1492,6 +1699,118 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             }
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Floating Candle Analysis info at top right (inside chart area) */}
+            {candleAnalysis && (
+                <div style={{
+                    position: 'absolute',
+                    top: 5,
+                    right: -400,
+                    zIndex: 200,
+                    background: 'rgba(255,255,255,0.95)',
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    fontWeight: 600,
+                    fontSize: 14,
+                    color: '#333',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                    border: `3px solid ${candleAnalysis.finalProfitLoss >= 0 ? '#1e7e34' : '#c62828'}`,
+                    minWidth: 280,
+                    maxWidth: 350,
+                }}>
+                    <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        marginBottom: 8,
+                        borderBottom: '1px solid #eee',
+                        paddingBottom: 6
+                    }}>
+                        <span style={{ fontWeight: 700, fontSize: 16 }}>📊 Candle Analysis</span>
+                        <button 
+                            onClick={() => setCandleAnalysis(null)}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                fontSize: 18,
+                                cursor: 'pointer',
+                                color: '#999',
+                                padding: '0 4px'
+                            }}
+                        >×</button>
+                    </div>
+                    
+                    <div style={{ lineHeight: 1.4 }}>
+                        <div style={{ marginBottom: 6 }}>
+                            <span style={{ color: '#666' }}>Trend:</span> 
+                            <span style={{ 
+                                fontWeight: 700,
+                                color: candleAnalysis.trendDirection === 'bullish' ? '#1e7e34' : '#c62828'
+                            }}>
+                                {candleAnalysis.trendDirection === 'bullish' ? '📈 Bullish' : '📉 Bearish'}
+                            </span>
+                        </div>
+                        
+                        <div style={{ marginBottom: 6 }}>
+                            <span style={{ color: '#666' }}>Duration:</span> 
+                            <b> {candleAnalysis.candlesAnalyzed} candles</b>
+                            <span style={{ fontSize: 12, color: '#888', marginLeft: 4 }}>
+                                (until {candleAnalysis.swingPointLabel})
+                            </span>
+                        </div>
+                        
+                        <div style={{ marginBottom: 6 }}>
+                            <span style={{ color: '#666' }}>Period:</span> 
+                            <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>
+                                <div><b>Start:</b> {candleAnalysis.startDate}</div>
+                                <div><b>End:</b> {candleAnalysis.endDate}</div>
+                            </div>
+                        </div>
+                        
+                        <div style={{ marginBottom: 6 }}>
+                            <span style={{ color: '#666' }}>Max Profit:</span> 
+                            <span style={{ color: '#1e7e34', fontWeight: 700 }}>
+                                +{candleAnalysis.maxProfitPercent.toFixed(2)}% 
+                                (₹{candleAnalysis.maxProfitPrice.toFixed(2)})
+                            </span>
+                        </div>
+                        
+                        <div style={{ marginBottom: 6 }}>
+                            <span style={{ color: '#666' }}>Max Loss:</span> 
+                            <span style={{ color: '#c62828', fontWeight: 700 }}>
+                                {candleAnalysis.maxLossPercent.toFixed(2)}% 
+                                (₹{candleAnalysis.maxLossPrice.toFixed(2)})
+                            </span>
+                        </div>
+                        
+                        <div style={{ 
+                            marginTop: 10, 
+                            paddingTop: 8, 
+                            borderTop: '1px solid #eee',
+                            fontWeight: 700,
+                            fontSize: 15
+                        }}>
+                            <span style={{ color: '#666' }}>Final Result:</span> 
+                            <span style={{ 
+                                color: candleAnalysis.finalProfitLoss >= 0 ? '#1e7e34' : '#c62828'
+                            }}>
+                                {candleAnalysis.finalProfitLoss >= 0 ? '+' : ''}
+                                {candleAnalysis.finalProfitLossPercent.toFixed(2)}%
+                                {candleAnalysis.finalProfitLoss >= 0 ? ' 💰' : ' 📉'}
+                            </span>
+                        </div>
+                        
+                        <div style={{ 
+                            marginTop: 8, 
+                            fontSize: 12, 
+                            color: '#888',
+                            fontStyle: 'italic'
+                        }}>
+                            Analysis from entry through trend reversal candle
+                        </div>
+                    </div>
                 </div>
             )}
                 </div>
