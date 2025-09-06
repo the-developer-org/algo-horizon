@@ -829,6 +829,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         if (candles.length >= 11) { // Need at least 11 candles for lookback of 5
             try {
                 const calculatedSwingPoints = calculateSwingPointsFromCandles(candles, 5);
+            
                 console.log(`✅ Calculated ${calculatedSwingPoints.length} swing points directly from OHLC data`);
                 
                 // Collect all markers for swing points

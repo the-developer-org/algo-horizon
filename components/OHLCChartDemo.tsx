@@ -102,10 +102,10 @@ export const OHLCChartDemo: React.FC = () => {
         break;
       case '4h':
         // Based on working URL: from 2025-05-27 to 2025-08-27 = ~3 months = ~90 days
-        from.setDate(from.getDate() - 90); // ~90 days for 4h timeframe
+        from.setDate(from.getDate() - 120); // ~90 days for 4h timeframe
         break;
       case '1d':
-        from.setDate(from.getDate() - 180); // ~6 months = ~130 trading days 
+        from.setDate(from.getDate() - 500); // ~6 months = ~130 trading days 
         break;
       case '1w':
         from.setDate(from.getDate() - 730); // ~2 years = ~104 weeks
@@ -250,6 +250,7 @@ export const OHLCChartDemo: React.FC = () => {
         console.log(`🔄 Processing ${sortedCandles.length} candles with indicators after API fetch`);
       
         const processedCandles = calculateIndicators(sortedCandles);
+        
         setRawCandles(processedCandles);
         // Apply selected timeframe processing
         const timeframeProcessedData = processTimeframeData(
@@ -308,6 +309,7 @@ export const OHLCChartDemo: React.FC = () => {
       let from: Date;
       
       if (direction === 'older' && newestCandleTime) {
+        debugger;
         // Loading older data - use newest candle time as "to"
         const newestDate = new Date(newestCandleTime);
         to = newestDate.toISOString();
@@ -388,6 +390,7 @@ export const OHLCChartDemo: React.FC = () => {
         console.log(`🔄 Processing ${processedCandles.length} candles with indicators during pagination (full calculation for now)`);
         // Use full EMA calculation for now to ensure accuracy
         const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
+        
         setCandles(candlesWithIndicators);
                  
         toast.success(`Loaded ${result.candles.length} more ${direction} candles`, {
@@ -444,6 +447,7 @@ export const OHLCChartDemo: React.FC = () => {
         const processedCandles = processTimeframeData(rawCandles, newTimeframe);
         console.log(`🔄 Processing ${processedCandles.length} candles with indicators during timeframe change`);
         const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14);
+        
         setCandles(candlesWithIndicators);
                  toast.success(`Switched to ${newTimeframe} timeframe`);
       } catch (error) {
@@ -522,6 +526,7 @@ export const OHLCChartDemo: React.FC = () => {
         // Process candles with indicators
         console.log(`🔄 Processing ${sortedCandles.length} candles with indicators during timeframe fetch`);
         const processedCandles = calculateIndicators(sortedCandles);
+        
         setRawCandles(processedCandles);
         
         // Apply timeframe processing

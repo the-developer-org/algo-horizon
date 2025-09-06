@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Calculator, Database } from "lucide-react";
+import React, { useState, useEffect } from 'react';
+import * as Switch from "@radix-ui/react-switch";
+import { Calculator, Database, ArrowLeft } from "lucide-react";
 import {
   SidebarProvider,
   SidebarInset,
@@ -20,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import toast, { Toaster } from 'react-hot-toast';
 import { fetchKeyMapping } from "@/utils/apiUtils";
 import { fetchUpstoxCombinedData, fetchUpstoxHistoricalData } from "@/components/utils/upstoxApi";
 import { calculateSwingPointsFromCandles, parseTimestampToUnix } from "@/utils/swingPointCalculator";
@@ -29,9 +31,33 @@ const alphabets = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + 
 
 // Admin actions sidebar component with Recalculations and Data Insertion sections
 function AdminActionsSidebar({ onItemClick, ...props }: { onItemClick: (section: string) => void } & React.ComponentProps<typeof Sidebar>) {
+  const handleBackToAdmin = () => {
+    // Navigate to admin panel
+    window.location.href = '/admin';
+  };
+
   return (
     <Sidebar variant="inset" {...props}>
       <SidebarContent>
+        {/* Back to Admin Panel Button */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={handleBackToAdmin}
+                  className="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-white hover:bg-gray-700 mb-2"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Back to Admin Panel</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
         {/* Recalculations Section */}
         <SidebarGroup>
           <SidebarGroupLabel>Recalculations</SidebarGroupLabel>
@@ -76,6 +102,7 @@ function AdminActionsSidebar({ onItemClick, ...props }: { onItemClick: (section:
 
 // High's & Low's Component
 function HighsAndLowsInterface() {
+  const [isBulkMode, setIsBulkMode] = useState(false);
   const [selectedAlphabets, setSelectedAlphabets] = useState<string[]>([]);
   const [timeframeYears, setTimeframeYears] = useState<number>(1);
   const [isSelectAll, setIsSelectAll] = useState(false);
@@ -93,6 +120,13 @@ function HighsAndLowsInterface() {
   const [currentAlphabetCount, setCurrentAlphabetCount] = useState<number>(0);
   const [currentAlphabetProcessed, setCurrentAlphabetProcessed] = useState<number>(0);
   const [batchProgress, setBatchProgress] = useState<string>("");
+  
+  // Search functionality states
+  const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
+  const [selectedInstrumentKey, setSelectedInstrumentKey] = useState<string>('');
 
   const processingSteps = [
     "Fetching company data from KeyMapping",
@@ -102,6 +136,128 @@ function HighsAndLowsInterface() {
     `Saving processed data to backend ${batchProgress}`,
     "Process completed successfully"
   ];
+
+  // Fetch key mapping on component mount
+ useEffect(() => {
+
+    fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        const mapping = JSON.parse(data.result);
+        setKeyMapping(mapping);
+
+      })
+      .catch(() => {
+        toast.error('Failed to load company data');
+
+      });
+
+
+  }, []);
+
+  // Update suggestions as user types
+  useEffect(() => {
+    if (!searchTerm) {
+      setSuggestions([]);
+      return;
+    }
+    const matches = Object.keys(keyMapping)
+      .filter(name => name.toLowerCase().includes(searchTerm.toLowerCase()))
+      .slice(0, 8);
+    setSuggestions(matches);
+  }, [searchTerm, keyMapping]);
+
+  // Handle selection from suggestions
+  const handleSelectCompany = (companyName: string) => {
+    setSelectedCompany(companyName);
+    setSelectedInstrumentKey(keyMapping[companyName]);
+    setSearchTerm(companyName);
+    setSuggestions([]);
+  };
+
+  // Handle single company processing
+  const handleProcessSingleCompany = async () => {
+    if (!selectedCompany || !selectedInstrumentKey) {
+      alert("Please select a company from the search dropdown");
+      return;
+    }
+    if (!timeframeYears) {
+      alert("Please select a timeframe");
+      return;
+    }
+
+    // Initialize processing state
+    initializeProcessingState(1, false);
+
+    try {
+      // Step 1: Set up single company processing
+      setCurrentStep(1);
+      setCompletedSteps([0]);
+
+      // Step 2: Process the single company
+      setCurrentStep(2);
+      setCompletedSteps([0, 1]);
+      setCurrentCompany(selectedCompany);
+
+      const { fromDate, toDate } = calculateDateRangeDynamic(timeframeYears);
+
+      // Fetch all timeframe data using utility function
+      const { dailyDataReversed, hourly4DataReversed, hourly1DataReversed } = 
+        await fetchAllTimeframeData(selectedInstrumentKey, fromDate, toDate);
+
+      // Step 3: Calculate swing points
+      setCurrentStep(3);
+      setCompletedSteps([0, 1, 2]);
+
+      if (
+        (dailyDataReversed && dailyDataReversed.length > 0) ||
+        (hourly4DataReversed && hourly4DataReversed.length > 0) ||
+        (hourly1DataReversed && hourly1DataReversed.length > 0)
+      ) {
+        // Calculate swing points using utility function
+        const { swingPointsDay, swingPoints4H, swingPoints1H } = 
+          calculateAllSwingPoints(dailyDataReversed, hourly4DataReversed, hourly1DataReversed);
+
+        // Create processed company object using utility function
+        const processedCompany = createProcessedCompanyObject(
+          selectedInstrumentKey,
+          selectedCompany,
+          timeframeYears,
+          swingPointsDay,
+          swingPoints4H,
+          swingPoints1H
+        );
+
+        // Step 4: Save to backend
+        setCurrentStep(4);
+        setCompletedSteps([0, 1, 2, 3]);
+
+        await saveToBackend([processedCompany]);
+        setSavedCount(1);
+
+        // Step 5: Complete
+        setCurrentStep(5);
+        setCompletedSteps([0, 1, 2, 3, 4, 5]);
+        setProcessedCount(1);
+
+      
+      } else {
+        alert(`No historical data found for ${selectedCompany}`);
+      }
+
+    } catch (error) {
+      console.error("Error during single company processing:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Processing failed: ${errorMessage}`);
+    } finally {
+      resetProcessingState();
+    }
+  };
 
   const handleSelectAll = () => {
     if (isSelectAll) {
@@ -127,7 +283,7 @@ function HighsAndLowsInterface() {
   };
 
   // Helper function to calculate date range
-    const calculateDateRangeDynamic = (yearsBack : number) => {
+  const calculateDateRangeDynamic = (yearsBack : number) => {
     const today = new Date();
     const toDate = today.toISOString().split('T')[0]; // Today's date in YYYY-MM-DD format
 
@@ -138,9 +294,155 @@ function HighsAndLowsInterface() {
     return { fromDate, toDate };
   };
 
+  // Utility function to fetch hourly data in 3-month chunks
+  const fetchHourlyDataInChunks = async (instrumentKey: string, interval: string, fromDate: string, toDate: string) => {
+    const chunks = [];
+    let currentFromDate = new Date(fromDate);
+    const endDate = new Date(toDate);
+    
+    while (currentFromDate < endDate) {
+      const chunkToDate = new Date(currentFromDate);
+      chunkToDate.setMonth(chunkToDate.getMonth() + 3);
+      
+      if (chunkToDate > endDate) {
+        chunkToDate.setTime(endDate.getTime());
+      }
+      
+      const chunkFromStr = currentFromDate.toISOString().split('T')[0];
+      const chunkToStr = chunkToDate.toISOString().split('T')[0];
+      
+      try {
+        const chunkData = await fetchUpstoxHistoricalData(
+          instrumentKey,
+          'hours',
+          interval,
+          chunkToStr,
+          chunkFromStr
+        );
+        
+        if (chunkData.candles && chunkData.candles.length > 0) {
+          chunks.push(...chunkData.candles);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (error) {
+        console.error(`Error fetching ${interval}H chunk:`, error);
+      }
+      
+      currentFromDate = new Date(chunkToDate);
+      currentFromDate.setDate(currentFromDate.getDate() + 1);
+    }
+    
+    return { candles: chunks };
+  };
+
+  // Utility function to fetch all timeframe data for a company
+  const fetchAllTimeframeData = async (instrumentKey: string, fromDate: string, toDate: string) => {
+    // Fetch daily data
+    const dailyData = await fetchUpstoxHistoricalData(
+      instrumentKey,
+      'days',
+      '1',
+      toDate,
+      fromDate
+    );
+    const dailyDataReversed = dailyData.candles.reverse();
+
+    // Fetch hourly data in chunks
+    const hourly4Data = await fetchHourlyDataInChunks(instrumentKey, '4', fromDate, toDate);
+    const hourly4DataReversed = hourly4Data.candles.reverse();
+
+    const hourly1Data = await fetchHourlyDataInChunks(instrumentKey, '1', fromDate, toDate);
+    const hourly1DataReversed = hourly1Data.candles.reverse();
+
+    return {
+      dailyDataReversed,
+      hourly4DataReversed,
+      hourly1DataReversed
+    };
+  };
+
+  // Utility function to calculate swing points for all timeframes
+  const calculateAllSwingPoints = (dailyData: any[], hourly4Data: any[], hourly1Data: any[]) => {
+    const swingPointsDay = dailyData && dailyData.length > 0 ?
+      calculateSwingPointsFromCandles(dailyData, 5) : [];
+
+    const swingPoints4H = hourly4Data && hourly4Data.length > 0
+      ? calculateSwingPointsFromCandles(hourly4Data, 5) : [];
+
+    const swingPoints1H = hourly1Data && hourly1Data.length > 0
+      ? calculateSwingPointsFromCandles(hourly1Data, 5) : [];
+
+    return { swingPointsDay, swingPoints4H, swingPoints1H };
+  };
+
+  // Utility function to create processed company object
+  const createProcessedCompanyObject = (
+    instrumentKey: string, 
+    companyName: string, 
+    timeframe: number, 
+    swingPointsDay: any[], 
+    swingPoints4H: any[], 
+    swingPoints1H: any[]
+  ) => {
+    return {
+      instrumentKey,
+      companyName,
+      timeframe,
+      swingPointsDay: swingPointsDay.map((sp: any) => ({
+        timestamp: sp.timestamp,
+        price: sp.price,
+        label: sp.label,
+        time: sp.time
+      })),
+      swingPoints4H: swingPoints4H.map((sp: any) => ({
+        timestamp: sp.timestamp,
+        price: sp.price,
+        label: sp.label,
+        time: sp.time
+      })),
+      swingPoints1H: swingPoints1H.map((sp: any) => ({
+        timestamp: sp.timestamp,
+        price: sp.price,
+        label: sp.label,
+        time: sp.time
+      })),
+    };
+  };
+
+  // Utility function to initialize processing state
+  const initializeProcessingState = (totalCount: number = 0, isBulk: boolean = false) => {
+    setIsProcessing(true);
+    setCurrentStep(0);
+    setCompletedSteps([]);
+    setProcessedCount(0);
+    setTotalCount(totalCount);
+    setCurrentCompany("");
+    setCurrentAlphabet("");
+    setProcessedAlphabets([]);
+    setSavedCount(0);
+    setTotalToSave(totalCount);
+    setBatchProgress("");
+    
+    if (isBulk) {
+      setAlphabetDataMap({});
+      setCurrentAlphabetCount(0);
+      setCurrentAlphabetProcessed(0);
+    }
+  };
+
+  // Utility function to reset processing state
+  const resetProcessingState = () => {
+    setIsProcessing(false);
+    setCurrentStep(-1);
+    setCurrentCompany("");
+    setCurrentAlphabet("");
+  };
+
   // Helper function to save data to backend in batches
   const saveToBackend = async (processedData: any[]) => {
     try {
+    
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
       const response = await fetch(`${backEndBaseUrl}/api/chart-historical-data/save-highs-lows`, {
@@ -156,10 +458,10 @@ function HighsAndLowsInterface() {
       }
 
       const result = await response.json();
-      console.log(`✅ Batch of ${processedData.length} companies saved to backend:`, result);
+      //console.log(`✅ Batch of ${processedData.length} companies saved to backend:`, result);
       return result;
     } catch (error) {
-      console.error('❌ Error saving batch to backend:', error);
+      //console.error('❌ Error saving batch to backend:', error);
       throw error;
     }
   };
@@ -174,32 +476,26 @@ function HighsAndLowsInterface() {
       return;
     }
 
-    // Start processing
-    setIsProcessing(true);
-    setCurrentStep(0);
-    setCompletedSteps([]);
-    setProcessedCount(0);
-    setTotalCount(0);
-    setCurrentCompany("");
-    setCurrentAlphabet("");
-    setProcessedAlphabets([]);
-    setAlphabetDataMap({});
-    setSavedCount(0);
-    setTotalToSave(0);
-    setCurrentAlphabetCount(0);
-    setCurrentAlphabetProcessed(0);
-    setBatchProgress("");
-
-    console.log("Starting High's & Low's processing for:", {
-      alphabets: selectedAlphabets,
-      years: timeframeYears
-    });
-
     try {
-
       // Step 1: Fetch KeyMapping data from API
       setCurrentStep(0);
-      const keyMapping = await fetchKeyMapping();
+      const alphabetsString = selectedAlphabets.join(''); // e.g., "ABC" or "AFQZ"
+      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+      const response = await fetch(`${backEndBaseUrl}/api/swing/get-high-lows/${alphabetsString}/${timeframeYears}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch high-lows data: ${response.statusText}`);
+      }
+
+      const responseData = await response.json();
+      // Extract swingMap from the response
+      const keyMapping = responseData.swingMap || {};
       setCompletedSteps([0]);
 
       // Step 2: Organize companies by alphabet
@@ -216,7 +512,7 @@ function HighsAndLowsInterface() {
         const firstLetter = companyName.charAt(0).toUpperCase();
         if (firstLetter >= 'A' && firstLetter <= 'Z') {
           organizedData[firstLetter].push({
-            instrumentKey,
+            instrumentKey: String(instrumentKey),
             companyName
           });
         }
@@ -232,8 +528,9 @@ function HighsAndLowsInterface() {
 
       // Calculate total companies to process
       const totalCompanies = Object.values(filteredData).reduce((sum, companies) => sum + companies.length, 0);
-      setTotalCount(totalCompanies);
-      setTotalToSave(totalCompanies); // Initialize save tracking
+      
+      // Initialize processing state using utility function
+      initializeProcessingState(totalCompanies, true);
 
       // Step 3: Process companies alphabet by alphabet
       setCurrentStep(2);
@@ -241,8 +538,6 @@ function HighsAndLowsInterface() {
   
       let allprocessedDataLength: number = 0;
       let processedCounter = 0;
-
-      console.log(`📊 Processing ${totalCompanies} companies with date range: ${fromDate} to ${toDate}`);
 
       // Process each alphabet separately
       for (const [letter, companies] of Object.entries(filteredData)) {
@@ -254,7 +549,7 @@ function HighsAndLowsInterface() {
         setCurrentAlphabetProcessed(0);
         setAlphabetDataMap({ [letter]: companies });
         
-        console.log(`🔄 Starting Alphabet ${letter} with ${companies.length} companies`);
+        //console.log(`🔄 Starting Alphabet ${letter} with ${companies.length} companies`);
 
          setCompletedSteps([0, 1]);
          setBatchProgress("")
@@ -272,117 +567,32 @@ function HighsAndLowsInterface() {
           setCurrentAlphabetProcessed(alphabetCounter + 1);
 
           try {
-            console.log(`🔄 Processing ${company.companyName} (${company.instrumentKey})`);
-
-            // Fetch data for multiple timeframes sequentially
-            // 1 day candles (3 years of daily data) - no limit
-            const dailyData = await fetchUpstoxHistoricalData(
-              company.instrumentKey,
-              'days',
-              '1',
-              toDate,
-              fromDate
-            );
-
-            // Helper function to fetch hourly data in 3-month chunks
-            const fetchHourlyDataInChunks = async (interval: string) => {
-              const chunks = [];
-              let currentFromDate = new Date(fromDate);
-              const endDate = new Date(toDate);
-              
-              while (currentFromDate < endDate) {
-                // Calculate 3 months from current date
-                const chunkToDate = new Date(currentFromDate);
-                chunkToDate.setMonth(chunkToDate.getMonth() + 3);
-                
-                // Don't exceed the original end date
-                if (chunkToDate > endDate) {
-                  chunkToDate.setTime(endDate.getTime());
-                }
-                
-                const chunkFromStr = currentFromDate.toISOString().split('T')[0];
-                const chunkToStr = chunkToDate.toISOString().split('T')[0];
-                
-                console.log(`🔄 Fetching ${interval}H data for ${company.companyName}: ${chunkFromStr} to ${chunkToStr}`);
-                
-                try {
-                  const chunkData = await fetchUpstoxHistoricalData(
-                    company.instrumentKey,
-                    'hours',
-                    interval,
-                    chunkToStr,
-                    chunkFromStr
-                  );
-                  
-                  if (chunkData.candles && chunkData.candles.length > 0) {
-                    chunks.push(...chunkData.candles);
-                  }
-                  
-                  // Small delay between chunk requests
-                  await new Promise(resolve => setTimeout(resolve, 200));
-                } catch (error) {
-                  console.error(`❌ Error fetching ${interval}H chunk for ${company.companyName}:`, error);
-                }
-                
-                // Move to next chunk (add 1 day to avoid overlap)
-                currentFromDate = new Date(chunkToDate);
-                currentFromDate.setDate(currentFromDate.getDate() + 1);
-              }
-              
-              return { candles: chunks };
-            };
-
-            // 4 hour candles (3 years of 4-hour data in 3-month chunks)
-            const hourly4Data = await fetchHourlyDataInChunks('4');
-
-            // 1 hour candles (3 years of 1-hour data in 3-month chunks)
-            const hourly1Data = await fetchHourlyDataInChunks('1');
+            // Fetch all timeframe data using utility function
+            const { dailyDataReversed, hourly4DataReversed, hourly1DataReversed } = 
+              await fetchAllTimeframeData(company.instrumentKey, fromDate, toDate);
 
             // Check if we have data from at least one timeframe
             if (
-              (dailyData.candles && dailyData.candles.length > 0) ||
-              (hourly4Data.candles && hourly4Data.candles.length > 0) ||
-              (hourly1Data.candles && hourly1Data.candles.length > 0)
+              (dailyDataReversed && dailyDataReversed.length > 0) ||
+              (hourly4DataReversed && hourly4DataReversed.length > 0) ||
+              (hourly1DataReversed && hourly1DataReversed.length > 0)
             ) {
 
-              // Step 4: Calculate swing points for each timeframe
-              const swingPointsDay = dailyData.candles && dailyData.candles.length > 0
-                ? calculateSwingPointsFromCandles(dailyData.candles, 5)
-                : [];
+              // Calculate swing points using utility function
+              const { swingPointsDay, swingPoints4H, swingPoints1H } = 
+                calculateAllSwingPoints(dailyDataReversed, hourly4DataReversed, hourly1DataReversed);
 
-              const swingPoints4H = hourly4Data.candles && hourly4Data.candles.length > 0
-                ? calculateSwingPointsFromCandles(hourly4Data.candles, 5)
-                : [];
-
-              const swingPoints1H = hourly1Data.candles && hourly1Data.candles.length > 0
-                ? calculateSwingPointsFromCandles(hourly1Data.candles, 5)
-                : [];
-
-                setCompletedSteps([0, 1, 2, 3]);
-              const processedCompany = {
-                instrumentKey: company.instrumentKey,
-                companyName: company.companyName,
-                timeframe: timeframeYears,
-                // Swing points for different timeframes
-                swingPointsDay: swingPointsDay.map(sp => ({
-                  timestamp: sp.timestamp,
-                  price: sp.price,
-                  label: sp.label,
-                  time: sp.time
-                })),
-                swingPoints4H: swingPoints4H.map(sp => ({
-                  timestamp: sp.timestamp,
-                  price: sp.price,
-                  label: sp.label,
-                  time: sp.time
-                })),
-                swingPoints1H: swingPoints1H.map(sp => ({
-                  timestamp: sp.timestamp,
-                  price: sp.price,
-                  label: sp.label,
-                  time: sp.time
-                })),
-              };
+              setCompletedSteps([0, 1, 2, 3]);
+              
+              // Create processed company object using utility function
+              const processedCompany = createProcessedCompanyObject(
+                company.instrumentKey,
+                company.companyName,
+                timeframeYears,
+                swingPointsDay,
+                swingPoints4H,
+                swingPoints1H
+              );
                batchProcessedData.push(processedCompany);
                batchCounter++;
 
@@ -400,23 +610,23 @@ function HighsAndLowsInterface() {
             
                   setSavedCount(prev => prev + batchProcessedData.length);
                   allprocessedDataLength += batchProcessedData.length;
-                  console.log(`✅ Successfully saved batch of ${batchProcessedData.length} companies to backend`);
+                  //console.log(`✅ Successfully saved batch of ${batchProcessedData.length} companies to backend`);
                 } catch (error) {
-                  console.error(`❌ Error saving batch to backend:`, error);
+                  //console.error(`❌ Error saving batch to backend:`, error);
                 } finally {
                     batchCounter = 0;
                     batchProcessedData.length = 0;
                 }
               } 
             } else {
-              console.warn(`⚠️ No historical data found for ${company.companyName}`);
+              //console.warn(`⚠️ No historical data found for ${company.companyName}`);
             }
 
             // Small delay to prevent API rate limiting
             await new Promise(resolve => setTimeout(resolve, 100));
 
           } catch (error) {
-            console.error(`❌ Error processing ${company.companyName}:`, error);
+            //console.error(`❌ Error processing ${company.companyName}:`, error);
             // Continue with next company even if one fails
           }
 
@@ -426,7 +636,7 @@ function HighsAndLowsInterface() {
         
         // Mark this alphabet as completed ONLY after all companies are processed
         setProcessedAlphabets(prev => [...prev, letter]);
-        console.log(`✅ Completed processing Alphabet ${letter} - processed ${alphabetCounter} companies`);
+        //console.log(`✅ Completed processing Alphabet ${letter} - processed ${alphabetCounter} companies`);
         
         // Update step completion after each alphabet
         if (!completedSteps.includes(3)) {
@@ -444,28 +654,114 @@ function HighsAndLowsInterface() {
       setSavedCount(allprocessedDataLength); // All data is already saved
       setCompletedSteps([0, 1, 2, 3, 4, 5]);
 
-      console.log(`🎉 Processing complete! Processed ${allprocessedDataLength} companies successfully.`);
-      console.log(`Successfully processed ${allprocessedDataLength} companies with highs, lows, and swing points!`);
+      //console.log(`🎉 Processing complete! Processed ${allprocessedDataLength} companies successfully.`);
+      //console.log(`Successfully processed ${allprocessedDataLength} companies with highs, lows, and swing points!`);
 
     } catch (error) {
-      console.error("❌ Error during processing:", error);
+      console.error("Error during processing:", error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.log(`Processing failed: ${errorMessage}`);
+      alert(`Processing failed: ${errorMessage}`);
     } finally {
-      setIsProcessing(false);
-      setCurrentStep(-1);
-      setCurrentCompany("");
-      setCurrentAlphabet("");
+      resetProcessingState();
     }
   };
 
   return (
     <div className="space-y-6">
-      <Card className="bg-gray-800 border-gray-700 p-6">
+      <Card className="bg-gray-800 border-gray-700 p-6 min-h-[300px]">
         <h3 className="text-xl font-semibold text-grey-900 mb-4">High's & Low's Data Fetcher</h3>
+       
+
+
+      <div className="flex items-center gap-4 mb-6">
+        <span className="text-gray-800 font-medium">Bulk</span>
+
+        <Switch.Root
+          className="w-10 h-6 bg-gray-600 rounded-full relative data-[state=checked]:bg-green-500 outline-none cursor-pointer"
+          id="bulk-mode"
+          checked={isBulkMode}
+          onCheckedChange={setIsBulkMode}
+        >
+          <Switch.Thumb className="block w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 translate-x-1 data-[state=checked]:translate-x-5" />
+        </Switch.Root>
+      </div>
+
+      {/* Single Company Search - only show when bulk mode is disabled */}
+      {!isBulkMode && (
+        <div className="space-y-4 mb-6">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="w-64 relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={e => {
+                  setSearchTerm(e.target.value);
+                  setSelectedCompany('');
+                  setSelectedInstrumentKey('');
+                }}
+                placeholder="Search for a company..."
+                className="p-2 border border-gray-600 bg-white-700 text-gray-900 rounded-md w-full placeholder-gray-400"
+              />
+              {/* Only show suggestions if not selected */}
+              {suggestions.length > 0 && !selectedCompany && (
+                <ul className="absolute z-50 w-full mt-1 border border-gray-600 rounded-md max-h-60 overflow-auto bg-gray-800 shadow-lg">
+                  {suggestions.map((name) => (
+                    <button
+                      key={name}
+                      onClick={() => handleSelectCompany(name)}
+                      className="p-2 cursor-pointer hover:bg-gray-700 w-full text-left text-white"
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Label className="text-gray-300">Timeframe:</Label>
+              <Select value={timeframeYears.toString()} onValueChange={(value) => setTimeframeYears(Number(value))}>
+                <SelectTrigger className="w-32 bg-gray-700 border-gray-600 text-white">
+                  <SelectValue placeholder="Years" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-600">
+                  <SelectItem value="1">1 Year</SelectItem>
+                  <SelectItem value="2">2 Years</SelectItem>
+                  <SelectItem value="3">3 Years</SelectItem>
+                  <SelectItem value="5">5 Years</SelectItem>
+                  <SelectItem value="10">10 Years</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              onClick={handleProcessSingleCompany}
+              disabled={isProcessing || !selectedCompany}
+              className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-500 disabled:cursor-not-allowed"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                  Processing...
+                </>
+              ) : (
+                "Process Company"
+              )}
+            </Button>
+          </div>
+
+          {/* Selected Company Display */}
+          {selectedCompany && (
+            <div className="p-3 bg-gray-700 border border-gray-600 rounded-md">
+              <span className="text-gray-300 text-sm">Selected Company: </span>
+              <span className="text-white font-medium">{selectedCompany}</span>
+            </div>
+          )}
+        </div>
+      )}
 
         {/* Select All and Timeframe Controls */}
-        <div className="flex flex-wrap items-center gap-4 mb-6">
+       {isBulkMode && ( <div className="flex flex-wrap items-center gap-4 mt-5 mb-6">
           <Button
             onClick={handleSelectAll}
             variant={isSelectAll ? "default" : "outline"}
@@ -504,17 +800,19 @@ function HighsAndLowsInterface() {
               "Fetch High's & Low's"
             )}
           </Button>
-        </div>
+        </div>)}
 
         {/* Selected Count */}
-        <div className="mb-4">
-          <span className="text-gray-400 text-sm">
-            Selected: {selectedAlphabets.length} of {alphabets.length} alphabets
-          </span>
-        </div>
+        {isBulkMode && (
+          <div className="mb-4">
+            <span className="text-gray-400 text-sm">
+              Selected: {selectedAlphabets.length} of {alphabets.length} alphabets
+            </span>
+          </div>
+        )}
 
         {/* Alphabet Grid */}
-        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-13 gap-3">
+      { isBulkMode && ( <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-13 gap-3">
           {alphabets.map((alphabet) => (
             <div key={alphabet} className="flex items-center space-x-1">
               <input
@@ -533,10 +831,11 @@ function HighsAndLowsInterface() {
             </div>
           ))}
         </div>
+      )}
       </Card>
 
       {/* Selected Alphabets Display */}
-      {selectedAlphabets.length > 0 && (
+      {isBulkMode && (selectedAlphabets.length > 0 && (
         <Card className="bg-gray-800 border-gray-700 p-4">
           <h4 className="text-lg font-semibold text-grey-900 mb-2">Selected Alphabets</h4>
           <div className="flex flex-wrap gap-2">
@@ -550,12 +849,14 @@ function HighsAndLowsInterface() {
             ))}
           </div>
         </Card>
-      )}
+      ))}
 
       {/* Progress Tracking Card */}
       {(isProcessing || completedSteps.length > 0) && (
         <Card className="bg-white border-gray-200 p-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4">Processing Steps</h4>
+          <h4 className="text-lg font-semibold text-gray-900 mb-4">
+            {isBulkMode ? "Bulk Processing Steps" : "Single Company Processing Steps"}
+          </h4>
 
           {/* Overall Progress */}
           {totalCount > 0 && (
@@ -661,7 +962,7 @@ function HighsAndLowsInterface() {
       )}
 
       {/* Fetched Data Display */}
-      {Object.keys(alphabetDataMap).length > 0 && (
+      {isBulkMode && (Object.keys(alphabetDataMap).length > 0 && (
         <Card className="bg-white border-gray-200 p-6">
           <h4 className="text-lg font-semibold text-gray-900 mb-4">Fetched Companies Data</h4>
           <div className="space-y-4">
@@ -686,7 +987,8 @@ function HighsAndLowsInterface() {
             ))}
           </div>
         </Card>
-      )}
+      ))}
+  
     </div>
   );
 }
