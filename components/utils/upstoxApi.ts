@@ -51,8 +51,8 @@ export const getMaxDurationForTimeframe = (unit: string, interval: string): numb
   const maxDurations: Record<string, number> = {
     // Minutes timeframes - shorter duration limits
     'minutes_1': 7,     // 1m: 7 days max
-    'minutes_5': 30,    // 5m: 30 days max  
-    'minutes_15': 60,   // 15m: 60 days max
+    'minutes_5': 30,    // 5m: 30 days max
+    'minutes_15': 30,   // 15m: 30 days max
     'minutes_30': 90,   // 30m: 90 days max
     
     // Hours timeframes - medium duration limits
@@ -725,7 +725,7 @@ export const fetchPaginatedUpstoxData = async (
     }
     
     
-
+debugger
     // Choose the appropriate fetch function based on shouldFetchIntraDay flag
     const result = shouldFetchIntraDay 
       ? await fetchUpstoxCombinedData(

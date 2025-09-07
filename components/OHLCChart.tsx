@@ -68,64 +68,6 @@ const processChartData = (candles: Candle[]) => {
   return sampleData(formattedData, MAX_VISIBLE_CANDLES);
 };
 
-// Function to detect trend direction using simple moving averages and price action
-const detectTrendDirection = (candles: Candle[], startIndex: number): 'bullish' | 'bearish' | 'sideways' | 'neutral' | 'consolidated' => {
-  if (startIndex >= candles.length - 3) return 'bullish'; // Default for edge cases
-  
-  const current = candles[startIndex];
-  const next1 = candles[startIndex + 1];
-  const next2 = candles[startIndex + 2];
-  
-  // Use close prices to determine initial trend direction
-  const priceMovement1 = next1.close - current.close;
-  const priceMovement2 = next2.close - next1.close;
-  
-  // If both movements are positive, it's bullish; if both negative, bearish
-  if (priceMovement1 > 0 && priceMovement2 > 0) return 'bullish';
-  if (priceMovement1 < 0 && priceMovement2 < 0) return 'bearish';
-  
-  // For mixed signals, use overall direction
-  const overallMovement = next2.close - current.close;
-  return overallMovement >= 0 ? 'bullish' : 'bearish';
-};
-
-// Function to detect when trend/character changes
-const detectTrendReversal = (candles: Candle[], startIndex: number, initialTrend: 'bullish' | 'bearish' | 'sideways' | 'neutral' | 'consolidated'): number => {
-  const windowSize = 3; // Number of candles to confirm trend change
-  let consecutiveOpposite = 0;
-  
-  for (let i = startIndex + 1; i < candles.length - 1; i++) {
-    const current = candles[i];
-    const next = candles[i + 1];
-    
-    const priceMovement = next.close - current.close;
-    
-    if (initialTrend === 'bullish') {
-      // Looking for bearish reversal (consecutive down moves)
-      if (priceMovement < 0) {
-        consecutiveOpposite++;
-        if (consecutiveOpposite >= windowSize) {
-          return i - windowSize + 1; // Return the start of the reversal
-        }
-      } else {
-        consecutiveOpposite = 0; // Reset counter
-      }
-    } else {
-      // Looking for bullish reversal (consecutive up moves)
-      if (priceMovement > 0) {
-        consecutiveOpposite++;
-        if (consecutiveOpposite >= windowSize) {
-          return i - windowSize + 1; // Return the start of the reversal
-        }
-      } else {
-        consecutiveOpposite = 0; // Reset counter
-      }
-    }
-  }
-  
-  // If no clear reversal found, return the last index
-  return candles.length - 1;
-};
 
 // Function to analyze profit/loss from clicked candle using existing calculated swing points
 const analyzeCandleClick = (candles: Candle[], clickedIndex: number, calculatedSwingPoints: any[]): CandleAnalysis | null => {
@@ -228,6 +170,7 @@ const analyzeCandleClick = (candles: Candle[], clickedIndex: number, calculatedS
     // Default fallback
     return 'bullish';
   };
+  
   function analyzeSwingPointTrend(lastSwingPoints :any[]) {
   if (!lastSwingPoints || lastSwingPoints.length === 0) {
     return 'neutral';

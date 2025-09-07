@@ -46,7 +46,7 @@ function AdminActionsSidebar({ onItemClick, ...props }: { onItemClick: (section:
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={handleBackToAdmin}
-                  className="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-white hover:bg-gray-700 mb-2"
+                  className="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-white hover:bg-gray-900 mb-2"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span>Back to Admin Panel</span>
@@ -105,6 +105,15 @@ function HighsAndLowsInterface() {
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [selectedAlphabets, setSelectedAlphabets] = useState<string[]>([]);
   const [timeframeYears, setTimeframeYears] = useState<number>(1);
+  const [selectedTimeframes, setSelectedTimeframes] = useState<{ "15Min": boolean; "1H": boolean; "4H": boolean; "1D": boolean }>({
+    "15Min": true,
+    "1H": true,
+    "4H": true,
+    "1D": true,
+  });
+  const toggleTimeframe = (key: keyof typeof selectedTimeframes) => {
+    setSelectedTimeframes(prev => ({ ...prev, [key]: !prev[key] }));
+  };
   const [isSelectAll, setIsSelectAll] = useState(false);
   const [alphabetDataMap, setAlphabetDataMap] = useState<{ [letter: string]: Array<{ instrumentKey: string; companyName: string }> }>({});
   const [isProcessing, setIsProcessing] = useState(false);
@@ -182,6 +191,12 @@ function HighsAndLowsInterface() {
 
   // Handle single company processing
   const handleProcessSingleCompany = async () => {
+    // Ensure at least one timeframe selected
+    if (!Object.values(selectedTimeframes).some(Boolean)) {
+      alert('Please select at least one timeframe to calculate swings');
+      return;
+    }
+
     if (!selectedCompany || !selectedInstrumentKey) {
       alert("Please select a company from the search dropdown");
       return;
@@ -206,22 +221,21 @@ function HighsAndLowsInterface() {
 
       const { fromDate, toDate } = calculateDateRangeDynamic(timeframeYears);
 
-      // Fetch all timeframe data using utility function
-      const { dailyDataReversed, hourly4DataReversed, hourly1DataReversed } = 
-        await fetchAllTimeframeData(selectedInstrumentKey, fromDate, toDate);
+      // Fetch only the selected timeframes
+      const { dailyDataReversed, hourly4DataReversed, hourly1DataReversed, fifteenMinuteDataReversed } = 
+        await fetchAllTimeframeData(selectedInstrumentKey, fromDate, toDate, selectedTimeframes);
 
       // Step 3: Calculate swing points
       setCurrentStep(3);
       setCompletedSteps([0, 1, 2]);
 
-      if (
-        (dailyDataReversed && dailyDataReversed.length > 0) ||
-        (hourly4DataReversed && hourly4DataReversed.length > 0) ||
-        (hourly1DataReversed && hourly1DataReversed.length > 0)
-      ) {
-        // Calculate swing points using utility function
-        const { swingPointsDay, swingPoints4H, swingPoints1H } = 
-          calculateAllSwingPoints(dailyDataReversed, hourly4DataReversed, hourly1DataReversed);
+      // Ensure at least one selected timeframe returned data
+      const hasAnyData = [dailyDataReversed, hourly4DataReversed, hourly1DataReversed, fifteenMinuteDataReversed].some(arr => Array.isArray(arr) && arr.length > 0);
+
+      if (hasAnyData) {
+        // Calculate swing points only for selected frames
+        const { swingPointsDay, swingPoints4H, swingPoints1H, swingPoints15Min } = 
+          calculateAllSwingPoints(dailyDataReversed, hourly4DataReversed, hourly1DataReversed, fifteenMinuteDataReversed, selectedTimeframes);
 
         // Create processed company object using utility function
         const processedCompany = createProcessedCompanyObject(
@@ -230,7 +244,8 @@ function HighsAndLowsInterface() {
           timeframeYears,
           swingPointsDay,
           swingPoints4H,
-          swingPoints1H
+          swingPoints1H,
+          swingPoints15Min
         );
 
         // Step 4: Save to backend
@@ -295,15 +310,21 @@ function HighsAndLowsInterface() {
   };
 
   // Utility function to fetch hourly data in 3-month chunks
-  const fetchHourlyDataInChunks = async (instrumentKey: string, interval: string, fromDate: string, toDate: string) => {
+  const fetchHourlyDataInChunks = async (instrumentKey: string, interval: string, fromDate: string, toDate: string, unit:string) => {
     const chunks = [];
     let currentFromDate = new Date(fromDate);
     const endDate = new Date(toDate);
     
+  
     while (currentFromDate < endDate) {
       const chunkToDate = new Date(currentFromDate);
-      chunkToDate.setMonth(chunkToDate.getMonth() + 3);
-      
+    
+      if (unit === "minutes" && interval === "15") {
+        chunkToDate.setMonth(chunkToDate.getMonth() + 1);
+      } else {
+        chunkToDate.setMonth(chunkToDate.getMonth() + 3);
+      }
+
       if (chunkToDate > endDate) {
         chunkToDate.setTime(endDate.getTime());
       }
@@ -314,7 +335,7 @@ function HighsAndLowsInterface() {
       try {
         const chunkData = await fetchUpstoxHistoricalData(
           instrumentKey,
-          'hours',
+          unit,
           interval,
           chunkToStr,
           chunkFromStr
@@ -337,76 +358,105 @@ function HighsAndLowsInterface() {
   };
 
   // Utility function to fetch all timeframe data for a company
-  const fetchAllTimeframeData = async (instrumentKey: string, fromDate: string, toDate: string) => {
-    // Fetch daily data
-    const dailyData = await fetchUpstoxHistoricalData(
-      instrumentKey,
-      'days',
-      '1',
-      toDate,
-      fromDate
-    );
-    const dailyDataReversed = dailyData.candles.reverse();
+  const fetchAllTimeframeData = async (
+    instrumentKey: string,
+    fromDate: string,
+    toDate: string,
+    timeframes: { "15Min": boolean; "1H": boolean; "4H": boolean; "1D": boolean }
+  ) => {
+    // Return null for any timeframe not selected. Only fetch data for selected frames.
+    let dailyDataReversed: any[] | null = null;
+    let hourly4DataReversed: any[] | null = null;
+    let hourly1DataReversed: any[] | null = null;
+    let fifteenMinuteDataReversed: any[] | null = null;
 
-    // Fetch hourly data in chunks
-    const hourly4Data = await fetchHourlyDataInChunks(instrumentKey, '4', fromDate, toDate);
-    const hourly4DataReversed = hourly4Data.candles.reverse();
+    if (timeframes["1D"]) {
+      const dailyData = await fetchUpstoxHistoricalData(
+        instrumentKey,
+        'days',
+        '1',
+        toDate,
+        fromDate
+      );
+      dailyDataReversed = dailyData.candles.reverse();
+    }
 
-    const hourly1Data = await fetchHourlyDataInChunks(instrumentKey, '1', fromDate, toDate);
-    const hourly1DataReversed = hourly1Data.candles.reverse();
+    if (timeframes["4H"]) {
+      const hourly4Data = await fetchHourlyDataInChunks(instrumentKey, '4', fromDate, toDate, "hours");
+      hourly4DataReversed = hourly4Data.candles.reverse();
+    }
+
+    if (timeframes["1H"]) {
+      const hourly1Data = await fetchHourlyDataInChunks(instrumentKey, '1', fromDate, toDate, "hours");
+      hourly1DataReversed = hourly1Data.candles.reverse();
+    }
+
+    if (timeframes["15Min"]) {
+      const fifteenMinuteData = await fetchHourlyDataInChunks(instrumentKey, '15', fromDate, toDate, "minutes");
+      fifteenMinuteDataReversed = fifteenMinuteData.candles.reverse();
+    }
 
     return {
       dailyDataReversed,
       hourly4DataReversed,
-      hourly1DataReversed
+      hourly1DataReversed,
+      fifteenMinuteDataReversed
     };
   };
 
   // Utility function to calculate swing points for all timeframes
-  const calculateAllSwingPoints = (dailyData: any[], hourly4Data: any[], hourly1Data: any[]) => {
-    const swingPointsDay = dailyData && dailyData.length > 0 ?
-      calculateSwingPointsFromCandles(dailyData, 5) : [];
+  const calculateAllSwingPoints = (
+    dailyData: any[] | null,
+    hourly4Data: any[] | null,
+    hourly1Data: any[] | null,
+    fifteenMinData: any[] | null,
+    timeframes: { "15Min": boolean; "1H": boolean; "4H": boolean; "1D": boolean }
+  ) => {
+    const swingPointsDay = timeframes["1D"] && dailyData && dailyData.length > 0
+      ? calculateSwingPointsFromCandles(dailyData, 5)
+      : null;
 
-    const swingPoints4H = hourly4Data && hourly4Data.length > 0
-      ? calculateSwingPointsFromCandles(hourly4Data, 5) : [];
+    const swingPoints4H = timeframes["4H"] && hourly4Data && hourly4Data.length > 0
+      ? calculateSwingPointsFromCandles(hourly4Data, 5)
+      : null;
 
-    const swingPoints1H = hourly1Data && hourly1Data.length > 0
-      ? calculateSwingPointsFromCandles(hourly1Data, 5) : [];
+    const swingPoints1H = timeframes["1H"] && hourly1Data && hourly1Data.length > 0
+      ? calculateSwingPointsFromCandles(hourly1Data, 5)
+      : null;
 
-    return { swingPointsDay, swingPoints4H, swingPoints1H };
+    const swingPoints15Min = timeframes["15Min"] && fifteenMinData && fifteenMinData.length > 0
+      ? calculateSwingPointsFromCandles(fifteenMinData, 5)
+      : null;
+
+    return { swingPointsDay, swingPoints4H, swingPoints1H, swingPoints15Min };
   };
 
   // Utility function to create processed company object
   const createProcessedCompanyObject = (
-    instrumentKey: string, 
-    companyName: string, 
-    timeframe: number, 
-    swingPointsDay: any[], 
-    swingPoints4H: any[], 
-    swingPoints1H: any[]
+    instrumentKey: string,
+    companyName: string,
+    timeframe: number,
+    swingPointsDay: any[] | null,
+    swingPoints4H: any[] | null,
+    swingPoints1H: any[] | null,
+    swingPoints15Min: any[] | null
   ) => {
     return {
       instrumentKey,
       companyName,
       timeframe,
-      swingPointsDay: swingPointsDay.map((sp: any) => ({
-        timestamp: sp.timestamp,
-        price: sp.price,
-        label: sp.label,
-        time: sp.time
-      })),
-      swingPoints4H: swingPoints4H.map((sp: any) => ({
-        timestamp: sp.timestamp,
-        price: sp.price,
-        label: sp.label,
-        time: sp.time
-      })),
-      swingPoints1H: swingPoints1H.map((sp: any) => ({
-        timestamp: sp.timestamp,
-        price: sp.price,
-        label: sp.label,
-        time: sp.time
-      })),
+      swingPointsDay: swingPointsDay
+        ? swingPointsDay.map((sp: any) => ({ timestamp: sp.timestamp, price: sp.price, label: sp.label, time: sp.time }))
+        : null,
+      swingPoints4H: swingPoints4H
+        ? swingPoints4H.map((sp: any) => ({ timestamp: sp.timestamp, price: sp.price, label: sp.label, time: sp.time }))
+        : null,
+      swingPoints1H: swingPoints1H
+        ? swingPoints1H.map((sp: any) => ({ timestamp: sp.timestamp, price: sp.price, label: sp.label, time: sp.time }))
+        : null,
+      swingPoints15Min: swingPoints15Min
+        ? swingPoints15Min.map((sp: any) => ({ timestamp: sp.timestamp, price: sp.price, label: sp.label, time: sp.time }))
+        : null,
     };
   };
 
@@ -473,6 +523,11 @@ function HighsAndLowsInterface() {
     }
     if (!timeframeYears) {
       alert("Please select a timeframe");
+      return;
+    }
+    // Ensure at least one timeframe selected for bulk
+    if (!Object.values(selectedTimeframes).some(Boolean)) {
+      alert('Please select at least one timeframe to calculate swings');
       return;
     }
 
@@ -568,19 +623,20 @@ function HighsAndLowsInterface() {
 
           try {
             // Fetch all timeframe data using utility function
-            const { dailyDataReversed, hourly4DataReversed, hourly1DataReversed } = 
-              await fetchAllTimeframeData(company.instrumentKey, fromDate, toDate);
+            const { dailyDataReversed, hourly4DataReversed, hourly1DataReversed, fifteenMinuteDataReversed } = 
+              await fetchAllTimeframeData(company.instrumentKey, fromDate, toDate, selectedTimeframes);
 
             // Check if we have data from at least one timeframe
             if (
               (dailyDataReversed && dailyDataReversed.length > 0) ||
               (hourly4DataReversed && hourly4DataReversed.length > 0) ||
-              (hourly1DataReversed && hourly1DataReversed.length > 0)
+              (hourly1DataReversed && hourly1DataReversed.length > 0) ||
+              (fifteenMinuteDataReversed && fifteenMinuteDataReversed.length > 0)
             ) {
 
               // Calculate swing points using utility function
-              const { swingPointsDay, swingPoints4H, swingPoints1H } = 
-                calculateAllSwingPoints(dailyDataReversed, hourly4DataReversed, hourly1DataReversed);
+              const { swingPointsDay, swingPoints4H, swingPoints1H, swingPoints15Min } = 
+                calculateAllSwingPoints(dailyDataReversed, hourly4DataReversed, hourly1DataReversed, fifteenMinuteDataReversed, selectedTimeframes);
 
               setCompletedSteps([0, 1, 2, 3]);
               
@@ -591,7 +647,8 @@ function HighsAndLowsInterface() {
                 timeframeYears,
                 swingPointsDay,
                 swingPoints4H,
-                swingPoints1H
+                swingPoints1H,
+                swingPoints15Min
               );
                batchProcessedData.push(processedCompany);
                batchCounter++;
@@ -605,7 +662,7 @@ function HighsAndLowsInterface() {
                   // Update batch progress before saving
                   const currentSaved = (currentIteration - 1) * 10 + batchProcessedData.length;
                   setBatchProgress(`(${currentSaved}/${companies.length})`);
-                  
+                  debugger
                   await saveToBackend(batchProcessedData);
             
                   setSavedCount(prev => prev + batchProcessedData.length);
@@ -734,6 +791,21 @@ function HighsAndLowsInterface() {
               </Select>
             </div>
 
+            {/* Timeframe selection checkboxes for single processing */}
+            <div className="flex items-center gap-3">
+              {(['15Min', '1H', '4H', '1D'] as (keyof typeof selectedTimeframes)[]).map(tf => (
+                <label key={tf} className="inline-flex items-center gap-2 text-sm text-gray-900">
+                  <input
+                    type="checkbox"
+                    checked={selectedTimeframes[tf]}
+                    onChange={() => toggleTimeframe(tf)}
+                    className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded"
+                  />
+                  {tf}
+                </label>
+              ))}
+            </div>
+
             <Button
               onClick={handleProcessSingleCompany}
               disabled={isProcessing || !selectedCompany}
@@ -784,6 +856,21 @@ function HighsAndLowsInterface() {
                 <SelectItem value="10">10 Years</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Timeframe selection checkboxes for bulk processing */}
+          <div className="flex items-center gap-3">
+            {(['15Min', '1H', '4H', '1D'] as (keyof typeof selectedTimeframes)[]).map(tf => (
+              <label key={tf} className="inline-flex items-center gap-2 text-sm text-gray-900">
+                <input
+                  type="checkbox"
+                  checked={selectedTimeframes[tf]}
+                  onChange={() => toggleTimeframe(tf)}
+                  className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded"
+                />
+                {tf}
+              </label>
+            ))}
           </div>
 
           <Button
@@ -1007,14 +1094,14 @@ export default function AdminActionsPage() {
       case 'recalculate':
         return (
           <Card className="bg-gray-800 border-gray-700 p-6">
-            <h3 className="text-xl font-semibold text-white mb-4">Recalculate Data</h3>
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Recalculate Data</h3>
             <p className="text-gray-400">Recalculation functionality will be implemented here.</p>
           </Card>
         );
       default:
         return (
           <div className="text-center py-20">
-            <h2 className="text-xl font-semibold text-white mb-4">Admin Actions Panel</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Admin Actions Panel</h2>
             <p className="text-gray-400 mb-4">Select an action from the sidebar to get started</p>
             <p className="text-sm text-gray-500">Choose from Recalculations or Data Insertion options</p>
           </div>
@@ -1032,7 +1119,7 @@ export default function AdminActionsPage() {
             <div className="flex items-center gap-2 px-4">
               <SidebarTrigger className="-ml-1" />
               <div className="h-4 w-px bg-sidebar-border" />
-              <h1 className="text-2xl font-bold text-white">Admin Actions</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Admin Actions</h1>
             </div>
           </div>
 
