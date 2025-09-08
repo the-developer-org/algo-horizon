@@ -101,9 +101,18 @@ export default function Home() {
                 localStorage.setItem('isAdmin', 'true');
                 router.push('/admin');
               }}
-              className={`${buttonClass} bg-red-500 hover:bg-red-600`}
+              className={`${buttonClass} bg-teal-500 hover:bg-teal-600`}
             >
               Admin Panel
+            </Button>
+
+            <Button
+              onClick={() => {
+                window.open('https://meet.google.com/cho-wpms-pbk', '_blank');
+              }}
+              className={`${buttonClass} bg-yellow-500 hover:bg-amber-600`}
+            >
+              Algo Google Meet
             </Button>
 
             <div

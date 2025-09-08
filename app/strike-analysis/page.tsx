@@ -1575,7 +1575,6 @@ export default function StrikeAnalysisPage() {
                     <th className="border border-gray-700 px-8 py-2">Entry</th>
                     <th className="border border-gray-700 px-8 py-2">Target</th>
                     <th className="border border-gray-700 px-8 py-2">Stop Loss</th>
-                    <th className="border border-gray-700 px-8 py-2">Entry Trend</th>
                     <th className="border border-gray-700 px-8 py-2">Swing Labels</th>
                     <th title='Entry - Resistance Gap' className="border border-gray-700 px-12 py-2 min-w-[160px]">ER-Gap</th>
                     <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Profits</th>
@@ -1587,25 +1586,40 @@ export default function StrikeAnalysisPage() {
                   {filteredStrykeList.map((stryke, index) => (
                     <tr key={stryke.stockUuid || index} className={`${index % 2 === 0 ? 'bg-gray-200' : 'bg-white'} hover:bg-gray-100`}>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">{index + 1}</td>
-                     <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[180px]" title={stryke.companyName}>{stryke.companyName}</td>
+                     <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[280px]" title={stryke.companyName}>{stryke.companyName}</td>
                     <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryTime ? formatReadableDate(stryke.entryTime) : 'N/A'}</td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryCandle?.close ? `₹${stryke.entryCandle.close.toFixed(2)}` : (stryke.entryAt ?? 'N/A')}</td>
-                   <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.target?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.target)} %)</td>
-                  <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.stopLoss?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.stopLoss)} %)</td>
                    <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
-                        (() => {
-                          const t = (stryke.preEntryTrend || '').toUpperCase();
-                          if (!t) return <span className="text-gray-600">N/A</span>;
-                          if (t === 'BULLISH') return <span className="text-green-700 font-semibold">{t}</span>;
-                          if (t === 'BEARISH' || t === 'NEUTRAL' || t === 'CONSOLIDATED') return <span className="text-amber-500 font-semibold">{t}</span>;
-                          return <span className="text-gray-600">{t}</span>;
-                        })()
-                      }</td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
-                        (() => {
-                          const clsFor = (lab?: string | null) => {
-                            if (!lab) return 'text-gray-600';
-                            const v = (lab || '').toUpperCase();
+                     (() => {
+                       const entry = Number(stryke.entryCandle?.close ?? 0);
+                       const maxPct = stryke.maxSwingProfits != null ? Number(stryke.maxSwingProfits) : NaN;
+                       const targetPct = isFinite(entry) && stryke.target != null ? calculatePercentageDifference(entry, Number(stryke.target)) : NaN;
+                       let cls = 'text-gray-700';
+                       if (isFinite(maxPct) && isFinite(targetPct)) {
+                         if (maxPct > targetPct) cls = 'text-green-700 font-semibold';
+                         else if (maxPct > 0 && maxPct < targetPct) cls = 'text-amber-500 font-semibold';
+                       }
+                       return <span className={cls}>₹{stryke.target?.toFixed(2)} ({isFinite(targetPct) ? `${targetPct}` : 'N/A'} %)</span>;
+                     })()
+                   }</td>
+                  <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                    (() => {
+                      const entry = Number(stryke.entryCandle?.close ?? 0);
+                      const maxPct = stryke.maxSwingProfits != null ? Number(stryke.maxSwingProfits) : NaN;
+                      const stopPct = isFinite(entry) && stryke.stopLoss != null ? calculatePercentageDifference(entry, Number(stryke.stopLoss)) : NaN;
+                      let cls = 'text-gray-700';
+                      if (isFinite(maxPct) && isFinite(stopPct)) {
+                        if (maxPct < stopPct) cls = 'text-red-700 font-semibold';
+                        else if (maxPct < 0) cls = 'text-amber-500 font-semibold';
+                      }
+                      return <span className={cls}>₹{stryke.stopLoss?.toFixed(2)} ({isFinite(stopPct) ? `${stopPct}` : 'N/A'} %)</span>;
+                    })()
+                  }</td>
+                <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                      (() => {
+                        const clsFor = (lab?: string | null) => {
+                          if (!lab) return 'text-gray-600';
+                          const v = (lab || '').toUpperCase();
                             if (v === 'LL' || v === 'LH') return 'text-amber-500 font-semibold';
                             if (v === 'HH' || v === 'HL') return 'text-green-700 font-semibold';
                             return 'text-gray-600';
