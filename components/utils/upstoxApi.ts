@@ -489,8 +489,6 @@ export const fetchUpstoxHistoricalData = async (
  */
 export const fetchUpstoxIntradayData = async (
   instrumentKey: string,
-  unit: string,
-  interval: string,
   apiKey?: string
 ): Promise<Candle[]> => {
   const token = apiKey || process.env.NEXT_PUBLIC_UPSTOX_API_KEY;
@@ -503,7 +501,7 @@ export const fetchUpstoxIntradayData = async (
   const encodedInstrumentKey = encodeURIComponent(instrumentKey);
   
   // Intraday API endpoint
-  const url = `https://api.upstox.com/v3/historical-candle/intraday/${encodedInstrumentKey}/${unit}/${interval}`;
+  const url = `https://api.upstox.com/v3/historical-candle/intraday/${encodedInstrumentKey}/days/1`;
   
   console.log('🔴 Fetching intraday data from:', url);
 
@@ -593,7 +591,7 @@ export const fetchUpstoxCombinedData = async (
       console.log(`🔴 Fetching intraday data for ${unit}/${interval}`);
       
       try {
-        intradayCandles = await fetchUpstoxIntradayData(instrumentKey, unit, interval, apiKey);
+        intradayCandles = await fetchUpstoxIntradayData(instrumentKey, apiKey);
         console.log(`✅ Fetched ${intradayCandles.length} intraday candles`);
       } catch (intradayError) {
         console.warn(`⚠️ Failed to fetch intraday data, continuing with historical only:`, intradayError);

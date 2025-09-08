@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { CallType } from '@/components/types/strike-analysis';
+import { fetchUpstoxIntradayData } from '@/components/utils/upstoxApi';
 
 // Define the Stryke interface based on the provided model
 interface Candle {
@@ -99,6 +100,8 @@ export type TrendFilter = 'BULLISH' | 'BEARISH' | null;
 export default function StrikeAnalysisPage() {
   // State
   const [isLoading, setIsLoading] = useState(false);
+  // Global blocking loader for long running actions (delete, bulk ops, etc.)
+  const [globalLoading, setGlobalLoading] = useState(false);
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -107,7 +110,7 @@ export default function StrikeAnalysisPage() {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toLocaleDateString('en-GB').split('/').reverse().join('-') // Format as DD-MM-YYYY
   );
-  const [selectedTime, setSelectedTime] = useState<string>('09:15');
+  const [selectedTime, setSelectedTime] = useState<string>('00:00');
   const [callType, setCallType] = useState<CallType>(CallType.INTRADAY);
   const [stopLoss, setStopLoss] = useState<string>('0.00');
   const [target, setTarget] = useState<string>('0.00');
@@ -187,6 +190,16 @@ export default function StrikeAnalysisPage() {
       toast.error('Please select a company');
       return;
     }
+try{
+    const checkIfCompanyExists = await fetchUpstoxIntradayData(selectedInstrumentKey, selectedDate);
+   
+} catch (error : any) {
+  debugger
+  if (error instanceof Error && error.message.includes('400')) {
+    toast.error('Company Banned by Upstox, cannot fetch data.');
+    return;
+  }
+}
 
     const stopLossValue = parseFloat(stopLoss);
     const targetValue = parseFloat(target);
@@ -388,10 +401,14 @@ export default function StrikeAnalysisPage() {
     return Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60));
   }
 
-  const deleteStryke = async (stockUuid: string) => {
+  const deleteStryke = async (stockUuid: string, companyName: string) => {
+    // Prevent overlapping operations
+    if (globalLoading) return;
+    setGlobalLoading(true);
     try {
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      await axios.get(`${backEndBaseUrl}/api/stryke/delete-stryke/${stockUuid}`, {
+      const suffix = companyName ? companyName.charAt(0) : '';
+      await axios.get(`${backEndBaseUrl}/api/stryke/delete-stryke/${stockUuid}/${suffix}`, {
         headers: {
           'accept': 'application/json',
         },
@@ -401,6 +418,8 @@ export default function StrikeAnalysisPage() {
     } catch (error) {
       console.error('Error deleting stryke analysis:', error);
       toast.error('Failed to delete stryke analysis');
+    } finally {
+      setGlobalLoading(false);
     }
   };
 
@@ -672,6 +691,15 @@ export default function StrikeAnalysisPage() {
       <div className="w-full max-w-screen-2xl ml-24 mr-0">
         <Toaster position="top-right" />
 
+        {globalLoading && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 flex flex-col items-center shadow-lg">
+              <div className="animate-spin h-10 w-10 border-4 border-gray-300 border-t-transparent rounded-full mb-4" />
+              <div className="text-gray-800 dark:text-gray-100 font-medium">Processing… Please wait</div>
+            </div>
+          </div>
+        )}
+
 
       {!isLoading && (
         <>
@@ -881,18 +909,20 @@ export default function StrikeAnalysisPage() {
                     {/* Submit Button */}
                     <Button
                       type="submit"
-                      className={`w-full text-white ${selectedCompany && selectedInstrumentKey && selectedDate && selectedTime && stopLoss && target
+                      className={`w-full text-white ${selectedCompany && selectedInstrumentKey && selectedDate && selectedTime !== "00:00" &&
+                        stopLoss !== "0.00" &&
+                        target !== "0.00"
                         ? 'bg-purple-600 hover:bg-purple-700'
                         : 'bg-gray-400 cursor-not-allowed'
                         }`}
                       disabled={
                         isLoading ||
-                        !selectedCompany ||
-                        !selectedInstrumentKey ||
-                        !selectedDate ||
-                        !selectedTime ||
-                        !stopLoss ||
-                        !target
+                        !selectedCompany &&
+                        !selectedInstrumentKey &&
+                        !selectedDate &&
+                        selectedTime !== "00:00" &&
+                        stopLoss !== "0.00" &&
+                        target !== "0.00"
                       }
                     >
                       {isLoading ? (
@@ -1079,7 +1109,7 @@ export default function StrikeAnalysisPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                deleteStryke(stryke.stockUuid);
+                                deleteStryke(stryke.stockUuid, stryke.companyName);
                               }}
                               className="text-red-500 hover:text-red-700 ml-2"
                               aria-label="Delete Stryke"
