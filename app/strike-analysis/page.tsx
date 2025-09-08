@@ -1573,8 +1573,8 @@ export default function StrikeAnalysisPage() {
                     <th className="border border-gray-700 px-12 py-2 min-w-[200px]">Company</th>
                     <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Entry Date</th>
                     <th className="border border-gray-700 px-8 py-2">Entry</th>
-                    <th className="border border-gray-700 px-8 py-2">Stop Loss</th>
                     <th className="border border-gray-700 px-8 py-2">Target</th>
+                    <th className="border border-gray-700 px-8 py-2">Stop Loss</th>
                     <th className="border border-gray-700 px-8 py-2">Entry Trend</th>
                     <th className="border border-gray-700 px-8 py-2">Swing Labels</th>
                     <th title='Entry - Resistance Gap' className="border border-gray-700 px-12 py-2 min-w-[160px]">ER-Gap</th>
@@ -1590,9 +1590,9 @@ export default function StrikeAnalysisPage() {
                      <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[180px]" title={stryke.companyName}>{stryke.companyName}</td>
                     <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryTime ? formatReadableDate(stryke.entryTime) : 'N/A'}</td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryCandle?.close ? `₹${stryke.entryCandle.close.toFixed(2)}` : (stryke.entryAt ?? 'N/A')}</td>
-                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.target?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.target)} %)</td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.stopLoss?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.stopLoss)} %)</td>
-                     <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                   <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.target?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.target)} %)</td>
+                  <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.stopLoss?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.stopLoss)} %)</td>
+                   <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
                         (() => {
                           const t = (stryke.preEntryTrend || '').toUpperCase();
                           if (!t) return <span className="text-gray-600">N/A</span>;
@@ -1693,7 +1693,7 @@ export default function StrikeAnalysisPage() {
           )}
 
     {showStrykeStats && (
-            <div className="mx-auto py-4 px-4 max-w-screen-xl">
+                <div className="container mx-auto py-4 px-4 max-w-screen-2xl">
               <h2 className="text-xl font-bold mb-4">Stryke Stats</h2>
 
               {/* Search, Sort, and Filter Controls */}
