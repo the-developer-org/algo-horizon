@@ -196,7 +196,7 @@ try{
 } catch (error : any) {
   debugger
   if (error instanceof Error && error.message.includes('400')) {
-    toast.error('Company Banned by Upstox, cannot fetch data.');
+ toast.error('Company data is blocked by Upstox and cannot be retrieved.');
     return;
   }
 }
