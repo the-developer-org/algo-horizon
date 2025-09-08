@@ -459,11 +459,12 @@ try{
 
     return stryke.highestPriceTime < stryke.lowestPriceTime;
   }
-  const refreshStrykeData = async (stockUuid: string) => {
+  const refreshStrykeData = async (stockUuid: string, companyName: string) => {
     try {
       setIsLoading(true);
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      await axios.get(`${backEndBaseUrl}/api/stryke/recalculate/${stockUuid}`, {
+      const suffix = companyName ? companyName.charAt(0) : '';
+      await axios.get(`${backEndBaseUrl}/api/stryke/recalculate/${stockUuid}/${suffix}`, {
         headers: {
           'accept': 'application/json',
         },
@@ -1119,7 +1120,7 @@ try{
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                refreshStrykeData(stryke.stockUuid);
+                                refreshStrykeData(stryke.stockUuid, stryke.companyName);
                               }}
                               className="text-blue-500 hover:text-blue-700 ml-2"
                               aria-label="Refresh Stryke"

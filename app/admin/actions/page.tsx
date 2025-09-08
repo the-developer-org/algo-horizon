@@ -92,6 +92,15 @@ function AdminActionsSidebar({ onItemClick, ...props }: { onItemClick: (section:
                   <span>High's & Low's</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onItemClick('crucial-actions')}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Database />
+                  <span>Crucial Actions</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -1082,6 +1091,7 @@ function HighsAndLowsInterface() {
 
 export default function AdminActionsPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [isRedeploying, setIsRedeploying] = useState<boolean>(false);
 
   const handleSidebarItemClick = (section: string) => {
     setActiveSection(section);
@@ -1091,11 +1101,64 @@ export default function AdminActionsPage() {
     switch (activeSection) {
       case 'highs-lows':
         return <HighsAndLowsInterface />;
+      case 'highs-lows-import':
+        return (
+          <Card className="bg-gray-800 border-gray-700 p-6">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">High's & Low's Import</h3>
+            <p className="text-gray-400">Import functionality will be implemented here. You can upload a CSV or configure remote import settings.</p>
+          </Card>
+        );
       case 'recalculate':
         return (
           <Card className="bg-gray-800 border-gray-700 p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Recalculate Data</h3>
             <p className="text-gray-400">Recalculation functionality will be implemented here.</p>
+          </Card>
+        );
+      case 'crucial-actions':
+        return (
+          <Card className="bg-gray-800 border-gray-700 p-6">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Crucial Actions</h3>
+            <p className="text-gray-400 mb-4">Dangerous operations. Use with caution.</p>
+            <div className="flex items-center gap-3">
+              <button
+                className={`px-4 py-2 rounded-md text-white ${isRedeploying ? 'bg-gray-500 cursor-not-allowed' : 'bg-rose-600 hover:bg-rose-700'}`}
+                onClick={async () => {
+                  if (isRedeploying) return;
+                  const confirmed = window.confirm('Are you sure you want to redeploy the server? This may cause downtime.');
+                  if (!confirmed) return;
+                  try {
+                    setIsRedeploying(true);
+                    const res = await fetch('https://algo-horizon.store/api/admin/redeploy', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                    });
+                    if (!res.ok) {
+                      const text = await res.text();
+                      throw new Error(text || `Status ${res.status}`);
+                    }
+                    toast.success('Redeploy triggered successfully');
+                  } catch (err) {
+                    console.error('Redeploy failed:', err);
+                    toast.error('Failed to trigger redeploy');
+                  } finally {
+                    setIsRedeploying(false);
+                  }
+                }}
+                disabled={isRedeploying}
+              >
+                {isRedeploying ? (
+                  <>
+                    <span className="inline-block mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Redeploying...
+                  </>
+                ) : (
+                  'Redeploy Server'
+                )}
+              </button>
+            </div>
           </Card>
         );
       default:
