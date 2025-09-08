@@ -72,6 +72,14 @@ interface Stryke {
   lastClosingValueDate: string;
   inResistanceZone?: boolean;
   onePercChangeMap: { [dateKey: string]: string }; // Map<LocalDate, LocalDateTime> equivalent in TypeScript
+
+  minSwingProfits?: number;
+  maxSwingProfits?: number;
+  daysTakenForMaxSwingProfits?: number;
+  daysTakenForSupportTouch?: number;
+  daysTakenForResistanceTouch?: number;
+  preEntrySwingLabel?: string;
+  preEntrySwingLabel2?: string;
 }
 
 interface DayStats {
@@ -110,6 +118,7 @@ export default function StrikeAnalysisPage() {
   const [showStrykeForm, setShowStrykeForm] = useState(() => true);
   const [showAllStrykes, setShowAllStrykes] = useState(() => false);
   const [showStrykeStats, setShowStrykeStats] = useState(() => false);
+  const [showSwingStats, setShowSwingStats] = useState(() => false);
   const [activeFilter, setActiveFilter] = useState({
     date: null as FilterOrder,
     name: null as FilterOrder,
@@ -119,6 +128,10 @@ export default function StrikeAnalysisPage() {
   trend: null as TrendFilter,
   inResistanceZone: null as 'YES' | 'NO' | null,
   onePercChange: null as 'YES' | 'NO' | null,
+  swingLabel: null as 'LL' | 'LH' | 'HL' | 'HH' | null,
+  erLabel: null as 'ABOVE_3' | 'BELOW_3' | 'AR' | null,
+  erSort: null as FilterOrder,
+  profitSort: null as FilterOrder,
   });
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
@@ -294,6 +307,13 @@ export default function StrikeAnalysisPage() {
         highestPriceTime: stryke.highestPriceTime ?? '-',
         lowestPriceTime: stryke.lowestPriceTime ?? '-',
         remarks: stryke.remarks ?? '-',
+        minSwingProfits: stryke.minSwingProfits,
+        maxSwingProfits: stryke.maxSwingProfits,
+        daysTakenForMaxSwingProfits: stryke.daysTakenForMaxSwingProfits,
+        daysTakenForSupportTouch: stryke.daysTakenForSupportTouch,
+        daysTakenForResistanceTouch: stryke.daysTakenForResistanceTouch,
+        preEntrySwingLabel: stryke.preEntrySwingLabel ?? '-',
+        preEntrySwingLabel2: stryke.preEntrySwingLabel2 ?? '-',
       })));
 
       // Set the filtered list to initially show all strykes
@@ -347,10 +367,11 @@ export default function StrikeAnalysisPage() {
     }
   }, [showAllStrykes]);
 
-  const handleToggleView = (showForm: boolean, showAll: boolean, showStats: boolean) => {
+  const handleToggleView = (showForm: boolean, showAll: boolean, showStats: boolean, showSwing: boolean) => {
     setShowStrykeForm(showForm);
     setShowAllStrykes(showAll);
     setShowStrykeStats(showStats);
+    setShowSwingStats(showSwing);
   };
 
   // Utility function to parse date strings
@@ -395,6 +416,17 @@ export default function StrikeAnalysisPage() {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
     return `${day}-${month}-${year}`;
+  }
+
+  // Readable date like '08 Sep 2025'
+  function formatReadableDate(dateString: string | undefined | null): string {
+    if (!dateString) return 'N/A';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'N/A';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = d.toLocaleString('default', { month: 'short' });
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}`;
   }
 
   const shouldShowEarlyProfits = (stryke: Stryke): boolean => {
@@ -636,8 +668,9 @@ export default function StrikeAnalysisPage() {
   }
 
   return (
-    <div className="container mx-auto py-4 px-4 bg-cream">
-      <Toaster position="top-right" />
+    <div className="flex justify-start py-4 px-4 bg-cream">
+      <div className="w-full max-w-screen-2xl ml-24 mr-0">
+        <Toaster position="top-right" />
 
 
       {!isLoading && (
@@ -656,7 +689,7 @@ export default function StrikeAnalysisPage() {
           </a>
               {(!showStrykeForm) && (
                 <Button
-                  onClick={() => handleToggleView(true, false, false)}
+                  onClick={() => handleToggleView(true, false, false, false)}
                   className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                 >
                   Show Stryke Form
@@ -666,7 +699,7 @@ export default function StrikeAnalysisPage() {
               {(!showAllStrykes) && (
                 <Button
                   onClick={() => {
-                    handleToggleView(false, true, false);
+                    handleToggleView(false, true, false, false);
                     fetchStrykes();
                   }}
                   className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
@@ -687,12 +720,24 @@ export default function StrikeAnalysisPage() {
               {!showStrykeStats && (
                 <Button
                   onClick={() => {
-                    handleToggleView(false, false, true);
+                    handleToggleView(false, false, true, false);
                     fetchStrykes();
                   }}
                   className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                 >
                   Show Stryke Stats
+                </Button>
+              )}
+
+                {!showSwingStats && (
+                <Button
+                  onClick={() => {
+                    handleToggleView(false, false, false, true);
+                    fetchStrykes();
+                  }}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                >
+                  Show Swing Stats
                 </Button>
               )}
 
@@ -1230,7 +1275,7 @@ export default function StrikeAnalysisPage() {
                       <div className="overflow-x-auto">
                         <table className="table-auto w-full border-collapse border border-gray-300 text-center">
                           <thead>
-                            <tr className="bg-gray-200">
+                            <tr className="bg-gray-200 sticky top-0 z-10">
                               <th className="border border-gray-300 px-4 py-2">Date</th>
                               <th className="border border-gray-300 px-4 py-2">Peak</th>
                               <th className="border border-gray-300 px-4 py-2">Dip</th>
@@ -1239,8 +1284,8 @@ export default function StrikeAnalysisPage() {
                           <tbody>
                             {Object.entries(selectedStryke?.dayStatsMap || {})
                               .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
-                              .map(([date, stats]) => (
-                                <tr key={`${selectedStryke.id}-${date}`} className="hover:bg-gray-100">
+                              .map(([date, stats], idx) => (
+                                <tr key={`${selectedStryke.id}-${date}`} className={`${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-gray-100`}>
                                   <td className="border border-gray-300 px-2 py-1 text-center align-middle">{new Date(date).toLocaleDateString()}</td>
                                   <td className="border border-gray-300 px-2 py-1 text-center align-middle">
                                     ₹{stats.peak.toFixed(2)}
@@ -1274,8 +1319,381 @@ export default function StrikeAnalysisPage() {
 
 
           {/* Add a new stats page */}
-          {showStrykeStats && (
-            <div className="container mx-auto py-4 px-4">
+          {showSwingStats && (
+            <div className="container mx-auto py-4 px-4 max-w-screen-2xl">
+              <h2 className="text-xl font-bold mb-4">Swing Stats</h2>
+
+              {/* Search, Sort, and Filter Controls */}
+              <div className="flex flex-wrap gap-1 items-center mb-4">
+                {/* Search Input */}
+                <input
+                  type="text"
+                  placeholder="Search by name..."
+                  className="border border-gray-300 rounded-md px-2 py-1"
+                  onChange={(e) => {
+                    const query = e.target.value.toLowerCase();
+                    setFilteredStrykeList(
+                      strykeList.filter((stryke) =>
+                        stryke.companyName.toLowerCase().includes(query)
+                      )
+                    );
+                  }}
+                />
+
+                {/* Month Filter */}
+                <select
+                  className="border border-gray-300 rounded-md px-2 py-1"
+                  value={selectedMonth || ''}
+                  onChange={(e) => {
+                    const monthYear = e.target.value;
+                    setSelectedMonth(monthYear || null);
+                    setFilteredStrykeList(
+                      monthYear
+                        ? strykeList.filter((stryke) => {
+                          const addedMonthYear = new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' });
+                          return addedMonthYear === monthYear;
+                        })
+                        : strykeList
+                    );
+                  }}
+                >
+                  <option value="">All Months</option>
+                  {Array.from(new Set(
+                    strykeList.map((stryke) =>
+                      new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' })
+                    )
+                  )).map((monthYear) => (
+                    <option key={monthYear} value={monthYear}>
+                      {monthYear}
+                    </option>
+                  ))}
+                </select>
+              
+                   {/* Export Buttons */}
+                <button
+                  className="px-3 py-1 rounded-md bg-emerald-500 text-white"
+                  onClick={exportStrykeStatsToExcel}
+                >
+                  Export As Excel
+                </button>
+                  {/* Count */}
+                <span className="text-lg font-bold">Count: {filteredStrykeList.length}</span>
+                </div>
+                   <div className="flex flex-wrap gap-1 items-center mb-4">
+               
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.date ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, date: newOrder });
+                    setFilteredStrykeList(
+                      [...strykeList].sort((a, b) =>
+                        newOrder === 'asc'
+                          ? new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()
+                          : new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime()
+                      )
+                    );
+                  }}
+                >
+                  Sort by Date ({activeFilter.date || 'off'})
+                </button>
+
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.name ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const newOrder = activeFilter.name === 'asc' ? 'desc' : activeFilter.name === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, name: newOrder });
+                    setFilteredStrykeList(
+                      [...strykeList].sort((a, b) =>
+                        newOrder === 'asc'
+                          ? a.companyName.localeCompare(b.companyName)
+                          : b.companyName.localeCompare(a.companyName)
+                      )
+                    );
+                  }}
+                >
+                  Sort by Name ({activeFilter.name || 'off'})
+                </button>
+
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.entry ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const newOrder = activeFilter.entry === 'asc' ? 'desc' : activeFilter.entry === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, entry: newOrder });
+                    setFilteredStrykeList(
+                      newOrder
+                        ? [...strykeList].sort((a, b) =>
+                          newOrder === 'asc' ? a.entryCandle.close - b.entryCandle.close : b.entryCandle.close - a.entryCandle.close
+                        )
+                        : strykeList
+                    );
+                  }}
+                >
+                  Sort by Entry ({activeFilter.entry || 'off'})
+                </button>
+
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.target ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const newOrder = activeFilter.target === 'asc' ? 'desc' : activeFilter.target === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, target: newOrder });
+                    setFilteredStrykeList(
+                      newOrder
+                        ? [...strykeList].sort((a, b) =>
+                          newOrder === 'asc' ? a.target - b.target : b.target - a.target
+                        )
+                        : strykeList
+                    );
+                  }}
+                >
+                  Sort by Target ({activeFilter.target || 'off'})
+                </button>
+
+             
+                  {/* Buttons */}
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.trend ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const next = activeFilter.trend === null ? 'BULLISH' : activeFilter.trend === 'BULLISH' ? 'BEARISH' : null;
+                    setActiveFilter({ ...activeFilter, trend: next });
+                    if (next) {
+                      setFilteredStrykeList(
+                        strykeList.filter((s) => (s.preEntryTrend || '').toUpperCase() === next)
+                      );
+                    } else {
+                      setFilteredStrykeList(strykeList);
+                    }
+                  }}
+                >
+                 Entry Trend: {activeFilter.trend ?? 'off'}
+                </button>
+                {/* Swing Label Filter */}
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.swingLabel ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const order = ['LL', 'LH', 'HL', 'HH', null] as ( 'LL' | 'LH' | 'HL' | 'HH' | null)[];
+                    const currentIndex = order.indexOf(activeFilter.swingLabel);
+                    const next = order[(currentIndex + 1) % order.length];
+                    setActiveFilter({ ...activeFilter, swingLabel: next });
+                    if (next) {
+                      setFilteredStrykeList(
+                        strykeList.filter((s) => (s.preEntrySwingLabel || '').toUpperCase() === next)
+                      );
+                    } else {
+                      setFilteredStrykeList(strykeList);
+                    }
+                  }}
+                >
+                  Swing Label: {activeFilter.swingLabel ?? 'off'}
+                </button>
+                {/* ER Label Filter (based on minSwingProfits) */}
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.erLabel ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const order = ['ABOVE_3', 'BELOW_3', 'AR', null] as ('ABOVE_3' | 'BELOW_3' | 'AR' | null)[];
+                    const currentIndex = order.indexOf(activeFilter.erLabel);
+                    const next = order[(currentIndex + 1) % order.length];
+                    setActiveFilter({ ...activeFilter, erLabel: next });
+
+                    const computeERLabel = (val: number | undefined | null) => {
+                      if (val == null || !isFinite(Number(val))) return 'AR';
+                      const num = Number(val);
+                      if (num >= 3) return 'ABOVE_3';
+                      if (num < 3 && num >= 0) return 'BELOW_3';
+                      return 'AR';
+                    };
+
+                    if (next) {
+                      const filtered = strykeList.filter((s) => {
+                        const label = computeERLabel(s.minSwingProfits as any);
+                        return label === next;
+                      });
+                      // Sort by minSwingProfits descending
+                      filtered.sort((a, b) => (Number(b.minSwingProfits ?? 0) - Number(a.minSwingProfits ?? 0)));
+                      setFilteredStrykeList(filtered);
+                    } else {
+                      setFilteredStrykeList(strykeList);
+                    }
+                  }}
+                >
+                  ER-Gap: {activeFilter.erLabel ? (activeFilter.erLabel === 'ABOVE_3' ? '>=3%' : activeFilter.erLabel === 'BELOW_3' ? '<3%' : 'AR') : 'off'}
+                </button>
+
+                {/* Sort by ER Gap */}
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.erSort ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const next = activeFilter.erSort === 'asc' ? 'desc' : activeFilter.erSort === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, erSort: next, profitSort: null });
+                    if (next) {
+                      const sorted = [...strykeList].sort((a, b) => {
+                        const aVal = Number(a.minSwingProfits ?? 0);
+                        const bVal = Number(b.minSwingProfits ?? 0);
+                        return next === 'asc' ? aVal - bVal : bVal - aVal;
+                      });
+                      setFilteredStrykeList(sorted);
+                    } else {
+                      setFilteredStrykeList(strykeList);
+                    }
+                  }}
+                >
+                  Sort ER ({activeFilter.erSort || 'off'})
+                </button>
+
+                {/* Sort by Profits */}
+                <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.profitSort ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const next = activeFilter.profitSort === 'asc' ? 'desc' : activeFilter.profitSort === 'desc' ? null : 'asc';
+                    setActiveFilter({ ...activeFilter, profitSort: next, erSort: null });
+                    if (next) {
+                      const sorted = [...strykeList].sort((a, b) => {
+                        const aVal = Number(a.maxSwingProfits ?? 0);
+                        const bVal = Number(b.maxSwingProfits ?? 0);
+                        return next === 'asc' ? aVal - bVal : bVal - aVal;
+                      });
+                      setFilteredStrykeList(sorted);
+                    } else {
+                      setFilteredStrykeList(strykeList);
+                    }
+                  }}
+                >
+                  Sort Profits ({activeFilter.profitSort || 'off'})
+                </button>
+
+    
+
+              </div>
+
+
+              <table className="table-auto w-full border-collapse border border-gray-700 text-center">
+                <thead>
+                  <tr className="bg-gray-400 sticky top-0 z-10">
+                    <th className="border border-gray-700 px-4 py-2">Slno</th>
+                    <th className="border border-gray-700 px-12 py-2 min-w-[200px]">Company</th>
+                    <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Entry Date</th>
+                    <th className="border border-gray-700 px-8 py-2">Entry</th>
+                    <th className="border border-gray-700 px-8 py-2">Stop Loss</th>
+                    <th className="border border-gray-700 px-8 py-2">Target</th>
+                    <th className="border border-gray-700 px-8 py-2">Entry Trend</th>
+                    <th className="border border-gray-700 px-8 py-2">Swing Labels</th>
+                    <th title='Entry - Resistance Gap' className="border border-gray-700 px-12 py-2 min-w-[160px]">ER-Gap</th>
+                    <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Profits</th>
+                    <th title='Time Take for Stock to Hit Support' className="border border-gray-700 px-8 py-2">Time to Support</th>
+                    <th title='Time Take for Stock to Hit Resistance' className="border border-gray-700 px-8 py-2">Time to Resistance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStrykeList.map((stryke, index) => (
+                    <tr key={stryke.stockUuid || index} className={`${index % 2 === 0 ? 'bg-gray-200' : 'bg-white'} hover:bg-gray-100`}>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{index + 1}</td>
+                     <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[180px]" title={stryke.companyName}>{stryke.companyName}</td>
+                    <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryTime ? formatReadableDate(stryke.entryTime) : 'N/A'}</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryCandle?.close ? `₹${stryke.entryCandle.close.toFixed(2)}` : (stryke.entryAt ?? 'N/A')}</td>
+                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.target?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.target)} %)</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">₹{stryke.stopLoss?.toFixed(2)} ({calculatePercentageDifference(stryke.entryCandle.close, stryke.stopLoss)} %)</td>
+                     <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                        (() => {
+                          const t = (stryke.preEntryTrend || '').toUpperCase();
+                          if (!t) return <span className="text-gray-600">N/A</span>;
+                          if (t === 'BULLISH') return <span className="text-green-700 font-semibold">{t}</span>;
+                          if (t === 'BEARISH' || t === 'NEUTRAL' || t === 'CONSOLIDATED') return <span className="text-amber-500 font-semibold">{t}</span>;
+                          return <span className="text-gray-600">{t}</span>;
+                        })()
+                      }</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                        (() => {
+                          const clsFor = (lab?: string | null) => {
+                            if (!lab) return 'text-gray-600';
+                            const v = (lab || '').toUpperCase();
+                            if (v === 'LL' || v === 'LH') return 'text-amber-500 font-semibold';
+                            if (v === 'HH' || v === 'HL') return 'text-green-700 font-semibold';
+                            return 'text-gray-600';
+                          };
+                          return (
+                            <>
+                              <span className={clsFor(stryke.preEntrySwingLabel2)}>{stryke.preEntrySwingLabel2 ?? 'N/A'}</span>
+                              <span className="px-1">{' <- '}</span>
+                              <span className={clsFor(stryke.preEntrySwingLabel)}>{stryke.preEntrySwingLabel ?? 'N/A'}</span>
+                            </>
+                          );
+                        })()
+                      }</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                        (() => {
+                          const v = stryke.minSwingProfits;
+                    
+                          const num = Number(v);
+                          const value = stryke.minSwingProfits && stryke.minSwingProfits > 0 ? `${num.toFixed(2)} %` : "Above Resistance";
+                          const cls = num > 3
+                            ? 'text-green-700 font-semibold'
+                            : (num >= 0.01 ? 'text-amber-500 font-semibold' : 'text-red-700 font-semibold');
+                          return <span className={cls}>{value}</span>;
+                        })()
+                      }</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                        (() => {
+                          const max = stryke.maxSwingProfits != null ? Number(stryke.maxSwingProfits) : null;
+                          const min = stryke.minSwingProfits != null ? Number(stryke.minSwingProfits) : null;
+                          const days = stryke.daysTakenForMaxSwingProfits != null ? Number(stryke.daysTakenForMaxSwingProfits) : null;
+                          if (max == null || !isFinite(max)) return 'N/A';
+                          //show max
+                          
+                          const display = Number(max).toFixed(2);
+                          // coloring: zero -> red, greater than min (or positive profit) -> green, otherwise amber
+                          let cls = 'text-amber-500 font-semibold';
+                          if (Number(max) === 0) cls = 'text-red-700 font-semibold';
+                          else if (min != null && isFinite(min) && max > min) cls = 'text-green-700 font-semibold';
+
+                          return (
+                            <span className={cls}>{display}{" % "} {days != null ? `(${days} d)` : '(N/A)'}</span>
+                          );
+                        })()
+                      }</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                        (() => {
+                          if (stryke.daysTakenForSupportTouch == null) return 'N/A';
+                          if (Number(stryke.daysTakenForSupportTouch) === 0) {
+                            const cls  = 'text-green-600 font-semibold';
+                            return <span className={cls}>{`No Hit`}</span>;
+                          }
+                          const supportDays = Number(stryke.daysTakenForSupportTouch);
+                          const maxDays = stryke.daysTakenForMaxSwingProfits != null && isFinite(Number(stryke.daysTakenForMaxSwingProfits))
+                            ? Number(stryke.daysTakenForMaxSwingProfits)
+                            : null;
+                          const cls = (maxDays != null && supportDays < maxDays) ? 'text-red-700 font-semibold' : 'text-amber-500 font-semibold';
+                          return <span className={cls}>{`${supportDays} days`}</span>;
+                        })()
+                      }</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                        (() => {
+                          if (stryke.daysTakenForResistanceTouch == null) return 'N/A';
+                          if (Number(stryke.daysTakenForResistanceTouch) === 0) {
+                            const cls = 'text-red-700 font-semibold';
+                            return <span className={cls}>{`No Hit`}</span>;
+                          }
+                          const resDays = Number(stryke.daysTakenForResistanceTouch);
+                          const maxDays = stryke.daysTakenForMaxSwingProfits != null && isFinite(Number(stryke.daysTakenForMaxSwingProfits))
+                            ? Number(stryke.daysTakenForMaxSwingProfits)
+                            : null;
+                          let cls = 'text-amber-500 font-semibold';
+                          if (maxDays != null) {
+                            if (maxDays > resDays) cls = 'text-green-700 font-semibold';
+                            else if (maxDays < resDays) cls = 'text-red-700 font-semibold';
+                            else cls = 'text-green-700 font-semibold';
+                          }
+                          return <span className={cls}>{`${resDays} days`}</span>;
+                        })()
+                      }</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+    {showStrykeStats && (
+            <div className="mx-auto py-4 px-4 max-w-screen-xl">
               <h2 className="text-xl font-bold mb-4">Stryke Stats</h2>
 
               {/* Search, Sort, and Filter Controls */}
@@ -1488,7 +1906,7 @@ export default function StrikeAnalysisPage() {
 
               <table className="table-auto w-full border-collapse border border-gray-700 text-center">
                 <thead>
-                  <tr className="bg-gray-200">
+                  <tr className="bg-gray-200 sticky top-0 z-10">
                     <th className="border border-gray-700 px-4 py-2">Slno</th>
                     <th className="border border-gray-700 px-8 py-2">Name</th>
                     <th className="border border-gray-700 px-10 py-2">Added On</th>
@@ -1516,7 +1934,7 @@ export default function StrikeAnalysisPage() {
                 </thead>
                 <tbody>
                   {filteredStrykeList.map((stryke, index) => (
-                    <tr key={stryke.stockUuid} className="hover:bg-gray-100">
+                    <tr key={stryke.stockUuid} className={`${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-gray-100`}>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">{index + 1}</td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.companyName}</td>
                       <td className="border border-gray-700 px-4 py-2 text-center align-middle">
@@ -1573,6 +1991,7 @@ export default function StrikeAnalysisPage() {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }
