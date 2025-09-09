@@ -21,10 +21,15 @@ interface Candle {
 }
 
 interface EMADTO {
-  ema5: number;
-  ema8: number;
-  ema13: number;
-  ema21: number;
+  // New backend shape: prefer these if available
+  ema8?: number | string | null;
+  ema30?: number | string | null;
+  ema20?: number | string | null;
+  ema200?: number | string | null;
+  // Backwards-compatible fields
+  ema5?: number | string | null;
+  ema13?: number | string | null;
+  ema21?: number | string | null;
 }
 
 interface Stryke {
@@ -46,6 +51,11 @@ interface Stryke {
   entryDayMinutesCandle: Candle;
   rsi: number;
   emadto: EMADTO;
+  // New optional per-timeframe EMA DTOs returned by backend
+  emaDataDay?: EMADTO | null;
+  emaData4H?: EMADTO | null;
+  emaData1H?: EMADTO | null;
+  emaData15M?: EMADTO | null;
   stopLoss: number;
   target: number;
   dipAfterEntry20M: boolean;
@@ -296,12 +306,12 @@ try{
         stockUuid: stryke.stockUuid, // Add stockUuid key
         entryDate: new Date(stryke.entryTime).toLocaleDateString('en-GB'),
   inResistanceZone: (stryke as any).inResistanceZone ?? (stryke as any).InResistanceZone ?? false,
-        emadto: {
-          ema5: stryke.emadto?.ema5 ?? '-',
-          ema8: stryke.emadto?.ema8 ?? '-',
-          ema13: stryke.emadto?.ema13 ?? '-',
-          ema21: stryke.emadto?.ema21 ?? '-',
-        },
+  // Keep emadto for backward-compatibility and also expose per-timeframe EMA DTOs
+  emadto: stryke.emadto ?? {},
+  emaDataDay: (stryke as any).emaDataDay ?? null,
+  emaData4H: (stryke as any).emaData4H ?? null,
+  emaData1H: (stryke as any).emaData1H ?? null,
+  emaData15M: (stryke as any).emaData15M ?? null,
         rsi: stryke.rsi ?? '-',
         stopLoss: stryke.stopLoss ?? '-',
         target: stryke.target ?? '-',
@@ -372,6 +382,32 @@ try{
     if (status === 'Closed') return 'text-green-600';
     if (status === 'In Progress') return 'text-orange-600';
     return 'text-red-600';
+  };
+
+  // Determine badge color and tooltip for EMAs for a given timeframe
+  const getEmaBadgeProps = (stryke: Stryke, timeframe: '15M' | '1H' | '4H' | '1D') => {
+    const dto: EMADTO | null | undefined =
+      timeframe === '15M' ? stryke.emaData15M
+      : timeframe === '1H' ? stryke.emaData1H
+      : timeframe === '4H' ? stryke.emaData4H
+      : stryke.emaDataDay;
+
+    // Fallback to legacy emadto if per-timeframe DTO is not present
+    const ema8Raw = dto?.ema8 ?? (stryke.emadto as any)?.ema8;
+    const ema30Raw = dto?.ema30 ?? (stryke.emadto as any)?.ema30;
+
+    const ema8 = Number(ema8Raw);
+    const ema30 = Number(ema30Raw);
+
+  const hasValid = isFinite(ema8) && isFinite(ema30);
+  if (!hasValid) return { cls: 'bg-gray-100 text-gray-600', title: 'EMA data unavailable' };
+
+  let cls = 'bg-gray-100 text-gray-600';
+  if (ema8 > ema30) cls = 'bg-green-100 text-green-800';
+  else if (ema8 === ema30) cls = 'bg-amber-100 text-amber-800';
+  else cls = 'bg-red-100 text-red-800';
+  const title = `ema8: ${ema8}, ema30: ${ema30}`;
+  return { cls, title };
   };
 
   useEffect(() => {
@@ -1611,6 +1647,7 @@ try{
                     <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Profits</th>
                     <th title='Time Take for Stock to Hit Support' className="border border-gray-700 px-8 py-2">Time to Support</th>
                     <th title='Time Take for Stock to Hit Resistance' className="border border-gray-700 px-8 py-2">Time to Resistance</th>
+                    <th title='EMA Cross Overs' className="border border-gray-700 px-8 py-2">Ema Cross Overs</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1730,6 +1767,26 @@ try{
                           return <span className={cls}>{`${resDays} days`}</span>;
                         })()
                       }</td>
+                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">
+                        <div className="flex items-center justify-center space-x-2">
+                          {(() => {
+                            const p = getEmaBadgeProps(stryke, '15M');
+                            return <span title={p.title} className={`text-xs px-2 py-0.5 rounded-md ${p.cls}`}>15M</span>;
+                          })()}
+                          {(() => {
+                            const p = getEmaBadgeProps(stryke, '1H');
+                            return <span title={p.title} className={`text-xs px-2 py-0.5 rounded-md ${p.cls}`}>1H</span>;
+                          })()}
+                          {(() => {
+                            const p = getEmaBadgeProps(stryke, '4H');
+                            return <span title={p.title} className={`text-xs px-2 py-0.5 rounded-md ${p.cls}`}>4H</span>;
+                          })()}
+                          {(() => {
+                            const p = getEmaBadgeProps(stryke, '1D');
+                            return <span title={p.title} className={`text-xs px-2 py-0.5 rounded-md ${p.cls}`}>1D</span>;
+                          })()}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
