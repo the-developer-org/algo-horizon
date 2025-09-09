@@ -56,6 +56,11 @@ interface Stryke {
   emaData4H?: EMADTO | null;
   emaData1H?: EMADTO | null;
   emaData15M?: EMADTO | null;
+  // Lists of ISO datetimes when EMA crossovers occurred (may be returned by backend)
+  emaCrossoverList1H?: string[] | null;
+  emaCrossoverList15M?: string[] | null;
+  emaCrossoverList4H?: string[] | null;
+  emaCrossoverListDay?: string[] | null;
   stopLoss: number;
   target: number;
   dipAfterEntry20M: boolean;
@@ -147,6 +152,13 @@ export default function StrikeAnalysisPage() {
   profitSort: null as FilterOrder,
   });
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  // Modal state to show full EMA crossover dates when a badge is clicked
+  const [crossoverModal, setCrossoverModal] = useState<{
+    open: boolean;
+    timeframe: '15M' | '1H' | '4H' | '1D' | null;
+    companyName?: string | null;
+    list: string[];
+  }>({ open: false, timeframe: null, companyName: null, list: [] });
 
 
   // Fetch KeyMapping from Redis on mount
@@ -312,6 +324,10 @@ try{
   emaData4H: (stryke as any).emaData4H ?? null,
   emaData1H: (stryke as any).emaData1H ?? null,
   emaData15M: (stryke as any).emaData15M ?? null,
+  emaCrossoverList1H: (stryke as any).emaCrossoverList1H ?? null,
+  emaCrossoverList15M: (stryke as any).emaCrossoverList15M ?? null,
+  emaCrossoverList4H: (stryke as any).emaCrossoverList4H ?? null,
+  emaCrossoverListDay: (stryke as any).emaCrossoverListDay ?? null,
         rsi: stryke.rsi ?? '-',
         stopLoss: stryke.stopLoss ?? '-',
         target: stryke.target ?? '-',
@@ -396,19 +412,72 @@ try{
     const ema8Raw = dto?.ema8 ?? (stryke.emadto as any)?.ema8;
     const ema30Raw = dto?.ema30 ?? (stryke.emadto as any)?.ema30;
 
-    const ema8 = Number(ema8Raw);
-    const ema30 = Number(ema30Raw);
+    // Normalize array values (backend may return string[]); use last element if array
+    const normalizeRaw = (v: any) => {
+      if (Array.isArray(v) && v.length > 0) return v[v.length - 1];
+      return v;
+    };
 
-  const hasValid = isFinite(ema8) && isFinite(ema30);
-  if (!hasValid) return { cls: 'bg-gray-100 text-gray-600', title: 'EMA data unavailable' };
+    const ema8Num = Number(normalizeRaw(ema8Raw));
+    const ema30Num = Number(normalizeRaw(ema30Raw));
 
-  let cls = 'bg-gray-100 text-gray-600';
-  if (ema8 > ema30) cls = 'bg-green-100 text-green-800';
-  else if (ema8 === ema30) cls = 'bg-amber-100 text-amber-800';
-  else cls = 'bg-red-100 text-red-800';
-  const title = `ema8: ${ema8}, ema30: ${ema30}`;
-  return { cls, title };
+    const hasValid = isFinite(ema8Num) && isFinite(ema30Num);
+    if (!hasValid) return { cls: 'bg-gray-100 text-gray-600', title: 'EMA data unavailable' };
+
+    let cls = 'bg-gray-100 text-gray-600';
+    if (ema8Num > ema30Num) cls = 'bg-green-100 text-green-800';
+    else if (ema8Num === ema30Num) cls = 'bg-amber-100 text-amber-800';
+    else cls = 'bg-red-100 text-red-800';
+
+    // Include crossover list metadata (count + up to 3 recent dates) in tooltip
+    const crossoverList: string[] | null | undefined =
+      timeframe === '15M' ? stryke.emaCrossoverList15M
+      : timeframe === '1H' ? stryke.emaCrossoverList1H
+      : timeframe === '4H' ? stryke.emaCrossoverList4H
+      : stryke.emaCrossoverListDay;
+
+    const crossoverCount = crossoverList?.length ?? 0;
+    const recentDates = (crossoverList ?? [])
+      .slice(-3)
+      .map(d => {
+        if (!d) return 'N/A';
+        const parsed = new Date(d);
+        // If date is invalid, show the raw string instead of 'Invalid Date'
+        if (isNaN(parsed.getTime())) return d;
+        return formatReadableDate(d);
+      })
+      .reverse(); // show latest first in tooltip
+
+    const ema8Fmt = ema8Num.toFixed(2);
+    const ema30Fmt = ema30Num.toFixed(2);
+
+    let title = `ema8: ${ema8Fmt}, ema30: ${ema30Fmt}`;
+    title += `\nCrossovers: ${crossoverCount}`;
+    if (crossoverCount > 0) {
+      const latest = crossoverList![crossoverList!.length - 1];
+      const latestFmt = (() => {
+        if (!latest) return 'N/A';
+        const p = new Date(latest);
+        return isNaN(p.getTime()) ? latest : formatReadableDate(latest);
+      })();
+      title += `; Latest: ${latestFmt}`;
+      title += `; Recent: ${recentDates.join(', ')}`;
+    }
+
+  return { cls, title, count: crossoverCount };
   };
+
+  const openCrossoverModal = (stryke: Stryke, timeframe: '15M' | '1H' | '4H' | '1D') => {
+    const list: string[] =
+      timeframe === '15M' ? (stryke.emaCrossoverList15M ?? [])
+      : timeframe === '1H' ? (stryke.emaCrossoverList1H ?? [])
+      : timeframe === '4H' ? (stryke.emaCrossoverList4H ?? [])
+      : (stryke.emaCrossoverListDay ?? []);
+
+    setCrossoverModal({ open: true, timeframe, companyName: stryke.companyName, list });
+  };
+
+  const closeCrossoverModal = () => setCrossoverModal({ open: false, timeframe: null, companyName: null, list: [] });
 
   useEffect(() => {
     if (showAllStrykes && strykeList.length === 0) {
@@ -773,14 +842,14 @@ try{
                 </Button>
               )}
 
-              {(showAllStrykes || showStrykeStats) && (
+             
                 <Button
                   onClick={() => fetchStrykes()}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                 >
                   Refresh List
                 </Button>
-              )}
+              
 
               {!showStrykeStats && (
                 <Button
@@ -1392,6 +1461,7 @@ try{
 
               {/* Search, Sort, and Filter Controls */}
               <div className="flex flex-wrap gap-1 items-center mb-4">
+            
                 {/* Search Input */}
                 <input
                   type="text"
@@ -1771,19 +1841,75 @@ try{
                         <div className="flex items-center justify-center space-x-2">
                           {(() => {
                             const p = getEmaBadgeProps(stryke, '15M');
-                            return <span title={p.title} className={`text-xs px-2 py-0.5 rounded-md ${p.cls}`}>15M</span>;
+                            return (
+                              <span
+                                title={p.title}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openCrossoverModal(stryke, '15M')}
+                                onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '15M'); }}
+                                className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                              >
+                                <span>15M</span>
+                                {(p.count ?? 0) > 0 && (
+                                  <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                )}
+                              </span>
+                            );
                           })()}
                           {(() => {
                             const p = getEmaBadgeProps(stryke, '1H');
-                            return <span title={p.title} className={`text-xs px-2 py-0.5 rounded-md ${p.cls}`}>1H</span>;
+                            return (
+                              <span
+                                title={p.title}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openCrossoverModal(stryke, '1H')}
+                                onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1H'); }}
+                                className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                              >
+                                <span>1H</span>
+                                {(p.count ?? 0) > 0 && (
+                                  <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                )}
+                              </span>
+                            );
                           })()}
                           {(() => {
                             const p = getEmaBadgeProps(stryke, '4H');
-                            return <span title={p.title} className={`text-xs px-2 py-0.5 rounded-md ${p.cls}`}>4H</span>;
+                            return (
+                              <span
+                                title={p.title}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openCrossoverModal(stryke, '4H')}
+                                onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '4H'); }}
+                                className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                              >
+                                <span>4H</span>
+                                {(p.count ?? 0) > 0 && (
+                                  <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                )}
+                              </span>
+                            );
                           })()}
                           {(() => {
                             const p = getEmaBadgeProps(stryke, '1D');
-                            return <span title={p.title} className={`text-xs px-2 py-0.5 rounded-md ${p.cls}`}>1D</span>;
+                            return (
+                              <span
+                                title={p.title}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openCrossoverModal(stryke, '1D')}
+                                onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1D'); }}
+                                className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                              >
+                                <span>1D</span>
+                                {(p.count ?? 0) > 0 && (
+                                  <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                )}
+                              </span>
+                            );
                           })()}
                         </div>
                       </td>
@@ -1791,6 +1917,35 @@ try{
                   ))}
                 </tbody>
               </table>
+              {/* Crossover Modal */}
+              {crossoverModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-11/12 max-w-lg shadow-lg">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold">{crossoverModal.companyName} — {crossoverModal.timeframe} Crossovers</h3>
+                      <button onClick={closeCrossoverModal} className="text-gray-600 hover:text-gray-900">Close</button>
+                    </div>
+                    {crossoverModal.list.length === 0 ? (
+                      <p className="text-sm text-gray-500">No crossover dates available.</p>
+                    ) : (
+                      <ul className="space-y-2 max-h-64 overflow-auto">
+                        {crossoverModal.list.map((dt, i) => (
+                          <li key={dt + i} className="text-sm">{(() => {
+                            if (!dt) return 'N/A';
+                            const p = new Date(dt);
+                            if (isNaN(p.getTime())) return dt;
+                            // Show human-friendly date and time (avoid repeating the date twice)
+                            return `${formatReadableDate(dt)} — ${p.toLocaleTimeString()}`;
+                          })()}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="mt-4 flex justify-end">
+                      <button onClick={closeCrossoverModal} className="px-3 py-1 rounded-md bg-blue-500 text-white">Close</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2097,3 +2252,4 @@ try{
     </div>
   );
 }
+
