@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Shield, Layers, ListChecks, Activity, PlugZap, Signal } from "lucide-react";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Shield, Layers, ListChecks, Activity, PlugZap, Signal, Link, LucidePersonStanding } from "lucide-react";
 import {
   Sidebar,
   SidebarHeader,
@@ -26,8 +26,8 @@ const primaryItems = [
 ];
 
 const utilityItems = [
-  { title: "Algo Google Meet", url: "https://meet.google.com/cho-wpms-pbk", icon: PlugZap },
-  { title: "Upstox Connect", url: "/auth", icon: Signal },
+  { title: "Algo Google Meet", url: "https://meet.google.com/cho-wpms-pbk", icon: LucidePersonStanding },
+  { title: "Upstox Conn. Management", url: "/auth/upstox-management", icon: Link },
   { title: "Admin Panel", url: "/admin", icon: Settings },
 ];
 
