@@ -69,8 +69,7 @@ export default function Home() {
         <h1 className="text-3xl md:text-4xl font-bold text-white uppercase bg-green-600 bg-opacity-40 px-8 py-4 rounded-lg text-center tracking-widest min-w-[300px]">
           ALGOHORIZON
         </h1>
-        <div className="flex flex-wrap justify-center gap-4">
-          <LoginButton />
+  <div className="flex flex-wrap justify-center gap-4">
           <Button
             onClick={() => {
               setShowWatchLists(!showWatchLists);

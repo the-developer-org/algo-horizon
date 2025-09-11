@@ -20,18 +20,15 @@ const primaryItems = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Strike Analysis Form", url: "/strike-analysis", icon: Search },
   { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
-  { title: "Boom Days", url: "/boom-days", icon: Calendar },
+  { title: "Boom Days & Watch Lists", url: "/boom-days", icon: Calendar },
   { title: "Backtest Stats", url: "/backtest-stats", icon: FileText },
   { title: "Portfolio", url: "/portfolio", icon: Layers },
 ];
 
 const utilityItems = [
-  { title: "Watchlists", url: "/#watchlists", icon: ListChecks },
-  { title: "Insights", url: "/#insights", icon: Activity },
-  { title: "Google Meet", url: "https://meet.google.com/cho-wpms-pbk", icon: PlugZap },
+  { title: "Algo Google Meet", url: "https://meet.google.com/cho-wpms-pbk", icon: PlugZap },
   { title: "Upstox Connect", url: "/auth", icon: Signal },
   { title: "Admin Panel", url: "/admin", icon: Settings },
-  { title: "Security", url: "#", icon: Shield },
 ];
 
 interface MainSidebarProps extends Readonly<React.ComponentProps<typeof Sidebar>> {
