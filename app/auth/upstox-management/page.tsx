@@ -74,7 +74,7 @@ export default function UpstoxUserManagementPage() {
                 </div>
         <Button
                   variant={connected ? 'secondary' : 'default'}
-                  disabled={connected}
+                  disabled={connected || env === 'sandbox'}
                   className={`${connected ? 'bg-green-500 hover:bg-green-500 cursor-default' : 'bg-red-500 hover:bg-red-600'} w-full h-9 text-white text-sm`}
                   onClick={() => {
                     if (!connected) {
@@ -83,11 +83,12 @@ export default function UpstoxUserManagementPage() {
                         alert('Missing phone number for this user');
                         return;
                       }
-            window.location.href = `/api/auth/login?phone=${phoneParam}&env=${env}`;
+            window.location.href = `/api/auth/login?phone=${phoneParam}`;
                     }
                   }}
-                >
-          {connected ? `Upstox Connected (${env})` : `Connect Upstox (${env})`}
+                >{
+                    env === 'prod' ? (connected ? `Upstox Connected` : `Connect Upstox`) : (connected ? `Upstox Connected (Sandbox)` : `Save Token (Sandbox)`)
+                }
                 </Button>
               </CardContent>
             </Card>

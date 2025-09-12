@@ -23,12 +23,13 @@ interface Props {
 export const WatchLists = ({ liveData }: Props) => {
     const [watchLists, setWatchLists] = useState<WatchList[]>([])
     const [filteredWatchLists, setFilteredWatchLists] = useState<WatchList[]>([])
+        const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [activeFilters, setActiveFilters] = useState<string[]>([]);
     const [tempValue, setTempValue] = useState<number | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-
+    
     const [sortOrderProfit, setSortOrderProfit] = useState<"asc" | "desc" | null>(null);
     const [sortOrderLoss, setSortOrderLoss] = useState<"asc" | "desc" | null>(null);
 
@@ -43,21 +44,19 @@ export const WatchLists = ({ liveData }: Props) => {
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-
-            const watchListResponse = await fetch(
-                "https://saved-dassie-60359.upstash.io/get/WatchListData",
-                {
-                    method: "GET",
-                    headers: {
-                        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-                    },
+            const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const watchListResponse = await fetch(`${backEndBaseUrl}/api/watchlist/fetch-all`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+                },
                 }
             );
 
             const watchListJsonData = await watchListResponse.json();
 
-            const watchListParsedData: WatchList[] = JSON.parse(watchListJsonData.result);
-
+            const watchListParsedData: WatchList[] =watchListJsonData.watchLists || [];
+            
             setWatchLists(watchListParsedData)
         } catch (err) {
             setLoading(false);
@@ -212,9 +211,9 @@ export const WatchLists = ({ liveData }: Props) => {
 
 
     return (
-        <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
-            <div className="flex justify-between items-center mb-6 w-full">
-                <h2 className="text-2xl font-bold text-gray-800">Watch Lists</h2>
+        <div className="max-w-screen-4xl mx-auto pl-2 sm:pl-3 pr-6 sm:pr-8 py-4 sm:py-6">
+      <div className="flex justify-between items-center mb-6 w-full">
+        <h2 className="text-2xl font-bold text-gray-800">Watch Lists</h2>
 
                 <Button
                     onClick={handleRefresh}
@@ -229,9 +228,9 @@ export const WatchLists = ({ liveData }: Props) => {
             <div className="flex flex-col lg:flex-row gap-4 mb-6 w-full">
                 {/* Search Input */}
                 <Input
-                    type="text"
+              type="text"
                     placeholder="Search companies..."
-                    value={searchTerm}
+              value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full lg:w-auto bg-gray-800 text-white px-4 py-2 rounded-md text-sm"
                     style={{ color: "#f5f5dc" }}

@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Shield, Layers, ListChecks, Activity, PlugZap, Signal, Link, LucidePersonStanding } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding } from "lucide-react";
 import {
   Sidebar,
   SidebarHeader,
@@ -36,6 +37,7 @@ interface MainSidebarProps extends Readonly<React.ComponentProps<typeof Sidebar>
 }
 
 export function MainSidebar({ onShowInsights, ...props }: MainSidebarProps) {
+  const router = useRouter();
   return (
     <Sidebar variant="inset" {...props}>
       <SidebarHeader>
@@ -61,7 +63,8 @@ export function MainSidebar({ onShowInsights, ...props }: MainSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {primaryItems.map(item => {
-                if (item.title === 'Boom Days') {
+                const isBoomDays = item.title.includes('Boom Days') || item.url === '/boom-days';
+                if (isBoomDays) {
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild>
@@ -69,6 +72,8 @@ export function MainSidebar({ onShowInsights, ...props }: MainSidebarProps) {
                           type="button"
                           onClick={() => {
                             onShowInsights?.();
+                            // Ensure we navigate to home where the combined section lives
+                            router.push('/');
                           }}
                         >
                           <item.icon />

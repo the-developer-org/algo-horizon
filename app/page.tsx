@@ -5,7 +5,7 @@ import { UpstoxConnection } from "./components/UpstoxConnection";
 import { MainSidebar } from "../components/main-sidebar";
 import { WatchLists } from "../components/WatchLists";
 import { HistoricalInsights } from "../components/HistoricalInsights";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
 export default function Home() {
   const router = useRouter();
@@ -33,7 +33,7 @@ export default function Home() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-gray-50">
+      <div className="min-h-screen w-full bg-gray-50">
         <MainSidebar
           onShowInsights={() => {
             // Toggle both watchlists and insights like original combined section
@@ -41,7 +41,7 @@ export default function Home() {
             setShowHistoricalInsights(prev => !prev);
           }}
         />
-        <main className="flex-1 flex flex-col items-center p-8 overflow-y-auto">
+        <SidebarInset className="flex flex-col overflow-y-auto py-6 px-0">
          
       
           {/* Empty dashboard - add widgets/components here as needed */}
@@ -133,7 +133,7 @@ export default function Home() {
   */}
           {/* Combined WatchLists + Insights section triggered from Boom Days sidebar item */}
           {(showWatchLists || showHistoricalInsights) && (
-            <div className="w-full max-w-7xl space-y-4 mt-4">
+            <div className="w-full max-w-screen-4xl mx-auto space-y-4 mt-4 px-2 sm:px-4">
               {showWatchLists && (
                 <div className="bg-gray-500/75 rounded-lg p-6">
                   <WatchLists liveData={{}} />
@@ -146,7 +146,7 @@ export default function Home() {
               )}
             </div>
           )}
-        </main>
+  </SidebarInset>
       </div>
     </SidebarProvider>
   );
