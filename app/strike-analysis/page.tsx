@@ -147,6 +147,7 @@ export default function StrikeAnalysisPage() {
   inResistanceZone: null as 'YES' | 'NO' | null,
   onePercChange: null as 'YES' | 'NO' | null,
   swingLabel: null as 'LL' | 'LH' | 'HL' | 'HH' | null,
+   swingLabel2: null as 'LL' | 'LH' | 'HL' | 'HH' | null,
   erLabel: null as 'ABOVE_3' | 'BELOW_3' | 'AR' | null,
   erSort: null as FilterOrder,
   profitSort: null as FilterOrder,
@@ -582,6 +583,22 @@ try{
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Central helper to apply Swing Label filters (I and II) together
+  const filterBySwingLabels = (
+    list: Stryke[],
+    label1: 'LL' | 'LH' | 'HL' | 'HH' | null,
+    label2: 'LL' | 'LH' | 'HL' | 'HH' | null
+  ): Stryke[] => {
+    let out = list;
+    if (label1) {
+      out = out.filter((s) => (s.preEntrySwingLabel || '').toUpperCase() === label1);
+    }
+    if (label2) {
+      out = out.filter((s) => (s.preEntrySwingLabel2 || '').toUpperCase() === label2);
+    }
+    return out;
   };
 
   // Define the handleRowClick function to fix the error
@@ -1524,7 +1541,7 @@ try{
                     const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
                     setActiveFilter({ ...activeFilter, date: newOrder });
                     setFilteredStrykeList(
-                      [...strykeList].sort((a, b) =>
+                      [...filteredStrykeList].sort((a, b) =>
                         newOrder === 'asc'
                           ? new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()
                           : new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime()
@@ -1541,7 +1558,7 @@ try{
                     const newOrder = activeFilter.name === 'asc' ? 'desc' : activeFilter.name === 'desc' ? null : 'asc';
                     setActiveFilter({ ...activeFilter, name: newOrder });
                     setFilteredStrykeList(
-                      [...strykeList].sort((a, b) =>
+                      [...filteredStrykeList].sort((a, b) =>
                         newOrder === 'asc'
                           ? a.companyName.localeCompare(b.companyName)
                           : b.companyName.localeCompare(a.companyName)
@@ -1559,10 +1576,10 @@ try{
                     setActiveFilter({ ...activeFilter, entry: newOrder });
                     setFilteredStrykeList(
                       newOrder
-                        ? [...strykeList].sort((a, b) =>
+                        ? [...filteredStrykeList].sort((a, b) =>
                           newOrder === 'asc' ? a.entryCandle.close - b.entryCandle.close : b.entryCandle.close - a.entryCandle.close
                         )
-                        : strykeList
+                        : filteredStrykeList
                     );
                   }}
                 >
@@ -1576,10 +1593,10 @@ try{
                     setActiveFilter({ ...activeFilter, target: newOrder });
                     setFilteredStrykeList(
                       newOrder
-                        ? [...strykeList].sort((a, b) =>
+                        ? [...filteredStrykeList].sort((a, b) =>
                           newOrder === 'asc' ? a.target - b.target : b.target - a.target
                         )
-                        : strykeList
+                        : filteredStrykeList
                     );
                   }}
                 >
@@ -1595,10 +1612,10 @@ try{
                     setActiveFilter({ ...activeFilter, trend: next });
                     if (next) {
                       setFilteredStrykeList(
-                        strykeList.filter((s) => (s.preEntryTrend || '').toUpperCase() === next)
+                        filteredStrykeList.filter((s) => (s.preEntryTrend || '').toUpperCase() === next)
                       );
                     } else {
-                      setFilteredStrykeList(strykeList);
+                      setFilteredStrykeList(filteredStrykeList);
                     }
                   }}
                 >
@@ -1612,16 +1629,29 @@ try{
                     const currentIndex = order.indexOf(activeFilter.swingLabel);
                     const next = order[(currentIndex + 1) % order.length];
                     setActiveFilter({ ...activeFilter, swingLabel: next });
-                    if (next) {
-                      setFilteredStrykeList(
-                        strykeList.filter((s) => (s.preEntrySwingLabel || '').toUpperCase() === next)
-                      );
-                    } else {
-                      setFilteredStrykeList(strykeList);
-                    }
+                    // Apply combined Swing Label filters using a single helper
+                    setFilteredStrykeList(
+                      filterBySwingLabels(strykeList, next, activeFilter.swingLabel2)
+                    );
                   }}
                 >
-                  Swing Label: {activeFilter.swingLabel ?? 'off'}
+                  Swing Label (I): {activeFilter.swingLabel ?? 'off'}
+                </button>
+
+                  <button
+                  className={`px-3 py-1 rounded-md ${activeFilter.swingLabel2 ? 'bg-green-500' : 'bg-red-500'} text-white`}
+                  onClick={() => {
+                    const order = ['LL', 'LH', 'HL', 'HH', null] as ( 'LL' | 'LH' | 'HL' | 'HH' | null)[];
+                    const currentIndex = order.indexOf(activeFilter.swingLabel2);
+                    const next = order[(currentIndex + 1) % order.length];
+                    setActiveFilter({ ...activeFilter, swingLabel2: next });
+                    // Apply combined Swing Label filters using a single helper
+                    setFilteredStrykeList(
+                      filterBySwingLabels(strykeList, activeFilter.swingLabel, next)
+                    );
+                  }}
+                >
+                  Swing Label (II): {activeFilter.swingLabel2 ?? 'off'}
                 </button>
                 {/* ER Label Filter (based on minSwingProfits) */}
                 <button
@@ -1641,7 +1671,7 @@ try{
                     };
 
                     if (next) {
-                      const filtered = strykeList.filter((s) => {
+                      const filtered = filteredStrykeList.filter((s) => {
                         const label = computeERLabel(s.minSwingProfits as any);
                         return label === next;
                       });
@@ -1649,7 +1679,7 @@ try{
                       filtered.sort((a, b) => (Number(b.minSwingProfits ?? 0) - Number(a.minSwingProfits ?? 0)));
                       setFilteredStrykeList(filtered);
                     } else {
-                      setFilteredStrykeList(strykeList);
+                      setFilteredStrykeList(filteredStrykeList);
                     }
                   }}
                 >
@@ -1663,14 +1693,14 @@ try{
                     const next = activeFilter.erSort === 'asc' ? 'desc' : activeFilter.erSort === 'desc' ? null : 'asc';
                     setActiveFilter({ ...activeFilter, erSort: next, profitSort: null });
                     if (next) {
-                      const sorted = [...strykeList].sort((a, b) => {
+                      const sorted = [...filteredStrykeList].sort((a, b) => {
                         const aVal = Number(a.minSwingProfits ?? 0);
                         const bVal = Number(b.minSwingProfits ?? 0);
                         return next === 'asc' ? aVal - bVal : bVal - aVal;
                       });
                       setFilteredStrykeList(sorted);
                     } else {
-                      setFilteredStrykeList(strykeList);
+                      setFilteredStrykeList(filteredStrykeList);
                     }
                   }}
                 >
@@ -1684,14 +1714,14 @@ try{
                     const next = activeFilter.profitSort === 'asc' ? 'desc' : activeFilter.profitSort === 'desc' ? null : 'asc';
                     setActiveFilter({ ...activeFilter, profitSort: next, erSort: null });
                     if (next) {
-                      const sorted = [...strykeList].sort((a, b) => {
+                      const sorted = [...filteredStrykeList].sort((a, b) => {
                         const aVal = Number(a.maxSwingProfits ?? 0);
                         const bVal = Number(b.maxSwingProfits ?? 0);
                         return next === 'asc' ? aVal - bVal : bVal - aVal;
                       });
                       setFilteredStrykeList(sorted);
                     } else {
-                      setFilteredStrykeList(strykeList);
+                      setFilteredStrykeList(filteredStrykeList);
                     }
                   }}
                 >
@@ -2019,10 +2049,10 @@ try{
                     setActiveFilter({ ...activeFilter, trend: next });
                     if (next) {
                       setFilteredStrykeList(
-                        strykeList.filter((s) => (s.preEntryTrend || '').toUpperCase() === next)
+                        filteredStrykeList.filter((s) => (s.preEntryTrend || '').toUpperCase() === next)
                       );
                     } else {
-                      setFilteredStrykeList(strykeList);
+                      setFilteredStrykeList(filteredStrykeList);
                     }
                   }}
                 >
@@ -2037,13 +2067,13 @@ try{
                     setActiveFilter({ ...activeFilter, inResistanceZone: next });
                     if (next === 'YES') {
                       setFilteredStrykeList(
-                        strykeList.filter((s: any) => {
+                        filteredStrykeList.filter((s: any) => {
                           const inRes = (s.inResistanceZone ?? s.InResistanceZone);
                           return inRes === true;
                         })
                       );
                     } else {
-                      setFilteredStrykeList(strykeList);
+                      setFilteredStrykeList(filteredStrykeList);
                     }
                   }}
                 >
@@ -2055,7 +2085,7 @@ try{
                     const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
                     setActiveFilter({ ...activeFilter, date: newOrder });
                     setFilteredStrykeList(
-                      [...strykeList].sort((a, b) =>
+                      [...filteredStrykeList].sort((a, b) =>
                         newOrder === 'asc'
                           ? new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()
                           : new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime()
@@ -2072,7 +2102,7 @@ try{
                     const newOrder = activeFilter.name === 'asc' ? 'desc' : activeFilter.name === 'desc' ? null : 'asc';
                     setActiveFilter({ ...activeFilter, name: newOrder });
                     setFilteredStrykeList(
-                      [...strykeList].sort((a, b) =>
+                      [...filteredStrykeList].sort((a, b) =>
                         newOrder === 'asc'
                           ? a.companyName.localeCompare(b.companyName)
                           : b.companyName.localeCompare(a.companyName)
@@ -2090,10 +2120,10 @@ try{
                     setActiveFilter({ ...activeFilter, entry: newOrder });
                     setFilteredStrykeList(
                       newOrder
-                        ? [...strykeList].sort((a, b) =>
+                        ? [...filteredStrykeList].sort((a, b) =>
                           newOrder === 'asc' ? a.entryCandle.close - b.entryCandle.close : b.entryCandle.close - a.entryCandle.close
                         )
-                        : strykeList
+                        : filteredStrykeList
                     );
                   }}
                 >
@@ -2107,10 +2137,10 @@ try{
                     setActiveFilter({ ...activeFilter, target: newOrder });
                     setFilteredStrykeList(
                       newOrder
-                        ? [...strykeList].sort((a, b) =>
+                        ? [...filteredStrykeList].sort((a, b) =>
                           newOrder === 'asc' ? a.target - b.target : b.target - a.target
                         )
-                        : strykeList
+                        : filteredStrykeList
                     );
                   }}
                 >
@@ -2124,10 +2154,10 @@ try{
                     setActiveFilter({ ...activeFilter, avgVolume: newOrder });
                     setFilteredStrykeList(
                       newOrder
-                        ? [...strykeList].sort((a, b) =>
+                        ? [...filteredStrykeList].sort((a, b) =>
                           newOrder === 'asc' ? a.avgVolume - b.avgVolume : b.avgVolume - a.avgVolume
                         )
-                        : strykeList
+                        : filteredStrykeList
                     );
                   }}
                 >
@@ -2148,7 +2178,7 @@ try{
                         strykeList.filter((s) => !s.onePercChangeMap || Object.keys(s.onePercChangeMap).length === 0)
                       );
                     } else {
-                      setFilteredStrykeList(strykeList);
+                      setFilteredStrykeList(filteredStrykeList);
                     }
                   }}
                 >
