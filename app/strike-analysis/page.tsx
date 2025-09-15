@@ -16,8 +16,16 @@ interface Candle {
   high: number;
   low: number;
   close: number;
-  time: string;
+  timestamp: string;
   volume?: number;
+}
+
+interface SwingDTO {
+  timestamp: string;
+  candles: Candle[];
+  price : number;
+  label: string;
+  time:number
 }
 
 interface EMADTO {
@@ -30,6 +38,23 @@ interface EMADTO {
   ema5?: number | string | null;
   ema13?: number | string | null;
   ema21?: number | string | null;
+}
+
+interface SwingAnalysis {
+  minSwingProfits?: number;
+  maxSwingProfits?: number;
+  daysTakenForMaxSwingProfits?: number;
+  maxProfitCandle?: Candle;
+  algoEntryCandle?: Candle;
+  supportTouchCandle?: Candle;
+  resistanceTouchCandle?: Candle;
+  daysTakenForSupportTouch?: number;
+  daysTakenForResistanceTouch?: number;
+  algoSupport?: number;
+  algoResistance?: number;
+  currentSwing?: SwingDTO | null;
+  previousSwing?: SwingDTO | null;
+
 }
 
 interface Stryke {
@@ -89,13 +114,10 @@ interface Stryke {
   inResistanceZone?: boolean;
   onePercChangeMap: { [dateKey: string]: string }; // Map<LocalDate, LocalDateTime> equivalent in TypeScript
 
-  minSwingProfits?: number;
-  maxSwingProfits?: number;
-  daysTakenForMaxSwingProfits?: number;
-  daysTakenForSupportTouch?: number;
-  daysTakenForResistanceTouch?: number;
-  preEntrySwingLabel?: string;
-  preEntrySwingLabel2?: string;
+  // New swing analysis structure
+  strykeSwingAnalysis?: SwingAnalysis;
+  algoSwingAnalysis?: SwingAnalysis;
+  
 }
 
 interface DayStats {
@@ -108,6 +130,23 @@ interface StrykeListResponse {
   statusText: string;
 }
 
+interface metricsData {
+  minProfitsAchieved : number,
+  maxProfitsAchieved : number,
+  lessThanMinProfits : number,
+  supportsTouched : number,
+  resistancesTouched : number,
+  avgTimeTakenForProfits : number
+  ErGap_L3: number,
+  ErGap_G3: number
+  ER_Gap_AR: number
+
+  minProfitValue : number,
+  maxProfitValue : number,
+  avgProfitValue : number
+}
+
+
 // Define a type alias for filter order
 export type FilterOrder = 'asc' | 'desc' | null;
 export type TrendFilter = 'BULLISH' | 'BEARISH' | null;
@@ -115,6 +154,8 @@ export type TrendFilter = 'BULLISH' | 'BEARISH' | null;
 export default function StrikeAnalysisPage() {
   // State
   const [isLoading, setIsLoading] = useState(false);
+  const [strykeMetrics, setStrykeMetrics] = useState<metricsData | null>(null);
+  const [algoMetrics, setAlgoMetrics] = useState<metricsData | null>(null);
   // Global blocking loader for long running actions (delete, bulk ops, etc.)
   const [globalLoading, setGlobalLoading] = useState(false);
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
@@ -137,6 +178,7 @@ export default function StrikeAnalysisPage() {
   const [showAllStrykes, setShowAllStrykes] = useState(() => false);
   const [showStrykeStats, setShowStrykeStats] = useState(() => false);
   const [showSwingStats, setShowSwingStats] = useState(() => false);
+  const [showMetrics, setShowMetrics] = useState(() => false);
   const [activeFilter, setActiveFilter] = useState({
     date: null as FilterOrder,
     name: null as FilterOrder,
@@ -347,13 +389,9 @@ try{
         highestPriceTime: stryke.highestPriceTime ?? '-',
         lowestPriceTime: stryke.lowestPriceTime ?? '-',
         remarks: stryke.remarks ?? '-',
-        minSwingProfits: stryke.minSwingProfits,
-        maxSwingProfits: stryke.maxSwingProfits,
-        daysTakenForMaxSwingProfits: stryke.daysTakenForMaxSwingProfits,
-        daysTakenForSupportTouch: stryke.daysTakenForSupportTouch,
-        daysTakenForResistanceTouch: stryke.daysTakenForResistanceTouch,
-        preEntrySwingLabel: stryke.preEntrySwingLabel ?? '-',
-        preEntrySwingLabel2: stryke.preEntrySwingLabel2 ?? '-',
+        // New swing analysis structure
+        strykeSwingAnalysis: stryke.strykeSwingAnalysis,
+        algoSwingAnalysis: stryke.algoSwingAnalysis,
       })));
 
       // Set the filtered list to initially show all strykes
@@ -486,6 +524,17 @@ try{
     }
   }, [showAllStrykes]);
 
+  // Auto-recalculate metrics when filteredStrykeList changes and metrics view is active
+  useEffect(() => {
+    if (showMetrics && filteredStrykeList.length > 0) {
+      calculateMetrics(true); // Suppress toast for auto-calculation
+    } else if (showMetrics && filteredStrykeList.length === 0) {
+      // Clear metrics when no data is available
+      setStrykeMetrics(null);
+      setAlgoMetrics(null);
+    }
+  }, [filteredStrykeList, showMetrics]);
+
   const handleToggleView = (showForm: boolean, showAll: boolean, showStats: boolean, showSwing: boolean) => {
     setShowStrykeForm(showForm);
     setShowAllStrykes(showAll);
@@ -593,10 +642,20 @@ try{
   ): Stryke[] => {
     let out = list;
     if (label1) {
-      out = out.filter((s) => (s.preEntrySwingLabel || '').toUpperCase() === label1);
+     out = out.filter((s) => {
+        // Check both stryke and algo swing analysis for label2
+        const strykeLabel = s.strykeSwingAnalysis?.currentSwing?.label?.toUpperCase();
+        const algoLabel = s.algoSwingAnalysis?.currentSwing?.label?.toUpperCase();
+        return strykeLabel === label1 || algoLabel === label1;
+      });
     }
     if (label2) {
-      out = out.filter((s) => (s.preEntrySwingLabel2 || '').toUpperCase() === label2);
+      out = out.filter((s) => {
+        // Check both stryke and algo swing analysis for label2
+        const strykeLabel = s.strykeSwingAnalysis?.previousSwing?.label?.toUpperCase();
+        const algoLabel = s.algoSwingAnalysis?.previousSwing?.label?.toUpperCase();
+        return strykeLabel === label2 || algoLabel === label2;
+      });
     }
     return out;
   };
@@ -809,6 +868,172 @@ try{
     );
   }
 
+  const calculateMetrics = (suppressToast = false) => {
+    if (filteredStrykeList.length === 0) {
+      if (!suppressToast) {
+        toast.error('No stryke data available to calculate metrics');
+      }
+      return;
+    }
+
+    // Helper function to calculate metrics for a given analysis type
+    const calculateAnalysisMetrics = (getAnalysis: (stryke: Stryke) => any): metricsData => {
+      const strykeDataWithAnalysis = filteredStrykeList
+        .map(stryke => ({
+          stryke,
+          analysis: getAnalysis(stryke)
+        }))
+        .filter(item => item.analysis != null);
+
+      if (strykeDataWithAnalysis.length === 0) {
+        return {
+          minProfitsAchieved: 0,
+          maxProfitsAchieved: 0,
+          lessThanMinProfits: 0,
+          supportsTouched: 0,
+          resistancesTouched: 0,
+          avgTimeTakenForProfits: 0,
+          ErGap_L3: 0,
+          ErGap_G3: 0,
+          ER_Gap_AR: 0,
+          minProfitValue: 0,
+          maxProfitValue: 0,
+          avgProfitValue: 0
+        };
+      }
+
+      // Extract values
+      const minProfits = strykeDataWithAnalysis
+        .map(item => Number(item.analysis.minSwingProfits))
+        .filter(val => isFinite(val));
+      
+      const maxProfits = strykeDataWithAnalysis
+        .map(item => Number(item.analysis.maxSwingProfits))
+        .filter(val => isFinite(val));
+
+      // Debug: Check what fields are available in the analysis
+      console.log('Sample analysis object:', strykeDataWithAnalysis[0]?.analysis);
+      console.log('Available fields:', Object.keys(strykeDataWithAnalysis[0]?.analysis || {}));
+
+      // Filter stocks where max profit is greater than ER (minSwingProfits) for time calculation
+      const validStocksForTimeCalculation = strykeDataWithAnalysis.filter(item => {
+        const maxProfit = Number(item.analysis.maxSwingProfits);
+        const minProfit = Number(item.analysis.minSwingProfits); // ER gap
+        return isFinite(maxProfit) && isFinite(minProfit) && maxProfit > minProfit;
+      });
+
+      const timeTakenForProfits = validStocksForTimeCalculation
+        .map(item => {
+          const value = Number(item.analysis.daysTakenForMaxSwingProfits);
+          console.log(`Company: ${item.stryke.companyName}, daysTakenForMaxSwingProfits: ${item.analysis.daysTakenForMaxSwingProfits}, parsed: ${value}`);
+          return value;
+        })
+        .filter(val => isFinite(val) && val >= 0);
+
+      const supportTouchDays = strykeDataWithAnalysis
+        .map(item => Number(item.analysis.daysTakenForSupportTouch))
+        .filter(val => isFinite(val));
+
+      const resistanceTouchDays = strykeDataWithAnalysis
+        .map(item => Number(item.analysis.daysTakenForResistanceTouch))
+        .filter(val => isFinite(val));
+
+      // Calculate target percentages for comparison
+      const getTargetPercentage = (stryke: any, analysisType: 'stryke' | 'algo') => {
+        if (analysisType === 'stryke') {
+          const entry = Number(stryke.entryCandle?.close ?? 0);
+          const target = Number(stryke.target ?? 0);
+          return isFinite(entry) && isFinite(target) && entry > 0 
+            ? ((target - entry) / entry * 100) 
+            : 0;
+        } else {
+          const entry = Number(stryke.algoSwingAnalysis?.algoEntryCandle?.close ?? 0);
+          const target = Number(stryke.algoSwingAnalysis?.algoResistance ?? 0);
+          return isFinite(entry) && isFinite(target) && entry > 0 
+            ? ((target - entry) / entry * 100) 
+            : 0;
+        }
+      };
+
+      const analysisType = getAnalysis === ((s: any) => s.strykeSwingAnalysis) ? 'stryke' : 'algo';
+
+      // Count achievements based on mutually exclusive logic
+      // Each stock should be counted in exactly one category:
+      // 1. maxProfitsAchieved: when Max profits are greater than the target (highest priority)
+      // 2. minProfitsAchieved: when Max Profits % is greater than the minProfits (ER Gap) but not target
+      // 3. lessThanMinProfits: when max profits is less than ER gap (minSwingProfits)
+      
+      let maxProfitsAchieved = 0;
+      let minProfitsAchieved = 0;
+      let lessThanMinProfits = 0;
+
+      strykeDataWithAnalysis.forEach(item => {
+        const maxProfit = Number(item.analysis.maxSwingProfits);
+        const minProfit = Number(item.analysis.minSwingProfits);
+        const targetPercent = getTargetPercentage(item.stryke, analysisType);
+        
+        if (isFinite(maxProfit) && isFinite(minProfit)) {
+          if (isFinite(targetPercent) && maxProfit > targetPercent) {
+            // Highest priority: crossed target
+            maxProfitsAchieved++;
+          } else if (maxProfit > minProfit) {
+            // Medium priority: crossed ER gap but not target
+            minProfitsAchieved++;
+          } else {
+            // Lowest priority: didn't cross ER gap
+            lessThanMinProfits++;
+          }
+        }
+      });
+
+      const supportsTouched = supportTouchDays.filter(val => val > 0).length;
+      const resistancesTouched = resistanceTouchDays.filter(val => val > 0).length;
+
+      // ER Gap categorization
+      const ErGap_L3 = minProfits.filter(val => val >= 0 && val < 3).length;
+      const ErGap_G3 = minProfits.filter(val => val >= 3).length;
+      const ER_Gap_AR = minProfits.filter(val => val < 0 || !isFinite(val)).length;
+
+      // Average calculations
+      const avgTimeTakenForProfits = timeTakenForProfits.length > 0
+        ? timeTakenForProfits.reduce((sum, val) => sum + val, 0) / timeTakenForProfits.length
+        : 0;
+
+      const minProfitValue = minProfits.length > 0 ? Math.min(...minProfits) : 0;
+      const maxProfitValue = maxProfits.length > 0 ? Math.max(...maxProfits) : 0;
+      const avgProfitValue = maxProfits.length > 0
+        ? maxProfits.reduce((sum, val) => sum + val, 0) / maxProfits.length
+        : 0;
+
+      return {
+        minProfitsAchieved,
+        maxProfitsAchieved,
+        lessThanMinProfits,
+        supportsTouched,
+        resistancesTouched,
+        avgTimeTakenForProfits: Number(avgTimeTakenForProfits.toFixed(2)),
+        ErGap_L3,
+        ErGap_G3,
+        ER_Gap_AR,
+        minProfitValue: Number(minProfitValue.toFixed(2)),
+        maxProfitValue: Number(maxProfitValue.toFixed(2)),
+        avgProfitValue: Number(avgProfitValue.toFixed(2))
+      };
+    };
+
+    // Calculate metrics for Stryke Analysis
+    const strykeMetricsData = calculateAnalysisMetrics((stryke) => stryke.strykeSwingAnalysis);
+    setStrykeMetrics(strykeMetricsData);
+
+    // Calculate metrics for Algo Analysis
+    const algoMetricsData = calculateAnalysisMetrics((stryke) => stryke.algoSwingAnalysis);
+    setAlgoMetrics(algoMetricsData);
+
+    if (!suppressToast) {
+      toast.success('Metrics calculated successfully for both Stryke and Algo analysis');
+    }
+  }
+
   return (
     <div className="flex justify-start py-4 px-4 bg-cream">
       <div className="w-full max-w-screen-2xl ml-24 mr-0">
@@ -889,6 +1114,24 @@ try{
                   className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                 >
                   Show Swing Stats
+                </Button>
+              )}
+
+              {showSwingStats && (
+                <Button
+                  onClick={() => {
+                    if (!showMetrics) {
+                      calculateMetrics();
+                    }
+                    setShowMetrics(!showMetrics);
+                  }}
+                  className={`px-3 py-1.5 text-sm rounded-md transition ${
+                    showMetrics 
+                      ? 'bg-red-500 hover:bg-red-600 text-white' 
+                      : 'bg-purple-500 hover:bg-purple-600 text-white'
+                  }`}
+                >
+                  {showMetrics ? 'Hide Metrics' : 'Show Metrics'}
                 </Button>
               )}
 
@@ -1476,6 +1719,7 @@ try{
             <div className="container mx-auto py-4 px-4 max-w-screen-2xl">
               <h2 className="text-xl font-bold mb-4">Swing Stats</h2>
 
+    
               {/* Search, Sort, and Filter Controls */}
               <div className="flex flex-wrap gap-1 items-center mb-4">
             
@@ -1671,15 +1915,21 @@ try{
                     };
 
                     if (next) {
-                      const filtered = filteredStrykeList.filter((s) => {
-                        const label = computeERLabel(s.minSwingProfits as any);
-                        return label === next;
+                      const filtered = strykeList.filter((s) => {
+                        // Check both stryke and algo swing analysis for minSwingProfits
+                        const strykeLabel = computeERLabel(s.strykeSwingAnalysis?.minSwingProfits);
+                        const algoLabel = computeERLabel(s.algoSwingAnalysis?.minSwingProfits);
+                        return strykeLabel === next || algoLabel === next;
                       });
-                      // Sort by minSwingProfits descending
-                      filtered.sort((a, b) => (Number(b.minSwingProfits ?? 0) - Number(a.minSwingProfits ?? 0)));
+                      // Sort by stryke minSwingProfits descending (prefer stryke data)
+                      filtered.sort((a, b) => {
+                        const aVal = Number(a.strykeSwingAnalysis?.minSwingProfits ?? a.algoSwingAnalysis?.minSwingProfits ?? 0);
+                        const bVal = Number(b.strykeSwingAnalysis?.minSwingProfits ?? b.algoSwingAnalysis?.minSwingProfits ?? 0);
+                        return bVal - aVal;
+                      });
                       setFilteredStrykeList(filtered);
                     } else {
-                      setFilteredStrykeList(filteredStrykeList);
+                      setFilteredStrykeList(strykeList);
                     }
                   }}
                 >
@@ -1694,13 +1944,14 @@ try{
                     setActiveFilter({ ...activeFilter, erSort: next, profitSort: null });
                     if (next) {
                       const sorted = [...filteredStrykeList].sort((a, b) => {
-                        const aVal = Number(a.minSwingProfits ?? 0);
-                        const bVal = Number(b.minSwingProfits ?? 0);
+                        // Use stryke data primarily, fallback to algo data
+                        const aVal = Number(a.strykeSwingAnalysis?.minSwingProfits ?? a.algoSwingAnalysis?.minSwingProfits ?? 0);
+                        const bVal = Number(b.strykeSwingAnalysis?.minSwingProfits ?? b.algoSwingAnalysis?.minSwingProfits ?? 0);
                         return next === 'asc' ? aVal - bVal : bVal - aVal;
                       });
                       setFilteredStrykeList(sorted);
                     } else {
-                      setFilteredStrykeList(filteredStrykeList);
+                      setFilteredStrykeList(strykeList);
                     }
                   }}
                 >
@@ -1715,13 +1966,14 @@ try{
                     setActiveFilter({ ...activeFilter, profitSort: next, erSort: null });
                     if (next) {
                       const sorted = [...filteredStrykeList].sort((a, b) => {
-                        const aVal = Number(a.maxSwingProfits ?? 0);
-                        const bVal = Number(b.maxSwingProfits ?? 0);
+                        // Use stryke data primarily, fallback to algo data
+                        const aVal = Number(a.strykeSwingAnalysis?.maxSwingProfits ?? a.algoSwingAnalysis?.maxSwingProfits ?? 0);
+                        const bVal = Number(b.strykeSwingAnalysis?.maxSwingProfits ?? b.algoSwingAnalysis?.maxSwingProfits ?? 0);
                         return next === 'asc' ? aVal - bVal : bVal - aVal;
                       });
                       setFilteredStrykeList(sorted);
                     } else {
-                      setFilteredStrykeList(filteredStrykeList);
+                      setFilteredStrykeList(strykeList);
                     }
                   }}
                 >
@@ -1733,220 +1985,739 @@ try{
               </div>
 
 
+ {/* Show metrics content when showMetrics is true */}
+              {showMetrics && (
+                <div className="bg-gray-100 p-6 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-6 text-center">Metrics Dashboard - Comparative Analysis</h3>
+                  
+                  {/* Metrics Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    {/* Min Profits Achieved Comparison */}
+                    <div className="bg-white p-4 rounded-lg border shadow-sm">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3 text-center">Min Profits Achieved  - Crossed ER-Gap</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-blue-600 font-medium">Stryke:</span>
+                          <span className="text-xl font-bold text-blue-600">{strykeMetrics?.minProfitsAchieved || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-green-600 font-medium">Algo:</span>
+                          <span className="text-xl font-bold text-green-600">{algoMetrics?.minProfitsAchieved || 0}</span>
+                        </div>
+                        <div className="border-t pt-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Difference:</span>
+                            <span className={`font-bold ${(strykeMetrics?.minProfitsAchieved || 0) > (algoMetrics?.minProfitsAchieved || 0) ? 'text-blue-600' : (strykeMetrics?.minProfitsAchieved || 0) < (algoMetrics?.minProfitsAchieved || 0) ? 'text-green-600' : 'text-amber-500'}`}>
+                              {Math.abs((strykeMetrics?.minProfitsAchieved || 0) - (algoMetrics?.minProfitsAchieved || 0))}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Max Profits Achieved Comparison */}
+                    <div className="bg-white p-4 rounded-lg border shadow-sm">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3 text-center">Max Profits Achieved - Crossed the Target</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-blue-600 font-medium">Stryke:</span>
+                          <span className="text-xl font-bold text-blue-600">{strykeMetrics?.maxProfitsAchieved || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-green-600 font-medium">Algo:</span>
+                          <span className="text-xl font-bold text-green-600">{algoMetrics?.maxProfitsAchieved || 0}</span>
+                        </div>
+                        <div className="border-t pt-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Difference:</span>
+                            <span className={`font-bold ${(strykeMetrics?.maxProfitsAchieved || 0) > (algoMetrics?.maxProfitsAchieved || 0) ? 'text-blue-600' : (strykeMetrics?.maxProfitsAchieved || 0) < (algoMetrics?.maxProfitsAchieved || 0) ? 'text-green-600' : 'text-amber-500'}`}>
+                              {Math.abs((strykeMetrics?.maxProfitsAchieved || 0) - (algoMetrics?.maxProfitsAchieved || 0))}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Less Than Min Profits Comparison */}
+                    <div className="bg-white p-4 rounded-lg border shadow-sm">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3 text-center">Less Than Min Profits - Less than ER-Gap</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-blue-600 font-medium">Stryke:</span>
+                          <span className="text-xl font-bold text-red-600">{strykeMetrics?.lessThanMinProfits || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-green-600 font-medium">Algo:</span>
+                          <span className="text-xl font-bold text-red-600">{algoMetrics?.lessThanMinProfits || 0}</span>
+                        </div>
+                        <div className="border-t pt-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Difference:</span>
+                            <span className={`font-bold ${(strykeMetrics?.lessThanMinProfits || 0) < (algoMetrics?.lessThanMinProfits || 0) ? 'text-green-600' : (strykeMetrics?.lessThanMinProfits || 0) > (algoMetrics?.lessThanMinProfits || 0) ? 'text-red-600' : 'text-amber-500'}`}>
+                              {Math.abs((strykeMetrics?.lessThanMinProfits || 0) - (algoMetrics?.lessThanMinProfits || 0))}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ER Gap Distribution Comparison */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div className="bg-white p-4 rounded-lg border shadow-sm">
+                      <h4 className="text-lg font-semibold text-blue-700 mb-4 text-center">Stryke Analysis - ER Gap Distribution</h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="text-center p-3 bg-red-50 rounded">
+                          <div className="text-2xl font-bold text-red-600">{strykeMetrics?.ErGap_L3 || 0}</div>
+                          <div className="text-xs text-gray-600">{'< 3%'}</div>
+                        </div>
+                        <div className="text-center p-3 bg-green-50 rounded">
+                          <div className="text-2xl font-bold text-green-600">{strykeMetrics?.ErGap_G3 || 0}</div>
+                          <div className="text-xs text-gray-600">≥ 3%</div>
+                        </div>
+                        <div className="text-center p-3 bg-gray-50 rounded">
+                          <div className="text-2xl font-bold text-gray-600">{strykeMetrics?.ER_Gap_AR || 0}</div>
+                          <div className="text-xs text-gray-600">Above Resistance</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-lg border shadow-sm">
+                      <h4 className="text-lg font-semibold text-green-700 mb-4 text-center">Algo Analysis - ER Gap Distribution</h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="text-center p-3 bg-red-50 rounded">
+                          <div className="text-2xl font-bold text-red-600">{algoMetrics?.ErGap_L3 || 0}</div>
+                          <div className="text-xs text-gray-600">{'< 3%'}</div>
+                        </div>
+                        <div className="text-center p-3 bg-green-50 rounded">
+                          <div className="text-2xl font-bold text-green-600">{algoMetrics?.ErGap_G3 || 0}</div>
+                          <div className="text-xs text-gray-600">≥ 3%</div>
+                        </div>
+                        <div className="text-center p-3 bg-gray-50 rounded">
+                          <div className="text-2xl font-bold text-gray-600">{algoMetrics?.ER_Gap_AR || 0}</div>
+                          <div className="text-xs text-gray-600">Above Resistance</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Profit Values and Performance Metrics */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Stryke Analysis Detailed Metrics */}
+                    <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                      <h4 className="text-lg font-semibold text-blue-700 mb-4">Stryke Analysis Metrics</h4>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="bg-white p-3 rounded">
+                            <div className="font-medium text-gray-700">Supports Touched</div>
+                            <div className="text-xl font-bold text-amber-500">{strykeMetrics?.supportsTouched || 0}</div>
+                          </div>
+                          <div className="bg-white p-3 rounded">
+                            <div className="font-medium text-gray-700">Resistances Touched</div>
+                            <div className="text-xl font-bold text-amber-500">{strykeMetrics?.resistancesTouched || 0}</div>
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded">
+                          <div className="font-medium text-gray-700 mb-2">Profit Values (%)</div>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div className="text-center">
+                              <div className="text-blue-600 font-bold">{strykeMetrics?.minProfitValue || 0}%</div>
+                              <div className="text-xs">Min</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-green-600 font-bold">{strykeMetrics?.maxProfitValue || 0}%</div>
+                              <div className="text-xs">Max</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-amber-500 font-bold">{strykeMetrics?.avgProfitValue || 0}%</div>
+                              <div className="text-xs">Average</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded">
+                          <div className="font-medium text-gray-700">Avg Time to Profits</div>
+                          <div className="text-xl font-bold text-blue-600">{strykeMetrics?.avgTimeTakenForProfits || 0} days</div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Algo Analysis Detailed Metrics */}
+                    <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                      <h4 className="text-lg font-semibold text-green-700 mb-4">Algo Analysis Metrics</h4>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="bg-white p-3 rounded">
+                            <div className="font-medium text-gray-700">Supports Touched</div>
+                            <div className="text-xl font-bold text-amber-500">{algoMetrics?.supportsTouched || 0}</div>
+                          </div>
+                          <div className="bg-white p-3 rounded">
+                            <div className="font-medium text-gray-700">Resistances Touched</div>
+                            <div className="text-xl font-bold text-amber-500">{algoMetrics?.resistancesTouched || 0}</div>
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded">
+                          <div className="font-medium text-gray-700 mb-2">Profit Values (%)</div>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div className="text-center">
+                              <div className="text-blue-600 font-bold">{algoMetrics?.minProfitValue || 0}%</div>
+                              <div className="text-xs">Min</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-green-600 font-bold">{algoMetrics?.maxProfitValue || 0}%</div>
+                              <div className="text-xs">Max</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-amber-500 font-bold">{algoMetrics?.avgProfitValue || 0}%</div>
+                              <div className="text-xs">Average</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded">
+                          <div className="font-medium text-gray-700">Avg Time to Profits</div>
+                          <div className="text-xl font-bold text-blue-600">{algoMetrics?.avgTimeTakenForProfits || 0} days</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Performance Comparison Progress Bar */}
+                  <div className="mt-6">
+                    <h4 className="text-lg font-semibold mb-4 text-center">Performance Comparison</h4>
+                    {(() => {
+                      const comparisons = [
+                        // Min Profits Achieved (higher is better)
+                        (strykeMetrics?.minProfitsAchieved || 0) > (algoMetrics?.minProfitsAchieved || 0) ? 'stryke' : 
+                        (algoMetrics?.minProfitsAchieved || 0) > (strykeMetrics?.minProfitsAchieved || 0) ? 'algo' : null,
+                        
+                        // Max Profits Achieved (higher is better)
+                        (strykeMetrics?.maxProfitsAchieved || 0) > (algoMetrics?.maxProfitsAchieved || 0) ? 'stryke' : 
+                        (algoMetrics?.maxProfitsAchieved || 0) > (strykeMetrics?.maxProfitsAchieved || 0) ? 'algo' : null,
+                        
+                        // Less Than Min Profits (lower is better)
+                        (strykeMetrics?.lessThanMinProfits || 0) < (algoMetrics?.lessThanMinProfits || 0) ? 'stryke' : 
+                        (algoMetrics?.lessThanMinProfits || 0) < (strykeMetrics?.lessThanMinProfits || 0) ? 'algo' : null,
+                        
+                        // Supports Touched (higher is better)
+                        (strykeMetrics?.supportsTouched || 0) > (algoMetrics?.supportsTouched || 0) ? 'stryke' : 
+                        (algoMetrics?.supportsTouched || 0) > (strykeMetrics?.supportsTouched || 0) ? 'algo' : null,
+                        
+                        // Resistances Touched (higher is better)
+                        (strykeMetrics?.resistancesTouched || 0) > (algoMetrics?.resistancesTouched || 0) ? 'stryke' : 
+                        (algoMetrics?.resistancesTouched || 0) > (strykeMetrics?.resistancesTouched || 0) ? 'algo' : null,
+                        
+                        // Average Time to Profits (lower is better)
+                        (strykeMetrics?.avgTimeTakenForProfits || 0) < (algoMetrics?.avgTimeTakenForProfits || 0) ? 'stryke' : 
+                        (algoMetrics?.avgTimeTakenForProfits || 0) < (strykeMetrics?.avgTimeTakenForProfits || 0) ? 'algo' : null,
+                        
+                        // Min Profit Value (higher is better)
+                        (strykeMetrics?.minProfitValue || 0) > (algoMetrics?.minProfitValue || 0) ? 'stryke' : 
+                        (algoMetrics?.minProfitValue || 0) > (strykeMetrics?.minProfitValue || 0) ? 'algo' : null,
+                        
+                        // ER Gap < 3% (lower is better - fewer stocks below 3% gap is better)
+                        (strykeMetrics?.ErGap_L3 || 0) < (algoMetrics?.ErGap_L3 || 0) ? 'stryke' : 
+                        (algoMetrics?.ErGap_L3 || 0) < (strykeMetrics?.ErGap_L3 || 0) ? 'algo' : null,
+                        
+                        // Above Resistance (AR) (lower is better - fewer AR cases is better)
+                        (strykeMetrics?.ER_Gap_AR || 0) < (algoMetrics?.ER_Gap_AR || 0) ? 'stryke' : 
+                        (algoMetrics?.ER_Gap_AR || 0) < (strykeMetrics?.ER_Gap_AR || 0) ? 'algo' : null,
+                        
+                        // ER Gap >= 3% (higher is better)
+                        (strykeMetrics?.ErGap_G3 || 0) > (algoMetrics?.ErGap_G3 || 0) ? 'stryke' : 
+                        (algoMetrics?.ErGap_G3 || 0) > (strykeMetrics?.ErGap_G3 || 0) ? 'algo' : null,
+                        
+                        // Average Profit Value (higher is better)
+                        (strykeMetrics?.avgProfitValue || 0) > (algoMetrics?.avgProfitValue || 0) ? 'stryke' : 
+                        (algoMetrics?.avgProfitValue || 0) > (strykeMetrics?.avgProfitValue || 0) ? 'algo' : null,
+                        
+                        // Max Profit Value (higher is better)
+                        (strykeMetrics?.maxProfitValue || 0) > (algoMetrics?.maxProfitValue || 0) ? 'stryke' : 
+                        (algoMetrics?.maxProfitValue || 0) > (strykeMetrics?.maxProfitValue || 0) ? 'algo' : null
+                      ];
+                      
+                      const strykeWins = comparisons.filter(result => result === 'stryke').length;
+                      const algoWins = comparisons.filter(result => result === 'algo').length;
+                      const totalComparisons = comparisons.filter(result => result !== null).length;
+                      
+                      const strykePercentage = totalComparisons > 0 ? (strykeWins / totalComparisons) * 100 : 0;
+                      const algoPercentage = totalComparisons > 0 ? (algoWins / totalComparisons) * 100 : 0;
+                      
+                      return (
+                        <div className="bg-white p-4 rounded-lg border shadow-sm">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-blue-600 font-semibold">Stryke: {strykeWins} wins</span>
+                            <span className="text-green-600 font-semibold">Algo: {algoWins} wins</span>
+                          </div>
+                          
+                          <div className="relative w-full h-8 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className="absolute left-0 top-0 h-full bg-blue-500 transition-all duration-500 flex items-center justify-center"
+                              style={{ width: `${strykePercentage}%` }}
+                            >
+                              {strykeWins > 0 && (
+                                <span className="text-white text-xs font-semibold">{strykeWins}</span>
+                              )}
+                            </div>
+                            <div 
+                              className="absolute right-0 top-0 h-full bg-green-500 transition-all duration-500 flex items-center justify-center"
+                              style={{ width: `${algoPercentage}%` }}
+                            >
+                              {algoWins > 0 && (
+                                <span className="text-white text-xs font-semibold">{algoWins}</span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-between items-center mt-2">
+                            <span className="text-sm text-gray-600">{strykePercentage.toFixed(1)}%</span>
+                            <span className="text-sm font-medium text-gray-800">
+                              {strykeWins > algoWins ? '🏆 Stryke Leads' : 
+                               algoWins > strykeWins ? '🏆 Algo Leads' : 
+                               '🤝 Tied Performance'}
+                            </span>
+                            <span className="text-sm text-gray-600">{algoPercentage.toFixed(1)}%</span>
+                          </div>
+                          
+                          <div className="text-center mt-2">
+                            <span className="text-xs text-gray-500">
+                              Based on {totalComparisons} performance metrics
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              
+              {!showMetrics && (
               <table className="table-auto w-full border-collapse border border-gray-700 text-center">
                 <thead>
                   <tr className="bg-gray-400 sticky top-0 z-10">
                     <th className="border border-gray-700 px-4 py-2">Slno</th>
-                    <th className="border border-gray-700 px-12 py-2 min-w-[200px]">Company</th>
-                    <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Entry Date</th>
+                    <th className="border border-gray-700 px-12 py-2 min-w-[150px]">Company</th>
+                    <th className="border border-gray-700 px-12 py-2 min-w-[130px]">Entry Date</th>
                     <th className="border border-gray-700 px-8 py-2">Entry</th>
                     <th className="border border-gray-700 px-8 py-2">Target</th>
                     <th className="border border-gray-700 px-8 py-2">Stop Loss</th>
                     <th className="border border-gray-700 px-8 py-2">Swing Labels</th>
-                    <th title='Entry - Resistance Gap' className="border border-gray-700 px-12 py-2 min-w-[160px]">ER-Gap</th>
-                    <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Profits</th>
-                    <th title='Time Take for Stock to Hit Support' className="border border-gray-700 px-8 py-2">Time to Support</th>
-                    <th title='Time Take for Stock to Hit Resistance' className="border border-gray-700 px-8 py-2">Time to Resistance</th>
+                    <th title='Entry - Resistance Gap' className="border border-gray-700 px-12 py-2 min-w-[130px]">ER-Gap</th>
+                    <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Max Profits</th>
+                    <th title='Time Take for Stock to Hit Support' className="border border-gray-700 px-8 py-2">Support</th>
+                    <th title='Time Take for Stock to Hit Resistance' className="border border-gray-700 px-8 py-2">Resistance</th>
                     <th title='EMA Cross Overs' className="border border-gray-700 px-8 py-2">Ema Cross Overs</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStrykeList.map((stryke, index) => (
-                    <tr key={stryke.stockUuid || index} className={`${index % 2 === 0 ? 'bg-gray-200' : 'bg-white'} hover:bg-gray-100`}>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{index + 1}</td>
-                     <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[280px]" title={stryke.companyName}>{stryke.companyName}</td>
-                    <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryTime ? formatReadableDate(stryke.entryTime) : 'N/A'}</td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryCandle?.close ? `₹${stryke.entryCandle.close.toFixed(2)}` : (stryke.entryAt ?? 'N/A')}</td>
-                   <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
-                     (() => {
-                       const entry = Number(stryke.entryCandle?.close ?? 0);
-                       const maxPct = stryke.maxSwingProfits != null ? Number(stryke.maxSwingProfits) : NaN;
-                       const targetPct = isFinite(entry) && stryke.target != null ? calculatePercentageDifference(entry, Number(stryke.target)) : NaN;
-                       let cls = 'text-gray-700';
-                       if (isFinite(maxPct) && isFinite(targetPct)) {
-                         if (maxPct > targetPct) cls = 'text-green-700 font-semibold';
-                         else if (maxPct > 0 && maxPct < targetPct) cls = 'text-amber-500 font-semibold';
-                       }
-                       return <span className={cls}>₹{stryke.target?.toFixed(2)} ({isFinite(targetPct) ? `${targetPct}` : 'N/A'} %)</span>;
-                     })()
-                   }</td>
-                  <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
-                    (() => {
-                      const entry = Number(stryke.entryCandle?.close ?? 0);
-                      const maxPct = stryke.maxSwingProfits != null ? Number(stryke.maxSwingProfits) : NaN;
-                      const stopPct = isFinite(entry) && stryke.stopLoss != null ? calculatePercentageDifference(entry, Number(stryke.stopLoss)) : NaN;
-                      let cls = 'text-gray-700';
-                      if (isFinite(maxPct) && isFinite(stopPct)) {
-                        if (maxPct < stopPct) cls = 'text-red-700 font-semibold';
-                        else if (maxPct < 0) cls = 'text-amber-500 font-semibold';
-                      }
-                      return <span className={cls}>₹{stryke.stopLoss?.toFixed(2)} ({isFinite(stopPct) ? `${stopPct}` : 'N/A'} %)</span>;
-                    })()
-                  }</td>
-                <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
-                      (() => {
-                        const clsFor = (lab?: string | null) => {
-                          if (!lab) return 'text-gray-600';
-                          const v = (lab || '').toUpperCase();
-                            if (v === 'LL' || v === 'LH') return 'text-amber-500 font-semibold';
-                            if (v === 'HH' || v === 'HL') return 'text-green-700 font-semibold';
-                            return 'text-gray-600';
-                          };
-                          return (
-                            <>
-                              <span className={clsFor(stryke.preEntrySwingLabel2)}>{stryke.preEntrySwingLabel2 ?? 'N/A'}</span>
-                              <span className="px-1">{' <- '}</span>
-                              <span className={clsFor(stryke.preEntrySwingLabel)}>{stryke.preEntrySwingLabel ?? 'N/A'}</span>
-                            </>
-                          );
-                        })()
-                      }</td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
-                        (() => {
-                          const v = stryke.minSwingProfits;
+                  {filteredStrykeList.map((stryke, index) => {
+                    // Create two rows per stock - one for Stryke analysis, one for Algo analysis
+                    const strykeAnalysis = stryke.strykeSwingAnalysis;
+                    const algoAnalysis = stryke.algoSwingAnalysis;
                     
-                          const num = Number(v);
-                          const value = stryke.minSwingProfits && stryke.minSwingProfits > 0 ? `${num.toFixed(2)} %` : "Above Resistance";
-                          const cls = num > 3
-                            ? 'text-green-700 font-semibold'
-                            : (num >= 0.01 ? 'text-amber-500 font-semibold' : 'text-red-700 font-semibold');
-                          return <span className={cls}>{value}</span>;
-                        })()
-                      }</td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
-                        (() => {
-                          const max = stryke.maxSwingProfits != null ? Number(stryke.maxSwingProfits) : null;
-                          const min = stryke.minSwingProfits != null ? Number(stryke.minSwingProfits) : null;
-                          const days = stryke.daysTakenForMaxSwingProfits != null ? Number(stryke.daysTakenForMaxSwingProfits) : null;
-                          if (max == null || !isFinite(max)) return 'N/A';
-                          //show max
-                          
-                          const display = Number(max).toFixed(2);
-                          // coloring: zero -> red, greater than min (or positive profit) -> green, otherwise amber
-                          let cls = 'text-amber-500 font-semibold';
-                          if (Number(max) === 0) cls = 'text-red-700 font-semibold';
-                          else if (min != null && isFinite(min) && max > min) cls = 'text-green-700 font-semibold';
+                    return (
+                      <React.Fragment key={stryke.stockUuid || index}>
+                        {/* Stryke Analysis Row */}
+                        <tr className={`${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'} hover:bg-blue-200 border-l-4 border-blue-500`}>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{index + 1}a</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[280px]" title={stryke.companyName}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{stryke.companyName}</span>
+                              <span className="text-xs text-blue-600 font-semibold">Stryke Analysis</span>
+                            </div>
+                          </td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryTime ? formatReadableDate(stryke.entryTime) : 'N/A'}</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryCandle?.close ? `₹${stryke.entryCandle.close.toFixed(2)}` : (stryke.entryAt ?? 'N/A')}</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              const entry = Number(stryke.entryCandle?.close ?? 0);
+                              const maxPct = strykeAnalysis?.maxSwingProfits != null ? Number(strykeAnalysis.maxSwingProfits) : NaN;
+                              const targetPct = isFinite(entry) && stryke.target != null ? calculatePercentageDifference(entry, Number(stryke.target)) : NaN;
+                              let cls = 'text-gray-700';
+                              if (isFinite(maxPct) && isFinite(targetPct)) {
+                                if (maxPct > targetPct) cls = 'text-green-700 font-semibold';
+                                else if (maxPct > 0 && maxPct < targetPct) cls = 'text-amber-500 font-semibold';
+                              }
+                              return <span className={cls}>₹{stryke.target?.toFixed(2)} ({isFinite(targetPct) ? `${targetPct}` : 'N/A'} %)</span>;
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              const entry = Number(stryke.entryCandle?.close ?? 0);
+                              const maxPct = strykeAnalysis?.maxSwingProfits != null ? Number(strykeAnalysis.maxSwingProfits) : NaN;
+                              const stopPct = isFinite(entry) && stryke.stopLoss != null ? calculatePercentageDifference(entry, Number(stryke.stopLoss)) : NaN;
+                              let cls = 'text-gray-700';
+                              if (isFinite(maxPct) && isFinite(stopPct)) {
+                                if (maxPct < stopPct) cls = 'text-red-700 font-semibold';
+                                else if (maxPct < 0) cls = 'text-amber-500 font-semibold';
+                              }
+                              return <span className={cls}>₹{stryke.stopLoss?.toFixed(2)} ({isFinite(stopPct) ? `${stopPct}` : 'N/A'} %)</span>;
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              const clsFor = (lab?: string | null) => {
+                                if (!lab) return 'text-gray-600';
+                                const v = (lab || '').toUpperCase();
+                                if (v === 'LL' || v === 'LH') return 'text-amber-500 font-semibold';
+                                if (v === 'HH' || v === 'HL') return 'text-green-700 font-semibold';
+                                return 'text-gray-600';
+                              };
+                              return (
+                                <>
+                                  <span className={clsFor(strykeAnalysis?.previousSwing?.label)}>{strykeAnalysis?.previousSwing?.label ?? 'N/A'}</span>
+                                  <span className="px-1">{' <- '}</span>
+                                  <span className={clsFor(strykeAnalysis?.currentSwing?.label)}>{strykeAnalysis?.currentSwing?.label ?? 'N/A'}</span>
+                                </>
+                              );
+                            })()
+                          }</td>
+                      
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              const v = strykeAnalysis?.minSwingProfits;
+                              if (v == null) return 'N/A';
+                              const num = Number(v);
+                              const value = strykeAnalysis?.minSwingProfits && strykeAnalysis.minSwingProfits > 0 ? `${num.toFixed(2)} %` : "Above Resistance";
+                              const cls = num > 3
+                                ? 'text-green-700 font-semibold'
+                                : (num >= 0.01 ? 'text-amber-500 font-semibold' : 'text-red-700 font-semibold');
+                              return <span className={cls}>{value}</span>;
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              const max = strykeAnalysis?.maxSwingProfits != null ? Number(strykeAnalysis.maxSwingProfits) : null;
+                              const min = strykeAnalysis?.minSwingProfits != null ? Number(strykeAnalysis.minSwingProfits) : null;
+                              const days = strykeAnalysis?.daysTakenForMaxSwingProfits != null ? Number(strykeAnalysis.daysTakenForMaxSwingProfits) : null;
+                              if (max == null || !isFinite(max)) return 'N/A';
+                              
+                              const display = Number(max).toFixed(2);
+                              let cls = 'text-amber-500 font-semibold';
+                              if (Number(max) === 0) cls = 'text-red-700 font-semibold';
+                              else if (min != null && isFinite(min) && max > min) cls = 'text-green-700 font-semibold';
 
-                          return (
-                            <span className={cls}>{display}{" % "} {days != null ? `(${days} d)` : '(N/A)'}</span>
-                          );
-                        })()
-                      }</td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
-                        (() => {
-                          if (stryke.daysTakenForSupportTouch == null) return 'N/A';
-                          if (Number(stryke.daysTakenForSupportTouch) === 0) {
-                            const cls  = 'text-green-600 font-semibold';
-                            return <span className={cls}>{`No Hit`}</span>;
-                          }
-                          const supportDays = Number(stryke.daysTakenForSupportTouch);
-                          const maxDays = stryke.daysTakenForMaxSwingProfits != null && isFinite(Number(stryke.daysTakenForMaxSwingProfits))
-                            ? Number(stryke.daysTakenForMaxSwingProfits)
-                            : null;
-                          const cls = (maxDays != null && supportDays < maxDays) ? 'text-red-700 font-semibold' : 'text-amber-500 font-semibold';
-                          return <span className={cls}>{`${supportDays} days`}</span>;
-                        })()
-                      }</td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
-                        (() => {
-                          if (stryke.daysTakenForResistanceTouch == null) return 'N/A';
-                          if (Number(stryke.daysTakenForResistanceTouch) === 0) {
-                            const cls = 'text-red-700 font-semibold';
-                            return <span className={cls}>{`No Hit`}</span>;
-                          }
-                          const resDays = Number(stryke.daysTakenForResistanceTouch);
-                          const maxDays = stryke.daysTakenForMaxSwingProfits != null && isFinite(Number(stryke.daysTakenForMaxSwingProfits))
-                            ? Number(stryke.daysTakenForMaxSwingProfits)
-                            : null;
-                          let cls = 'text-amber-500 font-semibold';
-                          if (maxDays != null) {
-                            if (maxDays > resDays) cls = 'text-green-700 font-semibold';
-                            else if (maxDays < resDays) cls = 'text-red-700 font-semibold';
-                            else cls = 'text-green-700 font-semibold';
-                          }
-                          return <span className={cls}>{`${resDays} days`}</span>;
-                        })()
-                      }</td>
-                      <td className="border border-gray-700 px-4 py-2 text-center align-middle">
-                        <div className="flex items-center justify-center space-x-2">
-                          {(() => {
-                            const p = getEmaBadgeProps(stryke, '15M');
-                            return (
-                              <span
-                                title={p.title}
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openCrossoverModal(stryke, '15M')}
-                                onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '15M'); }}
-                                className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
-                              >
-                                <span>15M</span>
-                                {(p.count ?? 0) > 0 && (
-                                  <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
-                                )}
-                              </span>
-                            );
-                          })()}
-                          {(() => {
-                            const p = getEmaBadgeProps(stryke, '1H');
-                            return (
-                              <span
-                                title={p.title}
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openCrossoverModal(stryke, '1H')}
-                                onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1H'); }}
-                                className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
-                              >
-                                <span>1H</span>
-                                {(p.count ?? 0) > 0 && (
-                                  <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
-                                )}
-                              </span>
-                            );
-                          })()}
-                          {(() => {
-                            const p = getEmaBadgeProps(stryke, '4H');
-                            return (
-                              <span
-                                title={p.title}
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openCrossoverModal(stryke, '4H')}
-                                onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '4H'); }}
-                                className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
-                              >
-                                <span>4H</span>
-                                {(p.count ?? 0) > 0 && (
-                                  <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
-                                )}
-                              </span>
-                            );
-                          })()}
-                          {(() => {
-                            const p = getEmaBadgeProps(stryke, '1D');
-                            return (
-                              <span
-                                title={p.title}
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openCrossoverModal(stryke, '1D')}
-                                onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1D'); }}
-                                className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
-                              >
-                                <span>1D</span>
-                                {(p.count ?? 0) > 0 && (
-                                  <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
-                                )}
-                              </span>
-                            );
-                          })()}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                              return (
+                                <span className={cls}>{display}{" % "} {days != null ? `(${days} d)` : '(N/A)'}</span>
+                              );
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              if (strykeAnalysis?.daysTakenForSupportTouch == null) return 'N/A';
+                              if (Number(strykeAnalysis.daysTakenForSupportTouch) === 0) {
+                                const cls = 'text-green-600 font-semibold';
+                                return <span className={cls}>{`No Hit`}</span>;
+                              }
+                              const supportDays = Number(strykeAnalysis.daysTakenForSupportTouch);
+                              const maxDays = strykeAnalysis?.daysTakenForMaxSwingProfits != null && isFinite(Number(strykeAnalysis.daysTakenForMaxSwingProfits))
+                                ? Number(strykeAnalysis.daysTakenForMaxSwingProfits)
+                                : null;
+                              const cls = (maxDays != null && supportDays < maxDays) ? 'text-red-700 font-semibold' : 'text-amber-500 font-semibold';
+                              return <span className={cls}>{`${supportDays} days`}</span>;
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              if (strykeAnalysis?.daysTakenForResistanceTouch == null) return 'N/A';
+                              if (Number(strykeAnalysis.daysTakenForResistanceTouch) === 0) {
+                                const cls = 'text-red-700 font-semibold';
+                                return <span className={cls}>{`No Hit`}</span>;
+                              }
+                              const resDays = Number(strykeAnalysis.daysTakenForResistanceTouch);
+                              const maxDays = strykeAnalysis?.daysTakenForMaxSwingProfits != null && isFinite(Number(strykeAnalysis.daysTakenForMaxSwingProfits))
+                                ? Number(strykeAnalysis.daysTakenForMaxSwingProfits)
+                                : null;
+                              let cls = 'text-amber-500 font-semibold';
+                              if (maxDays != null) {
+                                if (maxDays > resDays) cls = 'text-green-700 font-semibold';
+                                else if (maxDays < resDays) cls = 'text-red-700 font-semibold';
+                                else cls = 'text-green-700 font-semibold';
+                              }
+                              return <span className={cls}>{`${resDays} days`}</span>;
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">
+                            <div className="flex items-center justify-center space-x-2">
+                              {(() => {
+                                const p = getEmaBadgeProps(stryke, '15M');
+                                return (
+                                  <span
+                                    title={p.title}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openCrossoverModal(stryke, '15M')}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '15M'); }}
+                                    className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                                  >
+                                    <span>15M</span>
+                                    {(p.count ?? 0) > 0 && (
+                                      <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
+                              {(() => {
+                                const p = getEmaBadgeProps(stryke, '1H');
+                                return (
+                                  <span
+                                    title={p.title}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openCrossoverModal(stryke, '1H')}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1H'); }}
+                                    className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                                  >
+                                    <span>1H</span>
+                                    {(p.count ?? 0) > 0 && (
+                                      <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
+                              {(() => {
+                                const p = getEmaBadgeProps(stryke, '4H');
+                                return (
+                                  <span
+                                    title={p.title}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openCrossoverModal(stryke, '4H')}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '4H'); }}
+                                    className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                                  >
+                                    <span>4H</span>
+                                    {(p.count ?? 0) > 0 && (
+                                      <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
+                              {(() => {
+                                const p = getEmaBadgeProps(stryke, '1D');
+                                return (
+                                  <span
+                                    title={p.title}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openCrossoverModal(stryke, '1D')}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1D'); }}
+                                    className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                                  >
+                                    <span>1D</span>
+                                    {(p.count ?? 0) > 0 && (
+                                      <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          </td>
+                        </tr>
+                        
+                        {/* Algo Analysis Row */}
+                        <tr className={`${index % 2 === 0 ? 'bg-green-50' : 'bg-green-100'} hover:bg-green-200 border-l-4 border-green-500`}>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{index + 1}b</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[280px]" title={stryke.companyName}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{stryke.companyName}</span>
+                              <span className="text-xs text-green-600 font-semibold">Algo Analysis</span>
+                            </div>
+                          </td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{algoAnalysis?.algoEntryCandle?.timestamp ? formatReadableDate(algoAnalysis?.algoEntryCandle?.timestamp) : 'N/A'}</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{algoAnalysis?.algoEntryCandle?.close ? `₹${algoAnalysis?.algoEntryCandle?.close.toFixed(2)}` : (stryke.entryAt ?? 'N/A')}</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              const entry = Number(algoAnalysis?.algoEntryCandle?.close ?? 0);
+                              const maxPct = algoAnalysis?.maxSwingProfits != null ? Number(algoAnalysis.maxSwingProfits) : NaN;
+                              const targetPct = isFinite(entry) && algoAnalysis?.algoResistance != null ? calculatePercentageDifference(entry, Number(algoAnalysis?.algoResistance)) : NaN;
+                              let cls = 'text-gray-700';
+                              if (isFinite(maxPct) && isFinite(targetPct)) {
+                                if (maxPct > targetPct) cls = 'text-green-700 font-semibold';
+                                else if (maxPct > 0 && maxPct < targetPct) cls = 'text-amber-500 font-semibold';
+                              }
+                              return <span className={cls}>₹{algoAnalysis?.algoResistance?.toFixed(2)} ({isFinite(targetPct) ? `${targetPct}` : 'N/A'} %)</span>;
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              const entry = Number(algoAnalysis?.algoEntryCandle?.close ?? 0);
+                              const maxPct = algoAnalysis?.maxSwingProfits != null ? Number(algoAnalysis.maxSwingProfits) : NaN;
+                              const stopPct = isFinite(entry) && algoAnalysis?.algoSupport != null ? calculatePercentageDifference(entry, Number(algoAnalysis?.algoSupport)) : NaN;
+                              let cls = 'text-gray-700';
+                              if (isFinite(maxPct) && isFinite(stopPct)) {
+                                if (maxPct < stopPct) cls = 'text-red-700 font-semibold';
+                                else if (maxPct < 0) cls = 'text-amber-500 font-semibold';
+                              }
+                              return <span className={cls}>₹{algoAnalysis?.algoSupport?.toFixed(2)} ({isFinite(stopPct) ? `${stopPct}` : 'N/A'} %)</span>;
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              const clsFor = (lab?: string | null) => {
+                                if (!lab) return 'text-gray-600';
+                                const v = (lab || '').toUpperCase();
+                                if (v === 'LL' || v === 'LH') return 'text-amber-500 font-semibold';
+                                if (v === 'HH' || v === 'HL') return 'text-green-700 font-semibold';
+                                return 'text-gray-600';
+                              };
+                              return (
+                                <>
+                                  <span className={clsFor(algoAnalysis?.previousSwing?.label)}>{algoAnalysis?.previousSwing?.label ?? 'N/A'}</span>
+                                  <span className="px-1">{' <- '}</span>
+                                  <span className={clsFor(algoAnalysis?.currentSwing?.label)}>{algoAnalysis?.currentSwing?.label ?? 'N/A'}</span>
+                                </>
+                              );
+                            })()
+                          }</td>
+                        
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              const v = algoAnalysis?.minSwingProfits;
+                              if (v == null) return 'N/A';
+                              const num = Number(v);
+                              const value = algoAnalysis?.minSwingProfits && algoAnalysis.minSwingProfits > 0 ? `${num.toFixed(2)} %` : "Above Resistance";
+                              const cls = num > 3
+                                ? 'text-green-700 font-semibold'
+                                : (num >= 0.01 ? 'text-amber-500 font-semibold' : 'text-red-700 font-semibold');
+                              return <span className={cls}>{value}</span>;
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              const max = algoAnalysis?.maxSwingProfits != null ? Number(algoAnalysis.maxSwingProfits) : null;
+                              const min = algoAnalysis?.minSwingProfits != null ? Number(algoAnalysis.minSwingProfits) : null;
+                              const days = algoAnalysis?.daysTakenForMaxSwingProfits != null ? Number(algoAnalysis.daysTakenForMaxSwingProfits) : null;
+                              if (max == null || !isFinite(max)) return 'N/A';
+                              
+                              const display = Number(max).toFixed(2);
+                              let cls = 'text-amber-500 font-semibold';
+                              if (Number(max) === 0) cls = 'text-red-700 font-semibold';
+                              else if (min != null && isFinite(min) && max > min) cls = 'text-green-700 font-semibold';
+
+                              return (
+                                <span className={cls}>{display}{" % "} {days != null ? `(${days} d)` : '(N/A)'}</span>
+                              );
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              if (algoAnalysis?.daysTakenForSupportTouch == null) return 'N/A';
+                              if (Number(algoAnalysis.daysTakenForSupportTouch) === 0) {
+                                const cls = 'text-green-600 font-semibold';
+                                return <span className={cls}>{`No Hit`}</span>;
+                              }
+                              const supportDays = Number(algoAnalysis.daysTakenForSupportTouch);
+                              const maxDays = algoAnalysis?.daysTakenForMaxSwingProfits != null && isFinite(Number(algoAnalysis.daysTakenForMaxSwingProfits))
+                                ? Number(algoAnalysis.daysTakenForMaxSwingProfits)
+                                : null;
+                              const cls = (maxDays != null && supportDays < maxDays) ? 'text-red-700 font-semibold' : 'text-amber-500 font-semibold';
+                              return <span className={cls}>{`${supportDays} days`}</span>;
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                            (() => {
+                              if (algoAnalysis?.daysTakenForResistanceTouch == null) return 'N/A';
+                              if (Number(algoAnalysis.daysTakenForResistanceTouch) === 0) {
+                                const cls = 'text-red-700 font-semibold';
+                                return <span className={cls}>{`No Hit`}</span>;
+                              }
+                              const resDays = Number(algoAnalysis.daysTakenForResistanceTouch);
+                              const maxDays = algoAnalysis?.daysTakenForMaxSwingProfits != null && isFinite(Number(algoAnalysis.daysTakenForMaxSwingProfits))
+                                ? Number(algoAnalysis.daysTakenForMaxSwingProfits)
+                                : null;
+                              let cls = 'text-amber-500 font-semibold';
+                              if (maxDays != null) {
+                                if (maxDays > resDays) cls = 'text-green-700 font-semibold';
+                                else if (maxDays < resDays) cls = 'text-red-700 font-semibold';
+                                else cls = 'text-green-700 font-semibold';
+                              }
+                              return <span className={cls}>{`${resDays} days`}</span>;
+                            })()
+                          }</td>
+                          <td className="border border-gray-700 px-4 py-2 text-center align-middle">
+                            <div className="flex items-center justify-center space-x-2">
+                              {(() => {
+                                const p = getEmaBadgeProps(stryke, '15M');
+                                return (
+                                  <span
+                                    title={p.title}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openCrossoverModal(stryke, '15M')}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '15M'); }}
+                                    className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                                  >
+                                    <span>15M</span>
+                                    {(p.count ?? 0) > 0 && (
+                                      <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
+                              {(() => {
+                                const p = getEmaBadgeProps(stryke, '1H');
+                                return (
+                                  <span
+                                    title={p.title}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openCrossoverModal(stryke, '1H')}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1H'); }}
+                                    className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                                  >
+                                    <span>1H</span>
+                                    {(p.count ?? 0) > 0 && (
+                                      <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
+                              {(() => {
+                                const p = getEmaBadgeProps(stryke, '4H');
+                                return (
+                                  <span
+                                    title={p.title}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openCrossoverModal(stryke, '4H')}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '4H'); }}
+                                    className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                                  >
+                                    <span>4H</span>
+                                    {(p.count ?? 0) > 0 && (
+                                      <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
+                              {(() => {
+                                const p = getEmaBadgeProps(stryke, '1D');
+                                return (
+                                  <span
+                                    title={p.title}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openCrossoverModal(stryke, '1D')}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1D'); }}
+                                    className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
+                                  >
+                                    <span>1D</span>
+                                    {(p.count ?? 0) > 0 && (
+                                      <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] px-1 rounded-full">{p.count}</span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
+                )}
+
               {/* Crossover Modal */}
               {crossoverModal.open && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">

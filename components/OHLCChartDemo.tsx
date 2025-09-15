@@ -13,7 +13,7 @@ import { EntryDatesApiResponse } from './types/entry-dates';
 import axios from 'axios';
 
 // Performance optimization constants
-const MAX_CANDLES_FOR_CHART = 3000; // Limit for ultra-fast performance
+const MAX_CANDLES_FOR_CHART = 10000; // Limit for ultra-fast performance
 const PAGINATION_CHUNK_SIZE = 500; // Smaller chunks for faster loading
 
 export const OHLCChartDemo: React.FC = () => {
@@ -91,13 +91,13 @@ export const OHLCChartDemo: React.FC = () => {
     // Always go backwards in time
     switch (timeframe) {
       case '1m':
-        from.setDate(from.getDate() - 30); // 375 per Day * 3 days = 1125 Candles
+        from.setDate(from.getDate() - 60); // 375 per Day * 3 days = 1125 Candles
         break;
       case '5m':
-        from.setDate(from.getDate() - 30); // 75 per Day * 10 days = 750 Candles
+        from.setDate(from.getDate() - 60); // 75 per Day * 10 days = 750 Candles
         break;
       case '15m':
-        from.setDate(from.getDate() - 30); // 25 per Day * 30 days = 750 Candles
+        from.setDate(from.getDate() - 180); // 25 per Day * 30 days = 750 Candles
         break;
       case '30m':
         from.setDate(from.getDate() - 90); // 12 per Day * 60 days = 720 Candles
