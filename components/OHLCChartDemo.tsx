@@ -91,23 +91,23 @@ export const OHLCChartDemo: React.FC = () => {
     // Always go backwards in time
     switch (timeframe) {
       case '1m':
-        from.setDate(from.getDate() - 3); // 375 per Day * 3 days = 1125 Candles
+        from.setDate(from.getDate() - 30); // 375 per Day * 3 days = 1125 Candles
         break;
       case '5m':
-        from.setDate(from.getDate() - 10); // 75 per Day * 10 days = 750 Candles
+        from.setDate(from.getDate() - 30); // 75 per Day * 10 days = 750 Candles
         break;
       case '15m':
-        from.setDate(from.getDate() - 21); // 25 per Day * 21 days = 525 Candles
+        from.setDate(from.getDate() - 30); // 25 per Day * 30 days = 750 Candles
         break;
       case '30m':
-        from.setDate(from.getDate() - 60); // 12 per Day * 60 days = 720 Candles
+        from.setDate(from.getDate() - 90); // 12 per Day * 60 days = 720 Candles
         break;
       case '1h':
-        from.setDate(from.getDate() - 120); // 6 per Day * 120 days = 720 Candles
+        from.setDate(from.getDate() - 90); // 6 per Day * 120 days = 720 Candles
         break;
       case '4h':
         // Based on working URL: from 2025-05-27 to 2025-08-27 = ~3 months = ~90 days
-        from.setDate(from.getDate() - 120); // ~90 days for 4h timeframe
+        from.setDate(from.getDate() - 90); // ~90 days for 4h timeframe
         break;
       case '1d':
         from.setDate(from.getDate() - 500); // ~6 months = ~130 trading days 
@@ -356,7 +356,7 @@ export const OHLCChartDemo: React.FC = () => {
 
   // Function to load more historical (older) data (pagination)
   async function loadMoreHistoricalData() {
-    if (!selectedInstrumentKey || !upstoxApiKey || loadingOlderData) {
+        if (!selectedInstrumentKey || !upstoxApiKey || loadingOlderData) {
       return;
     }
 
@@ -368,10 +368,10 @@ export const OHLCChartDemo: React.FC = () => {
       let to: string;
       let from: Date;
 
-      
-     
+
+
         // Loading older data - use oldest candle time as "to"
-        const newestDate = new Date(newestCandleTime ?? new Date().toISOString());
+        const newestDate = new Date(candles.at(0)?.timestamp ?? new Date().toISOString());
         to = newestDate.toISOString();
         from = calculateFromDate(newestDate, selectedTimeframe);
      
