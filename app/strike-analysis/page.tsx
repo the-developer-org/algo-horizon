@@ -179,6 +179,8 @@ export default function StrikeAnalysisPage() {
   const [showStrykeStats, setShowStrykeStats] = useState(() => false);
   const [showSwingStats, setShowSwingStats] = useState(() => false);
   const [showMetrics, setShowMetrics] = useState(() => false);
+  const [showAlgoAnalysis, setShowAlgoAnalysis] = useState(() => true);
+  const [showStrykeAnalysis, setShowStrykeAnalysis] = useState(() => true);
   const [activeFilter, setActiveFilter] = useState({
     date: null as FilterOrder,
     name: null as FilterOrder,
@@ -203,6 +205,22 @@ export default function StrikeAnalysisPage() {
     list: string[];
   }>({ open: false, timeframe: null, companyName: null, list: [] });
 
+  // Modal state to show stocks missing analysis data
+  const [missingAnalysisModal, setMissingAnalysisModal] = useState<{
+    open: boolean;
+    type: 'stryke' | 'algo' | null;
+    stocks: Stryke[];
+  }>({ open: false, type: null, stocks: [] });
+
+  // Helper function to apply stryke analysis filter
+  const applyStrykeAnalysisFilter = (stocks: Stryke[]): Stryke[] => {
+    if (showStrykeAnalysis) {
+      // If showStrykeAnalysis is true, only include stocks that have strykeSwingAnalysis
+      return stocks.filter(stock => stock.strykeSwingAnalysis != null);
+    }
+    // If showStrykeAnalysis is false, include all stocks
+    return stocks;
+  };
 
   // Fetch KeyMapping from Redis on mount
   useEffect(() => {
@@ -517,6 +535,17 @@ try{
   };
 
   const closeCrossoverModal = () => setCrossoverModal({ open: false, timeframe: null, companyName: null, list: [] });
+
+  // Functions to handle missing analysis modal
+  const openMissingAnalysisModal = (type: 'stryke' | 'algo') => {
+    const missingStocks = type === 'stryke' 
+      ? filteredStrykeList.filter(stock => stock.strykeSwingAnalysis == null)
+      : filteredStrykeList.filter(stock => stock.algoSwingAnalysis == null);
+    
+    setMissingAnalysisModal({ open: true, type, stocks: missingStocks });
+  };
+
+  const closeMissingAnalysisModal = () => setMissingAnalysisModal({ open: false, type: null, stocks: [] });
 
   useEffect(() => {
     if (showAllStrykes && strykeList.length === 0) {
@@ -1117,6 +1146,7 @@ try{
                 </Button>
               )}
 
+
               {showSwingStats && (
                 <Button
                   onClick={() => {
@@ -1414,11 +1444,10 @@ try{
                     className="w-full md:w-1/2 bg-white"
                     onChange={(e) => {
                       const query = e.target.value.toLowerCase();
-                      setFilteredStrykeList(
-                        strykeList.filter((stryke) =>
-                          stryke.companyName.toLowerCase().includes(query)
-                        )
+                      const filtered = strykeList.filter((stryke) =>
+                        stryke.companyName.toLowerCase().includes(query)
                       );
+                      setFilteredStrykeList(applyStrykeAnalysisFilter(filtered));
                     }}
                   />
                   {/* Individual Filter Buttons */}
@@ -1430,14 +1459,13 @@ try{
                       onChange={(e) => {
                         const monthYear = e.target.value;
                         setSelectedMonth(monthYear || null);
-                        setFilteredStrykeList(
-                          monthYear
-                            ? strykeList.filter((stryke) => {
-                              const addedMonthYear = new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' });
-                              return addedMonthYear === monthYear;
-                            })
-                            : strykeList
-                        );
+                        const filtered = monthYear
+                          ? strykeList.filter((stryke) => {
+                            const addedMonthYear = new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' });
+                            return addedMonthYear === monthYear;
+                          })
+                          : strykeList;
+                        setFilteredStrykeList(applyStrykeAnalysisFilter(filtered));
                       }}
                     >
                       <option value="">All Months</option>
@@ -1776,6 +1804,44 @@ try{
                 </button>
                   {/* Count */}
                 <span className="text-lg font-bold">Count: {filteredStrykeList.length}</span>
+                {(() => {
+                  const strykeCount = filteredStrykeList.filter(stryke => stryke.strykeSwingAnalysis != null).length;
+                  const totalCount = filteredStrykeList.length;
+                  const hasMissing = strykeCount < totalCount;
+                  
+                  return hasMissing ? (
+                    <span 
+                      className="text-sm font-medium text-blue-600 ml-2 cursor-pointer hover:underline"
+                      onClick={() => openMissingAnalysisModal('stryke')}
+                      title={`Click to see ${totalCount - strykeCount} stocks missing Stryke analysis`}
+                    >
+                      Stryke Analysis: {strykeCount}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-medium text-blue-600 ml-2">
+                      Stryke Analysis: {strykeCount}
+                    </span>
+                  );
+                })()}
+                {(() => {
+                  const algoCount = filteredStrykeList.filter(stryke => stryke.algoSwingAnalysis != null).length;
+                  const totalCount = filteredStrykeList.length;
+                  const hasMissing = algoCount < totalCount;
+                  
+                  return hasMissing ? (
+                    <span 
+                      className="text-sm font-medium text-green-600 ml-2 cursor-pointer hover:underline"
+                      onClick={() => openMissingAnalysisModal('algo')}
+                      title={`Click to see ${totalCount - algoCount} stocks missing Algo analysis`}
+                    >
+                      Algo Analysis: {algoCount}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-medium text-green-600 ml-2">
+                      Algo Analysis: {algoCount}
+                    </span>
+                  );
+                })()}
                 </div>
                    <div className="flex flex-wrap gap-1 items-center mb-4">
                
@@ -1979,6 +2045,43 @@ try{
                 >
                   Sort Profits ({activeFilter.profitSort || 'off'})
                 </button>
+
+                 {!showAlgoAnalysis && (
+                <Button
+                  onClick={() => setShowAlgoAnalysis(true)}
+                  className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                >
+                  Show Algo Analysis
+                </Button>
+              )}
+
+              {showAlgoAnalysis && (
+                <Button
+                  onClick={() => setShowAlgoAnalysis(false)}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                >
+                  Hide Algo Analysis
+                </Button>
+              )}
+
+              {!showStrykeAnalysis && (
+                <Button
+                  onClick={() => setShowStrykeAnalysis(true)}
+                  className="bg-cyan-500 hover:bg-cyan-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                >
+                  Show Stryke Analysis
+                </Button>
+              )}
+
+              {showStrykeAnalysis && (
+                <Button
+                  onClick={() => setShowStrykeAnalysis(false)}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                >
+                  Hide Stryke Analysis
+                </Button>
+              )}
+
 
     
 
@@ -2317,7 +2420,7 @@ try{
                     return (
                       <React.Fragment key={stryke.stockUuid || index}>
                         {/* Stryke Analysis Row */}
-                        <tr className={`${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'} hover:bg-blue-200 border-l-4 border-blue-500`}>
+                    { strykeAnalysis && showStrykeAnalysis && (  <tr className={`${index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'} hover:bg-blue-200 border-l-4 border-blue-500`}>
                           <td className="border border-gray-700 px-4 py-2 text-center align-middle">{index + 1}a</td>
                           <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[280px]" title={stryke.companyName}>
                             <div className="flex flex-col">
@@ -2512,10 +2615,14 @@ try{
                               })()}
                             </div>
                           </td>
-                        </tr>
+                        </tr>)}
+                        
+
+
+
                         
                         {/* Algo Analysis Row */}
-                        <tr className={`${index % 2 === 0 ? 'bg-green-50' : 'bg-green-100'} hover:bg-green-200 border-l-4 border-green-500`}>
+                        { algoAnalysis&& showAlgoAnalysis &&(<tr className={`${index % 2 === 0 ? 'bg-green-50' : 'bg-green-100'} hover:bg-green-200 border-l-4 border-green-500`}>
                           <td className="border border-gray-700 px-4 py-2 text-center align-middle">{index + 1}b</td>
                           <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[280px]" title={stryke.companyName}>
                             <div className="flex flex-col">
@@ -2710,7 +2817,7 @@ try{
                               })()}
                             </div>
                           </td>
-                        </tr>
+                        </tr>)}
                       </React.Fragment>
                     );
                   })}
@@ -2743,6 +2850,43 @@ try{
                     )}
                     <div className="mt-4 flex justify-end">
                       <button onClick={closeCrossoverModal} className="px-3 py-1 rounded-md bg-blue-500 text-white">Close</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Missing Analysis Modal */}
+              {missingAnalysisModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-11/12 max-w-2xl shadow-lg">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold">
+                        Stocks Missing {missingAnalysisModal.type === 'stryke' ? 'Stryke' : 'Algo'} Analysis
+                      </h3>
+                      <button onClick={closeMissingAnalysisModal} className="text-gray-600 hover:text-gray-900">Close</button>
+                    </div>
+                    {missingAnalysisModal.stocks.length === 0 ? (
+                      <p className="text-sm text-gray-500">All stocks have analysis data.</p>
+                    ) : (
+                      <div className="max-h-96 overflow-auto">
+                        <p className="text-sm text-gray-600 mb-3">
+                          {missingAnalysisModal.stocks.length} stock(s) missing {missingAnalysisModal.type === 'stryke' ? 'Stryke' : 'Algo'} analysis:
+                        </p>
+                        <div className="grid grid-cols-1 gap-2">
+                          {missingAnalysisModal.stocks.map((stock, index) => (
+                            <div key={stock.stockUuid || index} className="p-3 bg-gray-50 rounded border">
+                              <div className="font-medium text-gray-800">{stock.companyName}</div>
+                              <div className="text-sm text-gray-600">
+                                Entry: {stock.entryTime ? new Date(stock.entryTime).toLocaleDateString() : 'N/A'} | 
+                                Price: ₹{stock.entryCandle?.close?.toFixed(2) || 'N/A'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-4 flex justify-end">
+                      <button onClick={closeMissingAnalysisModal} className="px-3 py-1 rounded-md bg-blue-500 text-white">Close</button>
                     </div>
                   </div>
                 </div>
