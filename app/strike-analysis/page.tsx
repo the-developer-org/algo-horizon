@@ -674,16 +674,14 @@ try{
      out = out.filter((s) => {
         // Check both stryke and algo swing analysis for label2
         const strykeLabel = s.strykeSwingAnalysis?.currentSwing?.label?.toUpperCase();
-        const algoLabel = s.algoSwingAnalysis?.currentSwing?.label?.toUpperCase();
-        return strykeLabel === label1 || algoLabel === label1;
+        return strykeLabel === label1;
       });
     }
     if (label2) {
       out = out.filter((s) => {
         // Check both stryke and algo swing analysis for label2
         const strykeLabel = s.strykeSwingAnalysis?.previousSwing?.label?.toUpperCase();
-        const algoLabel = s.algoSwingAnalysis?.previousSwing?.label?.toUpperCase();
-        return strykeLabel === label2 || algoLabel === label2;
+        return strykeLabel === label2
       });
     }
     return out;

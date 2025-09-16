@@ -37,10 +37,15 @@ export const OHLCChartDemo: React.FC = () => {
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [avgVolume, setAvgVolume] = useState<number>(0);
   // Chart indicator toggles
-  const [showEMA] = useState(true);
   const [showRSI] = useState(false);
   const [showVIX] = useState(false);
   const [showSwingPoints] = useState(true);
+  // EMA calculation toggle - separate from display toggle
+  const [emaCalculation, setEmaCalculation] = useState(false);
+  const [isCalculatingEMA, setIsCalculatingEMA] = useState(false);
+  
+  // showEMA should be controlled by emaCalculation to avoid chart errors
+  const showEMA = emaCalculation;
   // Pagination state for Upstox API
   const [hasMoreCandles, setHasMoreCandles] = useState(false);
   const [loadingOlderData, setLoadingOlderData] = useState(false);
@@ -97,7 +102,7 @@ export const OHLCChartDemo: React.FC = () => {
         from.setDate(from.getDate() - 60); // 75 per Day * 10 days = 750 Candles
         break;
       case '15m':
-        from.setDate(from.getDate() - 180); // 25 per Day * 30 days = 750 Candles
+        from.setDate(from.getDate() - 360); // 25 per Day * 30 days = 750 Candles
         break;
       case '30m':
         from.setDate(from.getDate() - 90); // 12 per Day * 60 days = 720 Candles
@@ -121,6 +126,56 @@ export const OHLCChartDemo: React.FC = () => {
     
     return from;
   };
+
+  // Separate EMA calculation function
+  const calculateEMAForCandles = useCallback((candlesToProcess: Candle[]): Candle[] => {
+    if (!candlesToProcess || candlesToProcess.length === 0) {
+      return candlesToProcess;
+    }
+
+    if (!emaCalculation) {
+      // If EMA calculation is disabled, return candles without EMA data
+      // Use undefined to indicate no EMA data available
+      return candlesToProcess.map(candle => ({
+        ...candle,
+        ema8: undefined,
+        ema30: undefined
+      }));
+    }
+
+    // Calculate EMA8 and EMA30 for the candles
+    console.log(`🔄 Calculating EMA for ${candlesToProcess.length} candles`);
+    const candlesWithEMA = [...candlesToProcess];
+    
+    // Calculate EMA8
+    let ema8 = candlesWithEMA[0]?.close || 0;
+    const multiplier8 = 2 / (8 + 1);
+    
+    // Calculate EMA30
+    let ema30 = candlesWithEMA[0]?.close || 0;
+    const multiplier30 = 2 / (30 + 1);
+    
+    candlesWithEMA.forEach((candle, index) => {
+      if (index === 0) {
+        candle.ema8 = candle.close;
+        candle.ema30 = candle.close;
+        ema8 = candle.close;
+        ema30 = candle.close;
+      } else {
+        ema8 = (candle.close * multiplier8) + (ema8 * (1 - multiplier8));
+        ema30 = (candle.close * multiplier30) + (ema30 * (1 - multiplier30));
+        candle.ema8 = ema8;
+        candle.ema30 = ema30;
+      }
+    });
+
+    return candlesWithEMA;
+  }, [emaCalculation]);
+
+  // Unified function to apply EMA calculations to candles
+  const applyEMAToCandles = useCallback((candlesToProcess: Candle[]): Candle[] => {
+    return calculateEMAForCandles(candlesToProcess);
+  }, [calculateEMAForCandles]);
 
   // Initialize API key from localStorage after hydration
   useEffect(() => {
@@ -157,6 +212,39 @@ export const OHLCChartDemo: React.FC = () => {
       .slice(0, 8);
     setSuggestions(matches);
   }, [searchTerm, keyMapping]);
+
+  // Real-time EMA calculation when toggle changes
+  useEffect(() => {
+    if (candles.length === 0) return;
+
+    console.log(`🔄 EMA toggle changed to: ${emaCalculation}, recalculating for ${candles.length} candles`);
+    setIsCalculatingEMA(true);
+    
+    try {
+      // Apply EMA calculation based on current toggle state
+      const updatedCandles = applyEMAToCandles(candles);
+      
+      // Log sample EMA values for debugging
+      if (updatedCandles.length > 0) {
+        const sample = updatedCandles[Math.min(10, updatedCandles.length - 1)];
+        console.log(`📊 Sample EMA values: ema8=${sample.ema8}, ema30=${sample.ema30}, showEMA=${emaCalculation}`);
+      }
+      
+      setCandles(updatedCandles);
+      
+      // Show user feedback
+      toast.success(emaCalculation ? 'EMA indicators enabled' : 'EMA indicators disabled', {
+        duration: 2000
+      });
+      
+      console.log(`✅ EMA recalculation completed`);
+    } catch (error) {
+      console.error('Error recalculating EMA:', error);
+      toast.error('Failed to update EMA calculations');
+    } finally {
+      setIsCalculatingEMA(false);
+    }
+  }, [emaCalculation, applyEMAToCandles]); // Don't include candles to avoid infinite loop
 
   // Handle selection from suggestions
   // Function to fetch entry dates for the selected instrument
@@ -304,10 +392,10 @@ export const OHLCChartDemo: React.FC = () => {
             return timeA - timeB;
           });
         
-        // Process candles with indicators
+        // Process candles with indicators (but not EMA - will be handled by toggle)
         console.log(`🔄 Processing ${sortedCandles.length} candles with indicators after API fetch`);
       
-        const processedCandles = calculateIndicators(sortedCandles);
+        const processedCandles = calculateIndicators(sortedCandles, 200, 14, false); // Don't calculate EMA here
         
         setRawCandles(processedCandles);
         // Apply selected timeframe processing
@@ -316,8 +404,9 @@ export const OHLCChartDemo: React.FC = () => {
           selectedTimeframe
         );
         
-        
-        setCandles(timeframeProcessedData);
+        // Apply EMA based on current toggle state
+        const finalCandles = applyEMAToCandles(timeframeProcessedData);
+        setCandles(finalCandles);
                  setHasMoreCandles(result.hasMore);
                  
         setOldestCandleTime(result.oldestTimestamp);
@@ -427,7 +516,9 @@ export const OHLCChartDemo: React.FC = () => {
         console.log(`🔄 Processing ${processedCandles.length} candles with indicators during pagination (full calculation for now)`);
         const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
 
-        setCandles(candlesWithIndicators);
+        // Apply EMA based on current toggle state
+        const finalCandles = applyEMAToCandles(candlesWithIndicators);
+        setCandles(finalCandles);
 
         toast.success(`Loaded ${result.candles.length} more historical candles`, {
           id: loadingToast
@@ -482,9 +573,11 @@ export const OHLCChartDemo: React.FC = () => {
       try {
         const processedCandles = processTimeframeData(rawCandles, newTimeframe);
         console.log(`🔄 Processing ${processedCandles.length} candles with indicators during timeframe change`);
-        const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14);
+        const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
         
-        setCandles(candlesWithIndicators);
+        // Apply EMA based on current toggle state
+        const finalCandles = applyEMAToCandles(candlesWithIndicators);
+        setCandles(finalCandles);
                  toast.success(`Switched to ${newTimeframe} timeframe`);
       } catch (error) {
         console.error('Failed to process data for new timeframe:', error);
@@ -559,15 +652,18 @@ export const OHLCChartDemo: React.FC = () => {
             return timeA - timeB;
           });
         
-        // Process candles with indicators
+        // Process candles with indicators (but not EMA - will be handled by toggle)
         console.log(`🔄 Processing ${sortedCandles.length} candles with indicators during timeframe fetch`);
-        const processedCandles = calculateIndicators(sortedCandles);
+        const processedCandles = calculateIndicators(sortedCandles, 200, 14, false);
         
         setRawCandles(processedCandles);
         
         // Apply timeframe processing
         const timeframeProcessedData = processTimeframeData(processedCandles, timeframe);
-        setCandles(timeframeProcessedData);
+        
+        // Apply EMA based on current toggle state
+        const finalCandles = applyEMAToCandles(timeframeProcessedData);
+        setCandles(finalCandles);
         
         setHasMoreCandles(result.hasMore);
         setOldestCandleTime(result.oldestTimestamp);
@@ -752,6 +848,25 @@ export const OHLCChartDemo: React.FC = () => {
                 );
               })}
             </div>
+          )}
+
+          {/* EMA Calculation Toggle */}
+          {!showBoomDays && candles.length > 0 && (
+            <button
+              onClick={() => setEmaCalculation(!emaCalculation)}
+              disabled={isCalculatingEMA}
+              className={`px-4 py-2 rounded-md transition-colors flex items-center gap-2 ${
+                emaCalculation
+                  ? 'bg-orange-500 text-white hover:bg-orange-600'
+                  : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+              } ${isCalculatingEMA ? 'cursor-not-allowed opacity-50' : ''}`}
+              title={emaCalculation ? 'Disable EMA calculations' : 'Enable EMA calculations'}
+            >
+              {isCalculatingEMA && (
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+              )}
+              EMA {emaCalculation ? 'ON' : 'OFF'}
+            </button>
           )}
           
           {/* Load More Historical Data button */}
