@@ -850,7 +850,7 @@ export const OHLCChartDemo: React.FC = () => {
             </div>
           )}
 
-          {/* EMA Calculation Toggle */}
+          {/* EMA Calculation Toggle
           {!showBoomDays && candles.length > 0 && (
             <button
               onClick={() => setEmaCalculation(!emaCalculation)}
@@ -867,7 +867,7 @@ export const OHLCChartDemo: React.FC = () => {
               )}
               EMA {emaCalculation ? 'ON' : 'OFF'}
             </button>
-          )}
+          )} */}
           
           {/* Load More Historical Data button */}
           {!showBoomDays && candles.length > 0 && hasMoreCandles && (

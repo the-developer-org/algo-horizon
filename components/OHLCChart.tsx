@@ -772,14 +772,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 to: formattedData[formattedData.length - 1].time
             };
             
-            // Set an appropriate initial visible range
-            const visibleCandleCount = Math.min(100, formattedData.length);
-            const startIndex = Math.max(0, formattedData.length - visibleCandleCount);
-            
-            chart.timeScale().setVisibleRange({
-                from: formattedData[startIndex].time as any,
-                to: formattedData[formattedData.length - 1].time as any
-            });
+            // Fit content to show all data at normal zoom level
+            chart.timeScale().fitContent();
             
            //console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
         }
