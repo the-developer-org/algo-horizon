@@ -30,14 +30,10 @@ interface SwingDTO {
 
 interface EMADTO {
   // New backend shape: prefer these if available
-  ema8?: number | string | null;
-  ema30?: number | string | null;
-  ema20?: number | string | null;
-  ema200?: number | string | null;
-  // Backwards-compatible fields
-  ema5?: number | string | null;
-  ema13?: number | string | null;
-  ema21?: number | string | null;
+  ema8?: number  | null;
+  ema30?: number | null;
+  ema200?: number | null;
+
 }
 
 interface SwingAnalysis {
@@ -55,6 +51,20 @@ interface SwingAnalysis {
   currentSwing?: SwingDTO | null;
   previousSwing?: SwingDTO | null;
 
+  emacross: EMACROSS;
+
+}
+interface EMACROSS{
+    // New optional per-timeframe EMA DTOs returned by backend
+  emaDataDay?: EMADTO | null;
+  emaData4H?: EMADTO | null;
+  emaData1H?: EMADTO | null;
+  emaData15M?: EMADTO | null;
+  // Lists of ISO datetimes when EMA crossovers occurred (may be returned by backend)
+  emaCrossoverList1H?: string[] | null;
+  emaCrossoverList15M?: string[] | null;
+  emaCrossoverList4H?: string[] | null;
+  emaCrossoverListDay?: string[] | null;
 }
 
 interface Stryke {
@@ -75,17 +85,8 @@ interface Stryke {
   entryCandle: Candle;
   entryDayMinutesCandle: Candle;
   rsi: number;
-  emadto: EMADTO;
-  // New optional per-timeframe EMA DTOs returned by backend
-  emaDataDay?: EMADTO | null;
-  emaData4H?: EMADTO | null;
-  emaData1H?: EMADTO | null;
-  emaData15M?: EMADTO | null;
-  // Lists of ISO datetimes when EMA crossovers occurred (may be returned by backend)
-  emaCrossoverList1H?: string[] | null;
-  emaCrossoverList15M?: string[] | null;
-  emaCrossoverList4H?: string[] | null;
-  emaCrossoverListDay?: string[] | null;
+
+
   stopLoss: number;
   target: number;
   dipAfterEntry20M: boolean;
@@ -279,7 +280,7 @@ export default function StrikeAnalysisPage() {
       const checkIfCompanyExists = await fetchUpstoxIntradayData(selectedInstrumentKey, selectedDate);
 
     } catch (error: any) {
-      debugger
+      
       if (error instanceof Error && error.message.includes('400')) {
         toast.error('Company data is blocked by Upstox and cannot be retrieved.');
         return;
@@ -381,16 +382,7 @@ export default function StrikeAnalysisPage() {
         stockUuid: stryke.stockUuid, // Add stockUuid key
         entryDate: new Date(stryke.entryTime).toLocaleDateString('en-GB'),
         inResistanceZone: (stryke as any).inResistanceZone ?? (stryke as any).InResistanceZone ?? false,
-        // Keep emadto for backward-compatibility and also expose per-timeframe EMA DTOs
-        emadto: stryke.emadto ?? {},
-        emaDataDay: (stryke as any).emaDataDay ?? null,
-        emaData4H: (stryke as any).emaData4H ?? null,
-        emaData1H: (stryke as any).emaData1H ?? null,
-        emaData15M: (stryke as any).emaData15M ?? null,
-        emaCrossoverList1H: (stryke as any).emaCrossoverList1H ?? null,
-        emaCrossoverList15M: (stryke as any).emaCrossoverList15M ?? null,
-        emaCrossoverList4H: (stryke as any).emaCrossoverList4H ?? null,
-        emaCrossoverListDay: (stryke as any).emaCrossoverListDay ?? null,
+      
         rsi: stryke.rsi ?? '-',
         stopLoss: stryke.stopLoss ?? '-',
         target: stryke.target ?? '-',
@@ -460,16 +452,39 @@ export default function StrikeAnalysisPage() {
   };
 
   // Determine badge color and tooltip for EMAs for a given timeframe
-  const getEmaBadgeProps = (stryke: Stryke, timeframe: '15M' | '1H' | '4H' | '1D') => {
-    const dto: EMADTO | null | undefined =
-      timeframe === '15M' ? stryke.emaData15M
-        : timeframe === '1H' ? stryke.emaData1H
-          : timeframe === '4H' ? stryke.emaData4H
-            : stryke.emaDataDay;
+  const getEmaBadgeProps = (stryke: Stryke, label: string, timeframe: '15M' | '1H' | '4H' | '1D') => {
+    let dto: EMADTO | null | undefined;
+    let crossoverList: string[] | null | undefined;
 
-    // Fallback to legacy emadto if per-timeframe DTO is not present
-    const ema8Raw = dto?.ema8 ?? (stryke.emadto as any)?.ema8;
-    const ema30Raw = dto?.ema30 ?? (stryke.emadto as any)?.ema30;
+    let ema8Raw: number | string | null | undefined;
+    let ema30Raw: number | string | null | undefined;
+
+    if (label.toLowerCase() === 'algo') {
+      // Use algo EMA data from emacross
+      dto = timeframe === '15M' ? stryke?.algoSwingAnalysis?.emacross?.emaData15M
+        : timeframe === '1H' ? stryke?.algoSwingAnalysis?.emacross?.emaData1H
+          : timeframe === '4H' ? stryke?.algoSwingAnalysis?.emacross?.emaData4H
+            : stryke?.algoSwingAnalysis?.emacross?.emaDataDay;
+
+      crossoverList = timeframe === '15M' ? stryke?.algoSwingAnalysis?.emacross?.emaCrossoverList15M
+        : timeframe === '1H' ? stryke?.algoSwingAnalysis?.emacross?.emaCrossoverList1H
+          : timeframe === '4H' ? stryke?.algoSwingAnalysis?.emacross?.emaCrossoverList4H
+            : stryke?.algoSwingAnalysis?.emacross?.emaCrossoverListDay;
+
+    ema8Raw = stryke?.algoSwingAnalysis?.emacross?.emaData15M?.ema8 ;
+    ema30Raw = stryke?.algoSwingAnalysis?.emacross?.emaData15M?.ema30;
+    } else {
+      // Use stryke EMA data (original logic)
+      dto = timeframe === '15M' ? stryke?.strykeSwingAnalysis?.emacross?.emaData15M
+        : timeframe === '1H' ? stryke?.strykeSwingAnalysis?.emacross?.emaData1H
+          : timeframe === '4H' ? stryke?.strykeSwingAnalysis?.emacross?.emaData4H
+            : stryke?.strykeSwingAnalysis?.emacross?.emaDataDay;
+
+      crossoverList = timeframe === '15M' ? stryke?.strykeSwingAnalysis?.emacross?.emaCrossoverList15M
+        : timeframe === '1H' ? stryke?.strykeSwingAnalysis?.emacross?.emaCrossoverList1H
+          : timeframe === '4H' ? stryke?.strykeSwingAnalysis?.emacross?.emaCrossoverList4H
+            : stryke?.strykeSwingAnalysis?.emacross?.emaCrossoverListDay;
+    }
 
     // Normalize array values (backend may return string[]); use last element if array
     const normalizeRaw = (v: any) => {
@@ -479,21 +494,13 @@ export default function StrikeAnalysisPage() {
 
     const ema8Num = Number(normalizeRaw(ema8Raw));
     const ema30Num = Number(normalizeRaw(ema30Raw));
-
     const hasValid = isFinite(ema8Num) && isFinite(ema30Num);
-    if (!hasValid) return { cls: 'bg-gray-100 text-gray-600', title: 'EMA data unavailable' };
+    if (!hasValid) return { cls: 'bg-gray-100 text-gray-600', title: `EMA data unavailable (${label} analysis)` };
 
     let cls = 'bg-gray-100 text-gray-600';
     if (ema8Num > ema30Num) cls = 'bg-green-100 text-green-800';
     else if (ema8Num === ema30Num) cls = 'bg-amber-100 text-amber-800';
     else cls = 'bg-red-100 text-red-800';
-
-    // Include crossover list metadata (count + up to 3 recent dates) in tooltip
-    const crossoverList: string[] | null | undefined =
-      timeframe === '15M' ? stryke.emaCrossoverList15M
-        : timeframe === '1H' ? stryke.emaCrossoverList1H
-          : timeframe === '4H' ? stryke.emaCrossoverList4H
-            : stryke.emaCrossoverListDay;
 
     const crossoverCount = crossoverList?.length ?? 0;
     const recentDates = (crossoverList ?? [])
@@ -510,7 +517,8 @@ export default function StrikeAnalysisPage() {
     const ema8Fmt = ema8Num.toFixed(2);
     const ema30Fmt = ema30Num.toFixed(2);
 
-    let title = `ema8: ${ema8Fmt}, ema30: ${ema30Fmt}`;
+    let title = `${label} Analysis - ${timeframe}`;
+    title += `\nema8: ${ema8Fmt}, ema30: ${ema30Fmt}`;
     title += `\nCrossovers: ${crossoverCount}`;
     if (crossoverCount > 0) {
       const latest = crossoverList![crossoverList!.length - 1];
@@ -526,12 +534,21 @@ export default function StrikeAnalysisPage() {
     return { cls, title, count: crossoverCount };
   };
 
-  const openCrossoverModal = (stryke: Stryke, timeframe: '15M' | '1H' | '4H' | '1D') => {
-    const list: string[] =
-      timeframe === '15M' ? (stryke.emaCrossoverList15M ?? [])
-        : timeframe === '1H' ? (stryke.emaCrossoverList1H ?? [])
-          : timeframe === '4H' ? (stryke.emaCrossoverList4H ?? [])
-            : (stryke.emaCrossoverListDay ?? []);
+  const openCrossoverModal = (stryke: Stryke,label : string, timeframe: '15M' | '1H' | '4H' | '1D') => {
+    const list: string[] = 
+
+      label.toLowerCase() === 'algo' ? (
+        timeframe === '15M' ? (stryke.algoSwingAnalysis?.emacross?.emaCrossoverList15M ?? [])
+        : timeframe === '1H' ? (stryke.algoSwingAnalysis?.emacross?.emaCrossoverList1H ?? [])
+          : timeframe === '4H' ? (stryke.algoSwingAnalysis?.emacross?.emaCrossoverList4H ?? [])
+            : (stryke.algoSwingAnalysis?.emacross?.emaCrossoverListDay ?? [])
+      )
+      : (
+        timeframe === '15M' ? (stryke.strykeSwingAnalysis?.emacross?.emaCrossoverList15M ?? [])
+          : timeframe === '1H' ? (stryke.strykeSwingAnalysis?.emacross?.emaCrossoverList1H ?? [])
+            : timeframe === '4H' ? (stryke.strykeSwingAnalysis?.emacross?.emaCrossoverList4H ?? [])
+              : (stryke.strykeSwingAnalysis?.emacross?.emaCrossoverListDay ?? [])
+      );
 
     setCrossoverModal({ open: true, timeframe, companyName: stryke.companyName, list });
   };
@@ -907,6 +924,128 @@ export default function StrikeAnalysisPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Stryke Stats');
     XLSX.writeFile(wb, `stryke-stats-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  // Build numeric-only rows for Excel for Swing Stats
+  const buildSwingStatsRowsForExcel = () => {
+    const header: string[] = [
+      'Slno',
+      'Analysis Type',
+      'Name',
+      'Entry Date',
+      'Entry At',
+      'Target',
+      'Target %',
+      'Stop Loss',
+      'Stop Loss %',
+      'Previous Swing Label',
+      'Current Swing Label',
+      'ER-Gap %',
+      'Max Profits %',
+      'Days to Max Profit',
+      'Support Touch Days',
+      'Resistance Touch Days',
+  
+    ];
+
+    const rows: (string | number)[][] = [header];
+
+    filteredStrykeList.forEach((stryke, index) => {
+      const strykeAnalysis = stryke.strykeSwingAnalysis;
+      const algoAnalysis = stryke.algoSwingAnalysis;
+
+      // Add Stryke Analysis Row if it exists and is shown
+      if (strykeAnalysis && showStrykeAnalysis) {
+        const entryDate = stryke.entryTime ? new Date(stryke.entryTime).toLocaleDateString() : 'N/A';
+        const entryPrice = Number(stryke.entryCandle?.close ?? 0) || 0;
+        const targetPrice = Number(stryke.target ?? 0) || 0;
+        const stopLossPrice = Number(stryke.stopLoss ?? 0) || 0;
+        
+        // Calculate percentages
+        const targetPct = entryPrice && targetPrice ? Number(((targetPrice - entryPrice) / entryPrice * 100).toFixed(2)) : '';
+        const stopLossPct = entryPrice && stopLossPrice ? Number(((stopLossPrice - entryPrice) / entryPrice * 100).toFixed(2)) : '';
+        
+        const erGap = strykeAnalysis?.minSwingProfits != null ? Number(strykeAnalysis.minSwingProfits) : '';
+        const maxProfits = strykeAnalysis?.maxSwingProfits != null ? Number(strykeAnalysis.maxSwingProfits) : '';
+        const maxProfitDays = strykeAnalysis?.daysTakenForMaxSwingProfits != null ? Number(strykeAnalysis.daysTakenForMaxSwingProfits) : '';
+        const supportDays = strykeAnalysis?.daysTakenForSupportTouch != null ? Number(strykeAnalysis.daysTakenForSupportTouch) : '';
+        const resistanceDays = strykeAnalysis?.daysTakenForResistanceTouch != null ? Number(strykeAnalysis.daysTakenForResistanceTouch) : '';
+
+    
+
+        rows.push([
+          `${index + 1}a`,
+          'Stryke Analysis',
+          String(stryke.companyName ?? ''),
+          entryDate,
+          Number(entryPrice.toFixed(2)),
+          Number(targetPrice.toFixed(2)),
+          targetPct as any,
+          Number(stopLossPrice.toFixed(2)),
+          stopLossPct as any,
+          String(strykeAnalysis?.previousSwing?.label ?? 'N/A'),
+          String(strykeAnalysis?.currentSwing?.label ?? 'N/A'),
+          erGap as any,
+          maxProfits as any,
+          maxProfitDays as any,
+          supportDays as any,
+          resistanceDays as any,
+        
+        ]);
+      }
+
+      // Add Algo Analysis Row if it exists and is shown
+      if (algoAnalysis && showAlgoAnalysis) {
+        const entryDate = algoAnalysis?.algoEntryCandle?.timestamp ? new Date(algoAnalysis.algoEntryCandle.timestamp).toLocaleDateString() : 'N/A';
+        const entryPrice = Number(algoAnalysis?.algoEntryCandle?.close ?? 0) || 0;
+        const targetPrice = Number(algoAnalysis?.algoResistance ?? 0) || 0;
+        const stopLossPrice = Number(algoAnalysis?.algoSupport ?? 0) || 0;
+        
+        // Calculate percentages
+        const targetPct = entryPrice && targetPrice ? Number(((targetPrice - entryPrice) / entryPrice * 100).toFixed(2)) : '';
+        const stopLossPct = entryPrice && stopLossPrice ? Number(((stopLossPrice - entryPrice) / entryPrice * 100).toFixed(2)) : '';
+        
+        const erGap = algoAnalysis?.minSwingProfits != null ? Number(algoAnalysis.minSwingProfits) : '';
+        const maxProfits = algoAnalysis?.maxSwingProfits != null ? Number(algoAnalysis.maxSwingProfits) : '';
+        const maxProfitDays = algoAnalysis?.daysTakenForMaxSwingProfits != null ? Number(algoAnalysis.daysTakenForMaxSwingProfits) : '';
+        const supportDays = algoAnalysis?.daysTakenForSupportTouch != null ? Number(algoAnalysis.daysTakenForSupportTouch) : '';
+        const resistanceDays = algoAnalysis?.daysTakenForResistanceTouch != null ? Number(algoAnalysis.daysTakenForResistanceTouch) : '';
+
+      
+
+        rows.push([
+          `${index + 1}b`,
+          'Algo Analysis',
+          String(stryke.companyName ?? ''),
+          entryDate,
+          Number(entryPrice.toFixed(2)),
+          Number(targetPrice.toFixed(2)),
+          targetPct as any,
+          Number(stopLossPrice.toFixed(2)),
+          stopLossPct as any,
+          String(algoAnalysis?.previousSwing?.label ?? 'N/A'),
+          String(algoAnalysis?.currentSwing?.label ?? 'N/A'),
+          erGap as any,
+          maxProfits as any,
+          maxProfitDays as any,
+          supportDays as any,
+          resistanceDays as any
+        ]);
+        
+      }
+    });
+
+    return rows;
+  };
+
+  const exportSwingStatsToExcel = async () => {
+    // Use numeric-only rows for Excel
+    const rows = buildSwingStatsRowsForExcel();
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Swing Stats');
+    XLSX.writeFile(wb, `swing-stats-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   if (isLoading) {
@@ -1822,6 +1961,14 @@ export default function StrikeAnalysisPage() {
                     Export As Excel
                   </button>
 
+                  {/* Export Swing Stats Button */}
+                  <button
+                    className="px-3 py-1 rounded-md bg-blue-500 hover:bg-blue-600 text-white"
+                    onClick={exportSwingStatsToExcel}
+                  >
+                    Export Swing Stats
+                  </button>
+
                    
                   {/* Reset Filters Button */}
                   <button
@@ -2084,7 +2231,7 @@ export default function StrikeAnalysisPage() {
                       onClick={() => {
                         setIsLoading(true);
                         const order = ['LL', 'LH', 'HL', 'HH', null] as ('LL' | 'LH' | 'HL' | 'HH' | null)[];
-                        debugger
+                      
                         const currentIndex = order.indexOf(activeFilter.swingLabel);
                         const next = order[(currentIndex + 1) % order.length];
                         setActiveFilter({ ...activeFilter, swingLabel: next });
@@ -2111,7 +2258,7 @@ export default function StrikeAnalysisPage() {
                         const next = order[(currentIndex + 1) % order.length];
                         setActiveFilter({ ...activeFilter, swingLabel2: next });
                         // Apply combined Swing Label filters using algo-specific helper
-                        debugger
+                      
                         if (next) {
                           setFilteredStrykeList(
                             filterByAlgoSwingLabels(filteredStrykeList.length > 0 ? filteredStrykeList : strykeList, activeFilter.swingLabel, next)
@@ -2645,6 +2792,7 @@ export default function StrikeAnalysisPage() {
                         <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Max Profits</th>
                         <th title='Time Take for Stock to Hit Support' className="border border-gray-700 px-8 py-2">Support</th>
                         <th title='Time Take for Stock to Hit Resistance' className="border border-gray-700 px-8 py-2">Resistance</th>
+                        <th title='EMA Cross Overs' className="border border-gray-700 px-8 py-2 min-w-[200px]"colSpan={2}>Ema Position</th>
                         <th title='EMA Cross Overs' className="border border-gray-700 px-8 py-2">Ema Cross Overs</th>
                       </tr>
                     </thead>
@@ -2776,17 +2924,68 @@ export default function StrikeAnalysisPage() {
                                   return <span className={cls}>{`${resDays} days`}</span>;
                                 })()
                               }</td>
+                              
+                              <td className="border border-gray-700 px-4 py-2 text-center align-middle">
+                              
+                                {(() => {
+                                  const cls = (stryke?.strykeSwingAnalysis?.emacross?.emaData1H?.ema8 ?? 0) > (stryke?.entryCandle?.close ?? 0) ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800';
+                                  return (<span
+                                        role="button"
+                                        tabIndex={0}
+                                        className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${cls} cursor-pointer`}
+                                      >
+                                        <span>1H-8</span>
+                                        </span>);
+                                })()}
+                               
+                                     {(() => {
+                                const cls = (stryke?.strykeSwingAnalysis?.emacross?.emaDataDay?.ema8 ?? 0) > (stryke?.entryCandle?.close ?? 0) ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800';
+                                    return (<span
+                                        role="button"
+                                        tabIndex={0}
+                                        className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${cls} cursor-pointer`}
+                                      >
+                                        <span>1D-8</span>
+                                        </span>);
+                                })()}
+
+                              </td>
+                              <td className="border border-gray-700 px-4 py-2 text-center align-middle">
+                              
+                                {(() => {
+                                   const cls = (stryke?.strykeSwingAnalysis?.emacross?.emaData1H?.ema30 ?? 0) > (stryke?.entryCandle?.close ?? 0) ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800';
+                                 return (<span
+                                        role="button"
+                                        tabIndex={0}
+                                        className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${cls} cursor-pointer`}
+                                      >
+                                        <span>1H-30</span>
+                                        </span>);
+                                })()}
+                        
+                                     {(() => {
+                                   const cls = (stryke?.strykeSwingAnalysis?.emacross?.emaDataDay?.ema30 ?? 0) > (stryke?.entryCandle?.close ?? 0) ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800';
+                                 return (<span
+                                        role="button"
+                                        tabIndex={0}
+                                        className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${cls} cursor-pointer`}
+                                      >
+                                        <span>1D-30</span>
+                                        </span>);
+                                })()}
+
+                              </td>
                               <td className="border border-gray-700 px-4 py-2 text-center align-middle">
                                 <div className="flex items-center justify-center space-x-2">
                                   {(() => {
-                                    const p = getEmaBadgeProps(stryke, '15M');
+                                    const p = getEmaBadgeProps(stryke,"stryke" ,'15M');
                                     return (
                                       <span
                                         title={p.title}
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => openCrossoverModal(stryke, '15M')}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '15M'); }}
+                                        onClick={() => openCrossoverModal(stryke,"stryke", '15M')}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke,"stryke", '15M'); }}
                                         className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
                                       >
                                         <span>15M</span>
@@ -2797,14 +2996,14 @@ export default function StrikeAnalysisPage() {
                                     );
                                   })()}
                                   {(() => {
-                                    const p = getEmaBadgeProps(stryke, '1H');
+                                    const p = getEmaBadgeProps(stryke,"stryke", '1H');
                                     return (
                                       <span
                                         title={p.title}
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => openCrossoverModal(stryke, '1H')}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1H'); }}
+                                        onClick={() => openCrossoverModal(stryke,"stryke", '1H')}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke,"stryke", '1H'); }}
                                         className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
                                       >
                                         <span>1H</span>
@@ -2815,14 +3014,14 @@ export default function StrikeAnalysisPage() {
                                     );
                                   })()}
                                   {(() => {
-                                    const p = getEmaBadgeProps(stryke, '4H');
+                                    const p = getEmaBadgeProps(stryke,"stryke", '4H');
                                     return (
                                       <span
                                         title={p.title}
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => openCrossoverModal(stryke, '4H')}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '4H'); }}
+                                        onClick={() => openCrossoverModal(stryke,"stryke", '4H')}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke,"stryke", '4H'); }}
                                         className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
                                       >
                                         <span>4H</span>
@@ -2833,14 +3032,14 @@ export default function StrikeAnalysisPage() {
                                     );
                                   })()}
                                   {(() => {
-                                    const p = getEmaBadgeProps(stryke, '1D');
+                                    const p = getEmaBadgeProps(stryke,"stryke", '1D');
                                     return (
                                       <span
                                         title={p.title}
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => openCrossoverModal(stryke, '1D')}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1D'); }}
+                                        onClick={() => openCrossoverModal(stryke,"stryke", '1D')}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke,"stryke", '1D'); }}
                                         className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
                                       >
                                         <span>1D</span>
@@ -2978,17 +3177,72 @@ export default function StrikeAnalysisPage() {
                                   return <span className={cls}>{`${resDays} days`}</span>;
                                 })()
                               }</td>
+                                <td className="border border-gray-700 px-4 py-2 text-center align-middle">
+                              
+                                {algoAnalysis && (() => {
+                                  console.log('algoAnalysis:', algoAnalysis);
+  console.log('algoAnalysis.emacross:', algoAnalysis.emacross);
+  console.log('algoAnalysis.emacross.emaData1H:', algoAnalysis.emacross?.emaData1H);
+  
+                                  const cls = (stryke?.algoSwingAnalysis?.emacross?.emaData1H?.ema8 ?? 0) > (algoAnalysis?.algoEntryCandle?.close ?? 0) ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800';
+                                  console.log('Ema 1H-8', stryke?.algoSwingAnalysis?.emacross?.emaData1H?.ema8, algoAnalysis?.algoEntryCandle?.close, cls);
+                                  return (<span
+                                        role="button"
+                                        tabIndex={0}
+                                        className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${cls} cursor-pointer`}
+                                      >
+                                        <span>1H-8</span>
+                                        </span>);
+                                })()}
+                               
+                                     {algoAnalysis && (() => {
+                                   const cls = (algoAnalysis?.emacross?.emaDataDay?.ema8 ?? 0) > (algoAnalysis?.algoEntryCandle?.close ?? 0) ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800';
+                                 return (<span
+                                        role="button"
+                                        tabIndex={0}
+                                        className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${cls} cursor-pointer`}
+                                      >
+                                        <span>1D-8</span>
+                                        </span>);
+                                })()}
+
+                              </td>
+                                <td className="border border-gray-700 px-4 py-2 text-center align-middle">
+                              
+                                {algoAnalysis && (() => {
+                                  const cls = (algoAnalysis?.emacross?.emaData1H?.ema30 ?? 0) > (algoAnalysis?.algoEntryCandle?.close ?? 0) ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800';
+                                   return (<span
+                                        role="button"
+                                        tabIndex={0}
+                                        className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${cls} cursor-pointer`}
+                                      >
+                                        <span>1H-30</span>
+                                        </span>);
+                                })()}
+                        
+                                     {algoAnalysis && (() => {
+                                     const cls = (algoAnalysis?.emacross?.emaDataDay?.ema30 ?? 0) > (algoAnalysis?.algoEntryCandle?.close ?? 0) ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800';
+                                return (<span
+                                        role="button"
+                                        tabIndex={0}
+                                        className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${cls} cursor-pointer`}
+                                      >
+                                        <span>1D-30</span>
+                                        </span>);
+                                })()}
+
+                              </td>
                               <td className="border border-gray-700 px-4 py-2 text-center align-middle">
                                 <div className="flex items-center justify-center space-x-2">
                                   {(() => {
-                                    const p = getEmaBadgeProps(stryke, '15M');
+                                    const p = getEmaBadgeProps(stryke,"algo", '15M');
                                     return (
                                       <span
                                         title={p.title}
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => openCrossoverModal(stryke, '15M')}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '15M'); }}
+                                        onClick={() => openCrossoverModal(stryke,"algo", '15M')}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke,"algo", '15M'); }}
                                         className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
                                       >
                                         <span>15M</span>
@@ -2999,14 +3253,14 @@ export default function StrikeAnalysisPage() {
                                     );
                                   })()}
                                   {(() => {
-                                    const p = getEmaBadgeProps(stryke, '1H');
+                                    const p = getEmaBadgeProps(stryke,"algo", '1H');
                                     return (
                                       <span
                                         title={p.title}
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => openCrossoverModal(stryke, '1H')}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1H'); }}
+                                        onClick={() => openCrossoverModal(stryke,"algo", '1H')}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke,"algo", '1H'); }}
                                         className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
                                       >
                                         <span>1H</span>
@@ -3017,14 +3271,14 @@ export default function StrikeAnalysisPage() {
                                     );
                                   })()}
                                   {(() => {
-                                    const p = getEmaBadgeProps(stryke, '4H');
+                                    const p = getEmaBadgeProps(stryke, "algo",'4H');
                                     return (
                                       <span
                                         title={p.title}
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => openCrossoverModal(stryke, '4H')}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '4H'); }}
+                                        onClick={() => openCrossoverModal(stryke,"algo", '4H')}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke,"algo", '4H'); }}
                                         className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
                                       >
                                         <span>4H</span>
@@ -3035,14 +3289,14 @@ export default function StrikeAnalysisPage() {
                                     );
                                   })()}
                                   {(() => {
-                                    const p = getEmaBadgeProps(stryke, '1D');
+                                    const p = getEmaBadgeProps(stryke,"algo", '1D');
                                     return (
                                       <span
                                         title={p.title}
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => openCrossoverModal(stryke, '1D')}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke, '1D'); }}
+                                        onClick={() => openCrossoverModal(stryke,"algo", '1D')}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') openCrossoverModal(stryke,"algo", '1D'); }}
                                         className={`relative inline-flex items-center text-xs px-2 py-0.5 rounded-md ${p.cls} cursor-pointer`}
                                       >
                                         <span>1D</span>
