@@ -101,24 +101,7 @@ export function PaperTradingDashboard({ data }: PaperTradingDashboardProps) {
         </CardContent>
       </Card>
 
-      {/* Max Drawdown */}
-      <Card className="border-2 bg-orange-50 border-orange-200">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Max Drawdown</CardTitle>
-          <AlertTriangle className="h-4 w-4 text-orange-500" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-orange-600">
-            {formatCurrency(data.maxDrawdown)}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Maximum peak-to-trough decline
-          </p>
-          <div className="text-sm text-orange-600">
-            Peak: {formatCurrency(data.maxCapital)}
-          </div>
-        </CardContent>
-      </Card>
+  
 
       {/* Average Profit */}
       <Card className="border-2 bg-green-50 border-green-200">

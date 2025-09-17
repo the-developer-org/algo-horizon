@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { PaperTradingDashboard } from './PaperTradingDashboard';
 import { PaperTradingOrderForm } from './PaperTradingOrderForm';
 import { PaperTradingOrdersTable } from './PaperTradingOrdersTable';
+import { ResetAccountModal } from '../../components/ResetAccountModal';
 import { PaperTradeDashboard, PaperTradeOrder } from '../../components/types/paper-trading';
 import { 
   getPaperTradeDashboard, 
@@ -14,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, TrendingUp, BarChart3, DollarSign } from "lucide-react";
+import { Plus, TrendingUp, BarChart3, DollarSign, RotateCcw } from "lucide-react";
 import toast from 'react-hot-toast';
 
 export default function PaperTradingPage() {
@@ -24,6 +25,7 @@ export default function PaperTradingPage() {
   const [completedOrders, setCompletedOrders] = useState<PaperTradeOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showOrderForm, setShowOrderForm] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Fetch all data
@@ -97,6 +99,14 @@ export default function PaperTradingPage() {
             >
               <BarChart3 className="h-4 w-4" />
               Refresh
+            </Button>
+            <Button
+              onClick={() => setShowResetModal(true)}
+              variant="outline"
+              className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset Account
             </Button>
             <Button
               onClick={() => setShowOrderForm(true)}
@@ -188,6 +198,16 @@ export default function PaperTradingPage() {
           <PaperTradingOrderForm
             onClose={() => setShowOrderForm(false)}
             onSuccess={handleOrderCreated}
+            currentCapital={dashboardData?.currentCapital || 0}
+          />
+        )}
+
+        {/* Reset Account Modal */}
+        {showResetModal && (
+          <ResetAccountModal
+            isOpen={showResetModal}
+            onClose={() => setShowResetModal(false)}
+            onSuccess={handleRefresh}
             currentCapital={dashboardData?.currentCapital || 0}
           />
         )}

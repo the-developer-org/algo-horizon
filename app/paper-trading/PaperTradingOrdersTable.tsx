@@ -162,9 +162,9 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'ACTIVE':
-        return <Clock className="h-4 w-4 text-blue-500" />;
+        return <Clock className="h-4 w-4 text-green-500" />;
       case 'COMPLETED':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-gray-500" />;
       default:
         return <AlertCircle className="h-4 w-4 text-gray-500" />;
     }
@@ -215,6 +215,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
             <th className="text-left p-3 font-semibold">Entry</th>
             <th className="text-left p-3 font-semibold">Quantity</th>
             <th className="text-left p-3 font-semibold">SL/Target</th>
+            <th className="text-left p-3 font-semibold">Curr Value</th>
             <th className="text-left p-3 font-semibold">Exit</th>
             <th className="text-left p-3 font-semibold">P&L</th>
             <th className="text-left p-3 font-semibold">Status</th>
@@ -255,6 +256,17 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
                   {formatCurrency(order.targetPrice)}
                 </div>
               </td>
+
+                <td className="p-3">
+                {order.lastRealTimePrice ? (
+                  <div>
+                    <div className="font-medium">{formatCurrency(order?.lastRealTimePrice)}</div>
+          
+                  </div>
+                ) : (
+                  <span className="text-gray-400">-</span>
+                )}
+              </td>
               
               <td className="p-3">
                 {order.exitPrice ? (
@@ -269,6 +281,8 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
                   <span className="text-gray-400">-</span>
                 )}
               </td>
+
+          
               
               <td className="p-3">
                 {order.netProfitLoss !== undefined ? (
@@ -291,7 +305,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
                 <div className="flex items-center gap-2">
                   {getStatusIcon(order.status)}
                   <span className={`text-sm font-medium ${
-                    order.status === 'ACTIVE' ? 'text-blue-600' : 'text-green-600'
+                    order.status === 'ACTIVE' ? 'text-green-600' : 'text-grey-600'
                   }`}>
                     {order.status}
                   </span>

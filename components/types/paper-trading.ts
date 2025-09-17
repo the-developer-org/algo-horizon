@@ -4,6 +4,7 @@ export interface PaperTradeOrder {
   instrumentKey: string;
   entryAt: string; // ISO date string
   entryPrice: number;
+  lastRealTimePrice: number;
   quantity: number;
   stopLoss: number;
   targetPrice: number;
@@ -59,11 +60,11 @@ export interface PaperTradeDashboard {
 export interface CreateOrderRequest {
   companyName: string;
   instrumentKey: string;
-  entryPrice: number;
+  entryDate: string;
+  entryTime: string;
   quantity: number;
   stopLoss: number;
   targetPrice: number;
-  brokerageFees?: number;
 }
 
 export interface ExitOrderRequest {
