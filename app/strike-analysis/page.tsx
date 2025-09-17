@@ -663,8 +663,8 @@ try{
     }
   };
 
-  // Central helper to apply Swing Label filters (I and II) together
-  const filterBySwingLabels = (
+  // Helper to apply Swing Label filters for Stryke Analysis
+  const filterByStrykeSwingLabels = (
     list: Stryke[],
     label1: 'LL' | 'LH' | 'HL' | 'HH' | null,
     label2: 'LL' | 'LH' | 'HL' | 'HH' | null
@@ -672,16 +672,36 @@ try{
     let out = list;
     if (label1) {
      out = out.filter((s) => {
-        // Check both stryke and algo swing analysis for label2
         const strykeLabel = s.strykeSwingAnalysis?.currentSwing?.label?.toUpperCase();
         return strykeLabel === label1;
       });
     }
     if (label2) {
       out = out.filter((s) => {
-        // Check both stryke and algo swing analysis for label2
         const strykeLabel = s.strykeSwingAnalysis?.previousSwing?.label?.toUpperCase();
-        return strykeLabel === label2
+        return strykeLabel === label2;
+      });
+    }
+    return out;
+  };
+
+  // Helper to apply Swing Label filters for Algo Analysis
+  const filterByAlgoSwingLabels = (
+    list: Stryke[],
+    label1: 'LL' | 'LH' | 'HL' | 'HH' | null,
+    label2: 'LL' | 'LH' | 'HL' | 'HH' | null
+  ): Stryke[] => {
+    let out = list;
+    if (label1) {
+     out = out.filter((s) => {
+        const algoLabel = s.algoSwingAnalysis?.currentSwing?.label?.toUpperCase();
+        return algoLabel === label1;
+      });
+    }
+    if (label2) {
+      out = out.filter((s) => {
+        const algoLabel = s.algoSwingAnalysis?.previousSwing?.label?.toUpperCase();
+        return algoLabel === label2;
       });
     }
     return out;
@@ -1841,249 +1861,343 @@ try{
                   );
                 })()}
                 </div>
-                   <div className="flex flex-wrap gap-1 items-center mb-4">
-               
-                <button
-                  className={`px-3 py-1 rounded-md ${activeFilter.date ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                  onClick={() => {
-                    const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
-                    setActiveFilter({ ...activeFilter, date: newOrder });
-                    setFilteredStrykeList(
-                      [...filteredStrykeList].sort((a, b) =>
-                        newOrder === 'asc'
-                          ? new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()
-                          : new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime()
-                      )
-                    );
-                  }}
-                >
-                  Sort by Date ({activeFilter.date || 'off'})
-                </button>
+                   {/* Row 1: Stryke Analysis Filters */}
+                   <div className="mb-2">
+                     <div className="flex items-center mb-2">
+                       <h4 className="text-sm font-semibold text-blue-600 mr-4">Stryke Analysis Filters:</h4>
+                     </div>
+                     <div className="flex flex-wrap gap-1 items-center">
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.date ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
+                           setActiveFilter({ ...activeFilter, date: newOrder });
+                           setFilteredStrykeList(
+                             [...filteredStrykeList].sort((a, b) =>
+                               newOrder === 'asc'
+                                 ? new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()
+                                 : new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime()
+                             )
+                           );
+                         }}
+                       >
+                         Sort by Date ({activeFilter.date || 'off'})
+                       </button>
 
-                <button
-                  className={`px-3 py-1 rounded-md ${activeFilter.name ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                  onClick={() => {
-                    const newOrder = activeFilter.name === 'asc' ? 'desc' : activeFilter.name === 'desc' ? null : 'asc';
-                    setActiveFilter({ ...activeFilter, name: newOrder });
-                    setFilteredStrykeList(
-                      [...filteredStrykeList].sort((a, b) =>
-                        newOrder === 'asc'
-                          ? a.companyName.localeCompare(b.companyName)
-                          : b.companyName.localeCompare(a.companyName)
-                      )
-                    );
-                  }}
-                >
-                  Sort by Name ({activeFilter.name || 'off'})
-                </button>
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.name ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const newOrder = activeFilter.name === 'asc' ? 'desc' : activeFilter.name === 'desc' ? null : 'asc';
+                           setActiveFilter({ ...activeFilter, name: newOrder });
+                           setFilteredStrykeList(
+                             [...filteredStrykeList].sort((a, b) =>
+                               newOrder === 'asc'
+                                 ? a.companyName.localeCompare(b.companyName)
+                                 : b.companyName.localeCompare(a.companyName)
+                             )
+                           );
+                         }}
+                       >
+                         Sort by Name ({activeFilter.name || 'off'})
+                       </button>
 
-                <button
-                  className={`px-3 py-1 rounded-md ${activeFilter.entry ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                  onClick={() => {
-                    const newOrder = activeFilter.entry === 'asc' ? 'desc' : activeFilter.entry === 'desc' ? null : 'asc';
-                    setActiveFilter({ ...activeFilter, entry: newOrder });
-                    setFilteredStrykeList(
-                      newOrder
-                        ? [...filteredStrykeList].sort((a, b) =>
-                          newOrder === 'asc' ? a.entryCandle.close - b.entryCandle.close : b.entryCandle.close - a.entryCandle.close
-                        )
-                        : filteredStrykeList
-                    );
-                  }}
-                >
-                  Sort by Entry ({activeFilter.entry || 'off'})
-                </button>
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.entry ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const newOrder = activeFilter.entry === 'asc' ? 'desc' : activeFilter.entry === 'desc' ? null : 'asc';
+                           setActiveFilter({ ...activeFilter, entry: newOrder });
+                           setFilteredStrykeList(
+                             newOrder
+                               ? [...filteredStrykeList].sort((a, b) =>
+                                 newOrder === 'asc' ? a.entryCandle.close - b.entryCandle.close : b.entryCandle.close - a.entryCandle.close
+                               )
+                               : filteredStrykeList
+                           );
+                         }}
+                       >
+                         Sort by Entry ({activeFilter.entry || 'off'})
+                       </button>
 
-                <button
-                  className={`px-3 py-1 rounded-md ${activeFilter.target ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                  onClick={() => {
-                    const newOrder = activeFilter.target === 'asc' ? 'desc' : activeFilter.target === 'desc' ? null : 'asc';
-                    setActiveFilter({ ...activeFilter, target: newOrder });
-                    setFilteredStrykeList(
-                      newOrder
-                        ? [...filteredStrykeList].sort((a, b) =>
-                          newOrder === 'asc' ? a.target - b.target : b.target - a.target
-                        )
-                        : filteredStrykeList
-                    );
-                  }}
-                >
-                  Sort by Target ({activeFilter.target || 'off'})
-                </button>
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.target ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const newOrder = activeFilter.target === 'asc' ? 'desc' : activeFilter.target === 'desc' ? null : 'asc';
+                           setActiveFilter({ ...activeFilter, target: newOrder });
+                           setFilteredStrykeList(
+                             newOrder
+                               ? [...filteredStrykeList].sort((a, b) =>
+                                 newOrder === 'asc' ? a.target - b.target : b.target - a.target
+                               )
+                               : filteredStrykeList
+                           );
+                         }}
+                       >
+                         Sort by Target ({activeFilter.target || 'off'})
+                       </button>
 
-             
-                  {/* Buttons */}
-                <button
-                  className={`px-3 py-1 rounded-md ${activeFilter.trend ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                  onClick={() => {
-                    const next = activeFilter.trend === null ? 'BULLISH' : activeFilter.trend === 'BULLISH' ? 'BEARISH' : null;
-                    setActiveFilter({ ...activeFilter, trend: next });
-                    if (next) {
-                      setFilteredStrykeList(
-                        filteredStrykeList.filter((s) => (s.preEntryTrend || '').toUpperCase() === next)
-                      );
-                    } else {
-                      setFilteredStrykeList(filteredStrykeList);
-                    }
-                  }}
-                >
-                 Entry Trend: {activeFilter.trend ?? 'off'}
-                </button>
-                {/* Swing Label Filter */}
-                <button
-                  className={`px-3 py-1 rounded-md ${activeFilter.swingLabel ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                  onClick={() => {
-                    const order = ['LL', 'LH', 'HL', 'HH', null] as ( 'LL' | 'LH' | 'HL' | 'HH' | null)[];
-                    const currentIndex = order.indexOf(activeFilter.swingLabel);
-                    const next = order[(currentIndex + 1) % order.length];
-                    setActiveFilter({ ...activeFilter, swingLabel: next });
-                    // Apply combined Swing Label filters using a single helper
-                    setFilteredStrykeList(
-                      filterBySwingLabels(strykeList, next, activeFilter.swingLabel2)
-                    );
-                  }}
-                >
-                  Swing Label (I): {activeFilter.swingLabel ?? 'off'}
-                </button>
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.trend ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const next = activeFilter.trend === null ? 'BULLISH' : activeFilter.trend === 'BULLISH' ? 'BEARISH' : null;
+                           setActiveFilter({ ...activeFilter, trend: next });
+                           if (next) {
+                             setFilteredStrykeList(
+                               filteredStrykeList.filter((s) => (s.preEntryTrend || '').toUpperCase() === next)
+                             );
+                           } else {
+                             setFilteredStrykeList(filteredStrykeList);
+                           }
+                         }}
+                       >
+                        Entry Trend: {activeFilter.trend ?? 'off'}
+                       </button>
 
-                  <button
-                  className={`px-3 py-1 rounded-md ${activeFilter.swingLabel2 ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                  onClick={() => {
-                    const order = ['LL', 'LH', 'HL', 'HH', null] as ( 'LL' | 'LH' | 'HL' | 'HH' | null)[];
-                    const currentIndex = order.indexOf(activeFilter.swingLabel2);
-                    const next = order[(currentIndex + 1) % order.length];
-                    setActiveFilter({ ...activeFilter, swingLabel2: next });
-                    // Apply combined Swing Label filters using a single helper
-                    setFilteredStrykeList(
-                      filterBySwingLabels(strykeList, activeFilter.swingLabel, next)
-                    );
-                  }}
-                >
-                  Swing Label (II): {activeFilter.swingLabel2 ?? 'off'}
-                </button>
-                {/* ER Label Filter (based on minSwingProfits) */}
-                <button
-                  className={`px-3 py-1 rounded-md ${activeFilter.erLabel ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                  onClick={() => {
-                    const order = ['ABOVE_3', 'BELOW_3', 'AR', null] as ('ABOVE_3' | 'BELOW_3' | 'AR' | null)[];
-                    const currentIndex = order.indexOf(activeFilter.erLabel);
-                    const next = order[(currentIndex + 1) % order.length];
-                    setActiveFilter({ ...activeFilter, erLabel: next });
+                       {/* Sort by ER Gap - Stryke specific */}
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.erSort ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const next = activeFilter.erSort === 'asc' ? 'desc' : activeFilter.erSort === 'desc' ? null : 'asc';
+                           setActiveFilter({ ...activeFilter, erSort: next, profitSort: null });
+                           if (next) {
+                             const sorted = [...filteredStrykeList].sort((a, b) => {
+                               // Use stryke data primarily for stryke sorting
+                               const aVal = Number(a.strykeSwingAnalysis?.minSwingProfits ?? 0);
+                               const bVal = Number(b.strykeSwingAnalysis?.minSwingProfits ?? 0);
+                               return next === 'asc' ? aVal - bVal : bVal - aVal;
+                             });
+                             setFilteredStrykeList(sorted);
+                           } else {
+                             setFilteredStrykeList(strykeList);
+                           }
+                         }}
+                       >
+                         Stryke ER Sort ({activeFilter.erSort || 'off'})
+                       </button>
 
-                    const computeERLabel = (val: number | undefined | null) => {
-                      if (val == null || !isFinite(Number(val))) return 'AR';
-                      const num = Number(val);
-                      if (num >= 3) return 'ABOVE_3';
-                      if (num < 3 && num >= 0) return 'BELOW_3';
-                      return 'AR';
-                    };
+                       {/* Sort by Profits - Stryke specific */}
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.profitSort ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const next = activeFilter.profitSort === 'asc' ? 'desc' : activeFilter.profitSort === 'desc' ? null : 'asc';
+                           setActiveFilter({ ...activeFilter, profitSort: next, erSort: null });
+                           if (next) {
+                             const sorted = [...filteredStrykeList].sort((a, b) => {
+                               // Use stryke data primarily for stryke sorting
+                               const aVal = Number(a.strykeSwingAnalysis?.maxSwingProfits ?? 0);
+                               const bVal = Number(b.strykeSwingAnalysis?.maxSwingProfits ?? 0);
+                               return next === 'asc' ? aVal - bVal : bVal - aVal;
+                             });
+                             setFilteredStrykeList(sorted);
+                           } else {
+                             setFilteredStrykeList(strykeList);
+                           }
+                         }}
+                       >
+                         Stryke Profits Sort ({activeFilter.profitSort || 'off'})
+                       </button>
+                     </div>
+                   </div>
 
-                    if (next) {
-                      const filtered = strykeList.filter((s) => {
-                        // Check both stryke and algo swing analysis for minSwingProfits
-                        const strykeLabel = computeERLabel(s.strykeSwingAnalysis?.minSwingProfits);
-                        const algoLabel = computeERLabel(s.algoSwingAnalysis?.minSwingProfits);
-                        return strykeLabel === next || algoLabel === next;
-                      });
-                      // Sort by stryke minSwingProfits descending (prefer stryke data)
-                      filtered.sort((a, b) => {
-                        const aVal = Number(a.strykeSwingAnalysis?.minSwingProfits ?? a.algoSwingAnalysis?.minSwingProfits ?? 0);
-                        const bVal = Number(b.strykeSwingAnalysis?.minSwingProfits ?? b.algoSwingAnalysis?.minSwingProfits ?? 0);
-                        return bVal - aVal;
-                      });
-                      setFilteredStrykeList(filtered);
-                    } else {
-                      setFilteredStrykeList(strykeList);
-                    }
-                  }}
-                >
-                  ER-Gap: {activeFilter.erLabel ? (activeFilter.erLabel === 'ABOVE_3' ? '>=3%' : activeFilter.erLabel === 'BELOW_3' ? '<3%' : 'AR') : 'off'}
-                </button>
+                   {/* Row 2: Algo Analysis Filters */}
+                   <div className="mb-2">
+                     <div className="flex items-center mb-2">
+                       <h4 className="text-sm font-semibold text-green-600 mr-4">Algo Analysis Filters:</h4>
+                     </div>
+                     <div className="flex flex-wrap gap-1 items-center">
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.date ? 'bg-green-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
+                           setActiveFilter({ ...activeFilter, date: newOrder });
+                           setFilteredStrykeList(
+                             [...filteredStrykeList].sort((a, b) =>
+                               newOrder === 'asc'
+                                 ? new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()
+                                 : new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime()
+                             )
+                           );
+                         }}
+                       >
+                         Sort by Date ({activeFilter.date || 'off'})
+                       </button>
 
-                {/* Sort by ER Gap */}
-                <button
-                  className={`px-3 py-1 rounded-md ${activeFilter.erSort ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                  onClick={() => {
-                    const next = activeFilter.erSort === 'asc' ? 'desc' : activeFilter.erSort === 'desc' ? null : 'asc';
-                    setActiveFilter({ ...activeFilter, erSort: next, profitSort: null });
-                    if (next) {
-                      const sorted = [...filteredStrykeList].sort((a, b) => {
-                        // Use stryke data primarily, fallback to algo data
-                        const aVal = Number(a.strykeSwingAnalysis?.minSwingProfits ?? a.algoSwingAnalysis?.minSwingProfits ?? 0);
-                        const bVal = Number(b.strykeSwingAnalysis?.minSwingProfits ?? b.algoSwingAnalysis?.minSwingProfits ?? 0);
-                        return next === 'asc' ? aVal - bVal : bVal - aVal;
-                      });
-                      setFilteredStrykeList(sorted);
-                    } else {
-                      setFilteredStrykeList(strykeList);
-                    }
-                  }}
-                >
-                  Sort ER ({activeFilter.erSort || 'off'})
-                </button>
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.entry ? 'bg-green-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const newOrder = activeFilter.entry === 'asc' ? 'desc' : activeFilter.entry === 'desc' ? null : 'asc';
+                           setActiveFilter({ ...activeFilter, entry: newOrder });
+                           setFilteredStrykeList(
+                             newOrder
+                               ? [...filteredStrykeList].sort((a, b) =>
+                                 newOrder === 'asc' ? a.entryCandle.close - b.entryCandle.close : b.entryCandle.close - a.entryCandle.close
+                               )
+                               : filteredStrykeList
+                           );
+                         }}
+                       >
+                         Sort by Entry ({activeFilter.entry || 'off'})
+                       </button>
 
-                {/* Sort by Profits */}
-                <button
-                  className={`px-3 py-1 rounded-md ${activeFilter.profitSort ? 'bg-green-500' : 'bg-red-500'} text-white`}
-                  onClick={() => {
-                    const next = activeFilter.profitSort === 'asc' ? 'desc' : activeFilter.profitSort === 'desc' ? null : 'asc';
-                    setActiveFilter({ ...activeFilter, profitSort: next, erSort: null });
-                    if (next) {
-                      const sorted = [...filteredStrykeList].sort((a, b) => {
-                        // Use stryke data primarily, fallback to algo data
-                        const aVal = Number(a.strykeSwingAnalysis?.maxSwingProfits ?? a.algoSwingAnalysis?.maxSwingProfits ?? 0);
-                        const bVal = Number(b.strykeSwingAnalysis?.maxSwingProfits ?? b.algoSwingAnalysis?.maxSwingProfits ?? 0);
-                        return next === 'asc' ? aVal - bVal : bVal - aVal;
-                      });
-                      setFilteredStrykeList(sorted);
-                    } else {
-                      setFilteredStrykeList(strykeList);
-                    }
-                  }}
-                >
-                  Sort Profits ({activeFilter.profitSort || 'off'})
-                </button>
+                       {/* Swing Label Filter */}
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.swingLabel ? 'bg-green-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const order = ['LL', 'LH', 'HL', 'HH', null] as ( 'LL' | 'LH' | 'HL' | 'HH' | null)[];
+                           const currentIndex = order.indexOf(activeFilter.swingLabel);
+                           const next = order[(currentIndex + 1) % order.length];
+                           setActiveFilter({ ...activeFilter, swingLabel: next });
+                           // Apply combined Swing Label filters using algo-specific helper
+                           setFilteredStrykeList(
+                             filterByAlgoSwingLabels(strykeList, next, activeFilter.swingLabel2)
+                           );
+                         }}
+                       >
+                         Swing Label (I): {activeFilter.swingLabel ?? 'off'}
+                       </button>
 
-                 {!showAlgoAnalysis && (
-                <Button
-                  onClick={() => setShowAlgoAnalysis(true)}
-                  className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                >
-                  Show Algo Analysis
-                </Button>
-              )}
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.swingLabel2 ? 'bg-green-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const order = ['LL', 'LH', 'HL', 'HH', null] as ( 'LL' | 'LH' | 'HL' | 'HH' | null)[];
+                           const currentIndex = order.indexOf(activeFilter.swingLabel2);
+                           const next = order[(currentIndex + 1) % order.length];
+                           setActiveFilter({ ...activeFilter, swingLabel2: next });
+                           // Apply combined Swing Label filters using algo-specific helper
+                           setFilteredStrykeList(
+                             filterByAlgoSwingLabels(strykeList, activeFilter.swingLabel, next)
+                           );
+                         }}
+                       >
+                         Swing Label (II): {activeFilter.swingLabel2 ?? 'off'}
+                       </button>
 
-              {showAlgoAnalysis && (
-                <Button
-                  onClick={() => setShowAlgoAnalysis(false)}
-                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                >
-                  Hide Algo Analysis
-                </Button>
-              )}
+                       {/* ER Label Filter (based on minSwingProfits) */}
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.erLabel ? 'bg-green-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const order = ['ABOVE_3', 'BELOW_3', 'AR', null] as ('ABOVE_3' | 'BELOW_3' | 'AR' | null)[];
+                           const currentIndex = order.indexOf(activeFilter.erLabel);
+                           const next = order[(currentIndex + 1) % order.length];
+                           setActiveFilter({ ...activeFilter, erLabel: next });
 
-              {!showStrykeAnalysis && (
-                <Button
-                  onClick={() => setShowStrykeAnalysis(true)}
-                  className="bg-cyan-500 hover:bg-cyan-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                >
-                  Show Stryke Analysis
-                </Button>
-              )}
+                           const computeERLabel = (val: number | undefined | null) => {
+                             if (val == null || !isFinite(Number(val))) return 'AR';
+                             const num = Number(val);
+                             if (num >= 3) return 'ABOVE_3';
+                             if (num < 3 && num >= 0) return 'BELOW_3';
+                             return 'AR';
+                           };
 
-              {showStrykeAnalysis && (
-                <Button
-                  onClick={() => setShowStrykeAnalysis(false)}
-                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                >
-                  Hide Stryke Analysis
-                </Button>
-              )}
+                           if (next) {
+                             const filtered = strykeList.filter((s) => {
+                               // Check algo swing analysis for minSwingProfits
+                               const algoLabel = computeERLabel(s.algoSwingAnalysis?.minSwingProfits);
+                               return algoLabel === next;
+                             });
+                             // Sort by algo minSwingProfits descending
+                             filtered.sort((a, b) => {
+                               const aVal = Number(a.algoSwingAnalysis?.minSwingProfits ?? 0);
+                               const bVal = Number(b.algoSwingAnalysis?.minSwingProfits ?? 0);
+                               return bVal - aVal;
+                             });
+                             setFilteredStrykeList(filtered);
+                           } else {
+                             setFilteredStrykeList(strykeList);
+                           }
+                         }}
+                       >
+                         Algo ER-Gap: {activeFilter.erLabel ? (activeFilter.erLabel === 'ABOVE_3' ? '>=3%' : activeFilter.erLabel === 'BELOW_3' ? '<3%' : 'AR') : 'off'}
+                       </button>
 
+                       {/* Algo-specific ER Sort */}
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.erSort ? 'bg-green-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const next = activeFilter.erSort === 'asc' ? 'desc' : activeFilter.erSort === 'desc' ? null : 'asc';
+                           setActiveFilter({ ...activeFilter, erSort: next, profitSort: null });
+                           if (next) {
+                             const sorted = [...filteredStrykeList].sort((a, b) => {
+                               // Use algo data primarily for algo sorting
+                               const aVal = Number(a.algoSwingAnalysis?.minSwingProfits ?? 0);
+                               const bVal = Number(b.algoSwingAnalysis?.minSwingProfits ?? 0);
+                               return next === 'asc' ? aVal - bVal : bVal - aVal;
+                             });
+                             setFilteredStrykeList(sorted);
+                           } else {
+                             setFilteredStrykeList(strykeList);
+                           }
+                         }}
+                       >
+                         Algo ER Sort ({activeFilter.erSort || 'off'})
+                       </button>
 
-    
+                       {/* Algo-specific Profits Sort */}
+                       <button
+                         className={`px-3 py-1 rounded-md ${activeFilter.profitSort ? 'bg-green-500' : 'bg-gray-500'} text-white`}
+                         onClick={() => {
+                           const next = activeFilter.profitSort === 'asc' ? 'desc' : activeFilter.profitSort === 'desc' ? null : 'asc';
+                           setActiveFilter({ ...activeFilter, profitSort: next, erSort: null });
+                           if (next) {
+                             const sorted = [...filteredStrykeList].sort((a, b) => {
+                               // Use algo data primarily for algo sorting
+                               const aVal = Number(a.algoSwingAnalysis?.maxSwingProfits ?? 0);
+                               const bVal = Number(b.algoSwingAnalysis?.maxSwingProfits ?? 0);
+                               return next === 'asc' ? aVal - bVal : bVal - aVal;
+                             });
+                             setFilteredStrykeList(sorted);
+                           } else {
+                             setFilteredStrykeList(strykeList);
+                           }
+                         }}
+                       >
+                         Algo Profits Sort ({activeFilter.profitSort || 'off'})
+                       </button>
+                     </div>
+                   </div>
 
-              </div>
+                   {/* Row 3: Analysis Toggle Buttons */}
+                   <div className="mb-4">
+                     <div className="flex items-center mb-2">
+                       <h4 className="text-sm font-semibold text-purple-600 mr-4">Analysis Display:</h4>
+                     </div>
+                     <div className="flex flex-wrap gap-1 items-center">
+                       {!showAlgoAnalysis && (
+                         <Button
+                           onClick={() => setShowAlgoAnalysis(true)}
+                           className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                         >
+                           Show Algo Analysis
+                         </Button>
+                       )}
+
+                       {showAlgoAnalysis && (
+                         <Button
+                           onClick={() => setShowAlgoAnalysis(false)}
+                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                         >
+                           Hide Algo Analysis
+                         </Button>
+                       )}
+
+                       {!showStrykeAnalysis && (
+                         <Button
+                           onClick={() => setShowStrykeAnalysis(true)}
+                           className="bg-cyan-500 hover:bg-cyan-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                         >
+                           Show Stryke Analysis
+                         </Button>
+                       )}
+
+                       {showStrykeAnalysis && (
+                         <Button
+                           onClick={() => setShowStrykeAnalysis(false)}
+                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                         >
+                           Hide Stryke Analysis
+                         </Button>
+                       )}
+                     </div>
+                   </div>
 
 
  {/* Show metrics content when showMetrics is true */}
@@ -2400,7 +2514,7 @@ try{
                     <th className="border border-gray-700 px-12 py-2 min-w-[130px]">Entry Date</th>
                     <th className="border border-gray-700 px-8 py-2">Entry</th>
                     <th className="border border-gray-700 px-8 py-2">Target</th>
-                    <th className="border border-gray-700 px-8 py-2">Stop Loss</th>
+                    <th className="border border-gray-700 px-8 py-2 min-w-[130px]">Stop Loss</th>
                     <th className="border border-gray-700 px-8 py-2">Swing Labels</th>
                     <th title='Entry - Resistance Gap' className="border border-gray-700 px-12 py-2 min-w-[130px]">ER-Gap</th>
                     <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Max Profits</th>
