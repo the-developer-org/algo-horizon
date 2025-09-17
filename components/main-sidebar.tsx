@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding } from "lucide-react";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign } from "lucide-react";
 import {
   Sidebar,
   SidebarHeader,
@@ -21,6 +21,7 @@ const primaryItems = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Strike Analysis Form", url: "/strike-analysis", icon: Search },
   { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
+  { title: "Paper Trading", url: "/paper-trading", icon: DollarSign },
   { title: "Boom Days & Watch Lists", url: "/boom-days", icon: Calendar },
   { title: "Backtest Stats", url: "/backtest-stats", icon: FileText },
   { title: "Portfolio", url: "/portfolio", icon: Layers },

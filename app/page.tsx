@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
-import { UpstoxConnection } from "./components/UpstoxConnection";
 import { MainSidebar } from "../components/main-sidebar";
 import { WatchLists } from "../components/WatchLists";
 import { HistoricalInsights } from "../components/HistoricalInsights";
@@ -19,6 +18,10 @@ export default function Home() {
     const isAuthorized = sessionStorage.getItem('isUserAuthorised');
     if (isAuthorized === 'true') {
       setIsAuthenticated(true);
+    } else {
+      // Redirect to auth page if not authenticated
+      router.push('/auth');
+      return;
     }
     setIsLoading(false);
   }, [router]);
