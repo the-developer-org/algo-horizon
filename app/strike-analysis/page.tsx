@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import { Input } from '@/components/ui/input';
@@ -153,6 +154,15 @@ export type FilterOrder = 'asc' | 'desc' | null;
 export type TrendFilter = 'BULLISH' | 'BEARISH' | null;
 
 export default function StrikeAnalysisPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // Get tab from URL parameter, default to 'form'
+  const getInitialTab = () => {
+    const tab = searchParams?.get('tab');
+    return tab || 'form';
+  };
+  
   // State
   const [isLoading, setIsLoading] = useState(false);
   const [strykeMetrics, setStrykeMetrics] = useState<metricsData | null>(null);
@@ -175,10 +185,13 @@ export default function StrikeAnalysisPage() {
   const [strykeList, setStrykeList] = useState<Stryke[]>([]);
   const [filteredStrykeList, setFilteredStrykeList] = useState<Stryke[]>([]);
   const [selectedStryke, setSelectedStryke] = useState<Stryke | null>(null);
-  const [showStrykeForm, setShowStrykeForm] = useState(() => true);
-  const [showAllStrykes, setShowAllStrykes] = useState(() => false);
-  const [showStrykeStats, setShowStrykeStats] = useState(() => false);
-  const [showSwingStats, setShowSwingStats] = useState(() => false);
+  
+  // Initialize tab states based on URL parameter
+  const initialTab = getInitialTab();
+  const [showStrykeForm, setShowStrykeForm] = useState(() => initialTab === 'form');
+  const [showAllStrykes, setShowAllStrykes] = useState(() => initialTab === 'all');
+  const [showStrykeStats, setShowStrykeStats] = useState(() => initialTab === 'stats');
+  const [showSwingStats, setShowSwingStats] = useState(() => initialTab === 'swing');
   const [showMetrics, setShowMetrics] = useState(() => false);
   const [showAlgoAnalysis, setShowAlgoAnalysis] = useState(() => true);
   const [showStrykeAnalysis, setShowStrykeAnalysis] = useState(() => true);
@@ -188,6 +201,7 @@ export default function StrikeAnalysisPage() {
     avgVolume: null as FilterOrder,
     target: null as FilterOrder,
     entry: null as FilterOrder,
+    stopLoss: null as FilterOrder,
     trend: null as TrendFilter,
     inResistanceZone: null as 'YES' | 'NO' | null,
     onePercChange: null as 'YES' | 'NO' | null,
@@ -718,7 +732,24 @@ export default function StrikeAnalysisPage() {
     setShowAllStrykes(showAll);
     setShowStrykeStats(showStats);
     setShowSwingStats(showSwing);
+    
+    // Update URL parameter to maintain tab state
+    const newTab = showForm ? 'form' : showAll ? 'all' : showStats ? 'stats' : showSwing ? 'swing' : 'form';
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', newTab);
+    router.replace(url.pathname + url.search);
   };
+
+  // Handle URL parameter changes (for browser back/forward navigation)
+  useEffect(() => {
+    const tab = searchParams?.get('tab') || 'form';
+    
+    // Update states based on URL parameter
+    setShowStrykeForm(tab === 'form');
+    setShowAllStrykes(tab === 'all');
+    setShowStrykeStats(tab === 'stats');
+    setShowSwingStats(tab === 'swing');
+  }, [searchParams]);
 
   // Utility function to parse date strings
   function parseDateString(dateString: string): Date {
@@ -2170,6 +2201,7 @@ export default function StrikeAnalysisPage() {
                         avgVolume: null,
                         target: null,
                         entry: null,
+                        stopLoss: null,
                         trend: null,
                         inResistanceZone: null,
                         onePercChange: null,
@@ -2244,74 +2276,6 @@ export default function StrikeAnalysisPage() {
                   </div>
                   <div className="flex flex-wrap gap-1 items-center">
                     <button
-                      className={`px-3 py-1 rounded-md ${activeFilter.date ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
-                      onClick={() => {
-                        const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
-                        setActiveFilter({ ...activeFilter, date: newOrder });
-                        setFilteredStrykeList(
-                          [...filteredStrykeList].sort((a, b) =>
-                            newOrder === 'asc'
-                              ? new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()
-                              : new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime()
-                          )
-                        );
-                      }}
-                    >
-                      Sort by Date ({activeFilter.date || 'off'})
-                    </button>
-
-                    <button
-                      className={`px-3 py-1 rounded-md ${activeFilter.name ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
-                      onClick={() => {
-                        const newOrder = activeFilter.name === 'asc' ? 'desc' : activeFilter.name === 'desc' ? null : 'asc';
-                        setActiveFilter({ ...activeFilter, name: newOrder });
-                        setFilteredStrykeList(
-                          [...filteredStrykeList].sort((a, b) =>
-                            newOrder === 'asc'
-                              ? a.companyName.localeCompare(b.companyName)
-                              : b.companyName.localeCompare(a.companyName)
-                          )
-                        );
-                      }}
-                    >
-                      Sort by Name ({activeFilter.name || 'off'})
-                    </button>
-
-                    <button
-                      className={`px-3 py-1 rounded-md ${activeFilter.entry ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
-                      onClick={() => {
-                        const newOrder = activeFilter.entry === 'asc' ? 'desc' : activeFilter.entry === 'desc' ? null : 'asc';
-                        setActiveFilter({ ...activeFilter, entry: newOrder });
-                        setFilteredStrykeList(
-                          newOrder
-                            ? [...filteredStrykeList].sort((a, b) =>
-                              newOrder === 'asc' ? a.entryCandle.close - b.entryCandle.close : b.entryCandle.close - a.entryCandle.close
-                            )
-                            : filteredStrykeList
-                        );
-                      }}
-                    >
-                      Sort by Entry ({activeFilter.entry || 'off'})
-                    </button>
-
-                    <button
-                      className={`px-3 py-1 rounded-md ${activeFilter.target ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
-                      onClick={() => {
-                        const newOrder = activeFilter.target === 'asc' ? 'desc' : activeFilter.target === 'desc' ? null : 'asc';
-                        setActiveFilter({ ...activeFilter, target: newOrder });
-                        setFilteredStrykeList(
-                          newOrder
-                            ? [...filteredStrykeList].sort((a, b) =>
-                              newOrder === 'asc' ? a.target - b.target : b.target - a.target
-                            )
-                            : filteredStrykeList
-                        );
-                      }}
-                    >
-                      Sort by Target ({activeFilter.target || 'off'})
-                    </button>
-
-                    <button
                       className={`px-3 py-1 rounded-md ${activeFilter.trend ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
                       onClick={() => {
                         const next = activeFilter.trend === null ? 'BULLISH' : activeFilter.trend === 'BULLISH' ? 'BEARISH' : null;
@@ -2380,40 +2344,6 @@ export default function StrikeAnalysisPage() {
                     <h4 className="text-sm font-semibold text-green-600 mr-4">Algo Analysis Filters:</h4>
                   </div>
                   <div className="flex flex-wrap gap-1 items-center">
-                    <button
-                      className={`px-3 py-1 rounded-md ${activeFilter.date ? 'bg-green-500' : 'bg-gray-500'} text-white`}
-                      onClick={() => {
-                        const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
-                        setActiveFilter({ ...activeFilter, date: newOrder });
-                        setFilteredStrykeList(
-                          [...filteredStrykeList].sort((a, b) =>
-                            newOrder === 'asc'
-                              ? new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()
-                              : new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime()
-                          )
-                        );
-                      }}
-                    >
-                      Sort by Date ({activeFilter.date || 'off'})
-                    </button>
-
-                    <button
-                      className={`px-3 py-1 rounded-md ${activeFilter.entry ? 'bg-green-500' : 'bg-gray-500'} text-white`}
-                      onClick={() => {
-                        const newOrder = activeFilter.entry === 'asc' ? 'desc' : activeFilter.entry === 'desc' ? null : 'asc';
-                        setActiveFilter({ ...activeFilter, entry: newOrder });
-                        setFilteredStrykeList(
-                          newOrder
-                            ? [...filteredStrykeList].sort((a, b) =>
-                              newOrder === 'asc' ? a.entryCandle.close - b.entryCandle.close : b.entryCandle.close - a.entryCandle.close
-                            )
-                            : filteredStrykeList
-                        );
-                      }}
-                    >
-                      Sort by Entry ({activeFilter.entry || 'off'})
-                    </button>
-
                     {/* Swing Label Filter */}
                     <button
                       className={`px-3 py-1 rounded-md ${activeFilter.swingLabel ? 'bg-green-500' : 'bg-gray-500'} text-white`}
@@ -2965,18 +2895,184 @@ export default function StrikeAnalysisPage() {
                   </div>
                 )}
 
-
+                
+                {/* Show table when showMetrics is false */}
                 {!showMetrics && (
                   <table className="table-auto w-full border-collapse border border-gray-700 text-center">
                     <thead>
                       <tr className="bg-gray-400 sticky top-0 z-10">
                         <th className="border border-gray-700 px-4 py-2">Slno</th>
-                        <th className="border border-gray-700 px-12 py-2 min-w-[100px]">Company</th>
+                        <th className="border border-gray-700 px-12 py-2 min-w-[100px]">
+                          <div className="flex items-center ml-10">
+                            <span>Company</span>
+                            <button
+                              onClick={() => {
+                                const newOrder = activeFilter.name === 'asc' ? 'desc' : activeFilter.name === 'desc' ? null : 'asc';
+                                setActiveFilter({ ...activeFilter, name: newOrder });
+                                if (newOrder) {
+                                  setFilteredStrykeList(
+                                    [...filteredStrykeList].sort((a, b) =>
+                                      newOrder === 'asc'
+                                        ? a.companyName.localeCompare(b.companyName)
+                                        : b.companyName.localeCompare(a.companyName)
+                                    )
+                                  );
+                                } else {
+                                  setFilteredStrykeList([...strykeList]);
+                                }
+                              }}
+                              className="ml-1 p-1 hover:bg-gray-300 rounded"
+                              title={`Sort by Company ${activeFilter.name === 'asc' ? '(A-Z)' : activeFilter.name === 'desc' ? '(Z-A)' : '(Off)'}`}
+                            >
+                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
+                                activeFilter.name === 'asc' 
+                                  ? 'bg-green-100 border-green-500 text-green-700 shadow-sm' 
+                                  : activeFilter.name === 'desc' 
+                                    ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                    : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                              }`}>
+                                {activeFilter.name === 'asc' ? '▲' : activeFilter.name === 'desc' ? '▼' : '⇅'}
+                              </span>
+                            </button>
+                          </div>
+                        </th>
                         <th className="border border-gray-700 px-4 py-2 min-w-[60px]">Chart</th>
-                        <th className="border border-gray-700 px-12 py-2 min-w-[130px]">Entry Date</th>
-                        <th className="border border-gray-700 px-8 py-2">Entry</th>
-                        <th className="border border-gray-700 px-8 py-2">Target</th>
-                        <th className="border border-gray-700 px-8 py-2 min-w-[130px]">Stop Loss</th>
+                        <th className="border border-gray-700 px-12 py-2 min-w-[130px]">
+                          <div className="flex items-center justify-between">
+                            <span>Entry Date</span>
+                            <button
+                              onClick={() => {
+                                const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
+                                setActiveFilter({ ...activeFilter, date: newOrder });
+                                if (newOrder) {
+                                  setFilteredStrykeList(
+                                    [...filteredStrykeList].sort((a, b) =>
+                                      newOrder === 'asc'
+                                        ? new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime()
+                                        : new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime()
+                                    )
+                                  );
+                                } else {
+                                  setFilteredStrykeList([...strykeList]);
+                                }
+                              }}
+                              className="ml-1 p-1 hover:bg-gray-300 rounded"
+                              title={`Sort by Date ${activeFilter.date === 'asc' ? '(Oldest First)' : activeFilter.date === 'desc' ? '(Newest First)' : '(Off)'}`}
+                            >
+                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
+                                activeFilter.date === 'asc' 
+                                  ? 'bg-green-100 border-green-500 text-green-700 shadow-sm' 
+                                  : activeFilter.date === 'desc' 
+                                    ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                    : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                              }`}>
+                                {activeFilter.date === 'asc' ? '▲' : activeFilter.date === 'desc' ? '▼' : '⇅'}
+                              </span>
+                            </button>
+                          </div>
+                        </th>
+                        <th className="border border-gray-700 px-8 py-2">
+                          <div className="flex items-center justify-between">
+                            <span>Entry</span>
+                            <button
+                              onClick={() => {
+                                const newOrder = activeFilter.entry === 'asc' ? 'desc' : activeFilter.entry === 'desc' ? null : 'asc';
+                                setActiveFilter({ ...activeFilter, entry: newOrder });
+                                if (newOrder) {
+                                  setFilteredStrykeList(
+                                    [...filteredStrykeList].sort((a, b) => {
+                                      const aPrice = a.entryCandle?.close || Number(a.entryAt) || 0;
+                                      const bPrice = b.entryCandle?.close || Number(b.entryAt) || 0;
+                                      return newOrder === 'asc' ? aPrice - bPrice : bPrice - aPrice;
+                                    })
+                                  );
+                                } else {
+                                  setFilteredStrykeList([...strykeList]);
+                                }
+                              }}
+                              className="ml-1 p-1 hover:bg-gray-300 rounded"
+                              title={`Sort by Entry Price ${activeFilter.entry === 'asc' ? '(Low to High)' : activeFilter.entry === 'desc' ? '(High to Low)' : '(Off)'}`}
+                            >
+                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
+                                activeFilter.entry === 'asc' 
+                                  ? 'bg-green-100 border-green-500 text-green-700 shadow-sm' 
+                                  : activeFilter.entry === 'desc' 
+                                    ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                    : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                              }`}>
+                                {activeFilter.entry === 'asc' ? '▲' : activeFilter.entry === 'desc' ? '▼' : '⇅'}
+                              </span>
+                            </button>
+                          </div>
+                        </th>
+                        <th className="border border-gray-700 px-8 py-2">
+                          <div className="flex items-center justify-between">
+                            <span>Target</span>
+                            <button
+                              onClick={() => {
+                                const newOrder = activeFilter.target === 'asc' ? 'desc' : activeFilter.target === 'desc' ? null : 'asc';
+                                setActiveFilter({ ...activeFilter, target: newOrder });
+                                if (newOrder) {
+                                  setFilteredStrykeList(
+                                    [...filteredStrykeList].sort((a, b) => {
+                                      const aTarget = a.target || 0;
+                                      const bTarget = b.target || 0;
+                                      return newOrder === 'asc' ? aTarget - bTarget : bTarget - aTarget;
+                                    })
+                                  );
+                                } else {
+                                  setFilteredStrykeList([...strykeList]);
+                                }
+                              }}
+                              className="ml-1 p-1 hover:bg-gray-300 rounded"
+                              title={`Sort by Target ${activeFilter.target === 'asc' ? '(Low to High)' : activeFilter.target === 'desc' ? '(High to Low)' : '(Off)'}`}
+                            >
+                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
+                                activeFilter.target === 'asc' 
+                                  ? 'bg-green-100 border-green-500 text-green-700 shadow-sm' 
+                                  : activeFilter.target === 'desc' 
+                                    ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                    : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                              }`}>
+                                {activeFilter.target === 'asc' ? '▲' : activeFilter.target === 'desc' ? '▼' : '⇅'}
+                              </span>
+                            </button>
+                          </div>
+                        </th>
+                        <th className="border border-gray-700 px-8 py-2 min-w-[130px]">
+                          <div className="flex items-center justify-between">
+                            <span>Stop Loss</span>
+                            <button
+                              onClick={() => {
+                                const newOrder = activeFilter.stopLoss === 'asc' ? 'desc' : activeFilter.stopLoss === 'desc' ? null : 'asc';
+                                setActiveFilter({ ...activeFilter, stopLoss: newOrder });
+                                if (newOrder) {
+                                  setFilteredStrykeList(
+                                    [...filteredStrykeList].sort((a, b) => {
+                                      const aStopLoss = a.stopLoss || 0;
+                                      const bStopLoss = b.stopLoss || 0;
+                                      return newOrder === 'asc' ? aStopLoss - bStopLoss : bStopLoss - aStopLoss;
+                                    })
+                                  );
+                                } else {
+                                  setFilteredStrykeList([...strykeList]);
+                                }
+                              }}
+                              className="ml-1 p-1 hover:bg-gray-300 rounded"
+                              title={`Sort by Stop Loss ${activeFilter.stopLoss === 'asc' ? '(Low to High)' : activeFilter.stopLoss === 'desc' ? '(High to Low)' : '(Off)'}`}
+                            >
+                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
+                                activeFilter.stopLoss === 'asc' 
+                                  ? 'bg-green-100 border-green-500 text-green-700 shadow-sm' 
+                                  : activeFilter.stopLoss === 'desc' 
+                                    ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                    : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                              }`}>
+                                {activeFilter.stopLoss === 'asc' ? '▲' : activeFilter.stopLoss === 'desc' ? '▼' : '⇅'}
+                              </span>
+                            </button>
+                          </div>
+                        </th>
                         <th className="border border-gray-700 px-8 py-2">Swing Labels</th>
                         <th title='Entry - Resistance Gap' className="border border-gray-700 px-12 py-2 min-w-[130px]">ER-Gap</th>
                         <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Max Profits</th>
