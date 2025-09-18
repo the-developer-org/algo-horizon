@@ -251,6 +251,9 @@ function StrikeAnalysisContent() {
     loadedCompanies: 0,
     isComplete: false
   });
+  
+  // Track if data loading has been attempted to prevent unnecessary retries
+  const [dataLoadingAttempted, setDataLoadingAttempted] = useState(false);
 
   // Modal state to show full EMA crossover dates when a badge is clicked
   const [crossoverModal, setCrossoverModal] = useState<{
@@ -428,6 +431,10 @@ function StrikeAnalysisContent() {
           'accept': 'application/json',
         },
       });
+      
+      // Reset failure tracking before refetching data
+      (0);
+      setDataLoadingAttempted(false);
       fetchStrykes();
     } catch (error) {
       console.error('Error recalculating stryke analysis:', error);
@@ -439,6 +446,15 @@ function StrikeAnalysisContent() {
 
   // Fetch all strykes from API using progressive loading
   const fetchStrykes = async () => {
+    // Prevent multiple simultaneous calls
+    if (progressiveLoading) {
+      toast.error('Loading already in progress. Please wait...');
+      return;
+    }
+
+    // Mark that data loading has been attempted
+    setDataLoadingAttempted(true);
+
     // QWERTY order for progressive loading
     const alphabetOrder = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'];
 
@@ -448,7 +464,6 @@ function StrikeAnalysisContent() {
     setStrykeAnalysisList([]);
     setAlgoAnalysisList([]);
     setFilteredAnalysisList([]);
-
 
     // Initialize progress
     setLoadingProgress({
@@ -462,6 +477,8 @@ function StrikeAnalysisContent() {
     const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     let allStrykes: AnalysisResponse[] = [];
     let completedAlphabets: string[] = [];
+    let consecutiveFailures = 0;
+    const maxConsecutiveFailures = 5; // Stop if 5 consecutive alphabets fail
 
     try {
       for (let i = 0; i < alphabetOrder.length; i++) {
@@ -491,7 +508,6 @@ function StrikeAnalysisContent() {
               setAlgoAnalysisList((prev) => [...prev, ...algoAnalysis]);
               setStrykeAnalysisList((prev) => [...prev, ...strykeAnalysis]);
 
-
               // Add to accumulated data
               allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis];
 
@@ -502,16 +518,30 @@ function StrikeAnalysisContent() {
               setFilteredAnalysisList((prev) => [...prev, ...algoAnalysis, ...strykeAnalysis]);
 
               console.log(`Loaded ${allStrykes.length} companies from alphabet ${alphabet}`);
+              
+              // Reset consecutive failures on success
+              consecutiveFailures = 0;
+            } else {
+              console.warn(`No data returned for alphabet ${alphabet}`);
+              consecutiveFailures++;
             }
           } else {
             console.warn(`Failed to fetch data for alphabet ${alphabet}: ${response.status}`);
+            consecutiveFailures++;
           }
         } catch (error) {
           console.error(`Error fetching alphabet ${alphabet}:`, error);
-          // Continue with next alphabet even if one fails
+          consecutiveFailures++;
         }
 
-        // Mark alphabet as completed
+        // Check if we should stop due to too many consecutive failures
+        if (consecutiveFailures >= maxConsecutiveFailures) {
+          console.error(`Stopping fetch: ${consecutiveFailures} consecutive failures detected`);
+          toast.error(`Stopped loading after ${consecutiveFailures} consecutive failures. Check your connection and try again.`);
+          break;
+        }
+
+        // Mark alphabet as completed (even if it failed, to track progress)
         completedAlphabets = [...completedAlphabets, alphabet];
 
         // Update progress
@@ -537,11 +567,15 @@ function StrikeAnalysisContent() {
         totalCompanies: allStrykes.length
       }));
 
-      toast.success(`Successfully loaded ${allStrykes.length} companies from all alphabets`);
+      if (allStrykes.length > 0) {
+        toast.success(`Successfully loaded ${allStrykes.length} companies from ${completedAlphabets.length} alphabets`);
+      } else {
+        toast.error('No data was loaded. Please check your connection and try again.');
+      }
 
     } catch (error) {
       console.error('Error in progressive loading:', error);
-      toast.error('Failed to complete data loading');
+      toast.error('Failed to complete data loading. Please check your connection and try again.');
     } finally {
       setProgressiveLoading(false);
     }
@@ -678,16 +712,16 @@ function StrikeAnalysisContent() {
   const timeframes = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
 
   useEffect(() => {
-    if (showAllStrykes && strykeList.length === 0 && !progressiveLoading) {
+    if (showAllStrykes && strykeList.length === 0 && !progressiveLoading && !dataLoadingAttempted) {
       fetchStrykes();
     }
-  }, [showAllStrykes, strykeList.length, progressiveLoading]);
+  }, [showAllStrykes, strykeList.length, progressiveLoading, dataLoadingAttempted]);
 
   useEffect(() => {
-    if (showSwingStats && strykeList.length === 0 && !progressiveLoading) {
+    if (showSwingStats && strykeList.length === 0 && !progressiveLoading && !dataLoadingAttempted) {
       fetchStrykes();
     }
-  }, [showSwingStats, strykeList.length, progressiveLoading]);
+  }, [showSwingStats, strykeList.length, progressiveLoading, dataLoadingAttempted]);
 
   // Close chart dropdown when clicking outside
   useEffect(() => {
@@ -1227,11 +1261,16 @@ function StrikeAnalysisContent() {
                   >
                     {progressiveLoading ? 'Loading Companies...' : 'Fetch All Stryke Analysis'}
                   </Button>
-                )} */}
+                )} */} 
 
 
                 <Button
-                  onClick={() => fetchStrykes()}
+                  onClick={() => {
+                    // Reset failure tracking before refetching data
+                    (0);
+                    setDataLoadingAttempted(false); // Reset the flag to allow fresh loading
+                    fetchStrykes();
+                  }}
                   className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition ${progressiveLoading ? 'bg-gray-400 cursor-not-allowed' : ''
                     }`}
                   disabled={progressiveLoading}
@@ -1256,6 +1295,9 @@ function StrikeAnalysisContent() {
                   <Button
                     onClick={() => {
                       handleToggleView(false, false, false, true);
+                      // Reset failure tracking before fetching data
+                      (0);
+                      setDataLoadingAttempted(false);
                       fetchStrykes();
                     }}
                     className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 text-sm rounded-md transition"
