@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import { OHLCChart } from './OHLCChart';
 import { BoomDaysTable } from './BoomDaysTable';
@@ -15,6 +16,18 @@ import axios from 'axios';
 // Performance optimization constants
 const MAX_CANDLES_FOR_CHART = 10000; // Limit for ultra-fast performance
 const PAGINATION_CHUNK_SIZE = 500; // Smaller chunks for faster loading
+
+// Progressive loading configuration
+const PROGRESSIVE_BATCH_CONFIG = {
+  '1m': { batchSize: 100, targetDays: 30, maxBatches: 12 },
+  '5m': { batchSize: 100, targetDays: 60, maxBatches: 15 },
+  '15m': { batchSize: 75, targetDays: 90, maxBatches: 12 },
+  '30m': { batchSize: 60, targetDays: 120, maxBatches: 15 },
+  '1h': { batchSize: 50, targetDays: 180, maxBatches: 18 },
+  '4h': { batchSize: 40, targetDays: 300, maxBatches: 20 },
+  '1d': { batchSize: 30, targetDays: 365, maxBatches: 24 },
+  '1w': { batchSize: 20, targetDays: 365, maxBatches: 18 }
+} as const;
 
 export const OHLCChartDemo: React.FC = () => {
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -60,6 +73,39 @@ export const OHLCChartDemo: React.FC = () => {
 
   const [shouldFetchIntraDay, setShouldFetchIntraDay] = useState(true);
 
+  // Progressive loading state
+  const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
+  const [progressiveLoadingProgress, setProgressiveLoadingProgress] = useState({ loaded: 0, total: 0 });
+  const [progressiveAbortController, setProgressiveAbortController] = useState<AbortController | null>(null);
+
+  // Next.js routing hooks for URL parameters
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Function to find company name from instrument key (reverse lookup)
+  const findCompanyNameFromInstrumentKey = useCallback((instrumentKey: string): string | null => {
+    for (const [companyName, key] of Object.entries(keyMapping)) {
+      if (key === instrumentKey) {
+        return companyName;
+      }
+    }
+    return null;
+  }, [keyMapping]);
+
+  // Function to update URL parameters
+  const updateUrlParams = useCallback((instrumentKey: string, timeframe: Timeframe) => {
+    const params = new URLSearchParams();
+    if (instrumentKey) {
+      params.set('instrumentKey', instrumentKey);
+    }
+    if (timeframe) {
+      params.set('timeframe', timeframe);
+    }
+    
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    router.replace(newUrl, { scroll: false });
+  }, [router]);
+
   /**
    * Get the most recent trading day (excludes weekends and uses previous day)
    * @param date The reference date
@@ -84,44 +130,93 @@ export const OHLCChartDemo: React.FC = () => {
   };
 
   /**
-   * Calculate the optimal date range based on timeframe to fetch approximately 100 candles
-   * @param baseDate The base date to calculate from (should be current date/time)
+   * Calculate date ranges for progressive loading to get historical data
    * @param timeframe The selected timeframe
-   * @returns Date object set to appropriate historical point (always in the past)
+   * @param lastTradingDay The most recent trading day
+   * @returns Array of date ranges for batch loading
+   */
+  const calculateProgressiveDateRanges = (timeframe: Timeframe, lastTradingDay: Date): Array<{from: Date, to: Date}> => {
+    const config = PROGRESSIVE_BATCH_CONFIG[timeframe];
+    const ranges: Array<{from: Date, to: Date}> = [];
+    
+    // Calculate how many calendar days each batch should cover
+    const daysPerBatch = Math.max(7, Math.ceil(config.targetDays / config.maxBatches));
+    
+    // Limit total batches to prevent excessive API calls
+    const totalBatches = Math.min(config.maxBatches, Math.ceil(config.targetDays / daysPerBatch));
+    
+    let currentTo = new Date(lastTradingDay);
+    
+    for (let batch = 0; batch < totalBatches; batch++) {
+      const currentFrom = new Date(currentTo);
+      currentFrom.setDate(currentFrom.getDate() - daysPerBatch);
+      
+      ranges.push({
+        from: new Date(currentFrom),
+        to: new Date(currentTo)
+      });
+      
+      // Move to next batch (no gap between batches to ensure continuity)
+      currentTo = new Date(currentFrom);
+    }
+    
+    return ranges;
+  };
+
+  /**
+   * Get approximate candles per trading day for a timeframe
+   */
+  const getCandlesPerTradingDay = (timeframe: Timeframe): number => {
+    // Approximate trading hours: 6.25 hours (9:15 AM to 3:30 PM IST)
+    const tradingMinutes = 375;
+    
+    switch (timeframe) {
+      case '1m': return tradingMinutes; // 375 candles per day
+      case '5m': return Math.floor(tradingMinutes / 5); // 75 candles per day
+      case '15m': return Math.floor(tradingMinutes / 15); // 25 candles per day
+      case '30m': return Math.floor(tradingMinutes / 30); // 12.5 ≈ 12 candles per day
+      case '1h': return Math.floor(tradingMinutes / 60); // 6.25 ≈ 6 candles per day
+      case '4h': return 2; // 2 candles per day (morning and afternoon sessions)
+      case '1d': return 1; // 1 candle per day
+      case '1w': return 0.2; // 1 candle per week (5 trading days)
+      default: return 1;
+    }
+  };
+
+  /**
+   * Legacy function for backward compatibility - calculate date range for single batch
    */
   const calculateFromDate = (baseDate: Date, timeframe: Timeframe): Date => {
     const from = new Date(baseDate);
     
     // Calculate based on typical trading hours and market days to get ~100 candles
-    // Always go backwards in time
     switch (timeframe) {
       case '1m':
-        from.setDate(from.getDate() - 60); // 375 per Day * 3 days = 1125 Candles
+        from.setDate(from.getDate() - 60);
         break;
       case '5m':
-        from.setDate(from.getDate() - 60); // 75 per Day * 10 days = 750 Candles
+        from.setDate(from.getDate() - 60);
         break;
       case '15m':
-        from.setDate(from.getDate() - 360); // 25 per Day * 30 days = 750 Candles
+        from.setDate(from.getDate() - 360);
         break;
       case '30m':
-        from.setDate(from.getDate() - 90); // 12 per Day * 60 days = 720 Candles
+        from.setDate(from.getDate() - 90);
         break;
       case '1h':
-        from.setDate(from.getDate() - 90); // 6 per Day * 120 days = 720 Candles
+        from.setDate(from.getDate() - 90);
         break;
       case '4h':
-        // Based on working URL: from 2025-05-27 to 2025-08-27 = ~3 months = ~90 days
-        from.setDate(from.getDate() - 90); // ~90 days for 4h timeframe
+        from.setDate(from.getDate() - 90);
         break;
       case '1d':
-        from.setDate(from.getDate() - 500); // ~6 months = ~130 trading days 
+        from.setDate(from.getDate() - 500);
         break;
       case '1w':
-        from.setDate(from.getDate() - 730); // ~2 years = ~104 weeks
+        from.setDate(from.getDate() - 730);
         break;
       default:
-        from.setDate(from.getDate() - 90); // Default fallback - 3 months
+        from.setDate(from.getDate() - 90);
     }
     
     return from;
@@ -183,7 +278,7 @@ export const OHLCChartDemo: React.FC = () => {
     setUpstoxApiKey(savedApiKey);
   }, []);
 
-  // Fetch KeyMapping from Redis on mount
+    // Fetch KeyMapping from Redis on mount
   useEffect(() => {
     setIsLoading(true);
     fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
@@ -200,6 +295,63 @@ export const OHLCChartDemo: React.FC = () => {
       })
       .catch(() => setIsLoading(false));
   }, []);
+
+  // Process URL parameters after keyMapping is loaded
+  useEffect(() => {
+    if (!searchParams || Object.keys(keyMapping).length === 0) return; // Wait for keyMapping to load
+
+    const instrumentKeyParam = searchParams.get('instrumentKey');
+    const timeframeParam = searchParams.get('timeframe') as Timeframe;
+
+    if (instrumentKeyParam && timeframeParam) {
+      console.log('🔗 Processing URL parameters:', { instrumentKeyParam, timeframeParam });
+      
+      // Validate timeframe
+      const validTimeframes: Timeframe[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
+      const isValidTimeframe = validTimeframes.includes(timeframeParam);
+      
+      if (!isValidTimeframe) {
+        console.warn('❌ Invalid timeframe in URL:', timeframeParam);
+        toast.error(`Invalid timeframe: ${timeframeParam}. Using default 1d.`);
+        return;
+      }
+
+      // Find company name from instrument key
+      const companyName = findCompanyNameFromInstrumentKey(instrumentKeyParam);
+      
+      if (!companyName) {
+        console.warn('❌ Company not found for instrument key:', instrumentKeyParam);
+        toast.error(`Company not found for instrument key: ${instrumentKeyParam}`);
+        return;
+      }
+
+      console.log('✅ Found company for URL params:', { companyName, instrumentKeyParam, timeframeParam });
+      
+      // Set the state
+      setSelectedCompany(companyName);
+      setSelectedInstrumentKey(instrumentKeyParam);
+      setSelectedTimeframe(timeframeParam);
+      setSearchTerm(companyName);
+      
+      // Auto-load data if API key is available
+      const savedApiKey = localStorage.getItem('upstoxApiKey');
+      if (savedApiKey) {
+        // Small delay to ensure state is set and then trigger data fetch
+        setTimeout(() => {
+          console.log('🚀 Auto-loading data from URL parameters');
+          // Trigger button click to fetch data
+          const fetchButton = document.querySelector('[data-testid="fetch-button"]') as HTMLButtonElement;
+          if (fetchButton && !fetchButton.disabled) {
+            fetchButton.click();
+          }
+        }, 200);
+      } else {
+        toast.error('Upstox API key required. Please configure your API key first.', {
+          duration: 4000
+        });
+      }
+    }
+  }, [keyMapping, searchParams, findCompanyNameFromInstrumentKey]);
 
   // Update suggestions as user types
   useEffect(() => {
@@ -245,6 +397,39 @@ export const OHLCChartDemo: React.FC = () => {
       setIsCalculatingEMA(false);
     }
   }, [emaCalculation, applyEMAToCandles]); // Don't include candles to avoid infinite loop
+
+  // Cleanup progressive loading on component unmount only
+  useEffect(() => {
+    return () => {
+      // Only cleanup on component unmount
+      if (progressiveAbortController) {
+        console.log('🧹 Cleaning up progressive loading on component unmount');
+        progressiveAbortController.abort();
+      }
+    };
+  }, []); // Empty dependency array - only run on mount/unmount
+
+  // Use ref to track previous instrument key
+  const prevInstrumentKeyRef = useRef<string>('');
+  
+  // Cancel progressive loading when changing companies
+  useEffect(() => {
+    const currentKey = selectedInstrumentKey;
+    const previousKey = prevInstrumentKeyRef.current;
+    
+    console.log(`🔍 Company change check: previous="${previousKey}", current="${currentKey}", hasAbortController=${!!progressiveAbortController}`);
+    
+    // Only abort if we have a previous key and it's different from current
+    if (previousKey && previousKey !== currentKey && progressiveAbortController) {
+      console.log(`🔄 Aborting progressive loading due to company change: ${previousKey} → ${currentKey}`);
+      progressiveAbortController.abort();
+      setProgressiveAbortController(null);
+      setIsProgressiveLoading(false);
+    }
+    
+    // Update the ref with current key
+    prevInstrumentKeyRef.current = currentKey;
+  }, [selectedInstrumentKey]); // Only depend on instrumentKey, not abortController
 
   // Handle selection from suggestions
   // Function to fetch entry dates for the selected instrument
@@ -298,13 +483,18 @@ export const OHLCChartDemo: React.FC = () => {
     setSearchTerm(companyName);
     setSuggestions([]);
 
+    // Update URL parameters
+    if (instrumentKey) {
+      updateUrlParams(instrumentKey, selectedTimeframe);
+    }
+
     // Fetch entry dates when a new company is selected
     if (instrumentKey && companyName) {
       fetchEntryDates(instrumentKey, companyName);
     }
 
     // We preserve the current view (either chart view or boom days) when selecting a new company
-  }, [keyMapping, fetchEntryDates]); // Add dependencies for useCallback
+  }, [keyMapping, fetchEntryDates, selectedTimeframe, updateUrlParams]); // Add dependencies for useCallback
 
   // Performance optimization: limit displayed candles to prevent slowdown
   const optimizedCandles = useMemo(() => {
@@ -318,370 +508,7 @@ export const OHLCChartDemo: React.FC = () => {
     return recentCandles;
   }, [candles]);
 
-  // Fetch candles for selected company/instrument using Upstox API
-  const handleFetchData = useCallback(async () => {
-    console.log('🚀 handleFetchData called', { selectedCompany, selectedInstrumentKey, upstoxApiKey: !!upstoxApiKey });
-    if (!selectedCompany || !selectedInstrumentKey) {
-      toast.error('Please select a company from the search dropdown first.', {
-        duration: 3000
-      });
-      return;
-    }
-    
-    if (!upstoxApiKey) {
-      toast.error('Upstox API key is required to fetch market data. Please configure your API key first.', {
-        duration: 4000
-      });
-      handleOpenApiKeyModal();
-      return;
-    }
-
-    setIsLoading(true);
-    setCandles([]);
-    setRawCandles([]);
-    setHasMoreCandles(false);
-    setOldestCandleTime(undefined);
-    setNewestCandleTime(undefined);
-    
-    // Fetch entry dates for the selected instrument
-    fetchEntryDates(selectedInstrumentKey, selectedCompany);
-    
-    try {
-      
-      // Calculate dynamic date range based on timeframe to limit candles to ~100
-      const now = new Date();
-      // Use the last trading day instead of today since today's data might not be available
-      const lastTradingDay = getLastTradingDay(now);
-      const to = lastTradingDay.toISOString();
-      const from = calculateFromDate(new Date(lastTradingDay), selectedTimeframe);
-      
-      console.log(`📅 Date range calculation:`, {
-        timeframe: selectedTimeframe,
-        from: from.toISOString(),
-        to: to,
-        daysDiff: Math.floor((new Date(to).getTime() - from.getTime()) / (1000 * 60 * 60 * 24)),
-        currentDate: now.toISOString(),
-        lastTradingDay: lastTradingDay.toISOString()
-      });
-      
-      const params: UpstoxPaginationParams = {
-        instrumentKey: selectedInstrumentKey,
-        timeframe: selectedTimeframe,
-        apiKey: upstoxApiKey,
-        from: from.toISOString(),
-        to: to,
-        limit: PAGINATION_CHUNK_SIZE // Use smaller chunks for faster loading
-      };
-
-    
-      const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
-      setShouldFetchIntraDay(false);
-
-      if (result.candles.length > 0) {
-        // Sort candles by timestamp in ascending order (oldest first) and remove duplicates
-        // Apply consistent UTC timestamp handling to prevent chart distortion
-        const sortedCandles = [...result.candles]
-          .filter((candle, index, self) =>
-            index === self.findIndex((c) => c.timestamp === candle.timestamp)
-          )
-          .sort((a, b) => {
-            // Use consistent timestamp comparison that matches our chart parsing logic
-            // Don't add 'Z' since timestamps are already processed as IST in the chart
-            const timeA = new Date(a.timestamp).getTime();
-            const timeB = new Date(b.timestamp).getTime();
-            return timeA - timeB;
-          });
-        
-        // Process candles with indicators (but not EMA - will be handled by toggle)
-        console.log(`🔄 Processing ${sortedCandles.length} candles with indicators after API fetch`);
-      
-        const processedCandles = calculateIndicators(sortedCandles, 200, 14, false); // Don't calculate EMA here
-        
-        setRawCandles(processedCandles);
-        // Apply selected timeframe processing
-        const timeframeProcessedData = processTimeframeData(
-          processedCandles,
-          selectedTimeframe
-        );
-        
-        // Apply EMA based on current toggle state
-        const finalCandles = applyEMAToCandles(timeframeProcessedData);
-        setCandles(finalCandles);
-                 setHasMoreCandles(result.hasMore);
-                 
-        setOldestCandleTime(result.oldestTimestamp);
-        setNewestCandleTime(result.newestTimestamp);
-
-        // Calculate average volume
-        const volumes = processedCandles.map((candle) => candle.volume);
-        const avgVol = volumes.reduce((a, b) => a + b, 0) / volumes.length;
-        setAvgVolume(avgVol);
-        
-        // Set placeholder values for other data (since Upstox doesn't provide these)
-        setAnalysisList([]);
-        setBoomDaysData([]);
-        setHasBoomDaysData(false);
-        setSupport(null);
-        setResistance(null);
-        
-        // First load handling
-        if (isFirstLoad) {
-          setShowBoomDays(false);
-          setIsFirstLoad(false);
-        }
-        
-        toast.success(`Loaded data from Upstox for ${selectedCompany}`);
-      } else {
-        toast.error('No data available for the selected timeframe');
-      }
-    } catch (error) {
-      console.error('Error fetching data from Upstox:', error);
-      toast.error('Failed to fetch data from Upstox API. Please check your API key and try again.');
-    } finally {
-      setIsLoading(false);
-      setVixData([]); // Clear any VIX data
-    }
-  }, [selectedCompany, selectedInstrumentKey, upstoxApiKey, selectedTimeframe, isFirstLoad, fetchEntryDates]); // Add dependencies for useCallback
-
-  // Function to load more historical (older) data (pagination)
-  async function loadMoreHistoricalData() {
-        if (!selectedInstrumentKey || !upstoxApiKey || loadingOlderData) {
-      return;
-    }
-
-    setLoadingOlderData(true);
-    const loadingToast = toast.loading(`Loading older historical data...`);
-
-    try {
-      // Always fetch older data relative to the current newest candle
-      let to: string;
-      let from: Date;
-
-
-
-        // Loading older data - use oldest candle time as "to"
-        const newestDate = new Date(candles.at(0)?.timestamp ?? new Date().toISOString());
-        to = newestDate.toISOString();
-        from = calculateFromDate(newestDate, selectedTimeframe);
-     
-
-      console.log(`Pagination request details (older):`, {
-        instrumentKey: selectedInstrumentKey,
-        timeframe: selectedTimeframe,
-        from: from.toISOString(),
-        to: to,
-      });
-
-      const params: UpstoxPaginationParams = {
-        instrumentKey: selectedInstrumentKey,
-        timeframe: selectedTimeframe,
-        apiKey: upstoxApiKey,
-        from: from.toISOString(),
-        to: to,
-        limit: PAGINATION_CHUNK_SIZE
-      };
-
-      const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
-      setShouldFetchIntraDay(false);
-
-      if (result.candles.length > 0) {
-        // Update pagination state for older fetches
-        setOldestCandleTime(result.oldestTimestamp);
-        setHasMoreCandles(result.hasMore);
-
-        // Merge with existing candles: new older candles go before rawCandles
-        const combinedCandles = [...result.candles, ...rawCandles];
-
-        // Remove duplicates (by timestamp)
-        const uniqueCandles = combinedCandles.filter((candle, index, self) =>
-          index === self.findIndex((c) => c.timestamp === candle.timestamp)
-        );
-
-        // Sort by timestamp (oldest to newest)
-        uniqueCandles.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-        // Performance optimization: limit total stored candles
-        const maxStoredCandles = MAX_CANDLES_FOR_CHART * 2; // Store 2x what we display for pagination
-        const optimizedUnique = uniqueCandles.length > maxStoredCandles
-          ? uniqueCandles.slice(-maxStoredCandles) // Keep most recent candles
-          : uniqueCandles;
-
-        console.log(`Memory optimization: Storing ${optimizedUnique.length} of ${uniqueCandles.length} total candles`);
-
-        // Update raw candles
-        setRawCandles(optimizedUnique);
-
-        // Process with the selected timeframe
-        const processedCandles = processTimeframeData(optimizedUnique, selectedTimeframe);
-        console.log(`🔄 Processing ${processedCandles.length} candles with indicators during pagination (full calculation for now)`);
-        const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
-
-        // Apply EMA based on current toggle state
-        const finalCandles = applyEMAToCandles(candlesWithIndicators);
-        setCandles(finalCandles);
-
-        toast.success(`Loaded ${result.candles.length} more historical candles`, {
-          id: loadingToast
-        });
-      } else {
-        toast.error(`No more historical data available`, {
-          id: loadingToast
-        });
-        setHasMoreCandles(false);
-      }
-    } catch (error) {
-      console.error(`Error loading more historical data:`, error);
-      toast.error(`Failed to load more historical data`, {
-        id: loadingToast
-      });
-    } finally {
-      setLoadingOlderData(false);
-    }
-  }
-
-  // Handle timeframe change with proper error handling and rollback
-  const handleTimeframeChange = useCallback((newTimeframe: Timeframe) => {
-    const previousTimeframe = selectedTimeframe;
-    
-    // Optimistically update the timeframe
-    setSelectedTimeframe(newTimeframe);
-    
-    // Check if we need to fetch new data for the timeframe
-    const needsNewData = shouldFetchNewDataForTimeframe(previousTimeframe, newTimeframe);
-    
-    if (needsNewData && selectedInstrumentKey && upstoxApiKey) {
-      // Fetch fresh data for the new timeframe
-      const loadingToast = toast.loading('Fetching data for new timeframe...', { duration: 10000 });
-
-      
-      fetchDataForTimeframe(newTimeframe, true)
-        .then(() => {
-          toast.success(`Successfully loaded ${newTimeframe} data`, { id: loadingToast });
-        })
-        .catch((error) => {
-          console.error('Failed to fetch data for new timeframe:', error);
-          toast.error(`Failed to load ${newTimeframe} data. Reverting to ${previousTimeframe}.`, { 
-            id: loadingToast,
-            duration: 4000 
-          });
-          
-          // Revert to previous timeframe on error
-          setSelectedTimeframe(previousTimeframe);
-        });
-    } else if (rawCandles.length) {
-      // Use existing data and process it for the new timeframe
-      try {
-        const processedCandles = processTimeframeData(rawCandles, newTimeframe);
-        console.log(`🔄 Processing ${processedCandles.length} candles with indicators during timeframe change`);
-        const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
-        
-        // Apply EMA based on current toggle state
-        const finalCandles = applyEMAToCandles(candlesWithIndicators);
-        setCandles(finalCandles);
-                 toast.success(`Switched to ${newTimeframe} timeframe`);
-      } catch (error) {
-        console.error('Failed to process data for new timeframe:', error);
-        toast.error(`Failed to switch to ${newTimeframe}. Reverting to ${previousTimeframe}.`);
-        
-        // Revert to previous timeframe on processing error
-        setSelectedTimeframe(previousTimeframe);
-      }
-    } else {
-      // No data available
-      toast.error(`No data available for ${newTimeframe}. Please fetch data first.`);
-      setSelectedTimeframe(previousTimeframe);
-    }
-  }, [selectedTimeframe, selectedInstrumentKey, upstoxApiKey, rawCandles]); // Add dependencies for useCallback
-
-  // Helper function to determine if we need to fetch new data
-  const shouldFetchNewDataForTimeframe = (currentTf: Timeframe, newTf: Timeframe): boolean => {
-    // Define timeframe hierarchy (lower index = higher resolution)
-    const timeframeOrder = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
-    const currentIndex = timeframeOrder.indexOf(currentTf);
-    const newIndex = timeframeOrder.indexOf(newTf);
-    
-    // If switching to a higher resolution timeframe, we need new data
-    return newIndex < currentIndex;
-  };
-
-  // Function to fetch data for a specific timeframe with proper error handling
-  const fetchDataForTimeframe = useCallback(async (timeframe: Timeframe, shouldFetchIntraDay: boolean): Promise<void> => {
-    if (!selectedInstrumentKey || !upstoxApiKey) {
-      throw new Error('Missing instrument key or API key');
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      // Calculate dynamic date range based on timeframe
-      const now = new Date();
-      // Use the last trading day instead of today since today's data might not be available
-      const lastTradingDay = getLastTradingDay(now);
-      const to = lastTradingDay.toISOString();
-      const from = calculateFromDate(new Date(lastTradingDay), timeframe);
-      
-      console.log(`📅 Fetching data for timeframe ${timeframe}:`, {
-        from: from.toISOString(),
-        to: to,
-        instrumentKey: selectedInstrumentKey,
-        lastTradingDay: lastTradingDay.toISOString(),
-        currentDate: now.toISOString()
-      });
-      
-      const params: UpstoxPaginationParams = {
-        instrumentKey: selectedInstrumentKey,
-        timeframe: timeframe,
-        apiKey: upstoxApiKey,
-        from: from.toISOString(),
-        to: to,
-        limit: PAGINATION_CHUNK_SIZE // Use smaller chunks for faster fetching
-      };
-      
-      const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
-      setShouldFetchIntraDay(false);
-
-      if (result.candles.length > 0) {
-        // Sort candles by timestamp and remove duplicates with UTC consistency
-        const sortedCandles = [...result.candles]
-          .filter((candle, index, self) =>
-            index === self.findIndex((c) => c.timestamp === candle.timestamp)
-          )
-          .sort((a, b) => {
-            const timeA = new Date(a.timestamp.endsWith('Z') ? a.timestamp : a.timestamp + 'Z').getTime();
-            const timeB = new Date(b.timestamp.endsWith('Z') ? b.timestamp : b.timestamp + 'Z').getTime();
-            return timeA - timeB;
-          });
-        
-        // Process candles with indicators (but not EMA - will be handled by toggle)
-        console.log(`🔄 Processing ${sortedCandles.length} candles with indicators during timeframe fetch`);
-        const processedCandles = calculateIndicators(sortedCandles, 200, 14, false);
-        
-        setRawCandles(processedCandles);
-        
-        // Apply timeframe processing
-        const timeframeProcessedData = processTimeframeData(processedCandles, timeframe);
-        
-        // Apply EMA based on current toggle state
-        const finalCandles = applyEMAToCandles(timeframeProcessedData);
-        setCandles(finalCandles);
-        
-        setHasMoreCandles(result.hasMore);
-        setOldestCandleTime(result.oldestTimestamp);
-        setNewestCandleTime(result.newestTimestamp);
-        
-        console.log(`✅ Successfully loaded ${timeframe} data for ${selectedCompany}: ${sortedCandles.length} candles`);
-      } else {
-        throw new Error(`No data available for ${timeframe} timeframe`);
-      }
-    } catch (error) {
-      console.error(`❌ Error fetching ${timeframe} data:`, error);
-      throw error; // Re-throw to allow proper error handling in handleTimeframeChange
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedInstrumentKey, upstoxApiKey, selectedCompany]); // Add dependencies for useCallback
-
-  // Handle API key modal
+  // Handle API key modal functions
   const handleOpenApiKeyModal = useCallback(() => {
     setIsApiKeyModalOpen(true);
   }, []);
@@ -696,6 +523,598 @@ export const OHLCChartDemo: React.FC = () => {
       toast.success('API key saved. You can now fetch data from Upstox.');
     }
   }, []);
+
+  // Progressive loading function for initial data loads
+  const fetchCandlesProgressively = useCallback(async (): Promise<void> => {
+    console.log(`🚀 Starting progressive loading for ${selectedTimeframe}`);
+    
+    // Prevent multiple concurrent progressive loading operations
+    if (isProgressiveLoading) {
+      console.log('⚠️ Progressive loading already in progress, skipping');
+      return;
+    }
+    
+    // Validation checks
+    if (!selectedCompany || !selectedInstrumentKey) {
+      toast.error('Please select a company from the search dropdown first.', { duration: 3000 });
+      return;
+    }
+    
+    if (!upstoxApiKey) {
+      toast.error('Upstox API key is required to fetch market data.', { duration: 4000 });
+      handleOpenApiKeyModal();
+      return;
+    }
+
+    // Cancel any existing progressive loading
+    if (progressiveAbortController) {
+      console.log('🛑 Cancelling existing progressive loading before starting new one');
+      progressiveAbortController.abort();
+    }
+
+    const abortController = new AbortController();
+    console.log('🚀 Created new abort controller for progressive loading');
+    setProgressiveAbortController(abortController);
+
+    // Check if already aborted (edge case)
+    if (abortController.signal.aborted) {
+      console.log('🛑 Progressive loading aborted before starting (edge case)');
+      return;
+    }
+
+    // Reset state for fresh load
+    setCandles([]);
+    setRawCandles([]);
+    setHasMoreCandles(false);
+    setOldestCandleTime(undefined);
+    setNewestCandleTime(undefined);
+    setIsProgressiveLoading(true);
+    
+    // Fetch entry dates
+    fetchEntryDates(selectedInstrumentKey, selectedCompany);
+
+    try {
+      const lastTradingDay = getLastTradingDay(new Date());
+      console.log(`📅 Using last trading day: ${lastTradingDay.toISOString()}`);
+      
+      const dateRanges = calculateProgressiveDateRanges(selectedTimeframe, lastTradingDay);
+      
+      setProgressiveLoadingProgress({ loaded: 0, total: dateRanges.length });
+      
+      console.log(`📅 Progressive loading: ${dateRanges.length} batches planned for ${selectedTimeframe}`, {
+        firstBatch: dateRanges[0] ? {
+          from: dateRanges[0].from.toISOString(),
+          to: dateRanges[0].to.toISOString()
+        } : null,
+        lastBatch: dateRanges[dateRanges.length - 1] ? {
+          from: dateRanges[dateRanges.length - 1].from.toISOString(),
+          to: dateRanges[dateRanges.length - 1].to.toISOString()
+        } : null
+      });
+
+      let allCandles: Candle[] = [];
+      let batchCount = 0;
+
+      for (const range of dateRanges) {
+        // Check if aborted
+        if (abortController.signal.aborted) {
+          console.log('🛑 Progressive loading aborted during batch processing - checking abort reason');
+          console.log('🛑 Abort signal details:', {
+            aborted: abortController.signal.aborted,
+            reason: abortController.signal.reason
+          });
+          return;
+        }
+
+        try {
+          const params: UpstoxPaginationParams = {
+            instrumentKey: selectedInstrumentKey,
+            timeframe: selectedTimeframe,
+            apiKey: upstoxApiKey,
+            from: range.from.toISOString(),
+            to: range.to.toISOString(),
+            limit: PROGRESSIVE_BATCH_CONFIG[selectedTimeframe].batchSize
+          };
+
+          console.log(`📦 Loading batch ${batchCount + 1}/${dateRanges.length}:`, {
+            from: range.from.toISOString(),
+            to: range.to.toISOString(),
+            timeframe: selectedTimeframe,
+            abortSignalAborted: abortController.signal.aborted
+          });
+
+          const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
+          setShouldFetchIntraDay(false);
+
+          // Check if aborted after API call
+          if (abortController.signal.aborted) {
+            console.log('🛑 Progressive loading aborted after API call, before processing');
+            return;
+          }
+
+          if (result.candles.length > 0) {
+            // Sort and process new candles
+            const sortedCandles = [...result.candles]
+              .filter((candle, index, self) =>
+                index === self.findIndex((c) => c.timestamp === candle.timestamp)
+              )
+              .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+            // Process candles with indicators
+            const processedCandles = calculateIndicators(sortedCandles, 200, 14, false);
+            
+            // Merge with existing candles
+            allCandles = [...allCandles, ...processedCandles];
+            
+            // Remove duplicates across all batches
+            const uniqueCandles = allCandles.filter((candle, index, self) =>
+              index === self.findIndex((c) => c.timestamp === candle.timestamp)
+            );
+            uniqueCandles.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            
+            allCandles = uniqueCandles;
+
+            // Update state with current progress
+            setRawCandles(allCandles);
+            
+            // Apply timeframe processing and EMA
+            const timeframeProcessedData = processTimeframeData(allCandles, selectedTimeframe);
+            const finalCandles = applyEMAToCandles(timeframeProcessedData);
+            setCandles(finalCandles);
+
+            batchCount++;
+            setProgressiveLoadingProgress({ loaded: batchCount, total: dateRanges.length });
+
+            // Show immediate feedback for first batch
+            if (batchCount === 1) {
+              setIsLoading(false); // Stop showing main loading spinner
+              toast.success(`Initial data loaded - continuing in background`);
+              
+              // Set other initial data
+              setAnalysisList([]);
+              setBoomDaysData([]);
+              setHasBoomDaysData(false);
+              setSupport(null);
+              setResistance(null);
+              
+              if (isFirstLoad) {
+                setShowBoomDays(false);
+                setIsFirstLoad(false);
+              }
+            }
+
+            // Calculate average volume from all accumulated candles for better accuracy
+            if (allCandles.length > 0) {
+              const volumes = allCandles.map((candle) => candle.volume);
+              const avgVol = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+              setAvgVolume(avgVol);
+            }
+
+            console.log(`✅ Batch ${batchCount}/${dateRanges.length} loaded: ${sortedCandles.length} candles, total: ${allCandles.length}`);
+          } else {
+            console.log(`⚠️ Batch ${batchCount + 1} returned no data`);
+          }
+
+          // Small delay between batches to prevent overwhelming the API
+          if (batchCount < dateRanges.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+
+        } catch (batchError) {
+          console.error(`❌ Error in batch ${batchCount + 1}:`, batchError);
+          
+          // Check if error is due to abort
+          if (abortController.signal.aborted) {
+            console.log('🛑 Progressive loading aborted during batch processing');
+            return;
+          }
+          
+          // For API errors, continue with next batch but log the error
+          if (batchError instanceof Error && (
+            batchError.message.includes('aborted') ||
+            batchError.message.includes('cancelled')
+          )) {
+            console.log('🛑 Batch loading cancelled');
+            return;
+          }
+          
+          // Continue with next batch for other errors (network issues, etc.)
+          console.warn(`⚠️ Continuing progressive loading despite batch ${batchCount + 1} error`);
+        }
+      }
+
+      // Update final state
+      setHasMoreCandles(false); // No more data to load
+      setOldestCandleTime(allCandles[0]?.timestamp);
+      setNewestCandleTime(allCandles[allCandles.length - 1]?.timestamp);
+      
+      console.log(`🎉 Progressive loading completed: ${allCandles.length} total candles loaded`);
+      toast.success(`Progressive loading complete: ${allCandles.length} candles loaded`);
+
+    } catch (error) {
+      console.error('❌ Progressive loading error:', error);
+      
+      // Check if this is an abort error
+      if (error instanceof Error && (
+        error.message.includes('aborted') ||
+        error.message.includes('cancelled') ||
+        abortController.signal.aborted
+      )) {
+        console.log('🛑 Progressive loading was cancelled');
+        toast.error('Data loading cancelled');
+      } else {
+        console.error('❌ Unexpected progressive loading error:', error);
+        toast.error('Failed to load data progressively. Please try again.');
+      }
+    } finally {
+      // Clean up loading states
+      setIsProgressiveLoading(false);
+      setIsLoading(false);
+      
+      // Only clear abort controller if it's the current one we created
+      if (progressiveAbortController === abortController) {
+        console.log('🧹 Cleaning up abort controller from progressive loading completion');
+        setProgressiveAbortController(null);
+      } else {
+        console.log('⚠️ Abort controller has changed, not clearing it');
+      }
+      
+      setVixData([]); // Clear any VIX data
+    }
+  }, [
+    selectedCompany,
+    selectedInstrumentKey,
+    upstoxApiKey,
+    fetchEntryDates,
+    shouldFetchIntraDay,
+    applyEMAToCandles,
+    isFirstLoad,
+    isProgressiveLoading,
+    handleOpenApiKeyModal
+  ]); // Removed progressiveAbortController from dependencies to prevent recreation
+
+  // Unified function to fetch candles for all scenarios
+  type FetchMode = 'initial' | 'pagination' | 'timeframe-change';
+  
+  interface FetchCandlesOptions {
+    mode: FetchMode;
+    timeframe?: Timeframe;
+    resetState?: boolean;
+    showLoadingToast?: boolean;
+    loadingMessage?: string;
+  }
+
+  const fetchCandles = useCallback(async (options: FetchCandlesOptions): Promise<void> => {
+    const { 
+      mode, 
+      timeframe = selectedTimeframe, 
+      resetState = mode === 'initial' || mode === 'timeframe-change',
+      showLoadingToast = mode === 'pagination',
+      loadingMessage = 'Loading data...'
+    } = options;
+
+    console.log(`🚀 fetchCandles called with mode: ${mode}`, { 
+      selectedCompany, 
+      selectedInstrumentKey, 
+      timeframe,
+      upstoxApiKey: !!upstoxApiKey 
+    });
+
+    // Validation checks
+    if (!selectedCompany || !selectedInstrumentKey) {
+      toast.error('Please select a company from the search dropdown first.', { duration: 3000 });
+      return;
+    }
+    
+    if (!upstoxApiKey) {
+      toast.error('Upstox API key is required to fetch market data. Please configure your API key first.', { duration: 4000 });
+      handleOpenApiKeyModal();
+      return;
+    }
+
+    // Early return for pagination if already loading
+    if (mode === 'pagination' && loadingOlderData) {
+      return;
+    }
+
+    // Set loading states
+    if (mode === 'pagination') {
+      setLoadingOlderData(true);
+    } else {
+      setIsLoading(true);
+    }
+
+    // Reset state for fresh loads
+    if (resetState) {
+      setCandles([]);
+      setRawCandles([]);
+      setHasMoreCandles(false);
+      setOldestCandleTime(undefined);
+      setNewestCandleTime(undefined);
+      
+      // Only fetch entry dates for initial loads (not timeframe changes)
+      if (mode === 'initial') {
+        fetchEntryDates(selectedInstrumentKey, selectedCompany);
+      }
+    }
+
+    // Show loading toast for long operations
+    let loadingToastId: string | undefined;
+    if (showLoadingToast || mode === 'timeframe-change') {
+      loadingToastId = toast.loading(loadingMessage);
+    }
+
+    try {
+      // Calculate date range based on mode
+      let to: string;
+      let from: Date;
+      
+      if (mode === 'pagination') {
+        // For pagination, fetch older data relative to the oldest existing candle
+        const oldestCandle = candles.at(0);
+        const oldestDate = new Date(oldestCandle?.timestamp ?? new Date().toISOString());
+        to = oldestDate.toISOString();
+        from = calculateFromDate(oldestDate, timeframe);
+      } else {
+        // For initial and timeframe-change, use current date as reference
+        const now = new Date();
+        const lastTradingDay = getLastTradingDay(now);
+        to = lastTradingDay.toISOString();
+        from = calculateFromDate(new Date(lastTradingDay), timeframe);
+      }
+      
+      console.log(`📅 Date range calculation for ${mode}:`, {
+        timeframe,
+        from: from.toISOString(),
+        to: to,
+        daysDiff: Math.floor((new Date(to).getTime() - from.getTime()) / (1000 * 60 * 60 * 24)),
+      });
+      
+      const params: UpstoxPaginationParams = {
+        instrumentKey: selectedInstrumentKey,
+        timeframe: timeframe,
+        apiKey: upstoxApiKey,
+        from: from.toISOString(),
+        to: to,
+        limit: PAGINATION_CHUNK_SIZE
+      };
+
+      const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
+      setShouldFetchIntraDay(false);
+
+      if (result.candles.length > 0) {
+        // Sort and deduplicate candles
+        const sortedCandles = [...result.candles]
+          .filter((candle, index, self) =>
+            index === self.findIndex((c) => c.timestamp === candle.timestamp)
+          )
+          .sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime();
+            const timeB = new Date(b.timestamp).getTime();
+            return timeA - timeB;
+          });
+
+        console.log(`🔄 Processing ${sortedCandles.length} candles with indicators for ${mode}`);
+        const processedCandles = calculateIndicators(sortedCandles, 200, 14, false);
+        
+        // Handle different merge strategies based on mode
+        let finalRawCandles: Candle[];
+        
+        if (mode === 'pagination') {
+          // Merge with existing candles for pagination
+          const combinedCandles = [...processedCandles, ...rawCandles];
+          const uniqueCandles = combinedCandles.filter((candle, index, self) =>
+            index === self.findIndex((c) => c.timestamp === candle.timestamp)
+          );
+          uniqueCandles.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          
+          // Performance optimization: limit total stored candles
+          const maxStoredCandles = MAX_CANDLES_FOR_CHART * 2;
+          finalRawCandles = uniqueCandles.length > maxStoredCandles
+            ? uniqueCandles.slice(-maxStoredCandles)
+            : uniqueCandles;
+            
+          console.log(`Memory optimization: Storing ${finalRawCandles.length} of ${uniqueCandles.length} total candles`);
+        } else {
+          // Fresh data for initial and timeframe-change
+          finalRawCandles = processedCandles;
+        }
+        
+        setRawCandles(finalRawCandles);
+        
+        // Apply timeframe processing and EMA
+        const timeframeProcessedData = processTimeframeData(finalRawCandles, timeframe);
+        const finalCandles = applyEMAToCandles(timeframeProcessedData);
+        setCandles(finalCandles);
+        
+        // Update pagination state
+        setHasMoreCandles(result.hasMore);
+        setOldestCandleTime(result.oldestTimestamp);
+        setNewestCandleTime(result.newestTimestamp);
+
+        // Calculate average volume and set additional data for initial loads
+        if (mode === 'initial') {
+          const volumes = processedCandles.map((candle) => candle.volume);
+          const avgVol = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+          setAvgVolume(avgVol);
+          
+          setAnalysisList([]);
+          setBoomDaysData([]);
+          setHasBoomDaysData(false);
+          setSupport(null);
+          setResistance(null);
+          
+          if (isFirstLoad) {
+            setShowBoomDays(false);
+            setIsFirstLoad(false);
+          }
+        }
+        
+        // Success messages
+        let successMessage: string;
+        if (mode === 'initial') {
+          successMessage = `Loaded data from Upstox for ${selectedCompany}`;
+        } else if (mode === 'pagination') {
+          successMessage = `Loaded ${result.candles.length} more historical candles`;
+        } else {
+          successMessage = `Successfully loaded ${timeframe} data`;
+        }
+          
+        if (loadingToastId) {
+          toast.success(successMessage, { id: loadingToastId });
+        } else {
+          toast.success(successMessage);
+        }
+        
+      } else {
+        const errorMessage = `No data available for the selected timeframe`;
+        if (loadingToastId) {
+          toast.error(errorMessage, { id: loadingToastId });
+        } else {
+          toast.error(errorMessage);
+        }
+        
+        if (mode === 'pagination') {
+          setHasMoreCandles(false);
+        }
+      }
+    } catch (error) {
+      console.error(`Error fetching data for ${mode}:`, error);
+      
+      let errorMessage: string;
+      if (mode === 'initial') {
+        errorMessage = 'Failed to fetch data from Upstox API. Please check your API key and try again.';
+      } else if (mode === 'pagination') {
+        errorMessage = 'Failed to load more historical data';
+      } else {
+        errorMessage = `Failed to load ${timeframe} data`;
+      }
+        
+      if (loadingToastId) {
+        toast.error(errorMessage, { id: loadingToastId });
+      } else {
+        toast.error(errorMessage);
+      }
+      
+      // Re-throw for timeframe-change to allow rollback
+      if (mode === 'timeframe-change') {
+        throw error;
+      }
+    } finally {
+      // Reset loading states
+      if (mode === 'pagination') {
+        setLoadingOlderData(false);
+      } else {
+        setIsLoading(false);
+      }
+      
+      // Clear VIX data for initial loads
+      if (mode === 'initial') {
+        setVixData([]);
+      }
+    }
+  }, [
+    selectedCompany, 
+    selectedInstrumentKey, 
+    upstoxApiKey, 
+    selectedTimeframe, 
+    isFirstLoad, 
+    fetchEntryDates,
+    candles,
+    rawCandles,
+    loadingOlderData,
+    applyEMAToCandles,
+    handleOpenApiKeyModal
+  ]);
+
+  // Wrapper functions for backward compatibility and cleaner interface
+  const handleFetchData = useCallback(async () => {
+    // Use progressive loading for initial data loads
+    setIsLoading(true); // Show initial spinner
+    await fetchCandlesProgressively();
+  }, [fetchCandlesProgressively]);
+
+  const loadMoreHistoricalData = useCallback(async () => {
+    await fetchCandles({ 
+      mode: 'pagination',
+      showLoadingToast: true,
+      loadingMessage: 'Loading older historical data...'
+    });
+  }, [fetchCandles]);
+
+  // Handle timeframe change with proper error handling and rollback
+  const handleTimeframeChange = useCallback((newTimeframe: Timeframe) => {
+    const previousTimeframe = selectedTimeframe;
+    
+    // Optimistically update the timeframe
+    setSelectedTimeframe(newTimeframe);
+    
+    // Update URL parameters
+    if (selectedInstrumentKey) {
+      updateUrlParams(selectedInstrumentKey, newTimeframe);
+    }
+    
+    // Check if we need to fetch new data for the timeframe
+    const needsNewData = shouldFetchNewDataForTimeframe(previousTimeframe, newTimeframe);
+    
+    if (needsNewData && selectedInstrumentKey && upstoxApiKey) {
+      // Fetch fresh data for the new timeframe using unified function
+      fetchCandles({ 
+        mode: 'timeframe-change', 
+        timeframe: newTimeframe,
+        loadingMessage: 'Fetching data for new timeframe...'
+      })
+        .then(() => {
+          toast.success(`Successfully loaded ${newTimeframe} data`);
+        })
+        .catch((error) => {
+          console.error('Failed to fetch data for new timeframe:', error);
+          toast.error(`Failed to load ${newTimeframe} data. Reverting to ${previousTimeframe}.`, { 
+            duration: 4000 
+          });
+          
+          // Revert to previous timeframe on error
+          setSelectedTimeframe(previousTimeframe);
+          // Also revert URL parameters
+          updateUrlParams(selectedInstrumentKey, previousTimeframe);
+        });
+    } else if (rawCandles.length) {
+      // Use existing data and process it for the new timeframe
+      try {
+        const processedCandles = processTimeframeData(rawCandles, newTimeframe);
+        console.log(`🔄 Processing ${processedCandles.length} candles with indicators during timeframe change`);
+        const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
+        
+        // Apply EMA based on current toggle state
+        const finalCandles = applyEMAToCandles(candlesWithIndicators);
+        setCandles(finalCandles);
+        toast.success(`Switched to ${newTimeframe} timeframe`);
+      } catch (error) {
+        console.error('Failed to process data for new timeframe:', error);
+        toast.error(`Failed to switch to ${newTimeframe}. Reverting to ${previousTimeframe}.`);
+        
+        // Revert to previous timeframe on processing error
+        setSelectedTimeframe(previousTimeframe);
+        updateUrlParams(selectedInstrumentKey, previousTimeframe);
+      }
+    } else {
+      // No data available
+      toast.error(`No data available for ${newTimeframe}. Please fetch data first.`);
+      setSelectedTimeframe(previousTimeframe);
+      updateUrlParams(selectedInstrumentKey, previousTimeframe);
+    }
+  }, [selectedTimeframe, selectedInstrumentKey, upstoxApiKey, rawCandles, updateUrlParams, fetchCandles, applyEMAToCandles]);
+
+  // Helper function to determine if we need to fetch new data
+  const shouldFetchNewDataForTimeframe = (currentTf: Timeframe, newTf: Timeframe): boolean => {
+    // Define timeframe hierarchy (lower index = higher resolution)
+    const timeframeOrder = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
+    const currentIndex = timeframeOrder.indexOf(currentTf);
+    const newIndex = timeframeOrder.indexOf(newTf);
+    
+    // If switching to a higher resolution timeframe, we need new data
+    return newIndex < currentIndex;
+  };
 
   if (isLoading) {
     return (
@@ -749,6 +1168,7 @@ export const OHLCChartDemo: React.FC = () => {
 
           <button
             onClick={handleFetchData}
+            data-testid="fetch-button"
             className="bg-blue-500 text-white px-4 py-2 rounded-md"
           >
             Load Data
@@ -815,7 +1235,23 @@ export const OHLCChartDemo: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              � {strykeEntryDates.length} Stryke Points
+              {strykeEntryDates.length} Stryke Points
+            </div>
+          )}
+
+          {/* Progressive Loading Indicator */}
+          {isProgressiveLoading && progressiveLoadingProgress.total > 0 && (
+            <div className="px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium flex items-center gap-2">
+              <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-blue-600"></div>
+              <span>Loading batches: {progressiveLoadingProgress.loaded}/{progressiveLoadingProgress.total}</span>
+              {progressiveLoadingProgress.loaded > 0 && (
+                <div className="w-16 bg-blue-200 rounded-full h-1.5">
+                  <div 
+                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: `${(progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+              )}
             </div>
           )}
 
@@ -941,6 +1377,22 @@ export const OHLCChartDemo: React.FC = () => {
                   hasMoreNewerData={false} // We typically only load historical data
                   isLoadingMoreData={loadingOlderData}
                 />
+              )}
+              
+              {/* Progressive loading indicator in chart area */}
+              {isProgressiveLoading && candles.length > 0 && (
+                <div className="flex items-center justify-center p-3 bg-blue-50 border border-blue-200 rounded-md m-4">
+                  <div className="animate-pulse rounded-full h-2 w-2 bg-blue-600 mr-3"></div>
+                  <span className="text-blue-800 text-sm font-medium">
+                    Loading more historical data... ({progressiveLoadingProgress.loaded}/{progressiveLoadingProgress.total} batches)
+                  </span>
+                  <div className="ml-3 w-24 bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${progressiveLoadingProgress.total > 0 ? (progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100 : 0}%` }}
+                    ></div>
+                  </div>
+                </div>
               )}
               
               {/* Loading older data indicator */}

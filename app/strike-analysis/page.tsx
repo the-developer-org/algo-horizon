@@ -226,6 +226,9 @@ export default function StrikeAnalysisPage() {
     stocks: Stryke[];
   }>({ open: false, type: null, stocks: [] });
 
+  // Chart dropdown state
+  const [chartDropdownOpen, setChartDropdownOpen] = useState<string | null>(null);
+
   // Helper function to apply stryke analysis filter
   const applyStrykeAnalysisFilter = (stocks: Stryke[]): Stryke[] => {
     if (showStrykeAnalysis) {
@@ -666,11 +669,38 @@ export default function StrikeAnalysisPage() {
 
   const closeMissingAnalysisModal = () => setMissingAnalysisModal({ open: false, type: null, stocks: [] });
 
+  // Function to navigate to chart page with parameters
+  const navigateToChart = (instrumentKey: string, timeframe: string) => {
+    const chartUrl = `/chart?instrumentKey=${encodeURIComponent(instrumentKey)}&timeframe=${encodeURIComponent(timeframe)}`;
+    window.open(chartUrl, '_blank');
+    setChartDropdownOpen(null); // Close dropdown after navigation
+  };
+
+  // Available timeframes for chart navigation
+  const timeframes = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
+
   useEffect(() => {
     if (showAllStrykes && strykeList.length === 0 && !progressiveLoading) {
       fetchStrykes();
     }
   }, [showAllStrykes]);
+
+  // Close chart dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (chartDropdownOpen) {
+        const target = event.target as Element;
+        if (!target.closest('.relative')) {
+          setChartDropdownOpen(null);
+        }
+      }
+    };
+
+    if (chartDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [chartDropdownOpen]);
 
   // Auto-recalculate metrics when filteredStrykeList changes and metrics view is active
   useEffect(() => {
@@ -2942,6 +2972,7 @@ export default function StrikeAnalysisPage() {
                       <tr className="bg-gray-400 sticky top-0 z-10">
                         <th className="border border-gray-700 px-4 py-2">Slno</th>
                         <th className="border border-gray-700 px-12 py-2 min-w-[100px]">Company</th>
+                        <th className="border border-gray-700 px-4 py-2 min-w-[60px]">Chart</th>
                         <th className="border border-gray-700 px-12 py-2 min-w-[130px]">Entry Date</th>
                         <th className="border border-gray-700 px-8 py-2">Entry</th>
                         <th className="border border-gray-700 px-8 py-2">Target</th>
@@ -2970,6 +3001,41 @@ export default function StrikeAnalysisPage() {
                                 <div className="flex flex-col">
                                   <span className="font-medium">{stryke.companyName}</span>
                                   <span className="text-xs text-blue-600 font-semibold">Stryke Analysis</span>
+                                </div>
+                              </td>
+                              
+                              {/* Chart Dropdown */}
+                              <td className="border border-gray-700 px-2 py-2 text-center align-middle relative">
+                                <div className="relative">
+                                  <button
+                                    onClick={() => setChartDropdownOpen(chartDropdownOpen === `stryke-${stryke.stockUuid}` ? null : `stryke-${stryke.stockUuid}`)}
+                                    className="inline-flex items-center justify-center w-8 h-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-all duration-200 rounded-md border border-blue-200 hover:border-blue-400"
+                                    title="View Chart"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                    </svg>
+                                  </button>
+                                  
+                                  {chartDropdownOpen === `stryke-${stryke.stockUuid}` && (
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[120px] py-2">
+                                      <div className="px-3 py-1 text-xs font-semibold text-gray-500 border-b border-gray-100 mb-1">
+                                        Select Timeframe
+                                      </div>
+                                      {timeframes.map((tf) => (
+                                        <button
+                                          key={tf}
+                                          onClick={() => navigateToChart(stryke.instrumentKey, tf)}
+                                          className="flex items-center justify-between w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-150 first:rounded-t last:rounded-b"
+                                        >
+                                          <span className="font-medium">{tf.toUpperCase()}</span>
+                                          <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                          </svg>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                               <td className="border border-gray-700 px-4 py-2 text-center align-middle">{stryke.entryTime ? formatReadableDate(stryke.entryTime) : 'N/A'}</td>
@@ -3223,6 +3289,41 @@ export default function StrikeAnalysisPage() {
                                 <div className="flex flex-col">
                                   <span className="font-medium">{stryke.companyName}</span>
                                   <span className="text-xs text-green-600 font-semibold">Algo Analysis</span>
+                                </div>
+                              </td>
+                              
+                              {/* Chart Dropdown */}
+                              <td className="border border-gray-700 px-2 py-2 text-center align-middle relative">
+                                <div className="relative">
+                                  <button
+                                    onClick={() => setChartDropdownOpen(chartDropdownOpen === `algo-${stryke.stockUuid}` ? null : `algo-${stryke.stockUuid}`)}
+                                    className="inline-flex items-center justify-center w-8 h-8 text-green-600 hover:text-green-800 hover:bg-green-50 transition-all duration-200 rounded-md border border-green-200 hover:border-green-400"
+                                    title="View Chart"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                    </svg>
+                                  </button>
+                                  
+                                  {chartDropdownOpen === `algo-${stryke.stockUuid}` && (
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[120px] py-2">
+                                      <div className="px-3 py-1 text-xs font-semibold text-gray-500 border-b border-gray-100 mb-1">
+                                        Select Timeframe
+                                      </div>
+                                      {timeframes.map((tf) => (
+                                        <button
+                                          key={tf}
+                                          onClick={() => navigateToChart(stryke.instrumentKey, tf)}
+                                          className="flex items-center justify-between w-full px-3 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors duration-150 first:rounded-t last:rounded-b"
+                                        >
+                                          <span className="font-medium">{tf.toUpperCase()}</span>
+                                          <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                          </svg>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                               <td className="border border-gray-700 px-4 py-2 text-center align-middle">{algoAnalysis?.algoEntryCandle?.timestamp ? formatReadableDate(algoAnalysis?.algoEntryCandle?.timestamp) : 'N/A'}</td>
