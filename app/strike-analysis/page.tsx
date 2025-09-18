@@ -729,7 +729,7 @@ export default function StrikeAnalysisPage() {
 
   const handleToggleView = (showForm: boolean, showAll: boolean, showStats: boolean, showSwing: boolean) => {
     setShowStrykeForm(showForm);
-    setShowAllStrykes(showAll);
+    //setShowAllStrykes(showAll);
     // setShowStrykeStats(showStats);
     setShowSwingStats(showSwing);
     
@@ -746,7 +746,7 @@ export default function StrikeAnalysisPage() {
     
     // Update states based on URL parameter
     setShowStrykeForm(tab === 'form');
-    setShowAllStrykes(tab === 'all');
+    //setShowAllStrykes(tab === 'all');
     // setShowStrykeStats(tab === 'stats');
     setShowSwingStats(tab === 'swing');
   }, [searchParams]);
@@ -1474,7 +1474,7 @@ export default function StrikeAnalysisPage() {
                   </Button>
                 )}
 
-                {(!showAllStrykes) && (
+                {/* {(!showAllStrykes) && (
                   <Button
                     onClick={() => {
                       handleToggleView(false, true, false, false);
@@ -1487,7 +1487,7 @@ export default function StrikeAnalysisPage() {
                   >
                     {progressiveLoading ? 'Loading Companies...' : 'Fetch All Stryke Analysis'}
                   </Button>
-                )}
+                )} */}
 
 
                 <Button
@@ -1542,7 +1542,7 @@ export default function StrikeAnalysisPage() {
                     {showMetrics ? 'Hide Metrics' : 'Show Metrics'}
                   </Button>
                 )}
-
+{/* 
                 {showAllStrykes && (
                   <Button
                     onClick={async () => {
@@ -1557,7 +1557,7 @@ export default function StrikeAnalysisPage() {
                   >
                     Recalculate
                   </Button>
-                )}
+                )} */}
               </div>
             </div>
 
@@ -1811,314 +1811,7 @@ export default function StrikeAnalysisPage() {
               </div>
             )}
 
-            {showAllStrykes && (
-              <div className="flex flex-col md:flex-row h-auto md:h-[calc(100vh-120px)] border rounded-lg overflow-hidden w-full md:w-[calc(100vw-350px)] mx-auto">
-                {/* Left Sidebar - Stryke List */}
-                <div className="w-full md:w-1/3 border-r bg-indigo-50 overflow-y-auto">
-                  <div className="p-3 bg-indigo-100 border-b sticky top-0 z-10 flex flex-col md:flex-row items-start md:items-center gap-4">
-                    <Input
-                      type="text"
-                      placeholder="Search strykes..."
-                      className="w-full md:w-1/2 bg-white"
-                      onChange={(e) => {
-                        const query = e.target.value.toLowerCase();
-                        const filtered = strykeList.filter((stryke) =>
-                          stryke.companyName.toLowerCase().includes(query)
-                        );
-                        setFilteredStrykeList(applyStrykeAnalysisFilter(filtered));
-                      }}
-                    />
-                    {/* Individual Filter Buttons */}
-
-                    <div className="flex gap-2 items-center mb-4">
-                      <select
-                        className="border border-gray-300 rounded-md px-2 py-1"
-                        value={selectedMonth || ''}
-                        onChange={(e) => {
-                          const monthYear = e.target.value;
-                          setSelectedMonth(monthYear || null);
-                          const filtered = monthYear
-                            ? strykeList.filter((stryke) => {
-                              const addedMonthYear = new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' });
-                              return addedMonthYear === monthYear;
-                            })
-                            : strykeList;
-                          setFilteredStrykeList(applyStrykeAnalysisFilter(filtered));
-                        }}
-                      >
-                        <option value="">All Months</option>
-                        {Array.from(new Set(
-                          strykeList.map((stryke) =>
-                            new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' })
-                          )
-                        )).map((monthYear) => (
-                          <option key={monthYear} value={monthYear}>
-                            {monthYear}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <span className="text-lg font-bold">Count: {filteredStrykeList.length}</span>
-                  </div>
-
-                  {filteredStrykeList.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                      <p className="text-center">No stryke analyses available</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y">
-                      {filteredStrykeList.map((stryke) => (
-                        <button
-                          key={stryke.id}
-                          id={`stryke-row-${stryke.id}`}
-                          className={`w-full text-left p-3 hover:bg-teal-100 cursor-pointer transition-colors ${selectedStryke?.id === stryke?.id ? 'bg-teal-50 border-l-4 border-teal-500' : ''}`}
-                          onClick={() => handleRowClick(stryke)}
-                          aria-pressed={selectedStryke?.id === stryke?.id}
-                        >
-                          <div className="flex justify-between items-start">
-                            <h5 className="font-bold text-gray-800 bg-gradient-to-r from-teal-400 via-blue-500 to-purple-600 text-transparent bg-clip-text">{stryke?.companyName}</h5>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteStryke(stryke.stockUuid, stryke.companyName);
-                                }}
-                                className="text-red-500 hover:text-red-700 ml-2"
-                                aria-label="Delete Stryke"
-                              >
-                                🗑️
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  refreshStrykeData(stryke.stockUuid, stryke.companyName);
-                                }}
-                                className="text-blue-500 hover:text-blue-700 ml-2"
-                                aria-label="Refresh Stryke"
-                              >
-                                🔄
-                              </button>
-                            </div>
-                          </div>
-                          <div className="flex gap-2 mt-1">
-                            <span className={`text-sm px-3 py-1 rounded-md ${stryke?.hitTarget
-                              ? 'bg-green-200 text-green-800'
-                              : stryke?.hitStopLoss
-                                ? 'bg-red-300 text-red-800'
-                                : 'bg-yellow-300 text-yellow-800'
-                              }`}>
-                              {stryke?.hitTarget
-                                ? `IN PROFITS`
-                                : stryke?.hitStopLoss
-                                  ? `IN LOSS`
-                                  : 'IN PROGRESS'
-                              }
-                            </span>
-
-                          </div>
-
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right Content - Stryke Details */}
-                <div className="w-full md:w-2/3 overflow-y-auto">
-                  {selectedStryke ? (
-                    <div className="p-6 bg-teal-50 rounded-lg shadow-md">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 pb-4 border-b">
-                        <h2 className="text-2xl font-bold text-gray-800 bg-gradient-to-r from-teal-400 via-blue-500 to-purple-600 text-transparent bg-clip-text">{selectedStryke?.companyName}</h2>
-                        <h2 className="text-left text-xl font-semibold text-gray-800 bg-gradient-to-r from-yellow-400 via-orange-500 to-orange-600 text-transparent bg-clip-text">Listed {Math.max(calculateTimeDifference(selectedStryke?.entryTime, new Date().toDateString()) / (60 * 24), 0).toFixed(0)} days ago</h2>
-                        <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
-                          <span
-                            className={`px-3 py-1 text-sm rounded-md ${selectedStryke?.preEntryTrend === 'BULLISH' ? 'bg-green-200 text-green-800' : selectedStryke?.preEntryTrend === 'BEARISH' ? 'bg-red-300 text-red-800' : 'bg-yellow-300 text-yellow-800'}`}
-                          >
-                            Pre Trend: {selectedStryke?.preEntryTrend}
-                          </span>
-                          <span
-                            className={`px-3 py-1 text-sm rounded-md ${selectedStryke?.postEntryTrend === 'BULLISH' ? 'bg-green-200 text-green-800' : selectedStryke?.postEntryTrend === 'BEARISH' ? 'bg-red-300 text-red-800' : 'bg-yellow-300 text-yellow-800'}`}
-                          >
-                            Post Trend: {selectedStryke?.postEntryTrend}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-6">
-                        {/* Group 1: Profit Details */}
-                        {(selectedStryke.profit > 0 || selectedStryke.loss < 0) && (
-                          <div className="mb-6">
-                            <h3 className="text-sm font-medium text-gray-500 mb-2">
-                              {selectedStryke.profit > 0 ? 'Profit Details' : 'Loss Details'}
-                            </h3>
-                            <div className="bg-teal-100 p-4 rounded">
-                              {selectedStryke.profit > 0 && (
-                                <div className="flex justify-between">
-                                  <span>
-                                    Profit: <span className="text-green-600 font-medium">₹{selectedStryke?.profit?.toFixed(2)} ({calculatePercentageDifference(selectedStryke?.entryCandle.close, (selectedStryke?.entryCandle.close + selectedStryke?.profit))}%)</span>
-                                  </span>
-                                  <span>Days to Profit: {selectedStryke?.daysTakenToProfit}</span>
-                                </div>
-                              )}
-                              {selectedStryke.loss < 0 && (
-                                <div className="flex justify-between">
-                                  <span>
-                                    Loss: <span className="text-red-600 font-medium">₹{selectedStryke?.loss?.toFixed(2)} ({calculatePercentageDifference(selectedStryke?.entryCandle.close, (selectedStryke?.entryCandle.close - selectedStryke?.loss))}%)</span>
-                                  </span>
-                                  <span>Days to Loss: {selectedStryke?.daysTakenToLoss}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {shouldShowEarlyProfits(selectedStryke) && (
-                          <div className="mb-6">
-                            <h3 className="text-sm font-medium text-gray-500 mb-2">
-                              Minimum Profit Details
-                            </h3>
-                            <div className="bg-teal-100 p-4 rounded">
-                              {(
-                                <div className="flex justify-between">
-                                  <span>
-                                    Earliest Profit: <span className="text-green-600 font-medium">₹{((selectedStryke.highestPrice - selectedStryke.entryCandle.close).toFixed(2))} ({((selectedStryke.highestPrice - selectedStryke.entryCandle.close) / selectedStryke.entryCandle.close * 100).toFixed(2)}%) in {(calculateTimeDifference(selectedStryke?.entryTime, selectedStryke?.highestPriceTime) / (60 * 24)).toFixed(2)} Days</span>
-                                  </span>
-                                  <span>If invested 1,00,000 then it would be  <span className="text-green-600 font-medium">₹{((100000 / selectedStryke.entryCandle.close) * selectedStryke.highestPrice).toFixed(2)}</span>
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Group 2: Entry Details */}
-                        <div className="space-y-4 bg-gray-100 p-4 rounded-md">
-                          <h3 className="text-lg font-medium text-gray-700">Entry Details</h3>
-                          {[
-                            { label: "Entry Date & Time", value: selectedStryke?.entryTime },
-                            { label: "Entry Time Zone", value: selectedStryke?.entryTimeZone },
-                            { label: "Entry Taken At", value: `₹ ${selectedStryke?.entryCandle.close?.toFixed(2)}` },
-                          ].map((item, index) => (
-                            <div key={index} className="flex justify-between items-center border-b pb-2">
-                              <h3 className="text-sm font-medium text-gray-600">{item.label}</h3>
-                              <span className="text-base font-semibold text-gray-700">{item.value}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Group 3: Performance Metrics */}
-                        <div className="space-y-4 bg-sky-100 p-4 rounded-md">
-                          <h3 className="text-lg font-medium text-gray-700">Performance Metrics</h3>
-                          {[
-                            { label: "Status", value: selectedStryke?.hitTarget ? "Closed" : selectedStryke?.hitStopLoss ? "Closed" : "In Progress", textColor: selectedStryke?.hitTarget ? "text-green-600" : selectedStryke?.hitStopLoss ? "text-red-600" : "text-orange-600" },
-                            { label: "Last Closing Value", value: `₹${selectedStryke?.lastClosingValue?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.lastClosingValue)}%)` },
-                            { label: "Last Closing Value Date", value: formatDate(selectedStryke?.lastClosingValueDate) },
-                            {
-                              label: "Entry Day Volume", value: (() => {
-                                if (!selectedStryke?.entryDaysCandle.volume) return 'N/A';
-                                const vol = selectedStryke.entryDaysCandle.volume;
-                                const avgVol = selectedStryke.avgVolume;
-                                const formattedVol = vol >= 1000000 ? `${(vol / 1000000).toFixed(2)}M` : vol >= 1000 ? `${(vol / 1000).toFixed(2)}K` : vol;
-                                if (!avgVol) return `${formattedVol} (N/A)`;
-                                const diffRatio = (vol / avgVol).toFixed(2);
-                                return `${formattedVol} (${diffRatio}x)`;
-                              })()
-                            },
-                            {
-                              label: "Average Volume", value: (() => {
-                                if (!selectedStryke?.avgVolume) return 'N/A';
-                                const avgVol = selectedStryke.avgVolume;
-                                if (avgVol >= 1000000) return `${(avgVol / 1000000).toFixed(2)}M`;
-                                if (avgVol >= 1000) return `${(avgVol / 1000).toFixed(2)}K`;
-                                return avgVol;
-                              })()
-                            },
-                            { label: "Peak in 30 Minutes", value: selectedStryke?.peakIn30M === selectedStryke?.entryCandle.close ? "No Change" : `₹${selectedStryke?.peakIn30M?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.peakIn30M)}%)` },
-                            { label: "Dip in 30 Minutes", value: selectedStryke?.dipIn30M === selectedStryke?.entryCandle.close ? "No Change" : `₹${selectedStryke?.dipIn30M?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.dipIn30M)}%)` },
-                          ].map((item, index) => (
-                            <div key={index} className="flex justify-between items-center border-b pb-2">
-                              <h3 className="text-sm font-medium text-gray-600">{item.label}</h3>
-                              <span className="text-base font-semibold text-gray-700">{item.value}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Group 4: Target Details */}
-                        <div className="space-y-4 bg-pink-50 p-4 rounded-md">
-                          <h3 className="text-lg font-medium text-gray-700">Target Details</h3>
-                          {[
-                            { label: "Stop Loss", value: `₹${selectedStryke?.stopLoss?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.stopLoss)}%)` },
-                            { label: "Target", value: `₹${selectedStryke?.target?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.target)}%)` },
-                            { label: "Peak Price", value: selectedStryke?.highestPrice === selectedStryke?.entryCandle.close ? "No Change" : `₹${selectedStryke?.highestPrice?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.highestPrice)}%)` },
-                            { label: "Time Taken (Peak)", value: selectedStryke?.highestPrice > selectedStryke?.entryCandle.close ? `${(calculateTimeDifference(selectedStryke?.entryTime, selectedStryke?.highestPriceTime) / (60 * 24)).toFixed(2)} Days` : "N/A" },
-                            { label: "Dip Price", value: selectedStryke?.lowestPrice === selectedStryke?.entryCandle.close ? "No Change" : `₹${selectedStryke?.lowestPrice?.toFixed(2)} (${calculatePercentageDifference(selectedStryke?.entryCandle.close, selectedStryke?.lowestPrice)}%)` },
-                            { label: "Time Taken (Dip)", value: selectedStryke?.lowestPrice < selectedStryke?.entryCandle.close ? `${(calculateTimeDifference(selectedStryke?.entryTime, selectedStryke?.lowestPriceTime) / (60 * 24)).toFixed(2)} Days` : "N/A" },
-                          ].map((item, index) => (
-                            <div key={index} className="flex justify-between items-center border-b pb-2">
-                              <h3 className="text-sm font-medium text-gray-600">{item.label}</h3>
-                              <span className="text-base font-semibold text-gray-700">{item.value}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-
-
-                      {selectedStryke?.remarks && (
-                        <div className="mt-6 p-4 bg-teal-100 rounded-md">
-                          <h3 className="font-medium mb-3">Remarks:</h3>
-                          <p className="text-gray-700">{selectedStryke?.remarks}</p>
-                        </div>
-                      )}
-
-                      {/* Day Stats Table */}
-                      <div className="mt-6">
-                        <h3 className="text-lg font-medium text-gray-700 mb-4">Day Stats</h3>
-                        <div className="overflow-x-auto">
-                          <table className="table-auto w-full border-collapse border border-gray-300 text-center">
-                            <thead>
-                              <tr className="bg-gray-200 sticky top-0 z-10">
-                                <th className="border border-gray-300 px-4 py-2">Date</th>
-                                <th className="border border-gray-300 px-4 py-2">Peak</th>
-                                <th className="border border-gray-300 px-4 py-2">Dip</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {Object.entries(selectedStryke?.dayStatsMap || {})
-                                .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
-                                .map(([date, stats], idx) => (
-                                  <tr key={`${selectedStryke.id}-${date}`} className={`${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-gray-100`}>
-                                    <td className="border border-gray-300 px-2 py-1 text-center align-middle">{new Date(date).toLocaleDateString()}</td>
-                                    <td className="border border-gray-300 px-2 py-1 text-center align-middle">
-                                      ₹{stats.peak.toFixed(2)}
-                                      <span className="text-sm text-gray-500"> ({calculatePercentageDifference(selectedStryke?.entryCandle.close, stats.peak)}%)</span>
-                                    </td>
-                                    <td className="border border-gray-300 px-2 py-1 text-center align-middle">
-                                      ₹{stats.dip.toFixed(2)}
-                                      <span className="text-sm text-gray-500"> ({calculatePercentageDifference(selectedStryke?.entryCandle.close, stats.dip)}%)</span>
-                                    </td>
-                                  </tr>
-                                ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                      </svg>
-                      <p>Select a stryke from the list to view details</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-
-
-
+          
 
             {/* Add a new stats page */}
             {showSwingStats && (
