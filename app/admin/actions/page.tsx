@@ -25,6 +25,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { fetchKeyMapping } from "@/utils/apiUtils";
 import { fetchUpstoxCombinedData, fetchUpstoxHistoricalData } from "@/components/utils/upstoxApi";
 import { calculateSwingPointsFromCandles, parseTimestampToUnix } from "@/utils/swingPointCalculator";
+import axios from 'axios';
 
 // Generate all alphabets A-Z
 const alphabets = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
@@ -1092,9 +1093,78 @@ function HighsAndLowsInterface() {
 export default function AdminActionsPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [isRedeploying, setIsRedeploying] = useState<boolean>(false);
+  const [isRedeployed, setIsRedeployed] = useState<boolean>(false);
 
   const handleSidebarItemClick = (section: string) => {
     setActiveSection(section);
+  };
+
+  // Reset redeploy states on component mount (page reload)
+  useEffect(() => {
+    setIsRedeploying(false);
+    setIsRedeployed(false);
+  }, []);
+
+  // Health check function
+  const checkHealthStatus = async (): Promise<boolean> => {
+    try {
+      const response = await axios.get('https://algo-horizon.store/api/admin/health-check/check', {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 200) {
+        const result = await response.data;
+        return result.trim() === 'Health Check Done';
+      }
+      return false;
+    } catch (error) {
+      console.error('Health check failed:', error);
+      return false;
+    }
+  };
+
+  // Polling function to check health status
+  const pollHealthCheck = async () => {
+    const maxAttempts = 60; // Maximum 5 minutes (60 attempts * 5 seconds)
+    let attempts = 0;
+
+    const poll = async () => {
+      attempts++;
+      
+      try {
+        const isHealthy = await checkHealthStatus();
+        
+        if (isHealthy) {
+          setIsRedeploying(false);
+          setIsRedeployed(true);
+          toast.success('Server redeployed successfully and is healthy!');
+          return;
+        }
+        
+        if (attempts >= maxAttempts) {
+          setIsRedeploying(false);
+          toast.error('Health check timeout. Please verify server status manually.');
+          return;
+        }
+        
+        // Continue polling every 5 seconds
+        setTimeout(poll, 5000);
+        
+      } catch (error) {
+        console.error('Health check polling error:', error);
+        if (attempts >= maxAttempts) {
+          setIsRedeploying(false);
+          toast.error('Health check failed. Please verify server status manually.');
+        } else {
+          setTimeout(poll, 5000);
+        }
+      }
+    };
+
+    // Start polling after initial delay to allow server to start redeploying
+    setTimeout(poll, 10000); // Wait 10 seconds before first health check
   };
 
   const renderContent = () => {
@@ -1120,44 +1190,113 @@ export default function AdminActionsPage() {
           <Card className="bg-gray-800 border-gray-700 p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Crucial Actions</h3>
             <p className="text-gray-400 mb-4">Dangerous operations. Use with caution.</p>
+            
+            {/* Status indicator */}
+            {isRedeploying && (
+              <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded-md">
+                <div className="flex items-center">
+                  <span className="inline-block mr-2 h-4 w-4 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin"></span>
+                  <span className="text-yellow-800 text-sm font-medium">
+                    Redeploying server and monitoring health status...
+                  </span>
+                </div>
+                <p className="text-yellow-700 text-xs mt-1">
+                  This may take a few minutes. The button will change to "Redeployed" once the health check passes.
+                </p>
+              </div>
+            )}
+            
+            {isRedeployed && (
+              <div className="mb-4 p-3 bg-green-100 border border-green-300 rounded-md">
+                <div className="flex items-center">
+                  <span className="inline-block mr-2 h-4 w-4 text-green-600">✓</span>
+                  <span className="text-green-800 text-sm font-medium">
+                    Server successfully redeployed and health check passed!
+                  </span>
+                </div>
+                <p className="text-green-700 text-xs mt-1">
+                  The server is now running the latest version and responding to health checks.
+                </p>
+              </div>
+            )}
+            
             <div className="flex items-center gap-3">
               <button
-                className={`px-4 py-2 rounded-md text-white ${isRedeploying ? 'bg-gray-500 cursor-not-allowed' : 'bg-rose-600 hover:bg-rose-700'}`}
+                className={`px-4 py-2 rounded-md text-white ${
+                  (() => {
+                    if (isRedeploying) return 'bg-yellow-500 cursor-not-allowed';
+                    if (isRedeployed) return 'bg-green-600 cursor-not-allowed';
+                    return 'bg-rose-600 hover:bg-rose-700';
+                  })()
+                }`}
                 onClick={async () => {
-                  if (isRedeploying) return;
+                  if (isRedeploying || isRedeployed) return;
+                  
                   const confirmed = window.confirm('Are you sure you want to redeploy the server? This may cause downtime.');
                   if (!confirmed) return;
+                  
                   try {
                     setIsRedeploying(true);
-                    const res = await fetch('https://algo-horizon.store/api/admin/redeploy', {
+                    setIsRedeployed(false);
+                    
+                    const res = await axios.post('https://algo-horizon.store/api/admin/redeploy', {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
                       },
                     });
-                    if (!res.ok) {
-                      const text = await res.text();
-                      throw new Error(text || `Status ${res.status}`);
+                    
+                    if (res.status !== 200) {
+                      const text = res.data ? JSON.stringify(res.data) : `Status ${res.status}`;
+                      throw new Error(text);
                     }
-                    toast.success('Redeploy triggered successfully');
+                    
+                    toast.success('Redeploy triggered successfully. Monitoring health status...');
+                    
+                    // Start health check polling
+                    await pollHealthCheck();
+                    
                   } catch (err) {
                     console.error('Redeploy failed:', err);
                     toast.error('Failed to trigger redeploy');
-                  } finally {
                     setIsRedeploying(false);
                   }
                 }}
-                disabled={isRedeploying}
+                disabled={isRedeploying || isRedeployed}
               >
-                {isRedeploying ? (
-                  <>
-                    <span className="inline-block mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Redeploying...
-                  </>
-                ) : (
-                  'Redeploy Server'
-                )}
+                {(() => {
+                  if (isRedeploying) {
+                    return (
+                      <>
+                        <span className="inline-block mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        {' '}Redeploying...
+                      </>
+                    );
+                  }
+                  if (isRedeployed) {
+                    return (
+                      <>
+                        <span className="inline-block mr-2 h-4 w-4 text-white">✓</span>
+                        {' '}Redeployed
+                      </>
+                    );
+                  }
+                  return 'Redeploy Server';
+                })()}
               </button>
+              
+              {/* Reset button - only show when redeployed */}
+              {isRedeployed && (
+                <button
+                  className="px-3 py-2 rounded-md text-gray-600 bg-gray-200 hover:bg-gray-300 text-sm"
+                  onClick={() => {
+                    setIsRedeployed(false);
+                    setIsRedeploying(false);
+                  }}
+                >
+                  Reset
+                </button>
+              )}
             </div>
           </Card>
         );
@@ -1174,6 +1313,7 @@ export default function AdminActionsPage() {
 
   return (
     <SidebarProvider>
+      <Toaster position="top-right" />
       <AdminActionsSidebar onItemClick={handleSidebarItemClick} />
       <SidebarInset>
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
