@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, use, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
@@ -173,7 +173,7 @@ interface metricsData {
 export type FilterOrder = 'asc' | 'desc' | null;
 export type TrendFilter = 'BULLISH' | 'BEARISH' | null;
 
-export default function StrikeAnalysisPage() {
+function StrikeAnalysisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -3091,5 +3091,13 @@ export default function StrikeAnalysisPage() {
       </div>
     </div>
     );
+}
+
+export default function StrikeAnalysisPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <StrikeAnalysisContent />
+    </Suspense>
+  );
 }
 
