@@ -200,6 +200,17 @@ export default function StrikeAnalysisPage() {
     resistanceSort: null as FilterOrder,
   });
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  
+  // Progressive loading state
+  const [progressiveLoading, setProgressiveLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState({
+    completedAlphabets: [] as string[],
+    currentAlphabet: null as string | null,
+    totalCompanies: 0,
+    loadedCompanies: 0,
+    isComplete: false
+  });
+  
   // Modal state to show full EMA crossover dates when a badge is clicked
   const [crossoverModal, setCrossoverModal] = useState<{
     open: boolean;
@@ -366,55 +377,129 @@ export default function StrikeAnalysisPage() {
     }
   };
 
-  // Fetch all strykes from API
+  // Fetch all strykes from API using progressive loading
   const fetchStrykes = async () => {
-    setIsLoading(true);
+    // QWERTY order for progressive loading
+    const alphabetOrder = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'];
+    
+    setProgressiveLoading(true);
+    setIsLoading(false); // Disable main loading spinner since we have progress bar
+    setStrykeList([]); // Clear existing data
+    setFilteredStrykeList([]);
+    
+    // Initialize progress
+    setLoadingProgress({
+      completedAlphabets: [],
+      currentAlphabet: null,
+      totalCompanies: 0,
+      loadedCompanies: 0,
+      isComplete: false
+    });
+
+    const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    let allStrykes: Stryke[] = [];
+    let completedAlphabets: string[] = [];
+
     try {
-      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      const response = await fetch(`${backEndBaseUrl}/api/stryke/fetch-all`, {
-        headers: {
-          'accept': 'application/json',
-        },
-      });
-      const data: StrykeListResponse = await response.json();
-      setStrykeList(data.strykeList.map((stryke) => ({
-        ...stryke,
-        stockUuid: stryke.stockUuid, // Add stockUuid key
-        entryDate: new Date(stryke.entryTime).toLocaleDateString('en-GB'),
-        inResistanceZone: (stryke as any).inResistanceZone ?? (stryke as any).InResistanceZone ?? false,
+      for (let i = 0; i < alphabetOrder.length; i++) {
+        const alphabet = alphabetOrder[i];
+        
+        // Update current alphabet being loaded
+        setLoadingProgress(prev => ({
+          ...prev,
+          currentAlphabet: alphabet,
+          completedAlphabets: completedAlphabets
+        }));
+
+        try {
+          const response = await fetch(`${backEndBaseUrl}/api/stryke/fetch-all/${alphabet}`, {
+            headers: {
+              'accept': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            const data: StrykeListResponse = await response.json();
+            
+            if (data.strykeList && data.strykeList.length > 0) {
+              // Process the new data
+              const processedStrykes = data.strykeList.map((stryke) => ({
+                ...stryke,
+                stockUuid: stryke.stockUuid,
+                entryDate: new Date(stryke.entryTime).toLocaleDateString('en-GB'),
+                inResistanceZone: (stryke as any).inResistanceZone ?? (stryke as any).InResistanceZone ?? false,
+                rsi: stryke.rsi ?? '-',
+                stopLoss: stryke.stopLoss ?? '-',
+                target: stryke.target ?? '-',
+                dipAfterEntry20M: stryke.dipAfterEntry20M ?? '-',
+                hitStopLoss: stryke.hitStopLoss ?? '-',
+                hitTarget: stryke.hitTarget ?? '-',
+                peakIn30M: stryke.peakIn30M ?? '-',
+                dipIn30M: stryke.dipIn30M ?? '-',
+                profit: stryke.profit ?? '-',
+                daysTakenToProfit: stryke.daysTakenToProfit ?? '-',
+                loss: stryke.loss ?? '-',
+                daysTakenToLoss: stryke.daysTakenToLoss ?? '-',
+                highestPrice: stryke.highestPrice ?? '-',
+                lowestPrice: stryke.lowestPrice ?? '-',
+                maxDrawDownPercentage: stryke.maxDrawDownPercentage ?? '-',
+                highestPriceTime: stryke.highestPriceTime ?? '-',
+                lowestPriceTime: stryke.lowestPriceTime ?? '-',
+                remarks: stryke.remarks ?? '-',
+                strykeSwingAnalysis: stryke.strykeSwingAnalysis,
+                algoSwingAnalysis: stryke.algoSwingAnalysis,
+              }));
+
+              // Add to accumulated data
+              allStrykes = [...allStrykes, ...processedStrykes];
+              
+              // Update the UI immediately with new data
+              setStrykeList(allStrykes);
+              setFilteredStrykeList(allStrykes);
+              
+              console.log(`Loaded ${processedStrykes.length} companies from alphabet ${alphabet}`);
+            }
+          } else {
+            console.warn(`Failed to fetch data for alphabet ${alphabet}: ${response.status}`);
+          }
+        } catch (error) {
+          console.error(`Error fetching alphabet ${alphabet}:`, error);
+          // Continue with next alphabet even if one fails
+        }
+
+        // Mark alphabet as completed
+        completedAlphabets = [...completedAlphabets, alphabet];
+        
+        // Update progress
+        setLoadingProgress(prev => ({
+          ...prev,
+          completedAlphabets: completedAlphabets,
+          currentAlphabet: i === alphabetOrder.length - 1 ? null : alphabetOrder[i + 1],
+          loadedCompanies: allStrykes.length,
+          totalCompanies: allStrykes.length // This will grow as we load more
+        }));
+
+        // Small delay to prevent overwhelming the server
+        if (i < alphabetOrder.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      // Mark as complete
+      setLoadingProgress(prev => ({
+        ...prev,
+        isComplete: true,
+        currentAlphabet: null,
+        totalCompanies: allStrykes.length
+      }));
+
+      toast.success(`Successfully loaded ${allStrykes.length} companies from all alphabets`);
       
-        rsi: stryke.rsi ?? '-',
-        stopLoss: stryke.stopLoss ?? '-',
-        target: stryke.target ?? '-',
-        dipAfterEntry20M: stryke.dipAfterEntry20M ?? '-',
-        hitStopLoss: stryke.hitStopLoss ?? '-',
-        hitTarget: stryke.hitTarget ?? '-',
-        peakIn30M: stryke.peakIn30M ?? '-',
-        dipIn30M: stryke.dipIn30M ?? '-',
-        profit: stryke.profit ?? '-',
-        daysTakenToProfit: stryke.daysTakenToProfit ?? '-',
-        loss: stryke.loss ?? '-',
-        daysTakenToLoss: stryke.daysTakenToLoss ?? '-',
-        highestPrice: stryke.highestPrice ?? '-',
-        lowestPrice: stryke.lowestPrice ?? '-',
-        maxDrawDownPercentage: stryke.maxDrawDownPercentage ?? '-',
-        highestPriceTime: stryke.highestPriceTime ?? '-',
-        lowestPriceTime: stryke.lowestPriceTime ?? '-',
-        remarks: stryke.remarks ?? '-',
-        // New swing analysis structure
-        strykeSwingAnalysis: stryke.strykeSwingAnalysis,
-        algoSwingAnalysis: stryke.algoSwingAnalysis,
-      })));
-
-      // Set the filtered list to initially show all strykes
-      setFilteredStrykeList(data.strykeList);
-
-      toast.success(data.statusText || 'Stryke list fetched successfully');
     } catch (error) {
-      console.error('Error fetching stryke list:', error);
-      toast.error('Failed to fetch stryke list');
+      console.error('Error in progressive loading:', error);
+      toast.error('Failed to complete data loading');
     } finally {
-      setIsLoading(false);
+      setProgressiveLoading(false);
     }
   };
 
@@ -471,8 +556,14 @@ export default function StrikeAnalysisPage() {
           : timeframe === '4H' ? stryke?.algoSwingAnalysis?.emacross?.emaCrossoverList4H
             : stryke?.algoSwingAnalysis?.emacross?.emaCrossoverListDay;
 
-    ema8Raw = stryke?.algoSwingAnalysis?.emacross?.emaData15M?.ema8 ;
-    ema30Raw = stryke?.algoSwingAnalysis?.emacross?.emaData15M?.ema30;
+    ema8Raw = timeframe === '15M' ? stryke?.algoSwingAnalysis?.emacross?.emaData15M?.ema8
+        : timeframe === '1H' ? stryke?.algoSwingAnalysis?.emacross?.emaData1H?.ema8
+          : timeframe === '4H' ? stryke?.algoSwingAnalysis?.emacross?.emaData4H?.ema8
+            : stryke?.algoSwingAnalysis?.emacross?.emaDataDay?.ema8;
+    ema30Raw = timeframe === '15M' ? stryke?.algoSwingAnalysis?.emacross?.emaData15M?.ema30
+        : timeframe === '1H' ? stryke?.algoSwingAnalysis?.emacross?.emaData1H?.ema30
+          : timeframe === '4H' ? stryke?.algoSwingAnalysis?.emacross?.emaData4H?.ema30
+            : stryke?.algoSwingAnalysis?.emacross?.emaDataDay?.ema30;
     } else {
       // Use stryke EMA data (original logic)
       dto = timeframe === '15M' ? stryke?.strykeSwingAnalysis?.emacross?.emaData15M
@@ -484,6 +575,15 @@ export default function StrikeAnalysisPage() {
         : timeframe === '1H' ? stryke?.strykeSwingAnalysis?.emacross?.emaCrossoverList1H
           : timeframe === '4H' ? stryke?.strykeSwingAnalysis?.emacross?.emaCrossoverList4H
             : stryke?.strykeSwingAnalysis?.emacross?.emaCrossoverListDay;
+
+      ema8Raw = timeframe === '15M' ? stryke?.strykeSwingAnalysis?.emacross?.emaData15M?.ema8
+        : timeframe === '1H' ? stryke?.strykeSwingAnalysis?.emacross?.emaData1H?.ema8
+          : timeframe === '4H' ? stryke?.strykeSwingAnalysis?.emacross?.emaData4H?.ema8
+            : stryke?.strykeSwingAnalysis?.emacross?.emaDataDay?.ema8;
+      ema30Raw = timeframe === '15M' ? stryke?.strykeSwingAnalysis?.emacross?.emaData15M?.ema30
+        : timeframe === '1H' ? stryke?.strykeSwingAnalysis?.emacross?.emaData1H?.ema30
+          : timeframe === '4H' ? stryke?.strykeSwingAnalysis?.emacross?.emaData4H?.ema30
+            : stryke?.strykeSwingAnalysis?.emacross?.emaDataDay?.ema30;
     }
 
     // Normalize array values (backend may return string[]); use last element if array
@@ -567,7 +667,7 @@ export default function StrikeAnalysisPage() {
   const closeMissingAnalysisModal = () => setMissingAnalysisModal({ open: false, type: null, stocks: [] });
 
   useEffect(() => {
-    if (showAllStrykes && strykeList.length === 0) {
+    if (showAllStrykes && strykeList.length === 0 && !progressiveLoading) {
       fetchStrykes();
     }
   }, [showAllStrykes]);
@@ -1048,7 +1148,7 @@ export default function StrikeAnalysisPage() {
     XLSX.writeFile(wb, `swing-stats-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  if (isLoading) {
+  if (isLoading && !progressiveLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
@@ -1239,6 +1339,59 @@ export default function StrikeAnalysisPage() {
 
         {!isLoading && (
           <>
+            {/* Progressive Loading Progress Bar */}
+            {progressiveLoading && (
+              <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-gray-800">Loading Companies...</h3>
+                  <span className="text-sm text-gray-600">
+                    {loadingProgress.loadedCompanies} companies loaded
+                  </span>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-200 rounded-full h-3 mb-3">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-300 ease-out"
+                    style={{ 
+                      width: `${(loadingProgress.completedAlphabets.length / 26) * 100}%` 
+                    }}
+                  ></div>
+                </div>
+                
+                {/* Alphabet Progress */}
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'].map((letter) => (
+                    <span
+                      key={letter}
+                      className={`px-2 py-1 text-xs font-medium rounded ${
+                        loadingProgress.completedAlphabets.includes(letter)
+                          ? 'bg-green-100 text-green-800'
+                          : loadingProgress.currentAlphabet === letter
+                          ? 'bg-blue-100 text-blue-800 animate-pulse'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {letter}
+                    </span>
+                  ))}
+                </div>
+                
+                {/* Current Status */}
+                <div className="text-sm text-gray-600">
+                  {loadingProgress.currentAlphabet && (
+                    <span>Loading alphabet <strong>{loadingProgress.currentAlphabet}</strong>...</span>
+                  )}
+                  {loadingProgress.isComplete && (
+                    <span className="text-green-600 font-medium">✓ All alphabets loaded successfully!</span>
+                  )}
+                  <span className="ml-2">
+                    ({loadingProgress.completedAlphabets.length}/26 alphabets completed)
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col md:flex-row justify-between items-center mb-4">
               <div className="flex items-center gap-4">
                 <h1 className="text-2xl font-bold">Stryke Analysis</h1>
@@ -1266,18 +1419,24 @@ export default function StrikeAnalysisPage() {
                       handleToggleView(false, true, false, false);
                       fetchStrykes();
                     }}
-                    className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                    className={`bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition ${
+                      progressiveLoading ? 'bg-gray-400 cursor-not-allowed' : ''
+                    }`}
+                    disabled={progressiveLoading}
                   >
-                    Fetch All Stryke Analysis
+                    {progressiveLoading ? 'Loading Companies...' : 'Fetch All Stryke Analysis'}
                   </Button>
                 )}
 
 
                 <Button
                   onClick={() => fetchStrykes()}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                  className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition ${
+                    progressiveLoading ? 'bg-gray-400 cursor-not-allowed' : ''
+                  }`}
+                  disabled={progressiveLoading}
                 >
-                  Refresh List
+                  {progressiveLoading ? 'Loading...' : 'Refresh List'}
                 </Button>
 
 
@@ -2782,7 +2941,7 @@ export default function StrikeAnalysisPage() {
                     <thead>
                       <tr className="bg-gray-400 sticky top-0 z-10">
                         <th className="border border-gray-700 px-4 py-2">Slno</th>
-                        <th className="border border-gray-700 px-12 py-2 min-w-[150px]">Company</th>
+                        <th className="border border-gray-700 px-12 py-2 min-w-[100px]">Company</th>
                         <th className="border border-gray-700 px-12 py-2 min-w-[130px]">Entry Date</th>
                         <th className="border border-gray-700 px-8 py-2">Entry</th>
                         <th className="border border-gray-700 px-8 py-2">Target</th>
@@ -2791,7 +2950,7 @@ export default function StrikeAnalysisPage() {
                         <th title='Entry - Resistance Gap' className="border border-gray-700 px-12 py-2 min-w-[130px]">ER-Gap</th>
                         <th className="border border-gray-700 px-12 py-2 min-w-[160px]">Max Profits</th>
                         <th title='Time Take for Stock to Hit Support' className="border border-gray-700 px-8 py-2">Support</th>
-                        <th title='Time Take for Stock to Hit Resistance' className="border border-gray-700 px-8 py-2">Resistance</th>
+                        <th title='Time Take for Stock to Hit Resistance' className="border border-gray-700 px-8 py-2 min-w-[80px]">Resistance</th>
                         <th title='EMA Cross Overs' className="border border-gray-700 px-8 py-2 min-w-[200px]"colSpan={2}>Ema Position</th>
                         <th title='EMA Cross Overs' className="border border-gray-700 px-8 py-2">Ema Cross Overs</th>
                       </tr>
