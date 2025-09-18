@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import { PaperTradeOrder } from '../../components/types/paper-trading';
 import { exitPaperTradeOrder, cancelPaperTradeOrder } from '../../components/utils/paperTradeApi';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   TrendingUp, 
   Clock, 
@@ -31,27 +31,26 @@ interface ExitOrderModalProps {
 }
 
 function ExitOrderModal({ order, onClose, onSuccess }: ExitOrderModalProps) {
-  const [exitPrice, setExitPrice] = useState('');
   const [exitReason, setExitReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const exitReasonOptions = [
+    { value: 'Target Hit', label: 'Target Hit' },
+    { value: 'StopLoss', label: 'Stop Loss' },
+    { value: 'Manual Exit', label: 'Manual Exit' }
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!exitPrice || parseFloat(exitPrice) <= 0) {
-      toast.error('Please enter a valid exit price');
-      return;
-    }
-
     if (!exitReason.trim()) {
-      toast.error('Please provide an exit reason');
+      toast.error('Please select an exit reason');
       return;
     }
 
     setIsSubmitting(true);
     try {
       await exitPaperTradeOrder(order.id, {
-        exitPrice: parseFloat(exitPrice),
         exitReason: exitReason.trim()
       });
       toast.success('Order exited successfully!');
@@ -62,12 +61,6 @@ function ExitOrderModal({ order, onClose, onSuccess }: ExitOrderModalProps) {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const calculatePotentialPL = () => {
-    const price = parseFloat(exitPrice);
-    if (price <= 0) return 0;
-    return (price - order.entryPrice) * order.quantity - order.brokerageFees;
   };
 
   return (
@@ -85,49 +78,33 @@ function ExitOrderModal({ order, onClose, onSuccess }: ExitOrderModalProps) {
           <p className="text-sm text-gray-600">
             Entry: ₹{order.entryPrice} × {order.quantity} shares
           </p>
+          <p className="text-xs text-blue-600 mt-1">
+            Exit price will be determined automatically at current market price
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="exitPrice">Exit Price (₹)</Label>
-            <Input
-              id="exitPrice"
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              value={exitPrice}
-              onChange={(e) => setExitPrice(e.target.value)}
-              required
-            />
-          </div>
-
-          <div>
             <Label htmlFor="exitReason">Exit Reason</Label>
-            <Input
-              id="exitReason"
-              placeholder="e.g., Target Hit, Stop Loss Hit, Manual Exit"
-              value={exitReason}
-              onChange={(e) => setExitReason(e.target.value)}
-              required
-            />
+            <Select value={exitReason} onValueChange={setExitReason}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select exit reason" />
+              </SelectTrigger>
+              <SelectContent>
+                {exitReasonOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-
-          {exitPrice && parseFloat(exitPrice) > 0 && (
-            <div className="p-3 bg-blue-50 rounded-md">
-              <p className="text-sm">
-                <strong>Potential P&L:</strong>{' '}
-                <span className={calculatePotentialPL() >= 0 ? 'text-green-600' : 'text-red-600'}>
-                  ₹{calculatePotentialPL().toFixed(2)}
-                </span>
-              </p>
-            </div>
-          )}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || !exitReason}>
               {isSubmitting ? 'Exiting...' : 'Exit Order'}
             </Button>
           </div>
@@ -150,13 +127,43 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
   };
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      console.log('Original date string:', dateString, 'Type:', typeof dateString);
+      
+      // Check if dateString is valid
+      if (!dateString || typeof dateString !== 'string') {
+        console.error('Invalid dateString provided:', dateString);
+        return 'Invalid Date';
+      }
+      
+      // Trim the date string to just YYYY-MM-DDTHH:MM format
+      const trimmedDateString = dateString.substring(0, 16); // "2025-09-18T09:59"
+      console.log('Trimmed date string:', trimmedDateString);
+      
+      const date = new Date(trimmedDateString);
+      console.log('Parsed date object:', date);
+      console.log('Date.getTime():', date.getTime());
+      
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date detected for string:', trimmedDateString);
+        return 'Invalid Date';
+      }
+      
+      const formatted = date.toLocaleString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Kolkata'
+      });
+      console.log('Formatted date:', formatted);
+      return formatted;
+    } catch (error) {
+      console.error('Error formatting date:', error, 'Original string:', dateString);
+      return 'Invalid Date';
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -273,7 +280,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
                   <div>
                     <div className="font-medium">{formatCurrency(order.exitPrice)}</div>
                     <div className="text-xs text-gray-500">
-                      {order.exitAt && formatDateTime(order.exitAt)}
+                      {order?.exitAt && formatDateTime(order?.exitAt)}
                     </div>
                     <div className="text-xs text-blue-600">{order.exitReason}</div>
                   </div>

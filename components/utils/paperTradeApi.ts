@@ -1,4 +1,5 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import {
   PaperTradeDashboard,
   PaperTradeOrder,
@@ -20,6 +21,31 @@ export const createPaperTradeOrder = async (orderData: CreateOrderRequest): Prom
     throw new Error('Invalid response format');
   } catch (error) {
     console.error('Error creating paper trade order:', error);
+    
+    // Handle different types of errors
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.statusText || 
+                          error.message;
+      
+      if (status === 400) {
+        toast.error(`Bad Request: ${errorMessage}`);
+      } else if (status === 500) {
+        toast.error(`Server Error: ${errorMessage}`);
+      } else if (status === 401) {
+        toast.error(`Unauthorized: ${errorMessage}`);
+      } else if (status === 403) {
+        toast.error(`Forbidden: ${errorMessage}`);
+      } else if (status === 404) {
+        toast.error(`Not Found: ${errorMessage}`);
+      } else {
+        toast.error(`Error ${status}: ${errorMessage}`);
+      }
+    } else {
+      toast.error('An unexpected error occurred while creating the order');
+    }
+    
     throw error;
   }
 };
@@ -35,7 +61,6 @@ export const exitPaperTradeOrder = async (
       null,
       {
         params: {
-          exitPrice: exitData.exitPrice,
           exitReason: exitData.exitReason
         }
       }

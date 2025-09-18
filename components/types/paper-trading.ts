@@ -68,7 +68,6 @@ export interface CreateOrderRequest {
 }
 
 export interface ExitOrderRequest {
-  exitPrice: number;
   exitReason: string;
 }
 
