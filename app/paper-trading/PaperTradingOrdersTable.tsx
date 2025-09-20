@@ -56,7 +56,7 @@ function ExitOrderModal({ order, onClose, onSuccess }: ExitOrderModalProps) {
       toast.success('Order exited successfully!');
       onSuccess();
     } catch (error) {
-      console.error('Error exiting order:', error);
+      //console.error('Error exiting order:', error);
       toast.error('Failed to exit order. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -128,25 +128,25 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
 
   const formatDateTime = (dateString: string) => {
     try {
-      console.log('Original date string:', dateString, 'Type:', typeof dateString);
+      //console.log('Original date string:', dateString, 'Type:', typeof dateString);
       
       // Check if dateString is valid
       if (!dateString || typeof dateString !== 'string') {
-        console.error('Invalid dateString provided:', dateString);
+        //console.error('Invalid dateString provided:', dateString);
         return 'Invalid Date';
       }
       
       // Trim the date string to just YYYY-MM-DDTHH:MM format
       const trimmedDateString = dateString.substring(0, 16); // "2025-09-18T09:59"
-      console.log('Trimmed date string:', trimmedDateString);
+      //console.log('Trimmed date string:', trimmedDateString);
       
       const date = new Date(trimmedDateString);
-      console.log('Parsed date object:', date);
-      console.log('Date.getTime():', date.getTime());
+      //console.log('Parsed date object:', date);
+      //console.log('Date.getTime():', date.getTime());
       
       // Check if the date is valid
       if (isNaN(date.getTime())) {
-        console.error('Invalid date detected for string:', trimmedDateString);
+        //console.error('Invalid date detected for string:', trimmedDateString);
         return 'Invalid Date';
       }
       
@@ -158,10 +158,10 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
         minute: '2-digit',
         timeZone: 'Asia/Kolkata'
       });
-      console.log('Formatted date:', formatted);
+      //console.log('Formatted date:', formatted);
       return formatted;
     } catch (error) {
-      console.error('Error formatting date:', error, 'Original string:', dateString);
+      //console.error('Error formatting date:', error, 'Original string:', dateString);
       return 'Invalid Date';
     }
   };
@@ -194,7 +194,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
       toast.success('Order cancelled successfully!');
       onOrderAction?.();
     } catch (error) {
-      console.error('Error cancelling order:', error);
+      //console.error('Error cancelling order:', error);
       toast.error('Failed to cancel order. Please try again.');
     }
   };

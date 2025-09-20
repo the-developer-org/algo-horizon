@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PaperTradingDashboard } from './PaperTradingDashboard';
 import { PaperTradingOrderForm } from './PaperTradingOrderForm';
 import { PaperTradingOrdersTable } from './PaperTradingOrdersTable';
@@ -27,6 +27,26 @@ export default function PaperTradingPage() {
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+  const [timeDisplayTrigger, setTimeDisplayTrigger] = useState(0);
+
+  // Format last refresh time for display
+  const lastRefreshDisplay = useMemo(() => {
+    if (!lastRefreshTime) return 'Never';
+    
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - lastRefreshTime.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return `${diffInSeconds} seconds ago`;
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    }
+  }, [lastRefreshTime, timeDisplayTrigger]);
 
   // Check if current time is within market hours (Mon-Fri, 9:15 AM to 3:30 PM IST)
   const isMarketHours = () => {
@@ -67,6 +87,9 @@ export default function PaperTradingPage() {
       setAllOrders(all);
       setActiveOrders(active);
       setCompletedOrders(completed);
+      
+      // Update last refresh time on successful data fetch
+      setLastRefreshTime(new Date());
     } catch (error) {
       console.error('Error fetching paper trading data:', error);
       toast.error('Failed to load paper trading data');
@@ -89,11 +112,21 @@ export default function PaperTradingPage() {
       } else {
         console.log('Outside market hours - Skipping auto-refresh');
       }
-    }, 5 * 60 * 1000); // 30 seconds in milliseconds
+    }, 5 * 60 * 1000); // 5 minutes in milliseconds
 
     // Cleanup interval on component unmount
     return () => clearInterval(interval);
   }, []);
+
+  // Update the "time ago" display every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Force re-render to update the "time ago" text
+      setTimeDisplayTrigger(prev => prev + 1);
+    }, 60 * 1000); // 1 minute
+
+    return () => clearInterval(interval);
+  }, [lastRefreshTime]);
 
   const handleRefresh = () => {
     setRefreshTrigger(prev => prev + 1);
@@ -131,7 +164,13 @@ export default function PaperTradingPage() {
               Practice trading with virtual capital and track your performance
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+            {/* Last Refresh Timestamp */}
+            <div className="text-sm text-gray-500 flex items-center gap-1">
+              <span>Last updated:</span>
+              <span className="font-medium">{lastRefreshDisplay}</span>
+            </div>
+            
             <Button
               onClick={handleRefresh}
               variant="outline"
