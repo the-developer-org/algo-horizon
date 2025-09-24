@@ -251,7 +251,7 @@ function StrikeAnalysisContent() {
     loadedCompanies: 0,
     isComplete: false
   });
-  
+
   // Track if data loading has been attempted to prevent unnecessary retries
   const [dataLoadingAttempted, setDataLoadingAttempted] = useState(false);
 
@@ -431,7 +431,7 @@ function StrikeAnalysisContent() {
           'accept': 'application/json',
         },
       });
-      
+
       // Reset failure tracking before refetching data
       (0);
       setDataLoadingAttempted(false);
@@ -513,12 +513,12 @@ function StrikeAnalysisContent() {
 
               // Update the UI immediately with new data
               setStrykeList(allStrykes);
-              
+
               // Update filtered lists with the new combined data
               setFilteredAnalysisList((prev) => [...prev, ...algoAnalysis, ...strykeAnalysis]);
 
               console.log(`Loaded ${allStrykes.length} companies from alphabet ${alphabet}`);
-              
+
               // Reset consecutive failures on success
               consecutiveFailures = 0;
             } else {
@@ -893,7 +893,7 @@ function StrikeAnalysisContent() {
     return `${day} ${month} ${year}`;
   }
 
-  
+
 
   // Build numeric-only rows for Excel for Swing Stats
   const buildSwingStatsRowsForExcel = () => {
@@ -1145,18 +1145,6 @@ function StrikeAnalysisContent() {
     }
   }
 
-  const getFinalList = () : AnalysisResponse[] => {
-    let finalList : AnalysisResponse[] = filteredAnalysisList;
-
-    if(!showStrykeAnalysis){
-      finalList = [...algoAnalysisList];
-    } 
-    if(!showAlgoAnalysis) {
-      finalList = [...strykeAnalysisList];
-    }
-
-    return finalList;
-  }
 
   return (
     <div className="flex justify-start py-4 px-4 bg-cream">
@@ -1201,10 +1189,10 @@ function StrikeAnalysisContent() {
                     <span
                       key={letter}
                       className={`px-2 py-1 text-xs font-medium rounded ${loadingProgress.completedAlphabets.includes(letter)
-                          ? 'bg-green-100 text-green-800'
-                          : loadingProgress.currentAlphabet === letter
-                            ? 'bg-blue-100 text-blue-800 animate-pulse'
-                            : 'bg-gray-100 text-gray-600'
+                        ? 'bg-green-100 text-green-800'
+                        : loadingProgress.currentAlphabet === letter
+                          ? 'bg-blue-100 text-blue-800 animate-pulse'
+                          : 'bg-gray-100 text-gray-600'
                         }`}
                     >
                       {letter}
@@ -1261,7 +1249,7 @@ function StrikeAnalysisContent() {
                   >
                     {progressiveLoading ? 'Loading Companies...' : 'Fetch All Stryke Analysis'}
                   </Button>
-                )} */} 
+                )} */}
 
 
                 <Button
@@ -1699,7 +1687,7 @@ function StrikeAnalysisContent() {
                       setSelectedMonth(null);
 
                       // Reset filtered list to original lists
-                
+
                       setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList]);
                     }}
                   >
@@ -1711,11 +1699,14 @@ function StrikeAnalysisContent() {
 
                   {/* Row 3: Analysis Toggle Buttons */}
                   <div className="inline-flex items-center gap-2">
-                    
+
                     <div className="flex flex-wrap gap-1 items-center">
                       {!showAlgoAnalysis && (
                         <Button
-                          onClick={() => setShowAlgoAnalysis(true)}
+                          onClick={() => {
+                            setShowAlgoAnalysis(true)
+                            setFilteredAnalysisList([...filteredAnalysisList, ...algoAnalysisList]);
+                          }}
                           className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 text-sm rounded-md transition"
                         >
                           Show Algo Analysis
@@ -1724,7 +1715,10 @@ function StrikeAnalysisContent() {
 
                       {showAlgoAnalysis && (
                         <Button
-                          onClick={() => setShowAlgoAnalysis(false)}
+                          onClick={() => {
+                            setShowAlgoAnalysis(false)
+                            setFilteredAnalysisList(filteredAnalysisList.filter(item => item.label !== 'ALGO'));
+                          }}
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
                           Hide Algo Analysis
@@ -1733,7 +1727,10 @@ function StrikeAnalysisContent() {
 
                       {!showStrykeAnalysis && (
                         <Button
-                          onClick={() => setShowStrykeAnalysis(true)}
+                          onClick={() => {
+                            setShowStrykeAnalysis(true)
+                            setFilteredAnalysisList([...filteredAnalysisList, ...strykeAnalysisList]);
+                          }}
                           className="bg-cyan-500 hover:bg-cyan-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
                           Show Stryke Analysis
@@ -1742,7 +1739,10 @@ function StrikeAnalysisContent() {
 
                       {showStrykeAnalysis && (
                         <Button
-                          onClick={() => setShowStrykeAnalysis(false)}
+                          onClick={() => {
+                            setShowStrykeAnalysis(false)
+                            setFilteredAnalysisList(filteredAnalysisList.filter(item => item.label !== 'STRYKE'));
+                          }}
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
                           Hide Stryke Analysis
@@ -1752,7 +1752,7 @@ function StrikeAnalysisContent() {
                   </div>
 
                   <span className="text-lg font-bold">Count: {filteredAnalysisList.length}</span>
-           
+
 
 
                   {/* Show metrics content when showMetrics is true */}
@@ -2082,7 +2082,7 @@ function StrikeAnalysisContent() {
                                       )
                                     );
                                   } else {
-                            
+
                                     setFilteredAnalysisList(filteredAnalysisList);
                                   }
                                 }}
@@ -2090,10 +2090,10 @@ function StrikeAnalysisContent() {
                                 title={`Sort by Company ${activeFilter.name === 'asc' ? '(A-Z)' : activeFilter.name === 'desc' ? '(Z-A)' : '(Off)'}`}
                               >
                                 <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.name === 'asc'
-                                    ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
-                                    : activeFilter.name === 'desc'
-                                      ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
-                                      : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                                  ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
+                                  : activeFilter.name === 'desc'
+                                    ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                    : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
                                   }`}>
                                   {activeFilter.name === 'asc' ? '▲' : activeFilter.name === 'desc' ? '▼' : '⇅'}
                                 </span>
@@ -2124,10 +2124,10 @@ function StrikeAnalysisContent() {
                                 title={`Sort by Date ${activeFilter.date === 'asc' ? '(Oldest First)' : activeFilter.date === 'desc' ? '(Newest First)' : '(Off)'}`}
                               >
                                 <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.date === 'asc'
-                                    ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
-                                    : activeFilter.date === 'desc'
-                                      ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
-                                      : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                                  ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
+                                  : activeFilter.date === 'desc'
+                                    ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                    : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
                                   }`}>
                                   {activeFilter.date === 'asc' ? '▲' : activeFilter.date === 'desc' ? '▼' : '⇅'}
                                 </span>
@@ -2157,10 +2157,10 @@ function StrikeAnalysisContent() {
                                 title={`Sort by Entry Price ${activeFilter.entry === 'asc' ? '(Low to High)' : activeFilter.entry === 'desc' ? '(High to Low)' : '(Off)'}`}
                               >
                                 <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.entry === 'asc'
-                                    ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
-                                    : activeFilter.entry === 'desc'
-                                      ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
-                                      : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                                  ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
+                                  : activeFilter.entry === 'desc'
+                                    ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                    : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
                                   }`}>
                                   {activeFilter.entry === 'asc' ? '▲' : activeFilter.entry === 'desc' ? '▼' : '⇅'}
                                 </span>
@@ -2190,10 +2190,10 @@ function StrikeAnalysisContent() {
                                 title={`Sort by Target ${activeFilter.target === 'asc' ? '(Low to High)' : activeFilter.target === 'desc' ? '(High to Low)' : '(Off)'}`}
                               >
                                 <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.target === 'asc'
-                                    ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
-                                    : activeFilter.target === 'desc'
-                                      ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
-                                      : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                                  ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
+                                  : activeFilter.target === 'desc'
+                                    ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                    : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
                                   }`}>
                                   {activeFilter.target === 'asc' ? '▲' : activeFilter.target === 'desc' ? '▼' : '⇅'}
                                 </span>
@@ -2223,10 +2223,10 @@ function StrikeAnalysisContent() {
                                 title={`Sort by Stop Loss ${activeFilter.stopLoss === 'asc' ? '(Low to High)' : activeFilter.stopLoss === 'desc' ? '(High to Low)' : '(Off)'}`}
                               >
                                 <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.stopLoss === 'asc'
-                                    ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
-                                    : activeFilter.stopLoss === 'desc'
-                                      ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
-                                      : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                                  ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
+                                  : activeFilter.stopLoss === 'desc'
+                                    ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                    : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
                                   }`}>
                                   {activeFilter.stopLoss === 'asc' ? '▲' : activeFilter.stopLoss === 'desc' ? '▼' : '⇅'}
                                 </span>
@@ -2241,15 +2241,14 @@ function StrikeAnalysisContent() {
                                 className="ml-1 p-1 hover:bg-gray-300 rounded relative"
                                 title={`Filter by Swing Label Combination ${activeFilter.swingLabelCombo ? `(${activeFilter.swingLabelCombo})` : '(All)'}`}
                               >
-                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
-                                  activeFilter.swingLabelCombo
+                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.swingLabelCombo
                                     ? 'bg-blue-100 border-blue-500 text-blue-700 shadow-sm'
                                     : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
-                                }`}>
+                                  }`}>
                                   {activeFilter.swingLabelCombo ? '◆' : '⚏'}
                                 </span>
                               </button>
-                              
+
                               {swingLabelsDropdownOpen && (
                                 <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[200px] py-2">
                                   <div className="px-3 py-1 text-xs font-semibold text-gray-500 border-b border-gray-100 mb-1">
@@ -2260,49 +2259,43 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, swingLabelCombo: null });
                                       setSwingLabelsDropdownOpen(false);
                                       // Reset to show all items
-                                       setFilteredAnalysisList(filteredAnalysisList);
+                                      setFilteredAnalysisList(filteredAnalysisList);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      !activeFilter.swingLabelCombo 
-                                        ? 'bg-blue-50 text-blue-600 font-medium' 
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${!activeFilter.swingLabelCombo
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     All Patterns
                                   </button>
                                   {[
-  'LL<-HH', 'HL<-HH',
-  'HH<-HL', 'LH<-HL',
-  'HH<-LH', 'LL<-LH',
-  'HH<-LL', 'LH<-LL',
-  'HH<-HH', 'HL<-HL', 'LH<-LH', 'LL<-LL'
-]
-.map((combo) => (
-                                    <button
-                                      key={combo}
-                                      onClick={() => {
-                                        setActiveFilter({ ...activeFilter, swingLabelCombo: combo as any });
-                                        setSwingLabelsDropdownOpen(false);
-                                        // Apply filter to both lists
-                                        const [prev, curr] = combo.split('<-');
-                                        const filteredStryke = filteredAnalysisList.filter(item => 
-                                          item.prevSwingLabel === prev && item.currentSwingLabel === curr && item.label === 'STRYKE'
-                                        );
-                                        const filteredAlgo = filteredAnalysisList.filter(item => 
-                                          item.prevSwingLabel === prev && item.currentSwingLabel === curr && item.label === 'ALGO'
-                                        );
-                                      
-                                        setFilteredAnalysisList([...filteredStryke, ...filteredAlgo]);
-                                      }}
-                                      className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                        activeFilter.swingLabelCombo === combo
-                                          ? 'bg-blue-50 text-blue-600 font-medium'
-                                          : 'text-gray-700 hover:bg-gray-50'
-                                      }`}
-                                    >
-                                      <span className="font-mono text-xs">{combo}</span>
-                                    </button>
-                                  ))}
+                                    'LL<-HH', 'HL<-HH',
+                                    'HH<-HL', 'LH<-HL',
+                                    'HH<-LH', 'LL<-LH',
+                                    'HH<-LL', 'LH<-LL',
+                                    'HH<-HH', 'HL<-HL', 'LH<-LH', 'LL<-LL'
+                                  ]
+                                    .map((combo) => (
+                                      <button
+                                        key={combo}
+                                        onClick={() => {
+                                          setActiveFilter({ ...activeFilter, swingLabelCombo: combo as any });
+                                          setSwingLabelsDropdownOpen(false);
+                                          // Apply filter to both lists
+                                          const [prev, curr] = combo.split('<-');
+                                       debugger
+                                          setFilteredAnalysisList([...filteredAnalysisList].filter(item =>
+                                            item.prevSwingLabel === prev && item.currentSwingLabel === curr
+                                          ));  
+                                        }}
+                                        className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.swingLabelCombo === combo
+                                            ? 'bg-blue-50 text-blue-600 font-medium'
+                                            : 'text-gray-700 hover:bg-gray-50'
+                                          }`}
+                                      >
+                                        <span className="font-mono text-xs">{combo}</span>
+                                      </button>
+                                    ))}
                                 </div>
                               )}
                             </div>
@@ -2331,33 +2324,31 @@ function StrikeAnalysisContent() {
                                   className="ml-1 p-1 hover:bg-gray-300 rounded"
                                   title={`Sort by ER-Gap ${activeFilter.erSort === 'asc' ? '(Low to High)' : activeFilter.erSort === 'desc' ? '(High to Low)' : '(Off)'}`}
                                 >
-                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
-                                    activeFilter.erSort === 'asc'
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.erSort === 'asc'
                                       ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
                                       : activeFilter.erSort === 'desc'
                                         ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
                                         : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
-                                  }`}>
+                                    }`}>
                                     {activeFilter.erSort === 'asc' ? '▲' : activeFilter.erSort === 'desc' ? '▼' : '⇅'}
                                   </span>
                                 </button>
-                                
+
                                 {/* Filter Button */}
                                 <button
                                   onClick={() => setErGapDropdownOpen(!erGapDropdownOpen)}
                                   className="ml-1 p-1 hover:bg-gray-300 rounded relative"
                                   title={`Filter by ER-Gap ${activeFilter.erLabel ? `(${activeFilter.erLabel})` : '(All)'}`}
                                 >
-                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
-                                    activeFilter.erLabel
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.erLabel
                                       ? 'bg-blue-100 border-blue-500 text-blue-700 shadow-sm'
                                       : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
-                                  }`}>
+                                    }`}>
                                     {activeFilter.erLabel ? '◆' : '⚏'}
                                   </span>
                                 </button>
                               </div>
-                              
+
                               {erGapDropdownOpen && (
                                 <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[180px] py-2">
                                   <div className="px-3 py-1 text-xs font-semibold text-gray-500 border-b border-gray-100 mb-1">
@@ -2370,11 +2361,10 @@ function StrikeAnalysisContent() {
                                       // Reset to show all items - restore original data
                                       setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList]);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      !activeFilter.erLabel 
-                                        ? 'bg-blue-50 text-blue-600 font-medium' 
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${!activeFilter.erLabel
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     All Values
                                   </button>
@@ -2383,16 +2373,15 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, erLabel: 'BELOW_3' });
                                       setErGapDropdownOpen(false);
                                       // Filter for values < 3% from original data
-                                      const filtered = filteredAnalysisList.filter(item => 
+                                      const filtered = filteredAnalysisList.filter(item =>
                                         (item.minSwingProfits ?? 0) > 0 && (item.minSwingProfits ?? 0) < 3
                                       );
                                       setFilteredAnalysisList(filtered);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      activeFilter.erLabel === 'BELOW_3'
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.erLabel === 'BELOW_3'
                                         ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     <span className="text-xs">&lt; 3%</span>
                                   </button>
@@ -2401,16 +2390,15 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, erLabel: 'ABOVE_3' });
                                       setErGapDropdownOpen(false);
                                       // Filter for values >= 3% from original data
-                                      const filtered = filteredAnalysisList.filter(item => 
+                                      const filtered = filteredAnalysisList.filter(item =>
                                         (item.minSwingProfits ?? 0) >= 3
                                       );
                                       setFilteredAnalysisList(filtered);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      activeFilter.erLabel === 'ABOVE_3'
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.erLabel === 'ABOVE_3'
                                         ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     <span className="text-xs">≥ 3%</span>
                                   </button>
@@ -2419,16 +2407,15 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, erLabel: 'AR' });
                                       setErGapDropdownOpen(false);
                                       // Filter for Above Resistance (value <= 0) from original data
-                                      const filtered = filteredAnalysisList.filter(item => 
+                                      const filtered = filteredAnalysisList.filter(item =>
                                         (item.minSwingProfits ?? 0) <= 0
                                       );
                                       setFilteredAnalysisList(filtered);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      activeFilter.erLabel === 'AR'
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.erLabel === 'AR'
                                         ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     <span className="text-xs">Above Resistance</span>
                                   </button>
@@ -2460,33 +2447,31 @@ function StrikeAnalysisContent() {
                                   className="ml-1 p-1 hover:bg-gray-300 rounded"
                                   title={`Sort by Max Profits ${activeFilter.profitSort === 'asc' ? '(Low to High)' : activeFilter.profitSort === 'desc' ? '(High to Low)' : '(Off)'}`}
                                 >
-                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
-                                    activeFilter.profitSort === 'asc'
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.profitSort === 'asc'
                                       ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
                                       : activeFilter.profitSort === 'desc'
                                         ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
                                         : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
-                                  }`}>
+                                    }`}>
                                     {activeFilter.profitSort === 'asc' ? '▲' : activeFilter.profitSort === 'desc' ? '▼' : '⇅'}
                                   </span>
                                 </button>
-                                
+
                                 {/* Filter Button */}
                                 <button
                                   onClick={() => setProfitsDropdownOpen(!profitsDropdownOpen)}
                                   className="ml-1 p-1 hover:bg-gray-300 rounded relative"
                                   title={`Filter by Max Profits ${activeFilter.profitLabel ? `(${activeFilter.profitLabel})` : '(All)'}`}
                                 >
-                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
-                                    activeFilter.profitLabel
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.profitLabel
                                       ? 'bg-blue-100 border-blue-500 text-blue-700 shadow-sm'
                                       : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
-                                  }`}>
+                                    }`}>
                                     {activeFilter.profitLabel ? '◆' : '⚏'}
                                   </span>
                                 </button>
                               </div>
-                              
+
                               {profitsDropdownOpen && (
                                 <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[180px] py-2">
                                   <div className="px-3 py-1 text-xs font-semibold text-gray-500 border-b border-gray-100 mb-1">
@@ -2499,11 +2484,10 @@ function StrikeAnalysisContent() {
                                       // Reset to show all items - restore original data
                                       setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList]);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      !activeFilter.profitLabel 
-                                        ? 'bg-blue-50 text-blue-600 font-medium' 
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${!activeFilter.profitLabel
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     All Values
                                   </button>
@@ -2512,16 +2496,15 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, profitLabel: 'BELOW_3' });
                                       setProfitsDropdownOpen(false);
                                       // Filter for values < 3% from original data
-                                     const filtered = filteredAnalysisList.filter(item => 
+                                      const filtered = filteredAnalysisList.filter(item =>
                                         (item.maxSwingProfits ?? 0) > 0 && (item.maxSwingProfits ?? 0) < 3
                                       );
                                       setFilteredAnalysisList(filtered);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      activeFilter.profitLabel === 'BELOW_3'
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.profitLabel === 'BELOW_3'
                                         ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     <span className="text-xs">&lt; 3%</span>
                                   </button>
@@ -2530,16 +2513,15 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, profitLabel: 'ABOVE_3' });
                                       setProfitsDropdownOpen(false);
                                       // Filter for values >= 3% from original data
-                                      const filtered = filteredAnalysisList.filter(item => 
+                                      const filtered = filteredAnalysisList.filter(item =>
                                         (item.maxSwingProfits ?? 0) >= 3
                                       );
                                       setFilteredAnalysisList(filtered);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      activeFilter.profitLabel === 'ABOVE_3'
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.profitLabel === 'ABOVE_3'
                                         ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     <span className="text-xs">≥ 3%</span>
                                   </button>
@@ -2548,16 +2530,15 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, profitLabel: 'NEGATIVE' });
                                       setProfitsDropdownOpen(false);
                                       // Filter for negative values (value <= 0) from original data
-                                      const filtered = filteredAnalysisList.filter(item => 
+                                      const filtered = filteredAnalysisList.filter(item =>
                                         (item.maxSwingProfits ?? 0) <= 0
                                       );
                                       setFilteredAnalysisList(filtered);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      activeFilter.profitLabel === 'NEGATIVE'
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.profitLabel === 'NEGATIVE'
                                         ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     <span className="text-xs">Negative/Zero</span>
                                   </button>
@@ -2589,33 +2570,31 @@ function StrikeAnalysisContent() {
                                   className="ml-1 p-1 hover:bg-gray-300 rounded"
                                   title={`Sort by Support ${activeFilter.supportSort === 'asc' ? '(Low to High)' : activeFilter.supportSort === 'desc' ? '(High to Low)' : '(Off)'}`}
                                 >
-                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
-                                    activeFilter.supportSort === 'asc'
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.supportSort === 'asc'
                                       ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
                                       : activeFilter.supportSort === 'desc'
                                         ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
                                         : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
-                                  }`}>
+                                    }`}>
                                     {activeFilter.supportSort === 'asc' ? '▲' : activeFilter.supportSort === 'desc' ? '▼' : '⇅'}
                                   </span>
                                 </button>
-                                
+
                                 {/* Filter Button */}
                                 <button
                                   onClick={() => setSupportDropdownOpen(!supportDropdownOpen)}
                                   className="ml-1 p-1 hover:bg-gray-300 rounded relative"
                                   title={`Filter by Support ${activeFilter.supportLabel ? `(${activeFilter.supportLabel})` : '(All)'}`}
                                 >
-                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
-                                    activeFilter.supportLabel
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.supportLabel
                                       ? 'bg-blue-100 border-blue-500 text-blue-700 shadow-sm'
                                       : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
-                                  }`}>
+                                    }`}>
                                     {activeFilter.supportLabel ? '◆' : '⚏'}
                                   </span>
                                 </button>
                               </div>
-                              
+
                               {supportDropdownOpen && (
                                 <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[180px] py-2">
                                   <div className="px-3 py-1 text-xs font-semibold text-gray-500 border-b border-gray-100 mb-1">
@@ -2628,11 +2607,10 @@ function StrikeAnalysisContent() {
                                       // Reset to show all items - restore original data
                                       setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList]);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      !activeFilter.supportLabel 
-                                        ? 'bg-blue-50 text-blue-600 font-medium' 
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${!activeFilter.supportLabel
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     All Values
                                   </button>
@@ -2641,16 +2619,15 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, supportLabel: 'HIT' });
                                       setSupportDropdownOpen(false);
                                       // Filter for items that hit support (value > 0) from original data
-                                      const filtered = filteredAnalysisList.filter(item => 
+                                      const filtered = filteredAnalysisList.filter(item =>
                                         (item.daysTakenForSupportTouch ?? 0) > 0
                                       );
                                       setFilteredAnalysisList(filtered);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      activeFilter.supportLabel === 'HIT'
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.supportLabel === 'HIT'
                                         ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     <span className="text-xs">Hit Support</span>
                                   </button>
@@ -2659,16 +2636,15 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, supportLabel: 'NO_HIT' });
                                       setSupportDropdownOpen(false);
                                       // Filter for items that didn't hit support (value = 0) from original data
-                                      const filtered = filteredAnalysisList.filter(item => 
+                                      const filtered = filteredAnalysisList.filter(item =>
                                         (item.daysTakenForSupportTouch ?? 0) === 0
                                       );
                                       setFilteredAnalysisList(filtered);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      activeFilter.supportLabel === 'NO_HIT'
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.supportLabel === 'NO_HIT'
                                         ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     <span className="text-xs">No Hit</span>
                                   </button>
@@ -2700,33 +2676,31 @@ function StrikeAnalysisContent() {
                                   className="ml-1 p-1 hover:bg-gray-300 rounded"
                                   title={`Sort by Resistance ${activeFilter.resistanceSort === 'asc' ? '(Low to High)' : activeFilter.resistanceSort === 'desc' ? '(High to Low)' : '(Off)'}`}
                                 >
-                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
-                                    activeFilter.resistanceSort === 'asc'
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.resistanceSort === 'asc'
                                       ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
                                       : activeFilter.resistanceSort === 'desc'
                                         ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
                                         : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
-                                  }`}>
+                                    }`}>
                                     {activeFilter.resistanceSort === 'asc' ? '▲' : activeFilter.resistanceSort === 'desc' ? '▼' : '⇅'}
                                   </span>
                                 </button>
-                                
+
                                 {/* Filter Button */}
                                 <button
                                   onClick={() => setResistanceDropdownOpen(!resistanceDropdownOpen)}
                                   className="ml-1 p-1 hover:bg-gray-300 rounded relative"
                                   title={`Filter by Resistance ${activeFilter.resistanceLabel ? `(${activeFilter.resistanceLabel})` : '(All)'}`}
                                 >
-                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
-                                    activeFilter.resistanceLabel
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${activeFilter.resistanceLabel
                                       ? 'bg-blue-100 border-blue-500 text-blue-700 shadow-sm'
                                       : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
-                                  }`}>
+                                    }`}>
                                     {activeFilter.resistanceLabel ? '◆' : '⚏'}
                                   </span>
                                 </button>
                               </div>
-                              
+
                               {resistanceDropdownOpen && (
                                 <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[180px] py-2">
                                   <div className="px-3 py-1 text-xs font-semibold text-gray-500 border-b border-gray-100 mb-1">
@@ -2739,11 +2713,10 @@ function StrikeAnalysisContent() {
                                       // Reset to show all items - restore original data
                                       setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList]);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      !activeFilter.resistanceLabel 
-                                        ? 'bg-blue-50 text-blue-600 font-medium' 
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${!activeFilter.resistanceLabel
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     All Values
                                   </button>
@@ -2752,16 +2725,15 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, resistanceLabel: 'HIT' });
                                       setResistanceDropdownOpen(false);
                                       // Filter for items that hit resistance (value > 0) from original data
-                                      const filtered = filteredAnalysisList.filter(item => 
+                                      const filtered = filteredAnalysisList.filter(item =>
                                         (item.daysTakenForResistanceTouch ?? 0) > 0
                                       );
                                       setFilteredAnalysisList(filtered);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      activeFilter.resistanceLabel === 'HIT'
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.resistanceLabel === 'HIT'
                                         ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     <span className="text-xs">Hit Resistance</span>
                                   </button>
@@ -2770,16 +2742,15 @@ function StrikeAnalysisContent() {
                                       setActiveFilter({ ...activeFilter, resistanceLabel: 'NO_HIT' });
                                       setResistanceDropdownOpen(false);
                                       // Filter for items that didn't hit resistance (value = 0) from original data
-                                      const filtered = filteredAnalysisList.filter(item => 
+                                      const filtered = filteredAnalysisList.filter(item =>
                                         (item.daysTakenForResistanceTouch ?? 0) === 0
                                       );
                                       setFilteredAnalysisList(filtered);
                                     }}
-                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${
-                                      activeFilter.resistanceLabel === 'NO_HIT'
+                                    className={`flex items-center justify-start w-full px-3 py-2 text-sm transition-colors duration-150 ${activeFilter.resistanceLabel === 'NO_HIT'
                                         ? 'bg-blue-50 text-blue-600 font-medium'
                                         : 'text-gray-700 hover:bg-gray-50'
-                                    }`}
+                                      }`}
                                   >
                                     <span className="text-xs">No Hit</span>
                                   </button>
@@ -2792,7 +2763,7 @@ function StrikeAnalysisContent() {
                         </tr>
                       </thead>
                       <tbody>
-                        {getFinalList().map((stryke, index) => {
+                        {filteredAnalysisList.map((stryke, index) => {
 
                           return (
                             <React.Fragment key={stryke.uuid || index}>
@@ -3120,19 +3091,19 @@ function StrikeAnalysisContent() {
                     </div>
                   )}
 
-               
+
 
                 </div>
 
-                </div>
-            
+              </div>
+
             )}
-            
-           </>)}
-       
+
+          </>)}
+
       </div>
     </div>
-    );
+  );
 }
 
 export default function StrikeAnalysisPage() {
