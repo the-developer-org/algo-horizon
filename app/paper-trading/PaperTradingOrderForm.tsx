@@ -7,16 +7,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { X, DollarSign, TrendingUp, Shield, Target } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { X, DollarSign, Shield, Target } from "lucide-react";
+import { fetchUpstoxHistoricalData } from '../../components/utils/upstoxApi';
 import toast from 'react-hot-toast';
 
 interface PaperTradingOrderFormProps {
   readonly onClose: () => void;
   readonly onSuccess: () => void;
   readonly currentCapital: number;
+  readonly user: string;
 }
 
-export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: PaperTradingOrderFormProps) {
+export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user }: PaperTradingOrderFormProps) {
+  // Helper function to convert time string (HH:MM) to minutes since midnight
+  const timeToMinutes = (timeString: string): number => {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
   const [formData, setFormData] = useState<CreateOrderRequest>({
     companyName: '',
     instrumentKey: '',
@@ -24,16 +33,47 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
     entryTime: '09:15', // Default market opening time
     quantity: 0,
     stopLoss: 0,
-    targetPrice: 0
+    targetPrice: 0,
+    comments: [],
+    prediction: 0
   });
+  const [predictionType, setPredictionType] = useState<'profit' | 'action-not-taken'>('profit');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Check if current time is within market hours (Mon-Fri, 9:15 AM - 3:30 PM IST)
+  const isMarketOpen = () => {
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+    const istTime = new Date(now.getTime() + istOffset);
+    
+    const dayOfWeek = istTime.getUTCDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const hours = istTime.getUTCHours();
+    const minutes = istTime.getUTCMinutes();
+    const currentMinutes = hours * 60 + minutes;
+    
+    // Market hours: Monday-Friday (1-5), 9:15 AM (555 minutes) to 3:30 PM (930 minutes)
+    const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+    const isMarketTime = currentMinutes >= 555 && currentMinutes <= 930;
+    
+    return isWeekday && isMarketTime;
+  };
+
+  const marketStatus = isMarketOpen();
+  
+  // Live Info Drawer State
+  const [isLiveInfoOpen, setIsLiveInfoOpen] = useState(false);
   
   // Company search state
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
+  
+  // Company price data state
+  const [companyPrice, setCompanyPrice] = useState<number | null>(null);
+  const [companyChange, setCompanyChange] = useState<number | null>(null);
+  const [isLoadingPrice, setIsLoadingPrice] = useState(false);
 
   // Fetch KeyMapping from Redis on mount
   useEffect(() => {
@@ -52,6 +92,81 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
         toast.error('Failed to load company data');
       });
   }, []);
+
+  // Fetch company price data function
+  const fetchCompanyPrice = async () => {
+    if (!selectedCompany || !formData.instrumentKey || !formData.entryDate || !formData.entryTime) {
+      return;
+    }
+
+    // Skip fetching for weekends (Saturday = 6, Sunday = 0)
+    const entryDate = new Date(formData.entryDate);
+    const dayOfWeek = entryDate.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      setCompanyPrice(null);
+      setCompanyChange(null);
+      return;
+    }
+
+    setIsLoadingPrice(true);
+    try {
+      const apiKey = localStorage.getItem('upstoxApiKey');
+      if (!apiKey) {
+        console.warn('No Upstox API key found');
+        setCompanyPrice(null);
+        setCompanyChange(null);
+        return;
+      }
+
+      // Fetch minute data for the selected date
+      const result = await fetchUpstoxHistoricalData(
+        formData.instrumentKey,
+        'minute',
+        '1',
+        formData.entryDate,
+        formData.entryDate,
+        apiKey
+      );
+
+      if (result.candles && result.candles.length > 0) {
+        // Find the candle closest to the entry time
+        const entryTimeMinutes = timeToMinutes(formData.entryTime);
+        let closestCandle = result.candles[0];
+        let minTimeDiff = Infinity;
+
+        for (const candle of result.candles) {
+          // Parse the timestamp string to get hours and minutes
+          const candleTime = new Date(candle.timestamp);
+          const candleMinutes = candleTime.getHours() * 60 + candleTime.getMinutes();
+          const timeDiff = Math.abs(candleMinutes - entryTimeMinutes);
+
+          if (timeDiff < minTimeDiff) {
+            minTimeDiff = timeDiff;
+            closestCandle = candle;
+          }
+        }
+
+        const currentPrice = closestCandle.close;
+
+        // For change calculation, compare with the first candle of the day (oldest)
+        const firstCandleOfDay = result.candles[result.candles.length - 1]; // oldest candle (assuming sorted newest first)
+        const firstCandleClose = firstCandleOfDay.close;
+        const change = ((currentPrice - firstCandleClose) / firstCandleClose) * 100;
+
+        setCompanyPrice(currentPrice);
+        setCompanyChange(change);
+      } else {
+        setCompanyPrice(null);
+        setCompanyChange(null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch company price:', error);
+      setCompanyPrice(null);
+      setCompanyChange(null);
+    } finally {
+      setIsLoadingPrice(false);
+    }
+  };
 
   // Update suggestions as user types
   useEffect(() => {
@@ -122,6 +237,19 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
       newErrors.stopLoss = 'Stop loss should be less than target price';
     }
 
+    if (formData.prediction === undefined || formData.prediction === null) {
+      newErrors.prediction = 'Prediction is required';
+    } else {
+      const predictionValue = formData.prediction;
+      if (predictionValue < -30 || predictionValue > 30) {
+        newErrors.prediction = 'Prediction must be between -30% and +30%';
+      } else if (predictionType === 'profit' && predictionValue < 0) {
+        newErrors.prediction = 'Profit prediction must be positive';
+      } else if (predictionType === 'action-not-taken' && predictionValue !== 0) {
+        newErrors.prediction = 'Action not taken prediction must be 0%';
+      }
+    }
+
     // Note: We can't validate capital without knowing the actual entry price
     // The backend will handle this validation with real-time prices
 
@@ -129,7 +257,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleInputChange = (field: keyof CreateOrderRequest, value: string | number) => {
+  const handleInputChange = (field: keyof CreateOrderRequest, value: string | number | string[]) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -144,21 +272,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
     }
   };
 
-  const calculateTotalCost = () => {
-    // Since we don't have entry price at order creation time,
-    // this will be calculated by the backend with real-time prices
-    return 0;
-  };
 
-  const calculatePotentialProfit = () => {
-    // Will be calculated by backend based on actual entry price vs target
-    return 0;
-  };
-
-  const calculatePotentialLoss = () => {
-    // Will be calculated by backend based on actual entry price vs stop loss
-    return 0;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,9 +282,15 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
       return;
     }
 
+    // Filter out empty comments before submitting
+    const cleanedFormData = {
+      ...formData,
+      comments: formData.comments.filter(comment => comment.trim() !== '')
+    };
+
     setIsSubmitting(true);
     try {
-      await createPaperTradeOrder(formData);
+      await createPaperTradeOrder(cleanedFormData, user);
       toast.success('Order created successfully!');
       onSuccess();
     } catch (error) {
@@ -181,23 +301,109 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
     }
   };
 
+  const renderPrice = () => {
+    if (isLoadingPrice) return <span className="text-gray-500">Loading...</span>;
+    if (companyPrice) return <span className="text-green-600">₹{companyPrice.toFixed(2)}</span>;
+    return <span className="text-gray-500">N/A</span>;
+  };
+
+
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle className="text-xl font-bold flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-green-600" />
-            Create New Paper Trade Order
-          </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="h-8 w-8 p-0"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </CardHeader>
+    <>
+      {/* Live Info Drawer - Independent of Modal */}
+      <Sheet open={isLiveInfoOpen} onOpenChange={(open) => {
+        setIsLiveInfoOpen(open);
+        if (open) {
+          fetchCompanyPrice();
+        }
+      }}>
+        <SheetContent side="right" className="w-[500px] sm:w-[600px]">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full animate-pulse ${marketStatus ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              Live Market Info
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="flex flex-col h-full mt-6">
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto space-y-4">
+              {/* Market Status */}
+              <div className={`border rounded-lg p-3 ${marketStatus ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-800">Market Status</span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${marketStatus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {marketStatus ? 'OPEN' : 'CLOSED'}
+                  </span>
+                </div>
+                <p className={`text-xs mt-1 ${marketStatus ? 'text-green-600' : 'text-red-600'}`}>
+                  {marketStatus ? 'Market is currently open for trading' : 'Market is currently closed'}
+                </p>
+              </div>
+
+              {/* Current Company Info */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <h3 className="text-sm font-medium text-blue-800 mb-2">Selected Company</h3>
+                {selectedCompany ? (
+                  <div className="space-y-1 text-xs">
+                    <p><span className="font-medium">Name:</span> {selectedCompany}</p>
+                    <p><span className="font-medium">Key:</span> {formData.instrumentKey}</p>
+                    <p><span className="font-medium">{marketStatus ? 'Live at:' : 'Last traded at:'}</span> {renderPrice()}</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-600">
+                    Select a company from the order form to view historical data
+                  </p>
+                )}
+              </div>
+
+             
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-200 pt-3 mt-4">
+              <p className="text-xs text-gray-500 text-center">
+                Last updated: {new Date().toLocaleTimeString()}
+              </p>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Main Order Form Modal */}
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div className="flex items-center gap-4">
+              <CardTitle className="text-xl font-bold flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-green-600" />
+                Create New Paper Trade Order
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+                onClick={() => {
+                  setIsLiveInfoOpen(true);
+                  fetchCompanyPrice();
+                }}
+              >
+                Live Info
+              </Button>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setIsLiveInfoOpen(false); // Close drawer when modal closes
+                onClose();
+              }}
+              className="h-8 w-8 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </CardHeader>
         
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -358,6 +564,116 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
             </div>
     
 
+            {/* Additional Information */}
+            <div className="space-y-4">
+              <div className="space-y-4">
+                <Label>Prediction Type</Label>
+                <RadioGroup
+                  value={predictionType}
+                  onValueChange={(value: 'profit' | 'action-not-taken') => {
+                    setPredictionType(value);
+                    // Reset prediction to 0 when switching types
+                    handleInputChange('prediction', 0);
+                  }}
+                  className="flex space-x-6"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="profit" id="profit" />
+                    <Label htmlFor="profit" className="text-green-600 font-medium cursor-pointer">
+                      Profit
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="action-not-taken" id="action-not-taken" />
+                    <Label htmlFor="action-not-taken" className="text-gray-600 font-medium cursor-pointer">
+                      Action Not Taken
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                <div className="space-y-2">
+                  <Label htmlFor="prediction">Prediction (%)</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm text-gray-600 font-medium">0%</span>
+                      <div className="flex-1">
+                        {(() => {
+                          const isActionNotTaken = predictionType === 'action-not-taken';
+                          const isProfit = predictionType === 'profit';
+                          
+                          const sliderBackground = isProfit
+                            ? `linear-gradient(to right, #22c55e 0%, #22c55e ${(Math.abs(formData.prediction) / 30) * 100}%, #e5e7eb ${(Math.abs(formData.prediction) / 30) * 100}%, #e5e7eb 100%)`
+                            : isActionNotTaken
+                            ? '#6b7280'
+                            : `linear-gradient(to right, #ef4444 0%, #ef4444 ${(Math.abs(formData.prediction) / 30) * 100}%, #e5e7eb ${(Math.abs(formData.prediction) / 30) * 100}%, #e5e7eb 100%)`;
+
+                          const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                            const value = parseInt(e.target.value);
+                            const newPrediction = isProfit ? value : isActionNotTaken ? 0 : -value;
+                            handleInputChange('prediction', newPrediction);
+                          };
+
+                          const maxLabel = isProfit ? '+30%' : isActionNotTaken ? '0%' : '-30%';
+                          const labelColor = isProfit ? 'text-green-600' : isActionNotTaken ? 'text-gray-600' : 'text-red-600';
+
+                          return (
+                            <input
+                              id="prediction"
+                              type="range"
+                              min="0"
+                              max="30"
+                              step="1"
+                              value={Math.abs(formData.prediction)}
+                              onChange={handleSliderChange}
+                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                              style={{ background: sliderBackground }}
+                              disabled={isActionNotTaken}
+                            />
+                          );
+                        })()}
+                    </div>
+                    <div className="text-center">
+                      <span className={`text-lg font-bold ${predictionType === 'profit' ? 'text-green-600' : predictionType === 'action-not-taken' ? 'text-gray-600' : 'text-red-600'}`}>
+                        {predictionType === 'action-not-taken' ? '0%' : `${predictionType === 'profit' ? '+' : '-'}${Math.abs(formData.prediction)}%`}
+                      </span>
+                    </div>
+                  </div>
+                  {errors.prediction && (
+                    <p className="text-sm text-red-500">{errors.prediction}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="comments">Analysis Comments (Bullet Points)</Label>
+                <textarea
+                  id="comments"
+                  placeholder={`Enter comments`}
+                  value={formData.comments.join('\n')}
+                  onChange={(e) => {
+                    const lines = e.target.value.split('\n');
+                    // Limit to maximum 10 lines total
+                    const limitedLines = lines.slice(0, 10);
+                    handleInputChange('comments', limitedLines);
+                  }}
+                  className="w-full min-h-[200px] max-h-[300px] px-3 py-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-y-auto"
+                  style={{
+                    backgroundImage: 'linear-gradient(transparent, transparent 23px, #e5e7eb 23px, #e5e7eb 24px)',
+                    backgroundSize: '100% 24px',
+                    lineHeight: '24px',
+                    fontFamily: 'monospace',
+                    paddingTop: '6px',
+                    paddingBottom: '6px'
+                  }}
+                  rows={10}
+                />
+                <p className="text-xs text-gray-500">
+                  Enter each comment on a new line (max 10 bullet points). The box will scroll if needed.
+                </p>
+              </div>
+            </div>
+            </div>
+
             {/* Capital Validation Error */}
             {errors.capital && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -395,6 +711,27 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
                     <span className="text-gray-600">Target Price:</span>
                     <span className="font-semibold ml-2">₹{formData.targetPrice}</span>
                   </div>
+                  <div>
+                    <span className="text-gray-600">Prediction:</span>
+                    {(() => {
+                      const predictionValue = formData.prediction;
+                      let colorClass = 'text-gray-600';
+                      if (predictionValue > 0) {
+                        colorClass = 'text-green-600';
+                      } else if (predictionValue < 0) {
+                        colorClass = 'text-red-600';
+                      }
+                      return (
+                        <span className={`font-semibold ml-2 ${colorClass}`}>
+                          {predictionValue > 0 ? '+' : '-'}{predictionValue}%
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Comments:</span>
+                    <span className="font-semibold ml-2">{formData.comments.length} bullet points</span>
+                  </div>
                 </div>
                 <div className="text-xs text-gray-500 mt-2">
                   * Brokerage fees will be automatically calculated and applied by the system
@@ -423,7 +760,13 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
                   formData.quantity <= 0 ||
                   formData.stopLoss <= 0 ||
                   formData.targetPrice <= 0 ||
-                  formData.stopLoss >= formData.targetPrice
+                  formData.stopLoss >= formData.targetPrice ||
+                  formData.prediction === undefined ||
+                  formData.prediction === null ||
+                  formData.prediction < -30 ||
+                  formData.prediction > 30 ||
+                  (predictionType === 'profit' && formData.prediction < 0) ||
+                  (predictionType === 'action-not-taken' && formData.prediction !== 0)
                 }
                 className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
@@ -434,5 +777,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital }: Pa
         </CardContent>
       </Card>
     </div>
+
+    </>
   );
 }

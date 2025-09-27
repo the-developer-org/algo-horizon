@@ -14,9 +14,10 @@ interface ResetAccountModalProps {
   readonly onClose: () => void;
   readonly onSuccess: () => void;
   readonly currentCapital: number;
+  readonly user: string;
 }
 
-export function ResetAccountModal({ isOpen, onClose, onSuccess, currentCapital }: ResetAccountModalProps) {
+export function ResetAccountModal({ isOpen, onClose, onSuccess, currentCapital, user }: ResetAccountModalProps) {
   const [initialCapital, setInitialCapital] = useState<number>(3000000);
   const [confirmationText, setConfirmationText] = useState<string>('');
   const [isResetting, setIsResetting] = useState<boolean>(false);
@@ -37,7 +38,7 @@ export function ResetAccountModal({ isOpen, onClose, onSuccess, currentCapital }
 
     setIsResetting(true);
     try {
-      const success = await resetPaperTradeAccount(initialCapital);
+      const success = await resetPaperTradeAccount(user, initialCapital);
       if (success) {
         toast.success(`Account reset successfully with ₹${initialCapital.toLocaleString()} initial capital!`);
         onSuccess();

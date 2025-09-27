@@ -53,6 +53,7 @@ interface SwingAnalysis {
   previousSwing?: SwingDTO | null;
 
   emacross: EMACROSS;
+ 
 
 }
 interface EMACROSS {
@@ -66,6 +67,34 @@ interface EMACROSS {
   emaCrossoverList15M?: string[] | null;
   emaCrossoverList4H?: string[] | null;
   emaCrossoverListDay?: string[] | null;
+}
+
+interface FibAnalysis{
+  uuid: string;
+  companyName: string;
+  instrumentKey: string;
+  fibLevels: FibLevels;
+}
+
+interface FibLevels {
+  fibHealthyCandle?: Candle | null;
+  fib61Candle?: Candle | null;
+  fib78Candle?: Candle | null;
+  fib100Candle?: Candle | null;
+  fib161Candle?: Candle | null;
+  fib261Candle?: Candle | null;
+  fib423Candle?: Candle | null;
+  maxProfitCandle?: Candle | null;
+  maxLossCandle?: Candle | null;
+  fibHealthy?: number | null;
+  fib61?: number | null;
+  fib78?: number | null;
+  fib100?: number | null;
+  fib161?: number | null;
+  fib261?: number | null;
+  fib423?: number | null;
+  maxProfit?: number | null;
+  maxLoss?: number | null;
 }
 
 interface Stryke {
@@ -187,6 +216,7 @@ function StrikeAnalysisContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [strykeMetrics, setStrykeMetrics] = useState<metricsData | null>(null);
   const [algoMetrics, setAlgoMetrics] = useState<metricsData | null>(null);
+  const [fiboMetrics, setFiboMetrics] = useState<metricsData | null>(null);
   // Global blocking loader for long running actions (delete, bulk ops, etc.)
   const [globalLoading, setGlobalLoading] = useState(false);
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
@@ -206,6 +236,7 @@ function StrikeAnalysisContent() {
   const [selectedStryke, setSelectedStryke] = useState<AnalysisResponse | null>(null);
   const [strykeAnalysisList, setStrykeAnalysisList] = useState<AnalysisResponse[]>([]);
   const [algoAnalysisList, setAlgoAnalysisList] = useState<AnalysisResponse[]>([]);
+  const [fiboAnalysisList, setFiboAnalysisList] = useState<AnalysisResponse[]>([]);
 
   const [filteredAnalysisList, setFilteredAnalysisList] = useState<AnalysisResponse[]>([]);
 
@@ -218,6 +249,7 @@ function StrikeAnalysisContent() {
   const [showMetrics, setShowMetrics] = useState(() => false);
   const [showAlgoAnalysis, setShowAlgoAnalysis] = useState(() => true);
   const [showStrykeAnalysis, setShowStrykeAnalysis] = useState(() => true);
+  const [showFiboAnalysis, setShowFiboAnalysis] = useState(() => true);
   const [activeFilter, setActiveFilter] = useState({
     date: null as FilterOrder,
     name: null as FilterOrder,
@@ -463,6 +495,7 @@ function StrikeAnalysisContent() {
     setStrykeList([]); // Clear existing data
     setStrykeAnalysisList([]);
     setAlgoAnalysisList([]);
+    setFiboAnalysisList([]);
     setFilteredAnalysisList([]);
 
     // Initialize progress
@@ -505,17 +538,19 @@ function StrikeAnalysisContent() {
               // Process the new data
               const algoAnalysis: AnalysisResponse[] = data.swingStatsList["ALGO"] || [];
               const strykeAnalysis: AnalysisResponse[] = data.swingStatsList["STRYKE"] || [];
+              const fiboAnalysis: AnalysisResponse[] = data.swingStatsList["FIBO"] || [];
               setAlgoAnalysisList((prev) => [...prev, ...algoAnalysis]);
               setStrykeAnalysisList((prev) => [...prev, ...strykeAnalysis]);
+              setFiboAnalysisList((prev) => [...prev, ...fiboAnalysis]);
 
               // Add to accumulated data
-              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis];
+              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis];
 
               // Update the UI immediately with new data
               setStrykeList(allStrykes);
 
               // Update filtered lists with the new combined data
-              setFilteredAnalysisList((prev) => [...prev, ...algoAnalysis, ...strykeAnalysis]);
+              setFilteredAnalysisList((prev) => [...prev, ...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis]);
 
               console.log(`Loaded ${allStrykes.length} companies from alphabet ${alphabet}`);
 
@@ -833,6 +868,7 @@ function StrikeAnalysisContent() {
       // Clear metrics when no data is available
       setStrykeMetrics(null);
       setAlgoMetrics(null);
+      setFiboMetrics(null);
     }
   }, [filteredAnalysisList, showMetrics]);
 
@@ -924,6 +960,8 @@ function StrikeAnalysisContent() {
 
       // Add Stryke Analysis Row if it exists and is shown
 
+      const analysisType = stryke.label || 'N/A';
+
       const entryDate = stryke.entryTime ? new Date(stryke.entryTime).toLocaleDateString() : 'N/A';
       const entryPrice = Number(stryke.entryCandleClose ?? 0) || 0;
       const targetPrice = Number(stryke.target ?? 0) || 0;
@@ -942,8 +980,8 @@ function StrikeAnalysisContent() {
 
 
       rows.push([
-        `${index + 1}a`,
-        'Stryke Analysis',
+        `${index + 1}`,
+        analysisType,
         String(stryke.companyName ?? ''),
         entryDate,
         Number(entryPrice.toFixed(2)),
@@ -1062,7 +1100,7 @@ function StrikeAnalysisContent() {
             ? ((target - entry) / entry * 100)
             : 0;
         } else {
-          const entry = Number(stryke.algoSwingAnalysis?.algoentryCandleClose ?? 0);
+          const entry = Number(stryke.algoSwingAnalysis?.algoentryCandle.close ?? 0);
           const target = Number(stryke.algoSwingAnalysis?.algoResistance ?? 0);
           return isFinite(entry) && isFinite(target) && entry > 0
             ? ((target - entry) / entry * 100)
@@ -1140,8 +1178,16 @@ function StrikeAnalysisContent() {
     const strykeMetricsData = calculateAnalysisMetrics((stryke) => filteredAnalysisList);
     setStrykeMetrics(strykeMetricsData);
 
+    // Calculate metrics for Algo Analysis
+    const algoMetricsData = calculateAnalysisMetrics((stryke) => filteredAnalysisList);
+    setAlgoMetrics(algoMetricsData);
+
+    // Calculate metrics for Fibo Analysis
+    const fiboMetricsData = calculateAnalysisMetrics((stryke) => filteredAnalysisList);
+    setFiboMetrics(fiboMetricsData);
+
     if (!suppressToast) {
-      toast.success('Metrics calculated successfully for both Stryke and Algo analysis');
+      toast.success('Metrics calculated successfully for Stryke, Algo, and Fibo analysis');
     }
   }
 
@@ -1311,6 +1357,7 @@ function StrikeAnalysisContent() {
                     {showMetrics ? 'Hide Metrics' : 'Show Metrics'}
                   </Button>
                 )}
+              
                 {/* 
                 {showAllStrykes && (
                   <Button
@@ -1682,13 +1729,14 @@ function StrikeAnalysisContent() {
 
                       setShowAlgoAnalysis(true)
                       setShowStrykeAnalysis(true)
+                      setShowFiboAnalysis(true)
 
                       // Reset month selection
                       setSelectedMonth(null);
 
                       // Reset filtered list to original lists
 
-                      setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList]);
+                      setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList, ...fiboAnalysisList]);
                     }}
                   >
                     Reset Filters
@@ -1746,6 +1794,30 @@ function StrikeAnalysisContent() {
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
                           Hide Stryke Analysis
+                        </Button>
+                      )}
+
+                      {!showFiboAnalysis && (
+                        <Button
+                          onClick={() => {
+                            setShowFiboAnalysis(true)
+                            setFilteredAnalysisList([...filteredAnalysisList, ...fiboAnalysisList]);
+                          }}
+                          className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                        >
+                          Show Fibo Analysis
+                        </Button>
+                      )}
+
+                      {showFiboAnalysis && (
+                        <Button
+                          onClick={() => {
+                            setShowFiboAnalysis(false)
+                            setFilteredAnalysisList(filteredAnalysisList.filter(item => item.label !== 'FIBO'));
+                          }}
+                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                        >
+                          Hide Fibo Analysis
                         </Button>
                       )}
                     </div>
@@ -1833,7 +1905,7 @@ function StrikeAnalysisContent() {
                       </div>
 
                       {/* ER Gap Distribution Comparison */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                         <div className="bg-white p-4 rounded-lg border shadow-sm">
                           <h4 className="text-lg font-semibold text-blue-700 mb-4 text-center">Stryke Analysis - ER Gap Distribution</h4>
                           <div className="grid grid-cols-3 gap-3">
@@ -1872,7 +1944,7 @@ function StrikeAnalysisContent() {
                       </div>
 
                       {/* Profit Values and Performance Metrics */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* Stryke Analysis Detailed Metrics */}
                         <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
                           <h4 className="text-lg font-semibold text-blue-700 mb-4">Stryke Analysis Metrics</h4>
@@ -2768,12 +2840,27 @@ function StrikeAnalysisContent() {
                           return (
                             <React.Fragment key={stryke.uuid || index}>
 
-                              <tr className={`${stryke.label === "STRYKE" ? 'bg-green-100' : 'bg-blue-100'} hover:bg-green-200 border-l-4 border-green-500`}>
+                              <tr className={`${
+                                stryke.label === "STRYKE" ? 'bg-green-100 hover:bg-green-200 border-l-4 border-green-500' :
+                                stryke.label === "ALGO" ? 'bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500' :
+                                stryke.label === "FIBO" ? 'bg-purple-100 hover:bg-purple-200 border-l-4 border-purple-500' :
+                                'bg-gray-100 hover:bg-gray-200 border-l-4 border-gray-500'
+                              }`}>
                                 <td className="border border-gray-700 px-4 py-2 text-center align-middle">{index + 1}</td>
                                 <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[280px]" title={stryke.companyName}>
                                   <div className="flex flex-col">
                                     <span className="font-medium">{stryke.companyName}</span>
-                                    <span className="text-xs text-green-600 font-semibold">{stryke.label === "STRYKE" ? "Stryke Analysis" : "Algo Analysis"}</span>
+                                    <span className={`text-xs font-semibold ${
+                                      stryke.label === "STRYKE" ? 'text-green-600' :
+                                      stryke.label === "ALGO" ? 'text-blue-600' :
+                                      stryke.label === "FIBO" ? 'text-purple-600' :
+                                      'text-gray-600'
+                                    }`}>{
+                                      stryke.label === "STRYKE" ? "Stryke Analysis" :
+                                      stryke.label === "ALGO" ? "Algo Analysis" :
+                                      stryke.label === "FIBO" ? "Fibo Analysis" :
+                                      "Unknown Analysis"
+                                    }</span>
                                   </div>
                                 </td>
 

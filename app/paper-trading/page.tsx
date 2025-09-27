@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, TrendingUp, BarChart3, DollarSign, RotateCcw } from "lucide-react";
 import toast from 'react-hot-toast';
 
@@ -29,6 +30,27 @@ export default function PaperTradingPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [timeDisplayTrigger, setTimeDisplayTrigger] = useState(0);
+  const [selectedAccount, setSelectedAccount] = useState<string>('Main');
+  const [currentUser, setCurrentUser] = useState<string>('');
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+
+  // Get current user and admin status
+  useEffect(() => {
+    const user = localStorage.getItem('currentUser') || '';
+    const adminStatus = user === 'Abrar';
+    setCurrentUser(user);
+    setIsAdmin(adminStatus);
+    setSelectedAccount(adminStatus ? 'Main' : user);
+  }, []);
+
+  // Available accounts based on admin status
+  const availableAccounts = useMemo(() => {
+    if (isAdmin) {
+      return ['Main', 'Abrar', 'Sadiq', 'Nawaz'];
+    } else {
+      return [currentUser, 'Main'].filter(Boolean);
+    }
+  }, [isAdmin, currentUser]);
 
   // Format last refresh time for display
   const lastRefreshDisplay = useMemo(() => {
@@ -73,14 +95,14 @@ export default function PaperTradingPage() {
   };
 
   // Fetch all data
-  const fetchData = async () => {
+  const fetchData = async (account: string = selectedAccount) => {
     try {
       setIsLoading(true);
       const [dashboard, all, active, completed] = await Promise.all([
-        getPaperTradeDashboard(),
-        getAllPaperTradeOrders(),
-        getActivePaperTradeOrders(),
-        getCompletedPaperTradeOrders()
+        getPaperTradeDashboard(account),
+        getAllPaperTradeOrders(account),
+        getActivePaperTradeOrders(account),
+        getCompletedPaperTradeOrders(account)
       ]);
 
       setDashboardData(dashboard);
@@ -100,8 +122,10 @@ export default function PaperTradingPage() {
 
   // Initial data fetch
   useEffect(() => {
-    fetchData();
-  }, [refreshTrigger]);
+    if (selectedAccount) {
+      fetchData(selectedAccount);
+    }
+  }, [selectedAccount, refreshTrigger]);
 
   // Auto-refresh every 5 minutes during market hours
   useEffect(() => {
@@ -158,13 +182,30 @@ export default function PaperTradingPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
               <DollarSign className="h-8 w-8 text-green-600" />
-              Paper Trading
+              Paper Trading - {selectedAccount}
             </h1>
             <p className="text-gray-600 mt-1">
               Practice trading with virtual capital and track your performance
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Account Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Account:</span>
+              <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableAccounts.map(account => (
+                    <SelectItem key={account} value={account}>
+                      {account}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Last Refresh Timestamp */}
             <div className="text-sm text-gray-500 flex items-center gap-1">
               <span>Last updated:</span>
@@ -231,6 +272,7 @@ export default function PaperTradingPage() {
                 <PaperTradingOrdersTable 
                   orders={allOrders} 
                   onOrderAction={handleOrderAction}
+                  user={selectedAccount}
                 />
               </CardContent>
             </Card>
@@ -249,6 +291,7 @@ export default function PaperTradingPage() {
                   orders={activeOrders} 
                   onOrderAction={handleOrderAction}
                   showActions={true}
+                  user={selectedAccount}
                 />
               </CardContent>
             </Card>
@@ -266,6 +309,7 @@ export default function PaperTradingPage() {
                 <PaperTradingOrdersTable 
                   orders={completedOrders} 
                   onOrderAction={handleOrderAction}
+                  user={selectedAccount}
                 />
               </CardContent>
             </Card>
@@ -278,6 +322,7 @@ export default function PaperTradingPage() {
             onClose={() => setShowOrderForm(false)}
             onSuccess={handleOrderCreated}
             currentCapital={dashboardData?.currentCapital || 0}
+            user={selectedAccount}
           />
         )}
 
@@ -288,6 +333,7 @@ export default function PaperTradingPage() {
             onClose={() => setShowResetModal(false)}
             onSuccess={handleRefresh}
             currentCapital={dashboardData?.currentCapital || 0}
+            user={selectedAccount}
           />
         )}
       </div>

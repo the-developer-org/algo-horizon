@@ -19,6 +19,8 @@ export interface PaperTradeOrder {
   amountInvested: number;
   returnOnInvestment?: number;
   status: 'ACTIVE' | 'COMPLETED';
+  comments: string[];
+  prediction: number;
 }
 
 export interface PaperTradeDashboard {
@@ -65,6 +67,8 @@ export interface CreateOrderRequest {
   quantity: number;
   stopLoss: number;
   targetPrice: number;
+  comments: string[];
+  prediction: number;
 }
 
 export interface ExitOrderRequest {

@@ -8,12 +8,18 @@ export default function AuthPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [shouldShow, setShouldShow] = useState(false);
+  const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isInvalid, setIsInvalid] = useState(false);
 
-  const baseBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+  // Predefined users with their PINs
+  const users = {
+    'Nawaz': '1111',
+    'Sadiq': '2534',
+    'Abrar': '7272'
+  };
 
   useEffect(() => {
     const isAuthorized = sessionStorage.getItem('isUserAuthorised');
@@ -37,19 +43,23 @@ export default function AuthPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username) {
+      setError('Please select a username');
+      return;
+    }
     if (pin.length < 4 || pin.length > 6) {
       setError('PIN must be 4 to 6 digits');
       return;
     }
 
-    // Hard check for PIN validation
-    const validPins = ['726746', '2534'];
-    if (!validPins.includes(pin)) {
-      setError('Invalid PIN');
+    // Check if PIN matches the selected user's PIN
+    if (users[username as keyof typeof users] !== pin) {
+      setError('Invalid PIN for selected user');
       setIsInvalid(true);
       setPin('');
     } else {
       sessionStorage.setItem('isUserAuthorised', 'true');
+      localStorage.setItem('currentUser', username);
       router.replace('/');
     }
   };
@@ -81,6 +91,23 @@ export default function AuthPage() {
         
         <form onSubmit={handleSubmit} className="flex flex-col items-center gap-4 w-full">
           <div className="flex flex-col items-center gap-2 w-full">
+                        <select
+              value={username}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setError('');
+                setIsInvalid(false);
+              }}
+              className="w-full max-w-[200px] h-[48px] bg-white bg-opacity-90 border-2 border-green-500 focus:border-green-600 rounded-lg text-center"
+            >
+              <option value="" disabled>Select user to login</option>
+              <option value="Nawaz">Nawaz</option>
+              <option value="Sadiq">Sadiq</option>
+              <option value="Abrar">Abrar</option>
+            </select>
+            
+          </div>
+          <div className="flex flex-col items-center gap-2 w-full">
             <input
               type="password"
               value={pin}
@@ -102,9 +129,9 @@ export default function AuthPage() {
 
           <Button
             type="submit"
-            disabled={isSubmitting || pin.length < 4 || pin.length > 6}
+            disabled={isSubmitting || pin.length < 4 || pin.length > 6 || !username}
             className={`w-[200px] h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 
-                     ${isSubmitting || pin.length < 4 || pin.length > 6 
+                     ${isSubmitting || pin.length < 4 || pin.length > 6 || !username
                        ? 'bg-gray-500 cursor-not-allowed' 
                        : buttonClass}`}
           >

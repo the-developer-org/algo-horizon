@@ -22,15 +22,17 @@ interface PaperTradingOrdersTableProps {
   readonly orders: PaperTradeOrder[];
   readonly onOrderAction?: () => void;
   readonly showActions?: boolean;
+  readonly user: string;
 }
 
 interface ExitOrderModalProps {
   readonly order: PaperTradeOrder;
   readonly onClose: () => void;
   readonly onSuccess: () => void;
+  readonly user: string;
 }
 
-function ExitOrderModal({ order, onClose, onSuccess }: ExitOrderModalProps) {
+function ExitOrderModal({ order, onClose, onSuccess, user }: ExitOrderModalProps) {
   const [exitReason, setExitReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -50,7 +52,7 @@ function ExitOrderModal({ order, onClose, onSuccess }: ExitOrderModalProps) {
 
     setIsSubmitting(true);
     try {
-      await exitPaperTradeOrder(order.id, {
+      await exitPaperTradeOrder(user, order.id, {
         exitReason: exitReason.trim()
       });
       toast.success('Order exited successfully!');
@@ -114,7 +116,7 @@ function ExitOrderModal({ order, onClose, onSuccess }: ExitOrderModalProps) {
   );
 }
 
-export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = false }: PaperTradingOrdersTableProps) {
+export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = false, user }: PaperTradingOrdersTableProps) {
   const [exitingOrder, setExitingOrder] = useState<PaperTradeOrder | null>(null);
 
   const formatCurrency = (amount: number) => {
@@ -190,7 +192,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
     }
 
     try {
-      await cancelPaperTradeOrder(orderId);
+      await cancelPaperTradeOrder(user, orderId);
       toast.success('Order cancelled successfully!');
       onOrderAction?.();
     } catch (error) {
@@ -225,6 +227,8 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
             <th className="text-left p-3 font-semibold">Curr Value</th>
             <th className="text-left p-3 font-semibold">Exit</th>
             <th className="text-left p-3 font-semibold">P&L</th>
+            <th className="text-left p-3 font-semibold">Prediction</th>
+            <th className="text-left p-3 font-semibold">Comments</th>
             <th className="text-left p-3 font-semibold">Status</th>
             {showActions && <th className="text-left p-3 font-semibold">Actions</th>}
           </tr>
@@ -309,6 +313,31 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
               </td>
               
               <td className="p-3">
+                <div className="max-w-[150px] truncate">
+                  {order.prediction || '-'}
+                </div>
+              </td>
+              
+              <td className="p-3">
+                <div className="max-w-[150px]">
+                  {order.comments && order.comments.length > 0 ? (
+                    <ul className="text-xs list-disc list-inside">
+                      {order.comments.slice(0, 2).map((comment, index) => (
+                        <li key={`comment-${order.id}-${index}`} className="truncate" title={comment}>
+                          {comment}
+                        </li>
+                      ))}
+                      {order.comments.length > 2 && (
+                        <li className="text-gray-500">+{order.comments.length - 2} more</li>
+                      )}
+                    </ul>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </div>
+              </td>
+              
+              <td className="p-3">
                 <div className="flex items-center gap-2">
                   {getStatusIcon(order.status)}
                   <span className={`text-sm font-medium ${
@@ -356,6 +385,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
           order={exitingOrder}
           onClose={() => setExitingOrder(null)}
           onSuccess={handleExitSuccess}
+          user={user}
         />
       )}
     </div>
