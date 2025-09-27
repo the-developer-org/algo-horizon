@@ -32,9 +32,9 @@ export default function AuthPage() {
       case 'Nawaz':
         return '+919154460026';
       case 'Sadiq':
-        return '+919154460026';
+        return '+917036592824';
       case 'Abrar':
-        return '+919154460026';
+        return '+918885615779';
       default:
         return '';
     }
