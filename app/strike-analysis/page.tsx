@@ -1298,7 +1298,7 @@ function StrikeAnalysisContent() {
                 )} */}
 
 
-                <Button
+                {/* <Button
                   onClick={() => {
                     // Reset failure tracking before refetching data
                     (0);
@@ -1310,7 +1310,7 @@ function StrikeAnalysisContent() {
                   disabled={progressiveLoading}
                 >
                   {progressiveLoading ? 'Loading...' : 'Refresh List'}
-                </Button>
+                </Button> */}
 
 
                 {/* {!showStrykeStats && (
@@ -1324,21 +1324,6 @@ function StrikeAnalysisContent() {
                     Show Stryke Stats
                   </Button>
                 )} */}
-
-                {!showSwingStats && (
-                  <Button
-                    onClick={() => {
-                      handleToggleView(false, false, false, true);
-                      // Reset failure tracking before fetching data
-                      (0);
-                      setDataLoadingAttempted(false);
-                      fetchStrykes();
-                    }}
-                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                  >
-                    Show Swing Stats
-                  </Button>
-                )}
 
 
                 {showSwingStats && (
