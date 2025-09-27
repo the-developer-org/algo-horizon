@@ -16,7 +16,7 @@ export default function AuthPage() {
 
   // Predefined users with their PINs
   const users = {
-    'Nawaz': '1111',
+    'Nawaz': '752702',
     'Sadiq': '2534',
     'Abrar': '7272'
   };
