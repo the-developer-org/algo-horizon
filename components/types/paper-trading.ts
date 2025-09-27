@@ -68,7 +68,8 @@ export interface CreateOrderRequest {
   stopLoss: number;
   targetPrice: number;
   comments: string[];
-  prediction: number;
+  prediction: 'profit' | 'action-not-taken';
+  predictionPercentage: number;
 }
 
 export interface ExitOrderRequest {

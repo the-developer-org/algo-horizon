@@ -249,7 +249,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
               <td className="p-3">
                 <div className="font-medium">{formatCurrency(order.entryPrice)}</div>
                 <div className="text-xs text-gray-500">
-                  Total: {formatCurrency(order.amountInvested)}
+                  Cap Used: {formatCurrency(order.amountInvested)}
                 </div>
               </td>
               

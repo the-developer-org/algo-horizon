@@ -14,7 +14,7 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
 // Create a new paper trade order
 export const createPaperTradeOrder = async (orderData: CreateOrderRequest, user: string): Promise<PaperTradeOrder> => {
   try {
-    const response = await axios.post<PaperTradeApiResponse>(`${API_BASE}/${user}/order`, orderData);
+    const response = await axios.post<PaperTradeApiResponse>(`${API_BASE}/order/${user}`, orderData);
     if (response.data.paperTradeOrderResponse) {
       return response.data.paperTradeOrderResponse;
     }
@@ -79,7 +79,7 @@ export const exitPaperTradeOrder = async (
 // Get a specific order by ID
 export const getPaperTradeOrder = async (user: string, orderId: string): Promise<PaperTradeOrder> => {
   try {
-    const response = await axios.get<PaperTradeApiResponse>(`${API_BASE}/${user}/order/${orderId}`);
+    const response = await axios.get<PaperTradeApiResponse>(`${API_BASE}/order/${orderId}/${user}`);
     if (response.data.paperTradeOrderResponse) {
       return response.data.paperTradeOrderResponse;
     }

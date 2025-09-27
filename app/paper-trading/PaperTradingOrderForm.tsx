@@ -26,6 +26,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     const [hours, minutes] = timeString.split(':').map(Number);
     return hours * 60 + minutes;
   };
+  const [prediction, setPrediction] = useState<'profit' | 'action-not-taken'>('profit');
   const [formData, setFormData] = useState<CreateOrderRequest>({
     companyName: '',
     instrumentKey: '',
@@ -35,9 +36,10 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     stopLoss: 0,
     targetPrice: 0,
     comments: [],
-    prediction: 0
+    prediction: prediction,
+    predictionPercentage: 0,
   });
-  const [predictionType, setPredictionType] = useState<'profit' | 'action-not-taken'>('profit');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
@@ -240,12 +242,13 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     if (formData.prediction === undefined || formData.prediction === null) {
       newErrors.prediction = 'Prediction is required';
     } else {
-      const predictionValue = formData.prediction;
-      if (predictionValue < -30 || predictionValue > 30) {
+      const predictionPercentage = formData.predictionPercentage;
+      const predictionType = formData.prediction;
+      if (predictionPercentage < -30 || predictionPercentage > 30) {
         newErrors.prediction = 'Prediction must be between -30% and +30%';
-      } else if (predictionType === 'profit' && predictionValue < 0) {
+      } else if (predictionType === 'profit' && predictionPercentage < 0) {
         newErrors.prediction = 'Profit prediction must be positive';
-      } else if (predictionType === 'action-not-taken' && predictionValue !== 0) {
+      } else if (predictionType === 'action-not-taken' && predictionPercentage !== 0) {
         newErrors.prediction = 'Action not taken prediction must be 0%';
       }
     }
@@ -569,11 +572,11 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
               <div className="space-y-4">
                 <Label>Prediction Type</Label>
                 <RadioGroup
-                  value={predictionType}
+                  value={prediction}
                   onValueChange={(value: 'profit' | 'action-not-taken') => {
-                    setPredictionType(value);
+                    setPrediction(value);
                     // Reset prediction to 0 when switching types
-                    handleInputChange('prediction', 0);
+                    handleInputChange('predictionPercentage', 0);
                   }}
                   className="flex space-x-6"
                 >
@@ -598,14 +601,14 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                       <span className="text-sm text-gray-600 font-medium">0%</span>
                       <div className="flex-1">
                         {(() => {
-                          const isActionNotTaken = predictionType === 'action-not-taken';
-                          const isProfit = predictionType === 'profit';
+                          const isActionNotTaken = prediction === 'action-not-taken';
+                          const isProfit = prediction === 'profit';
                           
                           const sliderBackground = isProfit
-                            ? `linear-gradient(to right, #22c55e 0%, #22c55e ${(Math.abs(formData.prediction) / 30) * 100}%, #e5e7eb ${(Math.abs(formData.prediction) / 30) * 100}%, #e5e7eb 100%)`
+                            ? `linear-gradient(to right, #22c55e 0%, #22c55e ${(Math.abs(formData.predictionPercentage) / 30) * 100}%, #e5e7eb ${(Math.abs(formData.predictionPercentage) / 30) * 100}%, #e5e7eb 100%)`
                             : isActionNotTaken
                             ? '#6b7280'
-                            : `linear-gradient(to right, #ef4444 0%, #ef4444 ${(Math.abs(formData.prediction) / 30) * 100}%, #e5e7eb ${(Math.abs(formData.prediction) / 30) * 100}%, #e5e7eb 100%)`;
+                            : `linear-gradient(to right, #ef4444 0%, #ef4444 ${(Math.abs(formData.predictionPercentage) / 30) * 100}%, #e5e7eb ${(Math.abs(formData.predictionPercentage) / 30) * 100}%, #e5e7eb 100%)`;
 
                           const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                             const value = parseInt(e.target.value);
@@ -623,7 +626,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                               min="0"
                               max="30"
                               step="1"
-                              value={Math.abs(formData.prediction)}
+                              value={Math.abs(formData.predictionPercentage)}
                               onChange={handleSliderChange}
                               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                               style={{ background: sliderBackground }}
@@ -633,8 +636,8 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                         })()}
                     </div>
                     <div className="text-center">
-                      <span className={`text-lg font-bold ${predictionType === 'profit' ? 'text-green-600' : predictionType === 'action-not-taken' ? 'text-gray-600' : 'text-red-600'}`}>
-                        {predictionType === 'action-not-taken' ? '0%' : `${predictionType === 'profit' ? '+' : '-'}${Math.abs(formData.prediction)}%`}
+                      <span className={`text-lg font-bold ${prediction === 'profit' ? 'text-green-600' : prediction === 'action-not-taken' ? 'text-gray-600' : 'text-red-600'}`}>
+                        {prediction === 'action-not-taken' ? '0%' : `${prediction === 'profit' ? '+' : '-'}${Math.abs(formData.predictionPercentage)}%`}
                       </span>
                     </div>
                   </div>
@@ -714,16 +717,16 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                   <div>
                     <span className="text-gray-600">Prediction:</span>
                     {(() => {
-                      const predictionValue = formData.prediction;
+                      const predictionPercentage = formData.predictionPercentage;
                       let colorClass = 'text-gray-600';
-                      if (predictionValue > 0) {
+                      if (predictionPercentage > 0) {
                         colorClass = 'text-green-600';
-                      } else if (predictionValue < 0) {
+                      } else if (predictionPercentage < 0) {
                         colorClass = 'text-red-600';
                       }
                       return (
                         <span className={`font-semibold ml-2 ${colorClass}`}>
-                          {predictionValue > 0 ? '+' : '-'}{predictionValue}%
+                          {predictionPercentage > 0 ? '+' : '-'}{predictionPercentage}%
                         </span>
                       );
                     })()}
@@ -763,10 +766,10 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                   formData.stopLoss >= formData.targetPrice ||
                   formData.prediction === undefined ||
                   formData.prediction === null ||
-                  formData.prediction < -30 ||
-                  formData.prediction > 30 ||
-                  (predictionType === 'profit' && formData.prediction < 0) ||
-                  (predictionType === 'action-not-taken' && formData.prediction !== 0)
+                  formData.predictionPercentage < -30 ||
+                  formData.predictionPercentage > 30 ||
+                  (prediction === 'profit' && formData.predictionPercentage < 0) ||
+                  (prediction === 'action-not-taken' && formData.predictionPercentage !== 0)
                 }
                 className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
