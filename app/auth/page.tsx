@@ -9,16 +9,58 @@ export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [shouldShow, setShouldShow] = useState(false);
   const [username, setUsername] = useState('');
-  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isInvalid, setIsInvalid] = useState(false);
+  const [otp, setOtp] = useState(['', '', '', '', '']);
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [isGeneratingOtp, setIsGeneratingOtp] = useState(false);
+  // OTP masking function
+  const maskOtp = (otp: string): number => {
+    const num = parseInt(otp);
+    // Apply masking: (otp * 7) + 123 - 456
+    return (num * 7) + 123 - 456;
+  };
 
-  // Predefined users with their PINs
-  const users = {
-    'Nawaz': '752702',
-    'Sadiq': '2534',
-    'Abrar': '7272'
+  // Generate random 5-digit OTP
+  const generateOtp = (): string => {
+    return Math.floor(10000 + Math.random() * 90000).toString();
+  };
+
+  function getUserPhone(): string {
+    switch(username) {
+      case 'Nawaz':
+        return '+919154460026';
+      case 'Sadiq':
+        return '+919154460026';
+      case 'Abrar':
+        return '+919154460026';
+      default:
+        return '';
+    }
+  }
+
+  // Send masked OTP directly to WhatsApp service
+  const sendOtpToWhatsApp = async (maskedOtp: number, user: string): Promise<boolean> => {
+    try {
+      // Send masked OTP directly to WhatsApp service
+      // In production, replace with actual WhatsApp API endpoint
+      const WHATSAPP_API_URL = process.env.WHATSAPP_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${WHATSAPP_API_URL}/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message : maskedOtp,
+         groupName : getUserPhone()
+        }),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Failed to send OTP:', error);
+      return false;
+    }
   };
 
   useEffect(() => {
@@ -31,36 +73,91 @@ export default function AuthPage() {
     setIsLoading(false);
   }, [router]);
 
-  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Only allow numbers and max 6 digits
-    if (/^\d{0,6}$/.test(value)) {
-      setPin(value);
-      setError('');
-      setIsInvalid(false); // Reset invalid state when user starts typing
+  const handleOtpChange = (index: number, value: string) => {
+    // Only allow single digits
+    if (!/^\d?$/.test(value)) return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+    setError('');
+    setIsInvalid(false);
+
+    // Auto-focus next input
+    if (value && index < 4) {
+      const nextInput = document.getElementById(`otp-${index + 1}`);
+      nextInput?.focus();
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username) {
-      setError('Please select a username');
-      return;
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      const prevInput = document.getElementById(`otp-${index - 1}`);
+      prevInput?.focus();
     }
-    if (pin.length < 4 || pin.length > 6) {
-      setError('PIN must be 4 to 6 digits');
+  };
+
+  const handleGenerateOtp = async () => {
+    if (!username) {
+      setError('Please select a username first');
       return;
     }
 
-    // Check if PIN matches the selected user's PIN
-    if (users[username as keyof typeof users] !== pin) {
-      setError('Invalid PIN for selected user');
-      setIsInvalid(true);
-      setPin('');
-    } else {
+    setIsGeneratingOtp(true);
+    setError('');
+    setOtpSent(false); // Reset otpSent while sending
+
+    try {
+      // Generate random 5-digit OTP
+      const newOtp = generateOtp();
+      setGeneratedOtp(newOtp);
+
+      // Mask the OTP
+      const maskedOtp = maskOtp(newOtp);
+
+      // Send masked OTP to WhatsApp service
+      const success = await sendOtpToWhatsApp(maskedOtp, username);
+
+      if (success) {
+        setOtpSent(true);
+        setError('');
+      } else {
+        setError('Failed to send OTP. Please try again.');
+        setOtpSent(false);
+      }
+    } catch (err) {
+      setError('Failed to generate OTP. Please try again.');
+      setOtpSent(false);
+    } finally {
+      setIsGeneratingOtp(false);
+    }
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!otpSent) {
+      setError('Please generate OTP first');
+      return;
+    }
+
+    const otpString = otp.join('');
+    if (otpString.length !== 5) {
+      setError('Please enter a valid 5-digit OTP');
+      return;
+    }
+
+    // Verify OTP against the originally generated OTP
+    if (otpString === generatedOtp) {
+      setError('');
+      // Store user session
       sessionStorage.setItem('isUserAuthorised', 'true');
       localStorage.setItem('currentUser', username);
       router.replace('/');
+    } else {
+      setError('Invalid OTP. Please try again.');
+      setIsInvalid(true);
+      setOtp(['', '', '', '', '']);
     }
   };
 
@@ -71,8 +168,6 @@ export default function AuthPage() {
       </div>
     );
   }
-
-  const buttonClass = isInvalid ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600';
 
   return (
     <main 
@@ -89,59 +184,88 @@ export default function AuthPage() {
           ALGOHORIZON
         </h1>
         
-        <form onSubmit={handleSubmit} className="flex flex-col items-center gap-4 w-full">
-          <div className="flex flex-col items-center gap-2 w-full">
-                        <select
-              value={username}
-              onChange={(e) => {
-                setUsername(e.target.value);
-                setError('');
-                setIsInvalid(false);
-              }}
-              className="w-full max-w-[200px] h-[48px] bg-white bg-opacity-90 border-2 border-green-500 focus:border-green-600 rounded-lg text-center"
-            >
-              <option value="" disabled>Select user to login</option>
-              <option value="Nawaz">Nawaz</option>
-              <option value="Sadiq">Sadiq</option>
-              <option value="Abrar">Abrar</option>
-            </select>
-            
-          </div>
-          <div className="flex flex-col items-center gap-2 w-full">
-            <input
-              type="password"
-              value={pin}
-              onChange={handlePinChange}
-              placeholder="Enter 4-6 digit PIN"
-              className={`w-full max-w-[200px] h-[48px] text-center text-xl bg-white bg-opacity-90 rounded-lg 
-                       border-2 focus:outline-none transition-colors duration-300
-                       ${isInvalid 
-                         ? 'border-red-500 focus:border-red-600' 
-                         : 'border-green-500 focus:border-green-600'}`}
-              maxLength={6}
-              disabled={isSubmitting}
-              autoComplete="off"
-            />
-            {error && (
-              <p className="text-red-500 text-sm font-semibold">{error}</p>
-            )}
-          </div>
+        {/* OTP Login Form */}
+        <form onSubmit={handleOtpSubmit} className="flex flex-col items-center gap-4 w-full">
+            <div className="flex flex-col items-center gap-2 w-full">
+              <div className="flex gap-2 w-full max-w-[340px]">
+                <select
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    setError('');
+                    setIsInvalid(false);
+                    setOtpSent(false);
+                    setOtp(['', '', '', '', '']);
+                  }}
+                  className="flex-1 h-[48px] bg-white bg-opacity-90 border-2 border-green-500 focus:border-green-600 rounded-lg text-center"
+                >
+                  <option value="" disabled>Select user to login</option>
+                  <option value="Nawaz">Nawaz</option>
+                  <option value="Sadiq">Sadiq</option>
+                  <option value="Abrar">Abrar</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleGenerateOtp}
+                  disabled={isGeneratingOtp || !username}
+                  className={`px-4  h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 
+                           ${isGeneratingOtp || !username
+                             ? 'bg-gray-500 cursor-not-allowed' 
+                             : 'bg-blue-600 hover:bg-blue-700'}`}
+                >
+                  {isGeneratingOtp ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                  ) : (
+                    'Send OTP'
+                  )}
+                </button>
+              </div>
+            </div>
 
-          <Button
-            type="submit"
-            disabled={isSubmitting || pin.length < 4 || pin.length > 6 || !username}
-            className={`w-[200px] h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 
-                     ${isSubmitting || pin.length < 4 || pin.length > 6 || !username
-                       ? 'bg-gray-500 cursor-not-allowed' 
-                       : buttonClass}`}
-          >
-            {isSubmitting ? (
-              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
-            ) : (
-              'Verify PIN'
-            )}
-          </Button>
-        </form>
+            <div className="flex flex-col items-center gap-2 w-full">
+              <div className="flex items-center gap-2">
+                {[0, 1, 2, 3, 4].map((index) => (
+                  <div key={`otp-box-${index}`} className="flex items-center">
+                    <input
+                      id={`otp-${index}`}
+                      type="text"
+                      value={otp[index]}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      className={`w-12 h-12 text-center text-xl bg-white bg-opacity-90 rounded-lg 
+                               border-2 focus:outline-none transition-colors duration-300
+                               ${isInvalid 
+                                 ? 'border-red-500 focus:border-red-600' 
+                                 : 'border-green-500 focus:border-green-600'}`}
+                      maxLength={1}
+                      disabled={!otpSent}
+                      autoComplete="off"
+                    />
+                    {index < 4 && (
+                      <span className="mx-1 text-white text-xl font-bold">-</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {otpSent && (
+                <p className="text-green-400 text-sm font-semibold">OTP sent to WhatsApp!</p>
+              )}
+              {error && (
+                <p className="text-red-500 text-sm font-semibold">{error}</p>
+              )}
+            </div>
+
+            <Button
+              type="submit"
+              disabled={!otpSent || otp.some(digit => digit === '')}
+              className={`w-[200px] h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 
+                       ${!otpSent || otp.some(digit => digit === '')
+                         ? 'bg-gray-500 cursor-not-allowed' 
+                         : 'bg-green-600 hover:bg-green-700'}`}
+            >
+              Verify OTP
+            </Button>
+          </form>
       </div>
     </main>
   );
