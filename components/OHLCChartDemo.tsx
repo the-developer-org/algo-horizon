@@ -73,6 +73,10 @@ export const OHLCChartDemo: React.FC = () => {
 
   const [shouldFetchIntraDay, setShouldFetchIntraDay] = useState(true);
 
+  // Mock trading date/time filter state
+  const [maxDate, setMaxDate] = useState<string>('');
+  const [maxTime, setMaxTime] = useState<string>('');
+
   // Progressive loading state
   const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
   const [progressiveLoadingProgress, setProgressiveLoadingProgress] = useState({ loaded: 0, total: 0 });
@@ -93,13 +97,19 @@ export const OHLCChartDemo: React.FC = () => {
   }, [keyMapping]);
 
   // Function to update URL parameters
-  const updateUrlParams = useCallback((instrumentKey: string, timeframe: Timeframe) => {
+  const updateUrlParams = useCallback((instrumentKey: string, timeframe: Timeframe, date?: string, time?: string) => {
     const params = new URLSearchParams();
     if (instrumentKey) {
       params.set('instrumentKey', instrumentKey);
     }
     if (timeframe) {
       params.set('timeframe', timeframe);
+    }
+    if (date) {
+      params.set('date', date);
+    }
+    if (time) {
+      params.set('time', time);
     }
     
     const newUrl = `${window.location.pathname}?${params.toString()}`;
@@ -302,9 +312,11 @@ export const OHLCChartDemo: React.FC = () => {
 
     const instrumentKeyParam = searchParams.get('instrumentKey');
     const timeframeParam = searchParams.get('timeframe') as Timeframe;
+    const dateParam = searchParams.get('date');
+    const timeParam = searchParams.get('time');
 
     if (instrumentKeyParam && timeframeParam) {
-      console.log('🔗 Processing URL parameters:', { instrumentKeyParam, timeframeParam });
+      console.log('🔗 Processing URL parameters:', { instrumentKeyParam, timeframeParam, dateParam, timeParam });
       
       // Validate timeframe
       const validTimeframes: Timeframe[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
@@ -325,12 +337,14 @@ export const OHLCChartDemo: React.FC = () => {
         return;
       }
 
-      console.log('✅ Found company for URL params:', { companyName, instrumentKeyParam, timeframeParam });
+      console.log('✅ Found company for URL params:', { companyName, instrumentKeyParam, timeframeParam, dateParam, timeParam });
       
       // Set the state
       setSelectedCompany(companyName);
       setSelectedInstrumentKey(instrumentKeyParam);
       setSelectedTimeframe(timeframeParam);
+      setMaxDate(dateParam || '');
+      setMaxTime(timeParam || '');
       setSearchTerm(companyName);
       
       // Auto-load data if API key is available
@@ -485,7 +499,7 @@ export const OHLCChartDemo: React.FC = () => {
 
     // Update URL parameters
     if (instrumentKey) {
-      updateUrlParams(instrumentKey, selectedTimeframe);
+      updateUrlParams(instrumentKey, selectedTimeframe, maxDate, maxTime);
     }
 
     // Fetch entry dates when a new company is selected
@@ -494,7 +508,49 @@ export const OHLCChartDemo: React.FC = () => {
     }
 
     // We preserve the current view (either chart view or boom days) when selecting a new company
-  }, [keyMapping, fetchEntryDates, selectedTimeframe, updateUrlParams]); // Add dependencies for useCallback
+  }, [keyMapping, fetchEntryDates, selectedTimeframe, updateUrlParams, maxDate, maxTime]); // Add dependencies for useCallback
+
+  // Function to filter candles based on max date and time for mock trading
+  const filterCandlesByDateTime = useCallback((candlesToFilter: Candle[]): Candle[] => {
+    if (!maxDate || !maxTime || candlesToFilter.length === 0) {
+      return candlesToFilter; // No filtering if no date/time specified
+    }
+
+    try {
+      // Create a Date object from the max date and time
+      const maxDateTime = new Date(`${maxDate}T${maxTime}`);
+      
+      if (isNaN(maxDateTime.getTime())) {
+        console.warn('❌ Invalid date/time format for filtering:', { maxDate, maxTime });
+        return candlesToFilter;
+      }
+
+      console.log(`🔍 Filtering candles: showing data up to ${maxDateTime.toISOString()}`);
+      
+      // Filter candles to only include those with timestamps before or equal to maxDateTime
+      const filteredCandles = candlesToFilter.filter(candle => {
+        const candleTime = new Date(candle.timestamp);
+        return candleTime <= maxDateTime;
+      });
+
+      console.log(`✅ Filtered ${candlesToFilter.length} candles down to ${filteredCandles.length} candles`);
+      return filteredCandles;
+    } catch (error) {
+      console.error('Error filtering candles by date/time:', error);
+      return candlesToFilter; // Return unfiltered candles on error
+    }
+  }, [maxDate, maxTime]);
+
+  // Re-apply date/time filtering when parameters change
+  useEffect(() => {
+    if (rawCandles.length > 0) {
+      console.log(`🔄 Re-applying date/time filter: date=${maxDate}, time=${maxTime}`);
+      const timeframeProcessedData = processTimeframeData(rawCandles, selectedTimeframe);
+      const emaProcessedCandles = applyEMAToCandles(timeframeProcessedData);
+      const filteredCandles = filterCandlesByDateTime(emaProcessedCandles);
+      setCandles(filteredCandles);
+    }
+  }, [maxDate, maxTime, rawCandles, selectedTimeframe, processTimeframeData, applyEMAToCandles, filterCandlesByDateTime]);
 
   // Performance optimization: limit displayed candles to prevent slowdown
   const optimizedCandles = useMemo(() => {
@@ -659,7 +715,8 @@ export const OHLCChartDemo: React.FC = () => {
             
             // Apply timeframe processing and EMA
             const timeframeProcessedData = processTimeframeData(allCandles, selectedTimeframe);
-            const finalCandles = applyEMAToCandles(timeframeProcessedData);
+            const emaProcessedCandles = applyEMAToCandles(timeframeProcessedData);
+            const finalCandles = filterCandlesByDateTime(emaProcessedCandles);
             setCandles(finalCandles);
 
             batchCount++;
@@ -924,7 +981,8 @@ export const OHLCChartDemo: React.FC = () => {
         
         // Apply timeframe processing and EMA
         const timeframeProcessedData = processTimeframeData(finalRawCandles, timeframe);
-        const finalCandles = applyEMAToCandles(timeframeProcessedData);
+        const emaProcessedCandles = applyEMAToCandles(timeframeProcessedData);
+        const finalCandles = filterCandlesByDateTime(emaProcessedCandles);
         setCandles(finalCandles);
         
         // Update pagination state
@@ -1051,7 +1109,7 @@ export const OHLCChartDemo: React.FC = () => {
     
     // Update URL parameters
     if (selectedInstrumentKey) {
-      updateUrlParams(selectedInstrumentKey, newTimeframe);
+      updateUrlParams(selectedInstrumentKey, newTimeframe, maxDate, maxTime);
     }
     
     // Check if we need to fetch new data for the timeframe
@@ -1076,7 +1134,7 @@ export const OHLCChartDemo: React.FC = () => {
           // Revert to previous timeframe on error
           setSelectedTimeframe(previousTimeframe);
           // Also revert URL parameters
-          updateUrlParams(selectedInstrumentKey, previousTimeframe);
+          updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime);
         });
     } else if (rawCandles.length) {
       // Use existing data and process it for the new timeframe
@@ -1086,7 +1144,8 @@ export const OHLCChartDemo: React.FC = () => {
         const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
         
         // Apply EMA based on current toggle state
-        const finalCandles = applyEMAToCandles(candlesWithIndicators);
+        const emaProcessedCandles = applyEMAToCandles(candlesWithIndicators);
+        const finalCandles = filterCandlesByDateTime(emaProcessedCandles);
         setCandles(finalCandles);
         toast.success(`Switched to ${newTimeframe} timeframe`);
       } catch (error) {
@@ -1095,15 +1154,15 @@ export const OHLCChartDemo: React.FC = () => {
         
         // Revert to previous timeframe on processing error
         setSelectedTimeframe(previousTimeframe);
-        updateUrlParams(selectedInstrumentKey, previousTimeframe);
+        updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime);
       }
     } else {
       // No data available
       toast.error(`No data available for ${newTimeframe}. Please fetch data first.`);
       setSelectedTimeframe(previousTimeframe);
-      updateUrlParams(selectedInstrumentKey, previousTimeframe);
+      updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime);
     }
-  }, [selectedTimeframe, selectedInstrumentKey, upstoxApiKey, rawCandles, updateUrlParams, fetchCandles, applyEMAToCandles]);
+  }, [selectedTimeframe, selectedInstrumentKey, upstoxApiKey, rawCandles, updateUrlParams, fetchCandles, applyEMAToCandles, maxDate, maxTime]);
 
   // Helper function to determine if we need to fetch new data
   const shouldFetchNewDataForTimeframe = (currentTf: Timeframe, newTf: Timeframe): boolean => {

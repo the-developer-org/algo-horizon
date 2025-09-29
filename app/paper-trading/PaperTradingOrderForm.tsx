@@ -9,9 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, DollarSign, Shield, Target } from "lucide-react";
 import { fetchUpstoxHistoricalData } from '../../components/utils/upstoxApi';
 import toast from 'react-hot-toast';
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { de } from 'date-fns/locale';
 
 interface PaperTradingOrderFormProps {
   readonly onClose: () => void;
@@ -42,6 +49,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [chartTimeframe, setChartTimeframe] = useState<string>('1d');
   
   // Check if current time is within market hours (Mon-Fri, 9:15 AM - 3:30 PM IST)
   const isMarketOpen = () => {
@@ -119,11 +127,12 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
         setCompanyChange(null);
         return;
       }
+      debugger;
 
       // Fetch minute data for the selected date
       const result = await fetchUpstoxHistoricalData(
         formData.instrumentKey,
-        'minute',
+        'minutes',
         '1',
         formData.entryDate,
         formData.entryDate,
@@ -152,8 +161,8 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
 
         // For change calculation, compare with the first candle of the day (oldest)
         const firstCandleOfDay = result.candles[result.candles.length - 1]; // oldest candle (assuming sorted newest first)
-        const firstCandleClose = firstCandleOfDay.close;
-        const change = ((currentPrice - firstCandleClose) / firstCandleClose) * 100;
+        const firstCandleOpen = firstCandleOfDay.open;
+        const change = ((currentPrice - firstCandleOpen) / firstCandleOpen) * 100;
 
         setCompanyPrice(currentPrice);
         setCompanyChange(change);
@@ -182,6 +191,13 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     setSuggestions(matches);
   }, [searchTerm, keyMapping]);
 
+  // Fetch company price when date, time, or company changes
+  useEffect(() => {
+    if (selectedCompany && formData.entryDate && formData.entryTime) {
+      fetchCompanyPrice();
+    }
+  }, [selectedCompany, formData.entryDate, formData.entryTime]);
+
   // Handle selection from suggestions
   const handleSelectCompany = (companyName: string) => {
     setSelectedCompany(companyName);
@@ -202,6 +218,16 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
       companyName: '',
       instrumentKey: ''
     }));
+  };
+
+  const navigateToChart = (instrumentKey: string, timeframe: string) => {
+    if (!formData.entryDate || !formData.entryTime) {
+      toast.error('Please enter entry date and time first.');
+      return;
+    }
+    
+    const chartUrl = `/chart?instrumentKey=${encodeURIComponent(instrumentKey)}&timeframe=${encodeURIComponent(timeframe)}&date=${encodeURIComponent(formData.entryDate)}&time=${encodeURIComponent(formData.entryTime)}`;
+    window.open(chartUrl, '_blank');
   };
 
   const validateForm = (): boolean => {
@@ -227,12 +253,27 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
       newErrors.quantity = 'Quantity must be greater than 0';
     }
 
+    if (companyPrice && currentCapital > 0) {
+      const maxPurchasable = Math.floor(currentCapital / companyPrice);
+      if (formData.quantity > maxPurchasable) {
+        newErrors.quantity = `Quantity cannot exceed ${maxPurchasable} shares (available capital: ₹${currentCapital.toFixed(2)})`;
+      }
+    }
+
     if (formData.stopLoss <= 0) {
       newErrors.stopLoss = 'Stop loss must be greater than 0';
     }
 
     if (formData.targetPrice <= 0) {
       newErrors.targetPrice = 'Target price must be greater than 0';
+    }
+
+    if (companyPrice && formData.targetPrice <= companyPrice) {
+      newErrors.targetPrice = 'Target price must be greater than current price';
+    }
+
+    if (companyPrice && formData.stopLoss >= companyPrice) {
+      newErrors.stopLoss = 'Stop loss must be less than current price';
     }
 
     if (formData.stopLoss >= formData.targetPrice) {
@@ -394,6 +435,38 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
               >
                 Live Info
               </Button>
+              <div className="flex items-center gap-2">
+                <Select value={chartTimeframe} onValueChange={setChartTimeframe}>
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1m">1m</SelectItem>
+                    <SelectItem value="5m">5m</SelectItem>
+                    <SelectItem value="15m">15m</SelectItem>
+                    <SelectItem value="30m">30m</SelectItem>
+                    <SelectItem value="1h">1h</SelectItem>
+                    <SelectItem value="4h">4h</SelectItem>
+                    <SelectItem value="1d">1d</SelectItem>
+                    <SelectItem value="1w">1w</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
+                  onClick={() => {
+                    if (formData.instrumentKey) {
+                      navigateToChart(formData.instrumentKey, chartTimeframe);
+                    } else {
+                      toast.error('Please select a company first.');
+                    }
+                  }}
+                  disabled={!formData.instrumentKey || !formData.entryDate || !formData.entryTime}
+                >
+                  Charts
+                </Button>
+              </div>
             </div>
             <Button
               variant="ghost"
@@ -476,14 +549,36 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
             {/* Trading Parameters */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="entryDate">Entry Date</Label>
-                <Input
-                  id="entryDate"
-                  type="date"
-                  value={formData.entryDate}
-                  onChange={(e) => handleInputChange('entryDate', e.target.value)}
-                  className={errors.entryDate ? 'border-red-500' : ''}
-                />
+                <Label>Entry Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formData.entryDate && "text-muted-foreground",
+                        errors.entryDate && "border-red-500"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.entryDate ? format(new Date(formData.entryDate), "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={formData.entryDate ? new Date(formData.entryDate) : undefined}
+                      onSelect={(date) => {
+                        if (date) {
+                          const dateString = format(date, 'yyyy-MM-dd');
+                          handleInputChange('entryDate', dateString);
+                        }
+                      }}
+                      disabled={(date) => date.getDay() === 0 || date.getDay() === 6}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
                 {errors.entryDate && (
                   <p className="text-sm text-red-500">{errors.entryDate}</p>
                 )}
@@ -495,7 +590,31 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                   id="entryTime"
                   type="time"
                   value={formData.entryTime}
-                  onChange={(e) => handleInputChange('entryTime', e.target.value)}
+                  onChange={(e) => {
+                    const selectedTime = e.target.value;
+                    const [hours, minutes] = selectedTime.split(':').map(Number);
+                    const totalMinutes = hours * 60 + minutes;
+                    
+                    // Market hours: 9:15 AM (555 minutes) to 3:30 PM (930 minutes)
+                    const marketOpenMinutes = 9 * 60 + 15; // 555
+                    const marketCloseMinutes = 15 * 60 + 30; // 930
+                    
+                    if (totalMinutes < marketOpenMinutes || totalMinutes > marketCloseMinutes) {
+                      setErrors(prev => ({
+                        ...prev,
+                        entryTime: 'Entry time must be between 9:15 AM and 3:30 PM'
+                      }));
+                      return;
+                    }
+                    
+                    // Clear any existing error
+                    setErrors(prev => ({
+                      ...prev,
+                      entryTime: ''
+                    }));
+                    
+                    handleInputChange('entryTime', e.target.value);
+                  }}
                   className={errors.entryTime ? 'border-red-500' : ''}
                   min="09:15"
                   max="15:30"
@@ -505,6 +624,36 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                   <p className="text-sm text-red-500">{errors.entryTime}</p>
                 )}
               </div>
+            </div>
+
+            {/* Price at Entry Time */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <Target className="h-4 w-4" />
+                Price at Entry Time (Closing Value)
+              </Label>
+              <div className="w-full px-3 py-3 text-sm border border-gray-300 rounded-md bg-gray-50 flex items-center justify-between">
+                <span className="font-mono">
+                  {selectedCompany ? renderPrice() : 'Select a company first'}
+                </span>
+                {selectedCompany && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={fetchCompanyPrice}
+                    disabled={isLoadingPrice}
+                    className="h-6 w-6 p-0"
+                  >
+                    {isLoadingPrice ? '⟳' : '↻'}
+                  </Button>
+                )}
+              </div>
+              {companyChange !== null && selectedCompany && (
+                <p className={`text-xs ${companyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {companyChange >= 0 ? '+' : ''}{companyChange.toFixed(2)}% from day's open
+                </p>
+              )}
             </div>
 
             {/* Trading Parameters - Quantity, Stop Loss, Target Price */}
@@ -519,19 +668,47 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                   type="number"
                   placeholder="0"
                   value={formData.quantity || ''}
-                  onChange={(e) => handleInputChange('quantity', parseInt(e.target.value) || 0)}
+                  onChange={(e) => {
+                    const inputValue = parseInt(e.target.value) || 0;
+                    
+                    // Check if input exceeds max purchasable
+                    if (companyPrice && currentCapital > 0) {
+                      const maxPurchasable = Math.floor(currentCapital / companyPrice);
+                      if (inputValue > maxPurchasable) {
+                        // Don't update if it exceeds max purchasable
+                        return;
+                      }
+                    }
+                    
+                    handleInputChange('quantity', inputValue);
+                  }}
                   className={errors.quantity ? 'border-red-500' : ''}
                 />
+                {companyPrice && currentCapital > 0 && (
+                  <p className="text-xs text-blue-600">
+                    Max purchasable: {Math.floor(currentCapital / companyPrice)} shares
+                  </p>
+                )}
                 {errors.quantity && (
                   <p className="text-sm text-red-500">{errors.quantity}</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="stopLoss" className="flex items-center gap-1">
-                  <Shield className="h-4 w-4" />
-                  Stop Loss (₹)
-                </Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="stopLoss" className="flex items-center gap-1">
+                    <Shield className="h-4 w-4" />
+                    Stop Loss (₹)
+                  </Label>
+                  {companyPrice && formData.stopLoss > 0 && (
+                    <span className={`text-xs ${formData.stopLoss < companyPrice ? 'text-green-600' : 'text-red-600'}`}>
+                      ({formData.stopLoss < companyPrice
+                        ? `${((formData.stopLoss - companyPrice) / companyPrice * 100).toFixed(2)}%`
+                        : `+${((formData.stopLoss - companyPrice) / companyPrice * 100).toFixed(2)}%`
+                      })
+                    </span>
+                  )}
+                </div>
                 <Input
                   id="stopLoss"
                   type="number"
@@ -547,10 +724,20 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="targetPrice" className="flex items-center gap-1">
-                  <Target className="h-4 w-4" />
-                  Target Price (₹)
-                </Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="targetPrice" className="flex items-center gap-1">
+                    <Target className="h-4 w-4" />
+                    Target Price (₹)
+                  </Label>
+                  {companyPrice && formData.targetPrice > 0 && (
+                    <span className={`text-xs ${formData.targetPrice > companyPrice ? 'text-green-600' : 'text-red-600'}`}>
+                      ({formData.targetPrice > companyPrice 
+                        ? `+${((formData.targetPrice - companyPrice) / companyPrice * 100).toFixed(2)}%`
+                        : `${((formData.targetPrice - companyPrice) / companyPrice * 100).toFixed(2)}%`
+                      })
+                    </span>
+                  )}
+                </div>
                 <Input
                   id="targetPrice"
                   type="number"
@@ -655,11 +842,11 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                   value={formData.comments.join('\n')}
                   onChange={(e) => {
                     const lines = e.target.value.split('\n');
-                    // Limit to maximum 10 lines total
-                    const limitedLines = lines.slice(0, 10);
+                    // Limit to maximum 5 lines total
+                    const limitedLines = lines.slice(0, 5);
                     handleInputChange('comments', limitedLines);
                   }}
-                  className="w-full min-h-[200px] max-h-[300px] px-3 py-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-y-auto"
+                  className="w-full min-h-[120px] max-h-[180px] px-3 py-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-y-auto"
                   style={{
                     backgroundImage: 'linear-gradient(transparent, transparent 23px, #e5e7eb 23px, #e5e7eb 24px)',
                     backgroundSize: '100% 24px',
@@ -668,11 +855,9 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                     paddingTop: '6px',
                     paddingBottom: '6px'
                   }}
-                  rows={10}
+                  rows={6}
                 />
-                <p className="text-xs text-gray-500">
-                  Enter each comment on a new line (max 10 bullet points). The box will scroll if needed.
-                </p>
+                
               </div>
             </div>
             </div>
@@ -763,6 +948,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                   formData.quantity <= 0 ||
                   formData.stopLoss <= 0 ||
                   formData.targetPrice <= 0 ||
+                  (companyPrice && formData.stopLoss >= companyPrice) ||
                   formData.stopLoss >= formData.targetPrice ||
                   formData.prediction === undefined ||
                   formData.prediction === null ||
