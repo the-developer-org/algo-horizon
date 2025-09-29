@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, Zap, BarChart3 } from "lucide-react";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, Zap, BarChart3, X } from "lucide-react";
 import {
   Sidebar,
   SidebarHeader,
@@ -37,10 +37,27 @@ const utilityItems = [
 
 interface MainSidebarProps extends Readonly<React.ComponentProps<typeof Sidebar>> {
   readonly onShowInsights?: () => void;
+  readonly isVisible?: boolean;
+  readonly onToggleVisibility?: () => void;
 }
 
-export function MainSidebar({ onShowInsights, ...props }: MainSidebarProps) {
+export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibility, ...props }: MainSidebarProps) {
   const router = useRouter();
+
+  if (!isVisible) {
+    return (
+      <div className="fixed top-4 left-4 z-50">
+        <button
+          onClick={onToggleVisibility}
+          className="p-2 bg-sidebar-primary text-sidebar-primary-foreground rounded-lg shadow-lg hover:bg-sidebar-primary/80 transition-colors"
+          title="Show Sidebar"
+        >
+          <TrendingUp className="size-4" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <Sidebar variant="inset" {...props}>
       <SidebarHeader>
@@ -57,6 +74,15 @@ export function MainSidebar({ onShowInsights, ...props }: MainSidebarProps) {
                 </div>
               </a>
             </SidebarMenuButton>
+            {onToggleVisibility && (
+              <button
+                onClick={onToggleVisibility}
+                className="p-1 hover:bg-sidebar-accent rounded-sm transition-colors"
+                title="Hide Sidebar"
+              >
+                <X className="size-4" />
+              </button>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

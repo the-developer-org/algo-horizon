@@ -1,6 +1,7 @@
 "use client";
 
 import localFont from "next/font/local";
+import { useState } from "react";
 import "./globals.css";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { MainSidebar } from "../components/main-sidebar";
@@ -20,6 +21,11 @@ const geistMono = localFont({
 function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
   const isAuthPage = pathname?.startsWith('/auth') ?? false;
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+
+  const toggleSidebar = () => {
+    setSidebarVisible(!sidebarVisible);
+  };
 
   if (isAuthPage) {
     return (
@@ -32,7 +38,7 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-gray-50">
-        <MainSidebar />
+        <MainSidebar isVisible={sidebarVisible} onToggleVisibility={toggleSidebar} />
         <div className="flex-1 overflow-y-auto">
           {children}
         </div>
