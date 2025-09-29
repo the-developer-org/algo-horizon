@@ -701,7 +701,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                     Stop Loss (₹)
                   </Label>
                   {companyPrice && formData.stopLoss > 0 && (
-                    <span className={`text-xs ${formData.stopLoss < companyPrice ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`text-xs ${formData.stopLoss < companyPrice ? 'text-red-600' : 'text-green-600'}`}>
                       ({formData.stopLoss < companyPrice
                         ? `${((formData.stopLoss - companyPrice) / companyPrice * 100).toFixed(2)}%`
                         : `+${((formData.stopLoss - companyPrice) / companyPrice * 100).toFixed(2)}%`
