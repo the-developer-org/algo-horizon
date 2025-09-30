@@ -21,8 +21,7 @@ const geistMono = localFont({
 function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
   const isAuthPage = pathname?.startsWith('/auth') ?? false;
   const [sidebarVisible, setSidebarVisible] = useState(true);
 
@@ -38,25 +37,22 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
 
         // Allow access to auth page without authentication
         if (isAuthPage) {
-          setIsAuthenticated(true);
-          setIsLoading(false);
+          setAuthStatus('authenticated');
           return;
         }
 
         // Check if user is authenticated
         if (isAuthorised === 'true' && currentUser) {
-          setIsAuthenticated(true);
+          setAuthStatus('authenticated');
         } else {
-          // Redirect to auth if not authenticated and not already on auth page
+          // Not authenticated - redirect
+          setAuthStatus('unauthenticated');
           router.replace('/auth');
-          return;
         }
       } catch (error) {
         console.error('Auth check failed:', error);
+        setAuthStatus('unauthenticated');
         router.replace('/auth');
-        return;
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -64,7 +60,7 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   }, [router, isAuthPage]);
 
   // Show loading spinner while checking authentication
-  if (isLoading) {
+  if (authStatus === 'checking') {
     return (
       <div className="min-h-screen w-full bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
@@ -72,15 +68,7 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
     );
   }
 
-  // Don't render main app if not authenticated
-  if (!isAuthenticated && !isAuthPage) {
-    return (
-      <div className="min-h-screen w-full bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
-      </div>
-    );
-  }
-
+  // For auth page, render without sidebar
   if (isAuthPage) {
     return (
       <div className="min-h-screen w-full bg-gray-50">
@@ -89,6 +77,16 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
     );
   }
 
+  // If not authenticated, show loading (should redirect)
+  if (authStatus === 'unauthenticated') {
+    return (
+      <div className="min-h-screen w-full bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+      </div>
+    );
+  }
+
+  // Only render main app for authenticated users
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-gray-50">
