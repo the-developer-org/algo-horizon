@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, DollarSign, Shield, Target } from "lucide-react";
-import { fetchUpstoxHistoricalData } from '../../components/utils/upstoxApi';
+import { fetchUpstoxHistoricalData, fetchUpstoxIntradayData } from '../../components/utils/upstoxApi';
 import toast from 'react-hot-toast';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -33,7 +33,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     const [hours, minutes] = timeString.split(':').map(Number);
     return hours * 60 + minutes;
   };
-  const [prediction, setPrediction] = useState<'profit' | 'action-not-taken'>('profit');
+  const [prediction, setPrediction] = useState<'Profit' | 'Action-not-taken'>('Profit');
   const [formData, setFormData] = useState<CreateOrderRequest>({
     companyName: '',
     instrumentKey: '',
@@ -127,10 +127,18 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
         setCompanyChange(null);
         return;
       }
-      debugger;
-
+    
+let result;
       // Fetch minute data for the selected date
-      const result = await fetchUpstoxHistoricalData(
+      if(formData.entryDate === new Date().toISOString().split('T')[0]){
+        result = await fetchUpstoxIntradayData(
+          formData.instrumentKey,
+          apiKey,
+          'minutes',
+          '1'
+        );
+      } else {
+        result = await fetchUpstoxHistoricalData(
         formData.instrumentKey,
         'minutes',
         '1',
@@ -138,14 +146,22 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
         formData.entryDate,
         apiKey
       );
+    }
 
-      if (result.candles && result.candles.length > 0) {
+      let candles: any[] = [];
+      if (Array.isArray(result)) {
+        candles = result;
+      } else if (result?.candles && Array.isArray(result.candles)) {
+        candles = result.candles;
+      }
+
+      if (candles.length > 0) {
         // Find the candle closest to the entry time
         const entryTimeMinutes = timeToMinutes(formData.entryTime);
-        let closestCandle = result.candles[0];
+        let closestCandle = candles[0];
         let minTimeDiff = Infinity;
 
-        for (const candle of result.candles) {
+        for (const candle of candles) {
           // Parse the timestamp string to get hours and minutes
           const candleTime = new Date(candle.timestamp);
           const candleMinutes = candleTime.getHours() * 60 + candleTime.getMinutes();
@@ -160,7 +176,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
         const currentPrice = closestCandle.close;
 
         // For change calculation, compare with the first candle of the day (oldest)
-        const firstCandleOfDay = result.candles[result.candles.length - 1]; // oldest candle (assuming sorted newest first)
+        const firstCandleOfDay = candles[candles.length - 1]; // oldest candle (assuming sorted newest first)
         const firstCandleOpen = firstCandleOfDay.open;
         const change = ((currentPrice - firstCandleOpen) / firstCandleOpen) * 100;
 
@@ -287,9 +303,9 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
       const predictionType = formData.prediction;
       if (predictionPercentage < -30 || predictionPercentage > 30) {
         newErrors.prediction = 'Prediction must be between -30% and +30%';
-      } else if (predictionType === 'profit' && predictionPercentage < 0) {
+      } else if (predictionType === 'Profit' && predictionPercentage < 0) {
         newErrors.prediction = 'Profit prediction must be positive';
-      } else if (predictionType === 'action-not-taken' && predictionPercentage !== 0) {
+      } else if (predictionType === 'Action-not-taken' && predictionPercentage !== 0) {
         newErrors.prediction = 'Action not taken prediction must be 0%';
       }
     }
@@ -760,7 +776,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                 <Label>Prediction Type</Label>
                 <RadioGroup
                   value={prediction}
-                  onValueChange={(value: 'profit' | 'action-not-taken') => {
+                  onValueChange={(value: 'Profit' | 'Action-not-taken') => {
                     setPrediction(value);
                     // Reset prediction to 0 when switching types
                     handleInputChange('predictionPercentage', 0);
@@ -788,8 +804,8 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                       <span className="text-sm text-gray-600 font-medium">0%</span>
                       <div className="flex-1">
                         {(() => {
-                          const isActionNotTaken = prediction === 'action-not-taken';
-                          const isProfit = prediction === 'profit';
+                          const isActionNotTaken = prediction === 'Action-not-taken';
+                          const isProfit = prediction === 'Profit';
                           
                           const sliderBackground = isProfit
                             ? `linear-gradient(to right, #22c55e 0%, #22c55e ${(Math.abs(formData.predictionPercentage) / 30) * 100}%, #e5e7eb ${(Math.abs(formData.predictionPercentage) / 30) * 100}%, #e5e7eb 100%)`
@@ -823,8 +839,8 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                         })()}
                     </div>
                     <div className="text-center">
-                      <span className={`text-lg font-bold ${prediction === 'profit' ? 'text-green-600' : prediction === 'action-not-taken' ? 'text-gray-600' : 'text-red-600'}`}>
-                        {prediction === 'action-not-taken' ? '0%' : `${prediction === 'profit' ? '+' : '-'}${Math.abs(formData.predictionPercentage)}%`}
+                      <span className={`text-lg font-bold ${prediction === 'Profit' ? 'text-green-600' : prediction === 'Action-not-taken' ? 'text-gray-600' : 'text-red-600'}`}>
+                        {prediction === 'Action-not-taken' ? '0%' : `${prediction === 'Profit' ? '+' : '-'}${Math.abs(formData.predictionPercentage)}%`}
                       </span>
                     </div>
                   </div>
@@ -954,8 +970,8 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                   formData.prediction === null ||
                   formData.predictionPercentage < -30 ||
                   formData.predictionPercentage > 30 ||
-                  (prediction === 'profit' && formData.predictionPercentage < 0) ||
-                  (prediction === 'action-not-taken' && formData.predictionPercentage !== 0)
+                  (prediction === 'Profit' && formData.predictionPercentage < 0) ||
+                  (prediction === 'Action-not-taken' && formData.predictionPercentage !== 0)
                 }
                 className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
