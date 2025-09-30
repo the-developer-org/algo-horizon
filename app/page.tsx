@@ -1,38 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useRouter } from 'next/navigation';
+import { useState } from "react";
 import { MainSidebar } from "../components/main-sidebar";
 import { WatchLists } from "../components/WatchLists";
 import { HistoricalInsights } from "../components/HistoricalInsights";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
 export default function Home() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showWatchLists, setShowWatchLists] = useState(false);
   const [showHistoricalInsights, setShowHistoricalInsights] = useState(false);
   // Root now directly shows the simplified dashboard (formerly new-home)
-
-  useEffect(() => {
-    const isAuthorized = sessionStorage.getItem('isUserAuthorised');
-    if (isAuthorized === 'true') {
-      setIsAuthenticated(true);
-    } else {
-      // Redirect to auth page if not authenticated
-      router.push('/auth');
-      return;
-    }
-    setIsLoading(false);
-  }, [router]);
-
-  if (isLoading || !isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
-      </div>
-    );
-  }
 
   return (
     <SidebarProvider>
