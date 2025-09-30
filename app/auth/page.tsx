@@ -45,7 +45,7 @@ export default function AuthPage() {
     try {
       // Send masked OTP directly to WhatsApp service
       // In production, replace with actual WhatsApp API endpoint
-      const WHATSAPP_API_URL = process.env.WHATSAPP_API_URL || 'http://localhost:3000';
+      const WHATSAPP_API_URL = process.env.NEXT_PUBLIC_WHATSAPP_API_URL;
       const response = await fetch(`${WHATSAPP_API_URL}/send-otp`, {
         method: 'POST',
         headers: {
@@ -116,6 +116,7 @@ export default function AuthPage() {
       const maskedOtp = maskOtp(newOtp);
 
       // Send masked OTP to WhatsApp service
+      debugger
       const success = await sendOtpToWhatsApp(maskedOtp, username);
 
       if (success) {
