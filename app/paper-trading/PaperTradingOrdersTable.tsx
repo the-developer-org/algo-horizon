@@ -14,7 +14,9 @@ import {
   ExternalLink,
   X,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  MessageSquare,
+  Eye
 } from "lucide-react";
 import toast from 'react-hot-toast';
 
@@ -30,6 +32,12 @@ interface ExitOrderModalProps {
   readonly onClose: () => void;
   readonly onSuccess: () => void;
   readonly user: string;
+}
+
+interface CommentsModalProps {
+  readonly comments: string[];
+  readonly companyName: string;
+  readonly onClose: () => void;
 }
 
 function ExitOrderModal({ order, onClose, onSuccess, user }: ExitOrderModalProps) {
@@ -116,8 +124,53 @@ function ExitOrderModal({ order, onClose, onSuccess, user }: ExitOrderModalProps
   );
 }
 
+function CommentsModal({ comments, companyName, onClose }: CommentsModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[80vh] overflow-hidden">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Comments - {companyName}
+          </h3>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="max-h-96 overflow-y-auto">
+          {comments.length > 0 ? (
+            <ul className="space-y-3">
+              {comments.map((comment, index) => (
+                <li key={`comment-${index}-${comment.substring(0, 10)}`} className="p-3 bg-gray-50 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
+                      {index + 1}
+                    </span>
+                    <p className="text-sm text-gray-700 flex-1">{comment}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No comments available</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end mt-4">
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = false, user }: PaperTradingOrdersTableProps) {
   const [exitingOrder, setExitingOrder] = useState<PaperTradeOrder | null>(null);
+  const [viewingComments, setViewingComments] = useState<{ comments: string[]; companyName: string } | null>(null);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -321,16 +374,27 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
               <td className="p-3">
                 <div className="max-w-[150px]">
                   {order.comments && order.comments.length > 0 ? (
-                    <ul className="text-xs list-disc list-inside">
-                      {order.comments.slice(0, 2).map((comment, index) => (
-                        <li key={`comment-${order.id}-${index}`} className="truncate" title={comment}>
-                          {comment}
-                        </li>
-                      ))}
-                      {order.comments.length > 2 && (
-                        <li className="text-gray-500">+{order.comments.length - 2} more</li>
-                      )}
-                    </ul>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <div className="text-xs text-gray-600">
+                          {order.comments.length} comment{order.comments.length > 1 ? 's' : ''}
+                        </div>
+                        <div className="text-xs text-gray-400 truncate">
+                          {order.comments[0]}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setViewingComments({ 
+                          comments: order.comments || [], 
+                          companyName: order.companyName 
+                        })}
+                        className="p-1 h-6 w-6"
+                      >
+                        <Eye className="h-3 w-3" />
+                      </Button>
+                    </div>
                   ) : (
                     <span className="text-gray-400">-</span>
                   )}
@@ -386,6 +450,15 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
           onClose={() => setExitingOrder(null)}
           onSuccess={handleExitSuccess}
           user={user}
+        />
+      )}
+
+      {/* Comments Modal */}
+      {viewingComments && (
+        <CommentsModal
+          comments={viewingComments.comments}
+          companyName={viewingComments.companyName}
+          onClose={() => setViewingComments(null)}
         />
       )}
     </div>

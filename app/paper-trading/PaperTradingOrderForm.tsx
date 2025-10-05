@@ -43,7 +43,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     stopLoss: 0,
     targetPrice: 0,
     comments: [],
-    prediction: prediction,
+    prediction: 'Profit',
     predictionPercentage: 0,
   });
 
@@ -296,18 +296,8 @@ let result;
       newErrors.stopLoss = 'Stop loss should be less than target price';
     }
 
-    if (formData.prediction === undefined || formData.prediction === null) {
-      newErrors.prediction = 'Prediction is required';
-    } else {
-      const predictionPercentage = formData.predictionPercentage;
-      const predictionType = formData.prediction;
-      if (predictionPercentage < -30 || predictionPercentage > 30) {
-        newErrors.prediction = 'Prediction must be between -30% and +30%';
-      } else if (predictionType === 'Profit' && predictionPercentage < 0) {
-        newErrors.prediction = 'Profit prediction must be positive';
-      } else if (predictionType === 'Action-not-taken' && predictionPercentage !== 0) {
-        newErrors.prediction = 'Action not taken prediction must be 0%';
-      }
+    if (!formData.prediction || (formData.prediction !== 'Profit' && formData.prediction !== 'Action-not-taken')) {
+      newErrors.prediction = 'Please select a prediction type';
     }
 
     // Note: We can't validate capital without knowing the actual entry price
@@ -701,9 +691,10 @@ let result;
                   className={errors.quantity ? 'border-red-500' : ''}
                 />
                 {companyPrice && currentCapital > 0 && (
-                  <p className="text-xs text-blue-600">
+                  <div className="text-xs text-blue-600">
                     Max purchasable: {Math.floor(currentCapital / companyPrice)} shares
-                  </p>
+                    Capital Used : ₹{(formData.quantity * companyPrice).toFixed(2)}
+                  </div>
                 )}
                 {errors.quantity && (
                   <p className="text-sm text-red-500">{errors.quantity}</p>
@@ -778,19 +769,24 @@ let result;
                   value={prediction}
                   onValueChange={(value: 'Profit' | 'Action-not-taken') => {
                     setPrediction(value);
-                    // Reset prediction to 0 when switching types
-                    handleInputChange('predictionPercentage', 0);
+                    // Update the prediction field with the string value
+                    handleInputChange('prediction', value);
+                    // Reset prediction percentage to 0 when switching types
+                    setFormData(prev => ({
+                      ...prev,
+                      predictionPercentage: 0
+                    }));
                   }}
                   className="flex space-x-6"
                 >
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="profit" id="profit" />
+                    <RadioGroupItem value="Profit" id="profit" />
                     <Label htmlFor="profit" className="text-green-600 font-medium cursor-pointer">
                       Profit
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="action-not-taken" id="action-not-taken" />
+                    <RadioGroupItem value="Action-not-taken" id="action-not-taken" />
                     <Label htmlFor="action-not-taken" className="text-gray-600 font-medium cursor-pointer">
                       Action Not Taken
                     </Label>
@@ -815,7 +811,7 @@ let result;
 
                           const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                             const value = parseInt(e.target.value);
-                            const newPrediction = isProfit ? value : isActionNotTaken ? 0 : -value;
+                            const newPrediction = isProfit ? "Profit" : "Loss";
                             handleInputChange('prediction', newPrediction);
                           };
 
@@ -917,20 +913,9 @@ let result;
                   </div>
                   <div>
                     <span className="text-gray-600">Prediction:</span>
-                    {(() => {
-                      const predictionPercentage = formData.predictionPercentage;
-                      let colorClass = 'text-gray-600';
-                      if (predictionPercentage > 0) {
-                        colorClass = 'text-green-600';
-                      } else if (predictionPercentage < 0) {
-                        colorClass = 'text-red-600';
-                      }
-                      return (
-                        <span className={`font-semibold ml-2 ${colorClass}`}>
-                          {predictionPercentage > 0 ? '+' : '-'}{predictionPercentage}%
-                        </span>
-                      );
-                    })()}
+                    <span className={`font-semibold ml-2 ${formData.prediction === 'Profit' ? 'text-green-600' : 'text-gray-600'}`}>
+                      {formData.prediction}
+                    </span>
                   </div>
                   <div>
                     <span className="text-gray-600">Comments:</span>
@@ -966,12 +951,8 @@ let result;
                   formData.targetPrice <= 0 ||
                   (companyPrice && formData.stopLoss >= companyPrice) ||
                   formData.stopLoss >= formData.targetPrice ||
-                  formData.prediction === undefined ||
-                  formData.prediction === null ||
-                  formData.predictionPercentage < -30 ||
-                  formData.predictionPercentage > 30 ||
-                  (prediction === 'Profit' && formData.predictionPercentage < 0) ||
-                  (prediction === 'Action-not-taken' && formData.predictionPercentage !== 0)
+                  !formData.prediction ||
+                  (formData.prediction !== 'Profit' && formData.prediction !== 'Action-not-taken')
                 }
                 className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >

@@ -219,11 +219,26 @@ const retryUpstoxApiCall = async (
         }
       });
 
+      console.log('🚀 API REQUEST DETAILS:');
+      console.log('URL:', currentUrl);
+      console.log('Method: GET');
+      console.log('Headers:', {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token.substring(0, 20)}...` // Don't log full token
+      });
+      console.log('---');
+
       if (response.status !== 200 || response.data.status !== 'success') {
         throw new Error(`API request failed: ${response.data.status || 'Unknown error'}`);
       }
 
       console.log(`✅ API request successful on attempt ${currentAttempt + 1}`);
+      console.log('📥 API RESPONSE:', {
+        status: response.status,
+        statusText: response.statusText,
+        dataStatus: response.data.status,
+        candleCount: response.data.data?.candles?.length || 0
+      });
       return response.data;
 
     } catch (error) {
