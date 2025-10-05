@@ -375,12 +375,15 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
                 <div className="max-w-[150px]">
                   {order.comments && order.comments.length > 0 ? (
                     <div className="flex items-center gap-2">
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <div className="text-xs text-gray-600">
                           {order.comments.length} comment{order.comments.length > 1 ? 's' : ''}
                         </div>
-                        <div className="text-xs text-gray-400 truncate">
-                          {order.comments[0]}
+                        <div className="text-xs text-gray-400 truncate max-w-[100px]">
+                          {order.comments[0].length > 30 
+                            ? `${order.comments[0].substring(0, 30)}...` 
+                            : order.comments[0]
+                          }
                         </div>
                       </div>
                       <Button
@@ -390,7 +393,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
                           comments: order.comments || [], 
                           companyName: order.companyName 
                         })}
-                        className="p-1 h-6 w-6"
+                        className="p-1 h-6 w-6 flex-shrink-0"
                       >
                         <Eye className="h-3 w-3" />
                       </Button>

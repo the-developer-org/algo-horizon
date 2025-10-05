@@ -15,7 +15,7 @@ import { fetchUpstoxHistoricalData, fetchUpstoxIntradayData } from '../../compon
 import toast from 'react-hot-toast';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Mic, MicOff } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { de } from 'date-fns/locale';
@@ -51,6 +51,11 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [chartTimeframe, setChartTimeframe] = useState<string>('1d');
   
+  // Speech recognition state
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  
   // Check if current time is within market hours (Mon-Fri, 9:15 AM - 3:30 PM IST)
   const isMarketOpen = () => {
     const now = new Date();
@@ -84,6 +89,67 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
   const [companyPrice, setCompanyPrice] = useState<number | null>(null);
   const [companyChange, setCompanyChange] = useState<number | null>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setSpeechSupported(true);
+        const recognitionInstance = new SpeechRecognition();
+        recognitionInstance.continuous = true;
+        recognitionInstance.interimResults = true;
+        recognitionInstance.lang = 'en-US';
+
+        recognitionInstance.onresult = (event: any) => {
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript;
+            }
+          }
+
+          if (finalTranscript) {
+            // Add the transcript to existing comments
+            const currentComments = formData.comments.join('\n');
+            const newComments = currentComments ? `${currentComments}\n${finalTranscript.trim()}` : finalTranscript.trim();
+            const lines = newComments.split('\n').slice(0, 5); // Limit to 5 lines
+            handleInputChange('comments', lines);
+          }
+        };
+
+        recognitionInstance.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+          if (event.error === 'not-allowed') {
+            toast.error('Microphone access denied. Please allow microphone access and try again.');
+          } else if (event.error === 'network') {
+            toast.error('Network error. Please check your internet connection.');
+          } else {
+            toast.error('Speech recognition failed. Please try again.');
+          }
+        };
+
+        recognitionInstance.onend = () => {
+          setIsListening(false);
+        };
+
+        setRecognition(recognitionInstance);
+      } else {
+        setSpeechSupported(false);
+      }
+    }
+  }, []);
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      if (recognition && isListening) {
+        recognition.stop();
+      }
+    };
+  }, [recognition, isListening]);
 
   // Fetch KeyMapping from Redis on mount
   useEffect(() => {
@@ -323,6 +389,26 @@ let result;
   };
 
 
+
+  const startListening = () => {
+    if (recognition && speechSupported) {
+      try {
+        setIsListening(true);
+        recognition.start();
+      } catch (error) {
+        console.error('Error starting speech recognition:', error);
+        setIsListening(false);
+        toast.error('Failed to start speech recognition');
+      }
+    }
+  };
+
+  const stopListening = () => {
+    if (recognition && isListening) {
+      recognition.stop();
+      setIsListening(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -847,28 +933,54 @@ let result;
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="comments">Analysis Comments (Bullet Points)</Label>
-                <textarea
-                  id="comments"
-                  placeholder={`Enter comments`}
-                  value={formData.comments.join('\n')}
-                  onChange={(e) => {
-                    const lines = e.target.value.split('\n');
-                    // Limit to maximum 5 lines total
-                    const limitedLines = lines.slice(0, 5);
-                    handleInputChange('comments', limitedLines);
-                  }}
-                  className="w-full min-h-[120px] max-h-[180px] px-3 py-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-y-auto"
-                  style={{
-                    backgroundImage: 'linear-gradient(transparent, transparent 23px, #e5e7eb 23px, #e5e7eb 24px)',
-                    backgroundSize: '100% 24px',
-                    lineHeight: '24px',
-                    fontFamily: 'monospace',
-                    paddingTop: '6px',
-                    paddingBottom: '6px'
-                  }}
-                  rows={6}
-                />
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="comments">Analysis Comments (Bullet Points)</Label>
+                  {speechSupported && (
+                    <Button
+                      type="button"
+                      onClick={isListening ? stopListening : startListening}
+                      variant="outline"
+                      size="sm"
+                      className={`flex items-center gap-1 px-2 py-1 text-xs ${isListening ? 'bg-red-50 border-red-200 text-red-600' : 'bg-blue-50 border-blue-200 text-blue-600'}`}
+                    >
+                      {isListening ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                      {isListening ? 'Stop' : 'Voice'}
+                    </Button>
+                  )}
+                </div>
+                <div className="relative">
+                  <textarea
+                    id="comments"
+                    placeholder={isListening ? 'Listening... Speak your analysis' : 'Enter comments'}
+                    value={formData.comments.join('\n')}
+                    onChange={(e) => {
+                      const lines = e.target.value.split('\n');
+                      // Limit to maximum 5 lines total
+                      const limitedLines = lines.slice(0, 5);
+                      handleInputChange('comments', limitedLines);
+                    }}
+                    className={`w-full min-h-[120px] max-h-[180px] px-3 py-3 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-y-auto ${
+                      isListening 
+                        ? 'border-red-300 bg-red-50' 
+                        : 'border-gray-300'
+                    }`}
+                    style={{
+                      backgroundImage: 'linear-gradient(transparent, transparent 23px, #e5e7eb 23px, #e5e7eb 24px)',
+                      backgroundSize: '100% 24px',
+                      lineHeight: '24px',
+                      fontFamily: 'monospace',
+                      paddingTop: '6px',
+                      paddingBottom: '6px'
+                    }}
+                    rows={6}
+                  />
+                  {isListening && (
+                    <div className="absolute top-2 right-2 flex items-center gap-1 text-xs font-medium text-red-600">
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                      Recording
+                    </div>
+                  )}
+                </div>
                 
               </div>
             </div>
