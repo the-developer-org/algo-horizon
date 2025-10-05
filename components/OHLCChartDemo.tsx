@@ -19,14 +19,14 @@ const PAGINATION_CHUNK_SIZE = 500; // Smaller chunks for faster loading
 
 // Progressive loading configuration
 const PROGRESSIVE_BATCH_CONFIG = {
-  '1m': { batchSize: 100, targetDays: 30, maxBatches: 12 },
-  '5m': { batchSize: 100, targetDays: 60, maxBatches: 15 },
-  '15m': { batchSize: 75, targetDays: 90, maxBatches: 12 },
-  '30m': { batchSize: 60, targetDays: 120, maxBatches: 15 },
-  '1h': { batchSize: 50, targetDays: 180, maxBatches: 18 },
-  '4h': { batchSize: 40, targetDays: 300, maxBatches: 20 },
-  '1d': { batchSize: 30, targetDays: 365, maxBatches: 24 },
-  '1w': { batchSize: 20, targetDays: 365, maxBatches: 18 }
+  '1m': { batchSize: 5000, targetDays: 365, maxBatches: 110 },  // 550k ≈ 1y
+  '5m': { batchSize: 5000, targetDays: 365, maxBatches: 25 },   // 125k ≈ 1y
+  '15m': { batchSize: 2500, targetDays: 365, maxBatches: 15 },  // 37.5k ≈ 1y
+  '30m': { batchSize: 2000, targetDays: 365, maxBatches: 10 },  // 20k ≈ 1y
+  '1h': { batchSize: 1000, targetDays: 365, maxBatches: 10 },   // 10k ≈ 1y
+  '4h': { batchSize: 500, targetDays: 365, maxBatches: 5 },     // 2.5k ≈ 1y
+  '1d': { batchSize: 365, targetDays: 365, maxBatches: 1 },     // 365 = 1y
+  '1w': { batchSize: 52, targetDays: 365, maxBatches: 1 },      // 52 = 1y
 } as const;
 
 export const OHLCChartDemo: React.FC = () => {
@@ -517,23 +517,58 @@ export const OHLCChartDemo: React.FC = () => {
     }
 
     try {
-      // Create a Date object from the max date and time
-      const maxDateTime = new Date(`${maxDate}T${maxTime}`);
+      console.log(`🔍 Starting date/time filtering with maxDate=${maxDate}, maxTime=${maxTime}`);
+      
+      // Parse the time with proper format (add seconds if missing)
+      const timeWithSeconds = maxTime.includes(':') && maxTime.split(':').length === 2 
+        ? `${maxTime}:00` 
+        : maxTime;
+      
+      // Create maxDateTime in UTC to match the candle timestamps format
+      // Since the URL time is likely in IST (Indian Standard Time), we need to handle timezone properly
+      const maxDateTime = new Date(`${maxDate}T${timeWithSeconds}.000Z`);
       
       if (isNaN(maxDateTime.getTime())) {
-        console.warn('❌ Invalid date/time format for filtering:', { maxDate, maxTime });
+        console.warn('❌ Invalid date/time format for filtering:', { maxDate, maxTime, timeWithSeconds });
         return candlesToFilter;
       }
 
       console.log(`🔍 Filtering candles: showing data up to ${maxDateTime.toISOString()}`);
+      console.log(`🔍 Sample candle timestamps:`, candlesToFilter.slice(0, 3).map(c => c.timestamp));
+      console.log(`🔍 Sample candle timestamps (last 3):`, candlesToFilter.slice(-3).map(c => c.timestamp));
       
       // Filter candles to only include those with timestamps before or equal to maxDateTime
-      const filteredCandles = candlesToFilter.filter(candle => {
+      const filteredCandles = candlesToFilter.filter((candle, index) => {
         const candleTime = new Date(candle.timestamp);
-        return candleTime <= maxDateTime;
+        const isBeforeMax = candleTime <= maxDateTime;
+        
+        // Log first few comparisons for debugging
+        if (index < 3) {
+          console.log(`🔍 Comparing #${index}:`, {
+            candleTime: candleTime.toISOString(),
+            maxDateTime: maxDateTime.toISOString(),
+            comparison: isBeforeMax,
+            candleTimestamp: candle.timestamp
+          });
+        }
+        
+        return isBeforeMax;
       });
 
       console.log(`✅ Filtered ${candlesToFilter.length} candles down to ${filteredCandles.length} candles`);
+      
+      if (filteredCandles.length === 0 && candlesToFilter.length > 0) {
+        console.warn(`⚠️ All candles filtered out! This suggests a timezone or date format issue.`);
+        console.log(`Debug info:`, {
+          maxDate,
+          maxTime,
+          timeWithSeconds,
+          maxDateTimeISO: maxDateTime.toISOString(),
+          firstCandleTime: candlesToFilter[0]?.timestamp,
+          lastCandleTime: candlesToFilter[candlesToFilter.length - 1]?.timestamp
+        });
+      }
+      
       return filteredCandles;
     } catch (error) {
       console.error('Error filtering candles by date/time:', error);
