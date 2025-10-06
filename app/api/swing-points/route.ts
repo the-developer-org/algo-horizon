@@ -35,7 +35,7 @@ const parseTimestampToUnix = (timestamp: string): number => {
 
 export async function POST(request: NextRequest) {
     try {
-        const {lookback = 5, instrumentKey, companyName, fromDate } = await request.json();
+        const {lookback = 5, instrumentKey, companyName, fromDate, timeFrameSelection} = await request.json();
 
         console.log('🎯 SWING POINTS API CALLED');
         console.log('📝 Request params:', { instrumentKey, companyName, fromDate, lookback });
@@ -51,12 +51,12 @@ export async function POST(request: NextRequest) {
         const today = new Date();
         const toDate = today.toISOString().split('T')[0];
 
-        const selectedTimeframes = {
-            "15Min": true,
-            "1H": true,
-            "4H": true,
-            "1D": true,
-        }
+      const selectedTimeframes = {
+            "15Min": timeFrameSelection.min15,
+            "1H": timeFrameSelection.hour1,
+            "4H": timeFrameSelection.hour4,
+            "1D": timeFrameSelection.day1,
+        };
 
         let processedCompany = null;
         const { dailyDataReversed, hourly4DataReversed, hourly1DataReversed, fifteenMinuteDataReversed } =
