@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Mic, MicOff } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { de } from 'date-fns/locale';
+import { Switch } from "../../components/ui/switch";
 
 interface PaperTradingOrderFormProps {
   readonly onClose: () => void;
@@ -45,6 +45,9 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     comments: [],
     prediction: 'Profit',
     predictionPercentage: 0,
+    trailingStopLossEnabled: false,
+    trailingStopLossAt: 0,
+    trailingStopLossQuantity: 0,
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,6 +92,9 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
   const [companyPrice, setCompanyPrice] = useState<number | null>(null);
   const [companyChange, setCompanyChange] = useState<number | null>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
+
+  // Trailing stop loss state
+  const [trailingStopLossEnabled, setTrailingStopLossEnabled] = useState(false);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -331,35 +337,61 @@ let result;
       newErrors.entryTime = 'Entry time is required';
     }
 
-    if (formData.quantity <= 0) {
-      newErrors.quantity = 'Quantity must be greater than 0';
-    }
-
-    if (companyPrice && currentCapital > 0) {
-      const maxPurchasable = Math.floor(currentCapital / companyPrice);
-      if (formData.quantity > maxPurchasable) {
-        newErrors.quantity = `Quantity cannot exceed ${maxPurchasable} shares (available capital: ₹${currentCapital.toFixed(2)})`;
+    // Only validate trading parameters if prediction is "Profit"
+    if (formData.prediction === 'Profit') {
+      if (formData.quantity <= 0) {
+        newErrors.quantity = 'Quantity must be greater than 0';
       }
-    }
 
-    if (formData.stopLoss <= 0) {
-      newErrors.stopLoss = 'Stop loss must be greater than 0';
-    }
+      if (companyPrice && currentCapital > 0) {
+        const maxPurchasable = Math.floor(currentCapital / companyPrice);
+        if (formData.quantity > maxPurchasable) {
+          newErrors.quantity = `Quantity cannot exceed ${maxPurchasable} shares (available capital: ₹${currentCapital.toFixed(2)})`;
+        }
+      }
 
-    if (formData.targetPrice <= 0) {
-      newErrors.targetPrice = 'Target price must be greater than 0';
-    }
+      if (formData.stopLoss <= 0) {
+        newErrors.stopLoss = 'Stop loss must be greater than 0';
+      }
 
-    if (companyPrice && formData.targetPrice <= companyPrice) {
-      newErrors.targetPrice = 'Target price must be greater than current price';
-    }
+      if (formData.targetPrice <= 0) {
+        newErrors.targetPrice = 'Target price must be greater than 0';
+      }
 
-    if (companyPrice && formData.stopLoss >= companyPrice) {
-      newErrors.stopLoss = 'Stop loss must be less than current price';
-    }
+      if (companyPrice && formData.targetPrice <= companyPrice) {
+        newErrors.targetPrice = 'Target price must be greater than current price';
+      }
 
-    if (formData.stopLoss >= formData.targetPrice) {
-      newErrors.stopLoss = 'Stop loss should be less than target price';
+      if (companyPrice && formData.stopLoss >= companyPrice) {
+        newErrors.stopLoss = 'Stop loss must be less than current price';
+      }
+
+      if (formData.stopLoss >= formData.targetPrice) {
+        newErrors.stopLoss = 'Stop loss should be less than target price';
+      }
+
+      // Trailing stop loss validations - only if enabled
+      if (formData.trailingStopLossEnabled) {
+        if (formData.trailingStopLossQuantity <= 0) {
+          newErrors.trailingStopLossQuantity = 'Trailing stop loss quantity must be greater than 0';
+        }
+
+        if (formData.trailingStopLossQuantity > formData.quantity) {
+          newErrors.trailingStopLossQuantity = 'Trailing stop loss quantity cannot be greater than order quantity';
+        }
+
+        if (formData.trailingStopLossAt <= 0) {
+          newErrors.trailingStopLossAt = 'Trailing stop loss price must be greater than 0';
+        }
+
+        if (companyPrice && formData.trailingStopLossAt <= companyPrice) {
+          newErrors.trailingStopLossAt = 'Trailing stop loss must be greater than entry price';
+        }
+
+        if (formData.trailingStopLossAt >= formData.targetPrice) {
+          newErrors.trailingStopLossAt = 'Trailing stop loss must be less than target price';
+        }
+      }
     }
 
     if (!formData.prediction || (formData.prediction !== 'Profit' && formData.prediction !== 'Action-not-taken')) {
@@ -845,7 +877,108 @@ let result;
                 )}
               </div>
             </div>
-    
+
+            {/* Trailing Stop Loss Section */}
+            <div className="space-y-4 border border-orange-200 rounded-lg p-4 bg-orange-50">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="text-base font-semibold text-orange-800">Trailing Stop Loss</Label>
+                </div>
+                <Switch
+                  checked={trailingStopLossEnabled}
+                  disabled={
+                    !selectedCompany || 
+                    !formData.quantity || 
+                    !formData.stopLoss || 
+                    !formData.targetPrice ||
+                    formData.prediction === 'Action-not-taken'
+                  }
+                  onCheckedChange={(checked: boolean) => {
+                    setTrailingStopLossEnabled(checked);
+                    setFormData(prev => ({
+                      ...prev,
+                      trailingStopLossEnabled: checked,
+                      trailingStopLossAt: checked ? prev.trailingStopLossAt : 0,
+                      trailingStopLossQuantity: checked ? prev.trailingStopLossQuantity : 0
+                    }));
+                    
+                    if (!checked) {
+                      // Clear trailing stop loss errors when disabled
+                      setErrors(prev => ({
+                        ...prev,
+                        trailingStopLossAt: '',
+                        trailingStopLossQuantity: ''
+                      }));
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Trailing Stop Loss Input Fields - Only shown when enabled */}
+              {trailingStopLossEnabled && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-orange-200">
+                  <div className="space-y-2">
+                    <Label htmlFor="trailingStopLossQuantity" className="flex items-center gap-1">
+                      <Shield className="h-4 w-4" />
+                      Trailing Stop Loss Quantity
+                    </Label>
+                    <Input
+                      id="trailingStopLossQuantity"
+                      type="number"
+                      placeholder="0"
+                      value={formData.trailingStopLossQuantity || ''}
+                      onChange={(e) => {
+                        const inputValue = parseInt(e.target.value) || 0;
+                        handleInputChange('trailingStopLossQuantity', inputValue);
+                      }}
+                      className={errors.trailingStopLossQuantity ? 'border-red-500' : ''}
+                    />
+                    {formData.quantity > 0 && (
+                      <div className="text-xs text-orange-600">
+                        Max quantity: {formData.quantity} shares
+                      </div>
+                    )}
+                    {errors.trailingStopLossQuantity && (
+                      <p className="text-sm text-red-500">{errors.trailingStopLossQuantity}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="trailingStopLossAt" className="flex items-center gap-1">
+                        <Target className="h-4 w-4" />
+                        Trailing Stop Loss At (₹)
+                      </Label>
+                      {companyPrice && formData.trailingStopLossAt > 0 && (
+                        <span className={`text-xs ${formData.trailingStopLossAt < companyPrice ? 'text-red-600' : 'text-green-600'}`}>
+                          ({formData.trailingStopLossAt < companyPrice
+                            ? `${((formData.trailingStopLossAt - companyPrice) / companyPrice * 100).toFixed(2)}%`
+                            : `+${((formData.trailingStopLossAt - companyPrice) / companyPrice * 100).toFixed(2)}%`
+                          })
+                        </span>
+                      )}
+                    </div>
+                    <Input
+                      id="trailingStopLossAt"
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={formData.trailingStopLossAt || ''}
+                      onChange={(e) => handleInputChange('trailingStopLossAt', parseFloat(e.target.value) || 0)}
+                      className={errors.trailingStopLossAt ? 'border-red-500' : ''}
+                    />
+                    {companyPrice && formData.targetPrice > 0 && (
+                      <div className="text-xs text-orange-600">
+                        Range: ₹{companyPrice.toFixed(2)} (entry) to ₹{formData.targetPrice.toFixed(2)} (target)
+                      </div>
+                    )}
+                    {errors.trailingStopLossAt && (
+                      <p className="text-sm text-red-500">{errors.trailingStopLossAt}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Additional Information */}
             <div className="space-y-4">
@@ -857,11 +990,34 @@ let result;
                     setPrediction(value);
                     // Update the prediction field with the string value
                     handleInputChange('prediction', value);
-                    // Reset prediction percentage to 0 when switching types
-                    setFormData(prev => ({
-                      ...prev,
-                      predictionPercentage: 0
-                    }));
+                    
+                    if (value === 'Action-not-taken') {
+                      // When "Action Not Taken" is selected, reset all trading-related fields and disable trailing stop loss
+                      setFormData(prev => ({
+                        ...prev,
+                        predictionPercentage: 0,
+                        quantity: 0,
+                        stopLoss: 0,
+                        targetPrice: 0,
+                        trailingStopLossEnabled: false,
+                        trailingStopLossAt: 0,
+                        trailingStopLossQuantity: 0
+                      }));
+                      setTrailingStopLossEnabled(false);
+                      
+                      // Clear trailing stop loss errors when disabled
+                      setErrors(prev => ({
+                        ...prev,
+                        trailingStopLossAt: '',
+                        trailingStopLossQuantity: ''
+                      }));
+                    } else {
+                      // For "Profit" type, only reset prediction percentage to 0
+                      setFormData(prev => ({
+                        ...prev,
+                        predictionPercentage: 0
+                      }));
+                    }
                   }}
                   className="flex space-x-6"
                 >
@@ -878,59 +1034,6 @@ let result;
                     </Label>
                   </div>
                 </RadioGroup>
-
-                <div className="space-y-2">
-                  <Label htmlFor="prediction">Prediction (%)</Label>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-4">
-                      <span className="text-sm text-gray-600 font-medium">0%</span>
-                      <div className="flex-1">
-                        {(() => {
-                          const isActionNotTaken = prediction === 'Action-not-taken';
-                          const isProfit = prediction === 'Profit';
-                          
-                          const sliderBackground = isProfit
-                            ? `linear-gradient(to right, #22c55e 0%, #22c55e ${(Math.abs(formData.predictionPercentage) / 30) * 100}%, #e5e7eb ${(Math.abs(formData.predictionPercentage) / 30) * 100}%, #e5e7eb 100%)`
-                            : isActionNotTaken
-                            ? '#6b7280'
-                            : `linear-gradient(to right, #ef4444 0%, #ef4444 ${(Math.abs(formData.predictionPercentage) / 30) * 100}%, #e5e7eb ${(Math.abs(formData.predictionPercentage) / 30) * 100}%, #e5e7eb 100%)`;
-
-                          const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-                            const value = parseInt(e.target.value);
-                            const newPrediction = isProfit ? "Profit" : "Loss";
-                            handleInputChange('prediction', newPrediction);
-                          };
-
-                          const maxLabel = isProfit ? '+30%' : isActionNotTaken ? '0%' : '-30%';
-                          const labelColor = isProfit ? 'text-green-600' : isActionNotTaken ? 'text-gray-600' : 'text-red-600';
-
-                          return (
-                            <input
-                              id="prediction"
-                              type="range"
-                              min="0"
-                              max="30"
-                              step="1"
-                              value={Math.abs(formData.predictionPercentage)}
-                              onChange={handleSliderChange}
-                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                              style={{ background: sliderBackground }}
-                              disabled={isActionNotTaken}
-                            />
-                          );
-                        })()}
-                    </div>
-                    <div className="text-center">
-                      <span className={`text-lg font-bold ${prediction === 'Profit' ? 'text-green-600' : prediction === 'Action-not-taken' ? 'text-gray-600' : 'text-red-600'}`}>
-                        {prediction === 'Action-not-taken' ? '0%' : `${prediction === 'Profit' ? '+' : '-'}${Math.abs(formData.predictionPercentage)}%`}
-                      </span>
-                    </div>
-                  </div>
-                  {errors.prediction && (
-                    <p className="text-sm text-red-500">{errors.prediction}</p>
-                  )}
-                </div>
-              </div>
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -1033,6 +1136,22 @@ let result;
                     <span className="text-gray-600">Comments:</span>
                     <span className="font-semibold ml-2">{formData.comments.length} bullet points</span>
                   </div>
+                  {trailingStopLossEnabled && (
+                    <>
+                      <div>
+                        <span className="text-gray-600">Trailing SL Enabled:</span>
+                        <span className="font-semibold ml-2 text-orange-600">Yes</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Trailing SL Quantity:</span>
+                        <span className="font-semibold ml-2">{formData.trailingStopLossQuantity}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Trailing SL At:</span>
+                        <span className="font-semibold ml-2">₹{formData.trailingStopLossAt}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="text-xs text-gray-500 mt-2">
                   * Brokerage fees will be automatically calculated and applied by the system
@@ -1058,13 +1177,24 @@ let result;
                   !formData.instrumentKey.trim() ||
                   !formData.entryDate ||
                   !formData.entryTime ||
-                  formData.quantity <= 0 ||
-                  formData.stopLoss <= 0 ||
-                  formData.targetPrice <= 0 ||
-                  (companyPrice && formData.stopLoss >= companyPrice) ||
-                  formData.stopLoss >= formData.targetPrice ||
                   !formData.prediction ||
-                  (formData.prediction !== 'Profit' && formData.prediction !== 'Action-not-taken')
+                  (formData.prediction !== 'Profit' && formData.prediction !== 'Action-not-taken') ||
+                  // Only validate trading parameters for "Profit" prediction
+                  (formData.prediction === 'Profit' && (
+                    formData.quantity <= 0 ||
+                    formData.stopLoss <= 0 ||
+                    formData.targetPrice <= 0 ||
+                    (companyPrice && formData.stopLoss >= companyPrice) ||
+                    formData.stopLoss >= formData.targetPrice ||
+                    // Trailing stop loss validations when enabled
+                    (formData.trailingStopLossEnabled && (
+                      formData.trailingStopLossQuantity <= 0 ||
+                      formData.trailingStopLossQuantity > formData.quantity ||
+                      formData.trailingStopLossAt <= 0 ||
+                      (companyPrice && formData.trailingStopLossAt <= companyPrice) ||
+                      formData.trailingStopLossAt >= formData.targetPrice
+                    ))
+                  ))
                 }
                 className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >

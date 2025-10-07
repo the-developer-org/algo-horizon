@@ -21,6 +21,10 @@ export interface PaperTradeOrder {
   status: 'ACTIVE' | 'COMPLETED';
   comments: string[];
   prediction: number;
+  trailingStopLossEnabled?: boolean;
+  trailingStopLossAt?: number;
+  trailingStopLossQuantity?: number;
+  trailingStopLossProfits?: number;
 }
 
 export interface PaperTradeDashboard {
@@ -70,6 +74,9 @@ export interface CreateOrderRequest {
   comments: string[];
   prediction: 'Profit' | 'Action-not-taken';
   predictionPercentage: number;
+  trailingStopLossEnabled: boolean;
+  trailingStopLossAt: number;
+  trailingStopLossQuantity: number;
 }
 
 export interface ExitOrderRequest {

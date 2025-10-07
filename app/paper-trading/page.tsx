@@ -16,8 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, TrendingUp, BarChart3, DollarSign, RotateCcw } from "lucide-react";
+import { Plus, TrendingUp, BarChart3, DollarSign, RotateCcw, UserPlus } from "lucide-react";
 import toast from 'react-hot-toast';
+import axios from 'axios';
 
 export default function PaperTradingPage() {
   const [dashboardData, setDashboardData] = useState<PaperTradeDashboard | null>(null);
@@ -33,6 +34,11 @@ export default function PaperTradingPage() {
   const [selectedAccount, setSelectedAccount] = useState<string>('Main');
   const [currentUser, setCurrentUser] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
+  const [isCreatingAccount, setIsCreatingAccount] = useState<boolean>(false);
+
+  const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+const API_BASE = `${BASE_URL}/api/paper-trade`;
 
   // Get current user and admin status
   useEffect(() => {
@@ -43,14 +49,43 @@ export default function PaperTradingPage() {
     setSelectedAccount(adminStatus ? 'Main' : user);
   }, []);
 
-  // Available accounts based on admin status
-  const availableAccounts = useMemo(() => {
-    if (isAdmin) {
-      return ['Main', 'Abrar', 'Sadiq', 'Nawaz'];
-    } else {
-      return [currentUser, 'Main'].filter(Boolean);
+  // Fetch available accounts from API
+  const fetchAvailableAccounts = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/all-users`);
+      const data = response.data;
+      
+      if (data.result && Array.isArray(data.result)) {
+        if (isAdmin) {
+          // Admin can see all accounts
+          setAvailableAccounts(data.result);
+        } else {
+          // Regular users can see their own account, Main, and any accounts they created
+          const userAccounts = data.result.filter((account: string) => 
+            account === currentUser || 
+            account === 'Main' || 
+            account.startsWith(currentUser + '-')
+          );
+          setAvailableAccounts(userAccounts);
+        }
+      } else {
+        console.error('Invalid API response format:', data);
+        // Fallback to default accounts if API fails
+        setAvailableAccounts(isAdmin ? ['Main', 'Abrar', 'Sadiq', 'Nawaz'] : [currentUser, 'Main'].filter(Boolean));
+      }
+    } catch (error) {
+      console.error('Error fetching available accounts:', error);
+      // Fallback to default accounts if API fails
+      setAvailableAccounts(isAdmin ? ['Main', 'Abrar', 'Sadiq', 'Nawaz'] : [currentUser, 'Main'].filter(Boolean));
     }
-  }, [isAdmin, currentUser]);
+  };
+
+  // Fetch available accounts when component mounts or when user/admin status changes
+  useEffect(() => {
+    if (currentUser) {
+      fetchAvailableAccounts();
+    }
+  }, [currentUser, isAdmin, refreshTrigger]);
 
   // Format last refresh time for display
   const lastRefreshDisplay = useMemo(() => {
@@ -166,6 +201,106 @@ export default function PaperTradingPage() {
     handleRefresh();
   };
 
+  // Generate the next available account name
+  // Check if current user can reset the selected account
+  const canResetAccount = () => {
+    // Main account can be reset by anyone
+    if (selectedAccount === 'Main') {
+      return true;
+    }
+    
+    // Individual accounts can only be reset by the account owner
+    // Account owner is determined by the account name matching the current user
+    // or the account being a sub-account of the current user (e.g., "Abrar-1" owned by "Abrar")
+    const accountOwner = selectedAccount.includes('-') 
+      ? selectedAccount.split('-')[0] 
+      : selectedAccount;
+    
+    return currentUser === accountOwner;
+  };
+
+  const generateNextAccountName = () => {
+    let counter = 1;
+    let suggestedName = `${currentUser}-${counter}`;
+    
+    while (availableAccounts.includes(suggestedName)) {
+      counter++;
+      suggestedName = `${currentUser}-${counter}`;
+    }
+    
+    return suggestedName;
+  };
+
+  const handleCreateAccount = async () => {
+    const newAccountName = generateNextAccountName();
+    
+    // Set loading state
+    setIsCreatingAccount(true);
+    
+    try {
+      console.log(`🚀 Creating account: ${newAccountName}`);
+      console.log(`📡 API URL: ${API_BASE}/create/${newAccountName}`);
+      
+      // Make API call to create the account
+      const response = await axios.post(`${API_BASE}/create/${newAccountName}`);
+      
+      console.log('📥 API Response:', response);
+      console.log('📊 Response Status:', response.status);
+      console.log('📄 Response Data:', response.data);
+      
+      // Check for successful response (status 200-299 range)
+      if (response.status >= 200 && response.status < 300) {
+        // Show success message
+        toast.success(`🎉 Account "${newAccountName}" created successfully!`);
+        
+        // Add the new account to the available accounts list immediately
+        setAvailableAccounts(prev => [...prev, newAccountName]);
+        
+        // Switch to the newly created account
+        setSelectedAccount(newAccountName);
+        
+        // Refresh available accounts list from API to ensure consistency
+        try {
+          await fetchAvailableAccounts();
+        } catch (fetchError) {
+          console.warn('⚠️ Warning: Failed to refresh accounts from API, but using local update:', fetchError);
+          // Continue with local update - account was already added to the list
+        }
+        
+        // Trigger refresh to update the dashboard data
+        handleRefresh();
+        
+        // Additional success feedback
+        console.log(`✅ Successfully created account: ${newAccountName}`);
+      } else {
+        console.error('❌ Unexpected response status:', response.status);
+        toast.error(`❌ Failed to create account. Status: ${response.status}`);
+      }
+    } catch (error: any) {
+      console.error('💥 Error creating account:', error);
+      console.error('📋 Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        config: error.config
+      });
+      
+      if (error.response) {
+        // Server responded with error status
+        toast.error(`❌ Server error: ${error.response.status} - ${error.response.data?.message || 'Failed to create account'}`);
+      } else if (error.request) {
+        // Request was made but no response received
+        toast.error('❌ Network error: Unable to reach server');
+      } else {
+        // Something else happened
+        toast.error('❌ Failed to create account. Please try again.');
+      }
+    } finally {
+      // Reset loading state
+      setIsCreatingAccount(false);
+    }
+  };
+
   if (isLoading && !dashboardData) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -206,12 +341,6 @@ export default function PaperTradingPage() {
               </Select>
             </div>
 
-            {/* Last Refresh Timestamp */}
-            <div className="text-sm text-gray-500 flex items-center gap-1">
-              <span>Last updated:</span>
-              <span className="font-medium">{lastRefreshDisplay}</span>
-            </div>
-            
             <Button
               onClick={handleRefresh}
               variant="outline"
@@ -219,11 +348,48 @@ export default function PaperTradingPage() {
             >
               <BarChart3 className="h-4 w-4" />
               Refresh
+              <span className="text-xs text-gray-500 ml-1">({lastRefreshDisplay})</span>
             </Button>
+            {/* Create Account Button - Only show when current user can create accounts for themselves */}
+            {selectedAccount !== 'Main' && selectedAccount === currentUser && (
+              <Button
+                onClick={handleCreateAccount}
+                disabled={isCreatingAccount}
+                variant="outline"
+                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCreatingAccount ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-600"></div>
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4" />
+                    Create Account
+                  </>
+                )}
+              </Button>
+            )}
+            
             <Button
               onClick={() => setShowResetModal(true)}
+              disabled={!canResetAccount()}
               variant="outline"
-              className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+              className={`flex items-center gap-2 ${
+                canResetAccount() 
+                  ? 'text-red-600 hover:text-red-700 hover:bg-red-50' 
+                  : 'text-gray-400 cursor-not-allowed'
+              }`}
+              title={(() => {
+                if (canResetAccount()) {
+                  return 'Reset this account';
+                }
+                const accountOwner = selectedAccount.includes('-') 
+                  ? selectedAccount.split('-')[0] 
+                  : selectedAccount;
+                return `Only ${accountOwner} can reset this account`;
+              })()}
             >
               <RotateCcw className="h-4 w-4" />
               Reset Account
@@ -336,6 +502,8 @@ export default function PaperTradingPage() {
             user={selectedAccount}
           />
         )}
+
+
       </div>
     </div>
   );

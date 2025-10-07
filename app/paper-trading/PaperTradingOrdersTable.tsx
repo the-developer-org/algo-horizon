@@ -279,7 +279,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
             <th className="text-left p-3 font-semibold">SL/Target</th>
             <th className="text-left p-3 font-semibold">Curr Value</th>
             <th className="text-left p-3 font-semibold">Exit</th>
-            <th className="text-left p-3 font-semibold w-32">P&L</th>
+            <th className="text-left p-3 font-semibold w-40">P&L Details</th>
             <th className="text-left p-3 font-semibold">Prediction</th>
             <th className="text-left p-3 font-semibold">Comments</th>
             <th className="text-left p-3 font-semibold">Status</th>
@@ -351,12 +351,35 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
               <td className="p-3">
                 {order.netProfitLoss !== undefined ? (
                   <div>
-                    <div className={`font-medium ${getPLColor(order.netProfitLoss)}`}>
-                      {formatCurrency(order.netProfitLoss)}
-                    </div>
-                    {order.profitLossPercentage !== undefined && (
-                      <div className={`text-xs ${getPLColor(order.netProfitLoss)}`}>
-                        ({order.profitLossPercentage > 0 ? '+' : ''}{order.profitLossPercentage.toFixed(2)}%)
+                    {order.trailingStopLossEnabled && order.trailingStopLossProfits !== undefined ? (
+                      // Show trailing stop loss breakdown
+                      <div className="space-y-1">
+                        <div className="text-xs text-orange-600">
+                          TSL: {formatCurrency(order.trailingStopLossProfits)}
+                        </div>
+                        <div className="text-xs text-blue-600">
+                          Post TSL: {formatCurrency(order.netProfitLoss - order.trailingStopLossProfits)}
+                        </div>
+                        <div className={`font-medium text-sm ${getPLColor(order.netProfitLoss)}`}>
+                          Final: {formatCurrency(order.netProfitLoss)}
+                        </div>
+                        {order.profitLossPercentage !== undefined && (
+                          <div className={`text-xs ${getPLColor(order.netProfitLoss)}`}>
+                            ({order.profitLossPercentage > 0 ? '+' : ''}{order.profitLossPercentage.toFixed(2)}%)
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      // Show regular P&L
+                      <div>
+                        <div className={`font-medium ${getPLColor(order.netProfitLoss)}`}>
+                          {formatCurrency(order.netProfitLoss)}
+                        </div>
+                        {order.profitLossPercentage !== undefined && (
+                          <div className={`text-xs ${getPLColor(order.netProfitLoss)}`}>
+                            ({order.profitLossPercentage > 0 ? '+' : ''}{order.profitLossPercentage.toFixed(2)}%)
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
