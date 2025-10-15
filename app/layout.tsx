@@ -22,7 +22,9 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   const router = useRouter();
   const pathname = usePathname();
   const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
-  const isAuthPage = pathname?.startsWith('/auth') ?? false;
+  // Exclude upstox-management from being treated as a regular auth page
+  const isAuthPage = (pathname?.startsWith('/auth') && pathname !== '/auth/upstox-management') ?? false;
+  const isUpstoxPage = pathname?.startsWith('/upstox') ?? false;
   const [sidebarVisible, setSidebarVisible] = useState(true);
 
   const toggleSidebar = () => {
@@ -90,7 +92,9 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-gray-50">
-        <MainSidebar isVisible={sidebarVisible} onToggleVisibility={toggleSidebar} />
+        {!isUpstoxPage && (
+          <MainSidebar isVisible={sidebarVisible} onToggleVisibility={toggleSidebar} />
+        )}
         <div className="flex-1 overflow-y-auto">
           {children}
         </div>

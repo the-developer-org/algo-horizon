@@ -4,50 +4,88 @@ export async function GET(request: NextRequest) {
   const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL
   const clientId = process.env.NEXT_PUBLIC_UPSTOX_CLIENT_ID
   
+  // Create detailed error logging function
+  const logError = (step: string, error: any, details?: any) => {
+    console.error(`❌ [UPSTOX CALLBACK ERROR] ${step}:`, error);
+    if (details) console.error('Details:', details);
+    return NextResponse.redirect(`${baseUrl}/auth?error=${encodeURIComponent(`${step}: ${error.message || error}`)}&details=${encodeURIComponent(JSON.stringify(details || {}))}`);
+  };
+  
   try {
     const searchParams = request.nextUrl.searchParams
     const code = searchParams.get('code')
     const state = searchParams.get('state')
+    const error = searchParams.get('error')
 
-    console.log('=== DEBUG START ===')
-    console.log('Received params:', { code, state })
+    console.log('🚀 [UPSTOX CALLBACK] Starting callback process');
+    console.log('📥 Received params:', { 
+      hasCode: !!code, 
+      codeLength: code?.length,
+      state, 
+      error,
+      hasClientId: !!clientId,
+      baseUrl 
+    });
 
-    if (!code) {
-      console.log('No code received in callback')
-      return NextResponse.redirect(`${baseUrl}/auth?error=No authorization code received`)
+    if (error) {
+      return logError('Authorization Error', error, { state });
     }
 
-    // Log the request we're about to make
+    if (!code) {
+      return logError('Missing Code', 'No authorization code received', { searchParams: Object.fromEntries(searchParams.entries()) });
+    }
+
+    if (!clientId) {
+      return logError('Configuration Error', 'Missing UPSTOX_CLIENT_ID environment variable');
+    }
+
+    // Prepare token exchange request
+    const clientSecret = process.env.UPSTOX_CLIENT_SECRET;
+    if (!clientSecret) {
+      return logError('Configuration Error', 'Missing UPSTOX_CLIENT_SECRET environment variable');
+    }
+
+    const redirectUri = `${baseUrl}/api/auth/callback`;
     const requestBody = new URLSearchParams({
       code,
-      client_id: clientId || '',
-      client_secret: process.env.UPSTOX_CLIENT_SECRET!,
-      redirect_uri: `${baseUrl}/api/auth/callback`,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
       grant_type: 'authorization_code',
-    })
+    });
 
-    console.log('Making token request with:', {
+    const tokenUrl = `${process.env.NEXT_PUBLIC_UPSTOX_API_URL}/login/authorization/token`;
+    console.log('🔄 [TOKEN EXCHANGE] Making request:', {
+      url: tokenUrl,
       clientId: clientId,
-      redirectUri: `${baseUrl}/api/auth/callback`,
-      code: code.substring(0, 10) + '...' // Only log part of the code for security
-    })
+      redirectUri: redirectUri,
+      codePreview: code.substring(0, 6) + '***',
+      hasClientSecret: !!clientSecret
+    });
 
     // Generate Access Token
-    const tokenResponse = await fetch(`${process.env.NEXT_PUBLIC_UPSTOX_API_URL}/login/authorization/token`, {
+    const tokenResponse = await fetch(tokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Api-Version': '2.0',
       },
       body: requestBody,
-    })
+    });
 
-    console.log('Token response status:', tokenResponse.status)
-    const responseText = await tokenResponse.text()
-    console.log('Token response body:', responseText)
+    const responseText = await tokenResponse.text();
+    console.log('📨 [TOKEN RESPONSE]:', { 
+      status: tokenResponse.status, 
+      statusText: tokenResponse.statusText,
+      responseLength: responseText.length,
+      responsePreview: responseText.substring(0, 100) + '...'
+    });
 
     if (!tokenResponse.ok) {
-      throw new Error(`Token request failed: ${tokenResponse.status}\nResponse: ${responseText}`)
+      return logError('Token Exchange Failed', `HTTP ${tokenResponse.status}: ${tokenResponse.statusText}`, {
+        responseBody: responseText,
+        requestUrl: tokenUrl
+      });
     }
 
     // Try to parse the response as JSON
@@ -113,17 +151,19 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('=== ERROR DEBUG ===')
-    console.error('Error details:', error)
-    console.error('Environment variables:', {
-      hasClientId: !!process.env.UPSTOX_CLIENT_ID,
-      hasClientSecret: !!process.env.UPSTOX_CLIENT_SECRET,
-      baseUrl: process.env.NEXT_PUBLIC_FRONTEND_URL,
-    })
-    console.error('=== ERROR DEBUG END ===')
-
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    return NextResponse.redirect(`${baseUrl}/auth?error=${encodeURIComponent(errorMessage)}`)
+    const errorDetails = {
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+      stack: error instanceof Error ? error.stack : undefined,
+      env: {
+        hasClientId: !!process.env.NEXT_PUBLIC_UPSTOX_CLIENT_ID,
+        hasClientSecret: !!process.env.UPSTOX_CLIENT_SECRET,
+        hasApiUrl: !!process.env.NEXT_PUBLIC_UPSTOX_API_URL,
+        hasBackendUrl: !!process.env.NEXT_PUBLIC_BACKEND_URL,
+        baseUrl: process.env.NEXT_PUBLIC_FRONTEND_URL,
+      }
+    };
+    
+    return logError('Callback Process Failed', error, errorDetails);
   }
 }
 

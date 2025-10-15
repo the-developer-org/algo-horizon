@@ -1,13 +1,14 @@
-// Utility to resolve per-user Upstox OAuth configuration without exposing secrets client-side.
+// Utility to resolve per-user Upstox OAuth configuration with environment-aware settings
 // Strategy:
-//   Define environment variables per user or group:
-//     UPSTOX_CLIENT_ID_<KEY>
-//     UPSTOX_REDIRECT_URL_<KEY>
-//   Where <KEY> is an uppercased, non-alphanumeric stripped (-> underscore) variant of userId or group name.
+//   Define environment variables per user with environment suffix:
+//     UPSTOX_CLIENT_ID_<KEY>_PROD or UPSTOX_CLIENT_ID_<KEY>_LOCAL
+//     UPSTOX_REDIRECT_URL_<KEY>_PROD or UPSTOX_REDIRECT_URL_<KEY>_LOCAL
+//   Where <KEY> is the sanitized userId and suffix is based on current environment
 // Example:
-//   userId = 64fa12 => env: UPSTOX_CLIENT_ID_64FA12
-//   group  = alpha-team => UPSTOX_CLIENT_ID_ALPHA_TEAM
-// Resolution order: explicit userId env first, then group (if provided), then global fallback.
+//   Local: UPSTOX_CLIENT_ID_8885615779_LOCAL
+//   Prod:  UPSTOX_CLIENT_ID_8885615779_PROD
+
+import { getUpstoxEnvironmentSuffix, logEnvironmentInfo } from './env-utils';
 
 export interface UpstoxUserConfig {
   clientId: string;
@@ -21,27 +22,45 @@ function sanitizeKey(raw: string): string {
 
 export function getUpstoxConfigForUser(params: { userId?: string | null;  }): UpstoxUserConfig | null {
   const { userId } = params;
+  const envSuffix = getUpstoxEnvironmentSuffix();
 
-
+  // Log environment info for debugging
+  logEnvironmentInfo();
 
   if (userId) {
     const key = sanitizeKey(userId);
-    const cid = process.env[`UPSTOX_CLIENT_ID_${key}`];
-    const ruri = process.env[`UPSTOX_REDIRECT_URL_${key}`];
-    const clientSecret = process.env[`UPSTOX_CLIENT_SECRET_${key}`];
+    
+    // Try environment-specific variables first
+    const cid = process.env[`UPSTOX_CLIENT_ID_${key}${envSuffix}`];
+    const ruri = process.env[`UPSTOX_REDIRECT_URL_${key}${envSuffix}`];
+    const clientSecret = process.env[`UPSTOX_CLIENT_SECRET_${key}${envSuffix}`];
+    
     if (cid && ruri) {
-        console.log(`[Upstox Config] Resolved config for userId ${userId} with key ${key}`);
+      console.log(`[Upstox Config] Resolved ${envSuffix} config for userId ${userId} with key ${key}${envSuffix}`);
       return { clientId: cid, redirectUri: ruri, clientSecret };
+    }
+    
+    // Fallback to non-suffixed variables for backward compatibility
+    const fallbackCid = process.env[`UPSTOX_CLIENT_ID_${key}`];
+    const fallbackRuri = process.env[`UPSTOX_REDIRECT_URL_${key}`];
+    const fallbackSecret = process.env[`UPSTOX_CLIENT_SECRET_${key}`];
+    
+    if (fallbackCid && fallbackRuri) {
+      console.log(`[Upstox Config] Using fallback config for userId ${userId} with key ${key}`);
+      return { clientId: fallbackCid, redirectUri: fallbackRuri, clientSecret: fallbackSecret };
     }
   }
 
-  // Global fallback only (no further attempts)
-  const globalClientId = process.env[`UPSTOX_CLIENT_ID`] || process.env[`UPSTOX_CLIENT_ID`];
-  const globalRedirect = process.env[`UPSTOX_REDIRECT_URL`] || process.env[`UPSTOX_REDIRECT_URL`];
+  // Global fallback
+  const globalClientId = process.env[`UPSTOX_CLIENT_ID`];
+  const globalRedirect = process.env[`UPSTOX_REDIRECT_URL`];
   const globalSecret = process.env[`UPSTOX_CLIENT_SECRET`];
+  
   if (globalClientId && globalRedirect) {
+    console.log(`[Upstox Config] Using global fallback config`);
     return { clientId: globalClientId, redirectUri: globalRedirect, clientSecret: globalSecret };
   }
 
+  console.error(`[Upstox Config] No configuration found for userId ${userId}`);
   return null;
 }

@@ -18,7 +18,7 @@ export default function UpstoxUserManagementPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [env, setEnv] = useState<'prod' | 'sandbox'>('sandbox');
+  const [env, setEnv] = useState<'prod' | 'sandbox'>('prod');
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -26,7 +26,19 @@ export default function UpstoxUserManagementPage() {
         const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/get-all-users`);
         if (!resp.ok) throw new Error(`Failed: ${resp.status}`);
         const data = await resp?.json();
-        setUsers(Array.isArray(data) ? data : data.userProfiles || []);
+        console.log('Raw API response:', data);
+        
+        const usersArray = Array.isArray(data) ? data : data.userProfiles || [];
+        console.log('Users array length:', usersArray.length);
+        console.log('Users array:', usersArray);
+        
+        // Remove duplicates based on phone number
+        const uniqueUsers = usersArray.filter((user: UserProfile, index: number, self: UserProfile[]) => 
+          index === self.findIndex((u: UserProfile) => u.phoneNumber === user.phoneNumber)
+        );
+        console.log('Unique users after deduplication:', uniqueUsers.length);
+        
+        setUsers(uniqueUsers);
       } catch (e: any) {
         setError(e.message || 'Failed to load users');
       } finally {
@@ -57,10 +69,10 @@ export default function UpstoxUserManagementPage() {
       {loading && <div className="text-sm text-muted-foreground">Loading users...</div>}
       {error && <div className="text-sm text-red-500 mb-4">{error}</div>}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {users.map(u => {
+        {users.map((u, index) => {
           const connected = env === 'prod' ? !!u.tokenId : !!u.sandBoxTokenId;
           return (
-            <Card key={u.id} className="border border-gray-200">
+            <Card key={`${u.phoneNumber}-${index}`} className="border border-gray-200">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex flex-col">
                   <span>{u.name.toLocaleUpperCase() || 'Unnamed User'}</span>
