@@ -21,8 +21,8 @@ import {
 const primaryItems = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Strike Analysis Form", url: "/strike-analysis", icon: Search },
-  { title: "Swing Stats", url: "/strike-analysis?tab=swing", icon: BarChart3 },
-  { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
+   {  title: "Swing Stats", url: "/strike-analysis?tab=swing", icon: BarChart3 },
+   { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
   { title: "Paper Trading", url: "/paper-trading", icon: DollarSign },
   { title: "Upstox", url: "/upstox", icon: UpstoxIcon as unknown as typeof Link },
   { title: "Boom Days & Watch Lists", url: "/boom-days", icon: Calendar },
