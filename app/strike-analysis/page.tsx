@@ -178,6 +178,7 @@ interface AnalysisResponse {
   daysTakenForSupportTouch: number;
   daysTakenForResistanceTouch: number;
   emacross: EMACROSS;
+  strykeType: string; // Add this field - expects "OLD" or "NEW"
 }
 
 
@@ -229,6 +230,7 @@ function StrikeAnalysisContent() {
   );
   const [selectedTime, setSelectedTime] = useState<string>('00:00');
   const [callType, setCallType] = useState<CallType>(CallType.INTRADAY);
+  const [strykeType, setStrykeType] = useState<'OLD' | 'NEW'>('NEW');
   const [stopLoss, setStopLoss] = useState<string>('0.00');
   const [target, setTarget] = useState<string>('0.00');
   const [strykeList, setStrykeList] = useState<AnalysisResponse[]>([]);
@@ -250,6 +252,8 @@ function StrikeAnalysisContent() {
   const [showAlgoAnalysis, setShowAlgoAnalysis] = useState(() => true);
   const [showStrykeAnalysis, setShowStrykeAnalysis] = useState(() => true);
   const [showFiboAnalysis, setShowFiboAnalysis] = useState(() => true);
+  const [showOldAnalysis, setShowOldAnalysis] = useState(() => true); // Add this new state
+  const [showNewAnalysis, setShowNewAnalysis] = useState(() => true); // Add this new state
   const [activeFilter, setActiveFilter] = useState({
     date: null as FilterOrder,
     name: null as FilterOrder,
@@ -409,6 +413,7 @@ function StrikeAnalysisContent() {
       entryDate: selectedDate,
       time: selectedTime,
       callType,
+      strykeType,
       stopLoss: stopLossValue,
       target: targetValue,
     };
@@ -872,6 +877,48 @@ function StrikeAnalysisContent() {
     }
   }, [filteredAnalysisList, showMetrics]);
 
+  // Apply all active filters to create the filtered list
+  useEffect(() => {
+    let filtered = [...strykeAnalysisList, ...algoAnalysisList, ...fiboAnalysisList];
+
+    // Filter by analysis type (ALGO, STRYKE, FIBO)
+    const enabledTypes: string[] = [];
+    if (showAlgoAnalysis) enabledTypes.push('ALGO');
+    if (showStrykeAnalysis) enabledTypes.push('STRYKE');
+    if (showFiboAnalysis) enabledTypes.push('FIBO');
+    
+    if (enabledTypes.length > 0) {
+      filtered = filtered.filter(item => enabledTypes.includes(item.label));
+    }
+
+    // Filter by strykeType (OLD/NEW) - only filter if both are not enabled
+    // If both showOldAnalysis and showNewAnalysis are true, show all items regardless of strykeType
+    if (!showOldAnalysis || !showNewAnalysis) {
+      const enabledStrykeTypes: string[] = [];
+      if (showOldAnalysis) enabledStrykeTypes.push('OLD');
+      if (showNewAnalysis) enabledStrykeTypes.push('NEW');
+      
+      if (enabledStrykeTypes.length > 0) {
+        filtered = filtered.filter(item => {
+          // If item doesn't have strykeType field, include it (for backward compatibility)
+          if (!item.strykeType) return true;
+          return enabledStrykeTypes.includes(item.strykeType);
+        });
+      }
+    }
+
+    setFilteredAnalysisList(filtered);
+  }, [
+    strykeAnalysisList, 
+    algoAnalysisList, 
+    fiboAnalysisList, 
+    showAlgoAnalysis, 
+    showStrykeAnalysis, 
+    showFiboAnalysis,
+    showOldAnalysis,
+    showNewAnalysis
+  ]);
+
   const handleToggleView = (showForm: boolean, showAll: boolean, showStats: boolean, showSwing: boolean) => {
     setShowStrykeForm(showForm);
     //setShowAllStrykes(showAll);
@@ -1262,9 +1309,7 @@ function StrikeAnalysisContent() {
             )}
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-4">
-              <div className="flex items-center gap-4">
-                <h1 className="text-2xl font-bold">Stryke Analysis</h1>
-              </div>
+            
               <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
                 {/* Home button */}
                 <a
@@ -1449,6 +1494,20 @@ function StrikeAnalysisContent() {
                         </select>
                       </div>
 
+                      {/* Stryke Type */}
+                      <div className="space-y-2">
+                        <Label htmlFor="stryke-type">Stryke Type</Label>
+                        <select
+                          id="stryke-type"
+                          value={strykeType}
+                          onChange={(e) => setStrykeType(e.target.value as 'OLD' | 'NEW')}
+                          className="w-full border border-gray-300 rounded-md p-2"
+                        >
+                          <option value="OLD">OLD</option>
+                          <option value="NEW">NEW</option>
+                        </select>
+                      </div>
+
                       {/* Stop Loss & Target */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -1550,6 +1609,15 @@ function StrikeAnalysisContent() {
                         </div>
 
                         <div className="flex justify-between items-center pb-1 border-b">
+                          <span className="font-medium">Stryke Type:</span>
+                          <span className={`font-semibold px-2 py-1 rounded text-xs ${
+                            strykeType === 'OLD' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
+                          }`}>
+                            {strykeType}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center pb-1 border-b">
                           <span
                             className={
                               analysisResult.preEntryTrend === 'BULLISH' ? 'text-green-600' :
@@ -1617,8 +1685,6 @@ function StrikeAnalysisContent() {
             {/* Add a new stats page */}
             {showSwingStats && (
               <div className="container mx-auto py-4 px-4 max-w-screen-2xl">
-                <h2 className="text-xl font-bold mb-4">Swing Stats</h2>
-
 
                 {/* Search, Sort, and Filter Controls */}
                 <div className="flex flex-wrap gap-1 items-center mb-4">
@@ -1715,13 +1781,14 @@ function StrikeAnalysisContent() {
                       setShowAlgoAnalysis(true)
                       setShowStrykeAnalysis(true)
                       setShowFiboAnalysis(true)
+                      setShowOldAnalysis(true)   // Reset OLD analysis toggle
+                      setShowNewAnalysis(true)   // Reset NEW analysis toggle
 
                       // Reset month selection
                       setSelectedMonth(null);
 
-                      // Reset filtered list to original lists
-
-                      setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList, ...fiboAnalysisList]);
+                      // Reset filtered list to original lists - this will be handled by the useEffect
+                      // setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList, ...fiboAnalysisList]);
                     }}
                   >
                     Reset Filters
@@ -1738,7 +1805,7 @@ function StrikeAnalysisContent() {
                         <Button
                           onClick={() => {
                             setShowAlgoAnalysis(true)
-                            setFilteredAnalysisList([...filteredAnalysisList, ...algoAnalysisList]);
+                            // Filtered list will be updated by useEffect
                           }}
                           className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 text-sm rounded-md transition"
                         >
@@ -1750,7 +1817,7 @@ function StrikeAnalysisContent() {
                         <Button
                           onClick={() => {
                             setShowAlgoAnalysis(false)
-                            setFilteredAnalysisList(filteredAnalysisList.filter(item => item.label !== 'ALGO'));
+                            // Filtered list will be updated by useEffect
                           }}
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
@@ -1762,7 +1829,7 @@ function StrikeAnalysisContent() {
                         <Button
                           onClick={() => {
                             setShowStrykeAnalysis(true)
-                            setFilteredAnalysisList([...filteredAnalysisList, ...strykeAnalysisList]);
+                            // Filtered list will be updated by useEffect
                           }}
                           className="bg-cyan-500 hover:bg-cyan-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
@@ -1774,7 +1841,7 @@ function StrikeAnalysisContent() {
                         <Button
                           onClick={() => {
                             setShowStrykeAnalysis(false)
-                            setFilteredAnalysisList(filteredAnalysisList.filter(item => item.label !== 'STRYKE'));
+                            // Filtered list will be updated by useEffect
                           }}
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
@@ -1786,7 +1853,7 @@ function StrikeAnalysisContent() {
                         <Button
                           onClick={() => {
                             setShowFiboAnalysis(true)
-                            setFilteredAnalysisList([...filteredAnalysisList, ...fiboAnalysisList]);
+                            // Filtered list will be updated by useEffect
                           }}
                           className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
@@ -1798,11 +1865,60 @@ function StrikeAnalysisContent() {
                         <Button
                           onClick={() => {
                             setShowFiboAnalysis(false)
-                            setFilteredAnalysisList(filteredAnalysisList.filter(item => item.label !== 'FIBO'));
+                            // Filtered list will be updated by useEffect
                           }}
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
                           Hide Fibo Analysis
+                        </Button>
+                      )}
+
+                      {/* NEW: OLD/NEW Analysis Toggles */}
+                      {!showOldAnalysis && (
+                        <Button
+                          onClick={() => {
+                            setShowOldAnalysis(true)
+                            // Filtered list will be updated by useEffect
+                          }}
+                          className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                        >
+                          Show Old Analysis
+                        </Button>
+                      )}
+
+                      {showOldAnalysis && (
+                        <Button
+                          onClick={() => {
+                            setShowOldAnalysis(false)
+                            // Filtered list will be updated by useEffect
+                          }}
+                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                        >
+                          Hide Old Analysis
+                        </Button>
+                      )}
+
+                      {!showNewAnalysis && (
+                        <Button
+                          onClick={() => {
+                            setShowNewAnalysis(true)
+                            // Filtered list will be updated by useEffect
+                          }}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                        >
+                          Show New Analysis
+                        </Button>
+                      )}
+
+                      {showNewAnalysis && (
+                        <Button
+                          onClick={() => {
+                            setShowNewAnalysis(false)
+                            // Filtered list will be updated by useEffect
+                          }}
+                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                        >
+                          Hide New Analysis
                         </Button>
                       )}
                     </div>
@@ -2835,17 +2951,28 @@ function StrikeAnalysisContent() {
                                 <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[280px]" title={stryke.companyName}>
                                   <div className="flex flex-col">
                                     <span className="font-medium">{stryke.companyName}</span>
-                                    <span className={`text-xs font-semibold ${
-                                      stryke.label === "STRYKE" ? 'text-green-600' :
-                                      stryke.label === "ALGO" ? 'text-blue-600' :
-                                      stryke.label === "FIBO" ? 'text-purple-600' :
-                                      'text-gray-600'
-                                    }`}>{
-                                      stryke.label === "STRYKE" ? "Stryke Analysis" :
-                                      stryke.label === "ALGO" ? "Algo Analysis" :
-                                      stryke.label === "FIBO" ? "Fibo Analysis" :
-                                      "Unknown Analysis"
-                                    }</span>
+                                    <div className="flex flex-wrap gap-1 mt-1 justify-center">
+                                      <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                                        stryke.label === "STRYKE" ? 'bg-green-100 text-green-600' :
+                                        stryke.label === "ALGO" ? 'bg-blue-100 text-blue-600' :
+                                        stryke.label === "FIBO" ? 'bg-purple-100 text-purple-600' :
+                                        'bg-gray-100 text-gray-600'
+                                      }`}>{
+                                        stryke.label === "STRYKE" ? "Stryke" :
+                                        stryke.label === "ALGO" ? "Algo" :
+                                        stryke.label === "FIBO" ? "Fibo" :
+                                        "Unknown"
+                                      }</span>
+                                      {stryke.strykeType && (
+                                        <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                                          stryke.strykeType === "OLD" ? 'bg-amber-100 text-amber-600' :
+                                          stryke.strykeType === "NEW" ? 'bg-emerald-100 text-emerald-600' :
+                                          'bg-gray-100 text-gray-600'
+                                        }`}>
+                                          {stryke.strykeType}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </td>
 

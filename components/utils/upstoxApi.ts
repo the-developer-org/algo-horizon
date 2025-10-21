@@ -215,7 +215,8 @@ const retryUpstoxApiCall = async (
       const response = await axios.get<UpstoxHistoricalDataResponse>(currentUrl, {
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Referer': ''
         }
       });
 
@@ -526,7 +527,8 @@ export const fetchUpstoxIntradayData = async (
     const response = await axios.get<UpstoxHistoricalDataResponse>(url, {
       headers: {
         'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        'Referer': ''
       }
     });
 

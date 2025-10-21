@@ -24,7 +24,7 @@ const primaryItems = [
    {  title: "Swing Stats", url: "/strike-analysis?tab=swing", icon: BarChart3 },
    { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
   { title: "Paper Trading", url: "/paper-trading", icon: DollarSign },
-  { title: "Upstox", url: "/upstox", icon: UpstoxIcon as unknown as typeof Link },
+  { title: "Upstox", url: "/upstox", icon: UpstoxIcon },
   { title: "Boom Days & Watch Lists", url: "/boom-days", icon: Calendar },
   { title: "Backtest Stats", url: "/backtest-stats", icon: FileText },
   { title: "Portfolio", url: "/portfolio", icon: Layers },
