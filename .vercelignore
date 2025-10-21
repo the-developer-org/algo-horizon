@@ -1,0 +1,5 @@
+# Vercel build - ensure components are included
+node_modules
+.git
+.next
+out
