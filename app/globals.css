@@ -122,3 +122,58 @@
   }
 }
 
+/* Upstox theme (scoped) */
+@layer components {
+  .upstox-theme {
+    /* Light */
+    --upx-primary: #542087; /* specified purple */
+    --upx-primary-600: #451a70;
+    --upx-primary-700: #361459;
+    --upx-primary-300: #7a32b8;
+    --upx-primary-50: #f0e6f7;
+    --upx-border: rgba(84, 32, 135, 0.35);
+    --upx-surface-tint: rgba(84, 32, 135, 0.06);
+  }
+  .dark .upstox-theme {
+    /* Dark */
+    --upx-primary: #7a32b8;
+    --upx-primary-600: #8f3fc9;
+    --upx-primary-700: #a44cda;
+    --upx-primary-300: #b873e0;
+    --upx-primary-50: rgba(122, 50, 184, 0.12);
+    --upx-border: rgba(122, 50, 184, 0.35);
+    --upx-surface-tint: rgba(122, 50, 184, 0.08);
+  }
+
+  /* Buttons */
+  .btn-upstox {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-white shadow-sm transition-colors;
+    background: var(--upx-primary);
+  }
+  .btn-upstox:hover {
+    filter: brightness(0.98);
+  }
+  .btn-upstox:focus-visible {
+    outline: 2px solid var(--upx-primary);
+    outline-offset: 2px;
+  }
+
+  /* Banner */
+  .upstox-banner {
+    background: var(--upx-primary);
+  }
+
+  /* Chips / badges */
+  .upstox-chip {
+    color: var(--upx-primary);
+    background-color: var(--upx-primary-50);
+    border: 1px solid var(--upx-border);
+  }
+
+  /* Surfaces */
+  .upstox-surface {
+    background-color: var(--upx-surface-tint);
+    border: 1px solid var(--upx-border);
+  }
+}
+

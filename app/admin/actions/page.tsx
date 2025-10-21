@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import * as Switch from "@radix-ui/react-switch";
-import { Calculator, Database, ArrowLeft } from "lucide-react";
+import { Calculator, Database, ArrowLeft, Mail } from "lucide-react";
 import {
   SidebarProvider,
   SidebarInset,
@@ -101,6 +101,26 @@ function AdminActionsSidebar({ onItemClick, ...props }: { onItemClick: (section:
                 >
                   <Database />
                   <span>Crucial Actions</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        {/* Gmail Integration Section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Communication</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onItemClick('add-gmail')}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Mail />
+                  <span>Gmail Access</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -1136,6 +1156,47 @@ export default function AdminActionsPage() {
                   Reset
                 </button>
               )}
+            </div>
+          </Card>
+        );
+      case 'add-gmail':
+        return (
+          <Card className="bg-gray-800 border-gray-700 p-6">
+            <h3 className="text-xl font-semibold text-gray-300 mb-4 flex items-center gap-2">
+              <Mail className="h-6 w-6" />
+              Gmail Integration
+            </h3>
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <h4 className="text-lg font-medium text-white mb-2">Add Gmail Account</h4>
+              <p className="text-gray-300 text-sm mb-4">
+                Configure Gmail integration for automated notifications and email alerts.
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-white text-sm">User Name</Label>
+                  <input
+                    type="text"
+                    placeholder="Enter user name"
+                    className="w-full mt-1 px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-white text-sm">Email Address</Label>
+                  <input
+                    type="email"
+                    placeholder="Enter email address"
+                    className="w-full mt-1 px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div className="flex gap-3 pt-4">
+                  <Button className="bg-green-600 hover:bg-green-700">
+                    Save Gmail Account
+                  </Button>
+                </div>
+              </div>
             </div>
           </Card>
         );

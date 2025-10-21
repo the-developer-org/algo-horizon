@@ -34,22 +34,35 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
     return NextResponse.redirect(`${baseUrl}/auth?error=Config not found for phone`);
   }
 
-  console.log('[Upstox Callback] Resolved config', { redirectUri: cfg.redirectUri});
+  console.log('[Upstox Callback] Resolved config', { 
+    clientId: cfg.clientId,
+    redirectUri: cfg.redirectUri,
+    hasClientSecret: !!cfg.clientSecret,
+    phone,
+    env 
+  });
 
   try {
+    const actualRedirectUri = `${baseUrl}/api/auth/${encodeURIComponent(phone)}/callback`;
     const requestBody = new URLSearchParams({
       code,
       client_id: cfg.clientId,
       client_secret: cfg.clientSecret || process.env.UPSTOX_CLIENT_SECRET || '',
-      redirect_uri: `${baseUrl}/api/auth/${encodeURIComponent(phone)}/callback`,
+      redirect_uri: actualRedirectUri,
       grant_type: 'authorization_code',
     });
 
-    const apiHost = env === 'sandbox' ? process.env.UPSTOX_SANDBOX : process.env.UPSTOX_PROD;
-    if (!apiHost) {
-      console.error('[Upstox Callback] Missing API host for env', env);
-      return NextResponse.redirect(`${baseUrl}/auth?error=${encodeURIComponent('Missing API host')}`);
-    }
+    console.log('[Upstox Callback] Token request details', {
+      clientId: cfg.clientId,
+      redirectUri: actualRedirectUri,
+      configRedirectUri: cfg.redirectUri,
+      redirectMatch: actualRedirectUri === cfg.redirectUri,
+      hasClientSecret: !!(cfg.clientSecret || process.env.UPSTOX_CLIENT_SECRET),
+      baseUrl
+    });
+
+    // Use standard Upstox API URL for token exchange (same for both prod and sandbox)
+    const apiHost = 'https://api-v2.upstox.com';
     console.log('[Upstox Callback] Exchanging code for token', { phone, apiHost, codePreview: code.substring(0, 6) + '***', env });
 
   const tokenResp = await fetch(`${apiHost}/login/authorization/token`, {
