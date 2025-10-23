@@ -12,6 +12,10 @@ const nextConfig = {
     };
     return config;
   },
+  // Force fresh build
+  env: {
+    BUILD_TIME: new Date().toISOString(),
+  },
 }
 
 module.exports = nextConfig;
