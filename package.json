@@ -41,6 +41,7 @@
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "technicalindicators": "^3.1.0",
+    "typescript": "^5.9.3",
     "upstox-js-sdk": "^2.20.0",
     "xlsx": "^0.18.5"
   },
@@ -48,7 +49,6 @@
     "@types/node": "^20.19.23",
     "@types/sockjs-client": "^1.5.4",
     "eslint": "^9.19.0",
-    "eslint-config-next": "^15.1.6",
-    "typescript": "^5.9.3"
+    "eslint-config-next": "^15.1.6"
   }
 }
