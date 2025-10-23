@@ -27,12 +27,12 @@ export default function UpstoxPage() {
     // Account to phone number mapping
     const accountPhoneMapping = useMemo(
         () => ({
-            "Nawaz": "9876543210",
-            "Sadiq": "9876543211",
-            "Yasmeen": "9876543212",
-            "Samreen": "9876543213",
-            "Mudassir": "9876543214",
-            "Tasneem": "9876543215",
+            "Nawaz": "8008752702",
+            "Sadiq": "7036592824",
+            "Yasmeen": "7036592824",
+            "Samreen": "8885615779",
+            "Mudassir": "9154460026",
+            "Tasneem": "9154460026",
             "Abrar": "8885615779"
         }),
         []
@@ -126,12 +126,12 @@ export default function UpstoxPage() {
 
     // Account capital/funds state - per account
     const [accountFunds, setAccountFunds] = useState<{ [account: string]: number }>({
-        "Nawaz": 100000, // Default ₹1 lakh
-        "Sadiq": 100000,
-        "Yasmeen": 100000,
-        "Samreen": 100000,
-        "Mudassir": 100000,
-        "Tasneem": 100000
+        "Nawaz": 0, 
+        "Sadiq": 0,
+        "Yasmeen": 0,
+        "Samreen": 0,
+        "Mudassir": 0,
+        "Tasneem": 0
     });
 
     // Order form state - per account
@@ -245,6 +245,16 @@ export default function UpstoxPage() {
             fetchTradeHistory(selectedAccount);
         }
     }, [activeFeature, selectedAccount, selectedFinancialYear]);
+
+    // Fetch funds when account is selected or when Place order tab is activated
+    useEffect(() => {
+        if (activeFeature === 'Place order' && selectedAccount !== 'All accounts') {
+            fetchAccountFunds(selectedAccount);
+        } else if (activeFeature === 'Place order' && selectedAccount === 'All accounts') {
+            // Fetch funds for all accounts
+            accounts.slice(1).forEach(account => fetchAccountFunds(account));
+        }
+    }, [activeFeature, selectedAccount]);
 
     // Handle selection from suggestions
     const handleSelectCompany = (companyName: string) => {
@@ -436,6 +446,37 @@ export default function UpstoxPage() {
         }));
     };
 
+    // State for loading funds
+    const [isLoadingFunds, setIsLoadingFunds] = useState<{ [account: string]: boolean }>({});
+
+    // Helper function to fetch funds from API
+    const fetchAccountFunds = async (account: string) => {
+        const phoneNumber = (accountPhoneMapping as Record<string, string>)[account];
+        if (!phoneNumber) return;
+
+        setIsLoadingFunds(prev => ({ ...prev, [account]: true }));
+        
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
+            const response = await fetch(`${backendUrl}/api/upstox/user/get-funds?phoneNumber=${phoneNumber}`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.status === 'SUCCESS' && data.data?.equity?.availableMargin !== undefined) {
+                    const funds = data.data.equity.availableMargin;
+                    setAccountFunds(prev => ({
+                        ...prev,
+                        [account]: funds
+                    }));
+                }
+            }
+        } catch (error) {
+            console.error(`Failed to fetch funds for ${account}:`, error);
+        } finally {
+            setIsLoadingFunds(prev => ({ ...prev, [account]: false }));
+        }
+    };
+
     // Helper functions for capital calculation
     const getCapitalInfo = (account: string, quantity: string) => {
         const funds = accountFunds[account] || 0;
@@ -447,7 +488,8 @@ export default function UpstoxPage() {
 
         return {
             capitalRemaining,
-            purchasableStocks
+            purchasableStocks,
+            availableFunds: funds
         };
     };
 
@@ -545,6 +587,17 @@ export default function UpstoxPage() {
         const quantity = parseInt(orderForm.quantity);
         if (quantity > 1000000) { // Arbitrary large limit
             errors.push(`${prefix}Quantity seems unreasonably high. Please verify.`);
+        }
+
+        // Capital/Funds validation for Buy orders
+        if (orderForm.transactionType === 'Buy' && orderForm.quantity && lastClosingPrice) {
+            const accountToCheck = accountName || selectedAccount;
+            const capitalInfo = getCapitalInfo(accountToCheck, orderForm.quantity);
+            
+            if (capitalInfo.capitalRemaining < 0) {
+                const shortfall = Math.abs(capitalInfo.capitalRemaining);
+                errors.push(`${prefix}Insufficient funds! You need ₹${shortfall.toFixed(2)} more to place this order. Available: ₹${capitalInfo.availableFunds.toFixed(2)}, Required: ₹${(capitalInfo.availableFunds + shortfall).toFixed(2)}`);
+            }
         }
 
         return { isValid: errors.length === 0, errors };
@@ -906,6 +959,23 @@ export default function UpstoxPage() {
                                             />
                                         </button>
                                     </div>
+                                    <div className="flex items-center gap-2 ml-5">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (selectedAccount === 'All accounts') {
+                                                    for (const account of accounts.slice(1)) {
+                                                        fetchAccountFunds(account);
+                                                    }
+                                                } else {
+                                                    fetchAccountFunds(selectedAccount);
+                                                }
+                                            }}
+                                            className="px-3 py-1 text-sm bg-[var(--upx-primary)] text-white rounded-md hover:bg-[var(--upx-primary)]/80 transition-colors"
+                                        >
+                                            Refresh Funds
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="space-y-6">
                                     {/* Company Selection Section */}
@@ -1037,10 +1107,25 @@ export default function UpstoxPage() {
                                                         <div className="flex-1 bg-gray-50 border rounded-r px-3 py-2 text-xs text-gray-600 border-l-0">
                                                             {(() => {
                                                                 const capitalInfo = getCapitalInfo(selectedAccount, sameQuantityForAll);
+                                                                const isLoading = isLoadingFunds[selectedAccount] || false;
+                                                                const hasInsufficientFunds = capitalInfo.capitalRemaining < 0;
                                                                 return (
                                                                     <div className="flex flex-col justify-center h-full">
-                                                                        <div>₹{capitalInfo.capitalRemaining.toFixed(2)} Capital Rem.</div>
-                                                                        <div>Max {capitalInfo.purchasableStocks} can be purchased</div>
+                                                                        {isLoading ? (
+                                                                            <div className="text-center text-xs">Loading funds...</div>
+                                                                        ) : (
+                                                                            <>
+                                                                                <div>₹{capitalInfo.availableFunds.toFixed(2)} Available</div>
+                                                                                <div className={hasInsufficientFunds ? 'text-red-600 font-semibold' : ''}>
+                                                                                    ₹{isNaN(capitalInfo.capitalRemaining) ? '0.00' : capitalInfo.capitalRemaining.toFixed(2)} After Purchase
+                                                                                </div>
+                                                                                {hasInsufficientFunds ? (
+                                                                                    <div className="text-red-600 font-semibold">⚠️ Insufficient Funds!</div>
+                                                                                ) : (
+                                                                                    <div>Max {isNaN(capitalInfo?.purchasableStocks) ? '0' : capitalInfo?.purchasableStocks} stocks</div>
+                                                                                )}
+                                                                            </>
+                                                                        )}
                                                                     </div>
                                                                 );
                                                             })()}
@@ -1200,10 +1285,25 @@ export default function UpstoxPage() {
                                                             <div className="flex-1 bg-gray-50 border rounded-r px-3 py-2 text-xs text-gray-600 border-l-0">
                                                                 {(() => {
                                                                     const capitalInfo = getCapitalInfo(selectedAccount, orderForm.quantity);
+                                                                    const isLoading = isLoadingFunds[selectedAccount] || false;
+                                                                    const hasInsufficientFunds = capitalInfo.capitalRemaining < 0;
                                                                     return (
                                                                         <div className="flex flex-col justify-center h-full">
-                                                                            <div>₹{capitalInfo.capitalRemaining.toFixed(2)} Capital Rem.</div>
-                                                                            <div>Max {capitalInfo.purchasableStocks} can be purchased</div>
+                                                                            {isLoading ? (
+                                                                                <div className="text-center text-xs">Loading funds...</div>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <div>₹{capitalInfo.availableFunds.toFixed(2)} Available</div>
+                                                                                    <div className={hasInsufficientFunds ? 'text-red-600 font-semibold' : ''}>
+                                                                                        ₹{isNaN(capitalInfo.capitalRemaining) ? '0.00' : capitalInfo.capitalRemaining.toFixed(2)} After Purchase
+                                                                                    </div>
+                                                                                    {hasInsufficientFunds ? (
+                                                                                        <div className="text-red-600 font-semibold">⚠️ Insufficient Funds!</div>
+                                                                                    ) : (
+                                                                                        <div>Max {isNaN(capitalInfo?.purchasableStocks) ? '0' : capitalInfo?.purchasableStocks} stocks</div>
+                                                                                    )}
+                                                                                </>
+                                                                            )}
                                                                         </div>
                                                                     );
                                                                 })()}
@@ -1317,12 +1417,69 @@ export default function UpstoxPage() {
 
                                     {/* Submit Button */}
                                     <div className="pt-4 border-t border-gray-200">
-                                        <button className="w-full btn-upstox py-3 text-base font-medium" onClick={handleSubmitOrder}>
-                                            {selectedAccount === 'All accounts'
-                                                ? `Place Orders for All Accounts (${accounts.slice(1).length} accounts)`
-                                                : `Place Order for ${selectedAccount}`
+                                        {(() => {
+                                            // Check for insufficient funds
+                                            let hasInsufficientFunds = false;
+                                            let insufficientFundsAccounts: string[] = [];
+
+                                            if (selectedAccount === 'All accounts') {
+                                                // Check all accounts for insufficient funds
+                                                for (const account of accounts.slice(1)) {
+                                                    const accountForm = orderForms[account];
+                                                    if (accountForm?.quantity && accountForm?.transactionType === 'Buy' && lastClosingPrice) {
+                                                        const capitalInfo = getCapitalInfo(account, accountForm.quantity);
+                                                        if (capitalInfo.capitalRemaining < 0) {
+                                                            hasInsufficientFunds = true;
+                                                            insufficientFundsAccounts.push(account);
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                // Check single account for insufficient funds
+                                                if (orderForm?.quantity && orderForm?.transactionType === 'Buy' && lastClosingPrice) {
+                                                    const capitalInfo = getCapitalInfo(selectedAccount, orderForm.quantity);
+                                                    if (capitalInfo.capitalRemaining < 0) {
+                                                        hasInsufficientFunds = true;
+                                                        insufficientFundsAccounts.push(selectedAccount);
+                                                    }
+                                                }
                                             }
-                                        </button>
+
+                                            return (
+                                                <>
+                                                    {hasInsufficientFunds && (
+                                                        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                                                            <div className="flex items-center gap-2 text-red-800">
+                                                                <span>⚠️</span>
+                                                                <span className="font-medium">Insufficient Funds</span>
+                                                            </div>
+                                                            <div className="text-sm text-red-700 mt-1">
+                                                                {insufficientFundsAccounts.length === 1 
+                                                                    ? `${insufficientFundsAccounts[0]} has insufficient funds for this order.`
+                                                                    : `${insufficientFundsAccounts.length} accounts have insufficient funds: ${insufficientFundsAccounts.join(', ')}`
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    <button 
+                                                        className={`w-full py-3 text-base font-medium rounded-md transition-colors ${
+                                                            hasInsufficientFunds 
+                                                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                                                : 'btn-upstox hover:bg-[var(--upx-primary)]/90'
+                                                        }`}
+                                                        onClick={hasInsufficientFunds ? undefined : handleSubmitOrder}
+                                                        disabled={hasInsufficientFunds}
+                                                    >
+                                                        {hasInsufficientFunds 
+                                                            ? 'Insufficient Funds - Cannot Place Order'
+                                                            : selectedAccount === 'All accounts'
+                                                                ? `Place Orders for All Accounts (${accounts.slice(1).length} accounts)`
+                                                                : `Place Order for ${selectedAccount}`
+                                                        }
+                                                    </button>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </TabsContent>
