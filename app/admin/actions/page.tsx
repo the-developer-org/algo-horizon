@@ -953,6 +953,13 @@ export default function AdminActionsPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [isRedeploying, setIsRedeploying] = useState<boolean>(false);
   const [isRedeployed, setIsRedeployed] = useState<boolean>(false);
+  
+  // Gmail form states
+  const [gmailForm, setGmailForm] = useState({
+    account: '',
+    email: ''
+  });
+  const [isGmailSaving, setIsGmailSaving] = useState<boolean>(false);
 
   const handleSidebarItemClick = (section: string) => {
     setActiveSection(section);
@@ -963,6 +970,86 @@ export default function AdminActionsPage() {
     setIsRedeploying(false);
     setIsRedeployed(false);
   }, []);
+
+  // Email validation regex
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Handle Gmail form input changes
+  const handleGmailInputChange = (field: 'account' | 'email', value: string) => {
+    setGmailForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Save Gmail account function
+  const handleSaveGmailAccount = async () => {
+    // Validation
+    if (!gmailForm.account.trim()) {
+      toast.error('User name is required');
+      return;
+    }
+
+    if (!gmailForm.email.trim()) {
+      toast.error('Email address is required');
+      return;
+    }
+
+    if (!validateEmail(gmailForm.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    try {
+      setIsGmailSaving(true);
+      
+      const gmailOAuthUrl = process.env.NEXT_PUBLIC_GMAIL_OAUTH_URL;
+      
+      if (!gmailOAuthUrl) {
+        toast.error('Gmail OAuth URL not configured');
+        return;
+      }
+
+      const response = await fetch(gmailOAuthUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        referrerPolicy: 'no-referrer',
+        mode: 'cors',
+        body: JSON.stringify({
+          account: gmailForm.account.trim(),
+          email: gmailForm.email.trim()
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorData}`);
+      }
+
+      const result = await response.json();
+      toast.success('Gmail account saved successfully!');
+      
+      // Reset form after successful save
+      setGmailForm({
+        account: '',
+        email: ''
+      });
+
+      console.log('Gmail account save result:', result);
+      
+    } catch (error) {
+      console.error('Failed to save Gmail account:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save Gmail account';
+      toast.error(errorMessage);
+    } finally {
+      setIsGmailSaving(false);
+    }
+  };
 
   // Health check function
   const checkHealthStatus = async (): Promise<boolean> => {
@@ -1178,6 +1265,8 @@ export default function AdminActionsPage() {
                   <input
                     type="text"
                     placeholder="Enter user name"
+                    value={gmailForm.account}
+                    onChange={(e) => handleGmailInputChange('account', e.target.value)}
                     className="w-full mt-1 px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1187,13 +1276,26 @@ export default function AdminActionsPage() {
                   <input
                     type="email"
                     placeholder="Enter email address"
+                    value={gmailForm.email}
+                    onChange={(e) => handleGmailInputChange('email', e.target.value)}
                     className="w-full mt-1 px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 
                 <div className="flex gap-3 pt-4">
-                  <Button className="bg-green-600 hover:bg-green-700">
-                    Save Gmail Account
+                  <Button 
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-500 disabled:cursor-not-allowed"
+                    onClick={handleSaveGmailAccount}
+                    disabled={isGmailSaving}
+                  >
+                    {isGmailSaving ? (
+                      <>
+                        <span className="inline-block mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        {' '}Saving...
+                      </>
+                    ) : (
+                      'Save Gmail Account'
+                    )}
                   </Button>
                 </div>
               </div>
