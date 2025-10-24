@@ -1,22 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUpstoxConfigForUser } from '@/lib/upstox-config'
+
 
 export async function GET(request: NextRequest) {
+debugger
   // Determine the correct frontend URL based on the request
   const requestHost = request.headers.get('host');
   const protocol = request.headers.get('x-forwarded-proto') || 'http';
   
-  let baseUrl;
-  if (requestHost?.includes('localhost') || requestHost?.includes('127.0.0.1')) {
-    // Local development
-    baseUrl = `${protocol}://${requestHost}`;
-  } else if (requestHost?.includes('vercel.app') || requestHost?.includes('algo-horizon')) {
-    // Production
-    baseUrl = `https://${requestHost}`;
-  } else {
-    // Fallback to environment variable
-    baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || `${protocol}://${requestHost}`;
-  }
+  let baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL ;
   
   const clientId = process.env.NEXT_PUBLIC_UPSTOX_CLIENT_ID
   
@@ -31,6 +22,7 @@ export async function GET(request: NextRequest) {
   const logError = (step: string, error: any, details?: any) => {
     console.error(`❌ [UPSTOX CALLBACK ERROR] ${step}:`, error);
     if (details) console.error('Details:', details);
+    debugger; // Debug errors
     return NextResponse.redirect(`${baseUrl}/auth?error=${encodeURIComponent(`${step}: ${error.message || error}`)}&details=${encodeURIComponent(JSON.stringify(details || {}))}`);
   };
   
@@ -49,6 +41,7 @@ export async function GET(request: NextRequest) {
       hasClientId: !!clientId,
       baseUrl 
     });
+    debugger; // Debug callback start
 
     if (error) {
       return logError('Authorization Error', error, { state });
@@ -98,6 +91,7 @@ export async function GET(request: NextRequest) {
       codePreview: code.substring(0, 6) + '***',
       hasClientSecret: !!clientSecret
     });
+    debugger; // Debug before token exchange
 
     // Generate Access Token
     const tokenResponse = await fetch(tokenUrl, {
@@ -116,6 +110,7 @@ export async function GET(request: NextRequest) {
       responseLength: responseText.length,
       responsePreview: responseText.substring(0, 100) + '...'
     });
+    debugger; // Debug token response
 
     if (!tokenResponse.ok) {
       return logError('Token Exchange Failed', `HTTP ${tokenResponse.status}: ${tokenResponse.statusText}`, {
@@ -141,6 +136,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('Successfully received access token')
+    debugger; // Debug after successful token parsing
 
     // Store token in backend - HARDCODED to production backend
     const backendUrl = 'https://api.algo-horizon.store';
@@ -164,6 +160,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('Token successfully stored in backend')
+    debugger; // Debug before final redirect
 
     // Create HTML with script to store token in sessionStorage and redirect
     const html = `
