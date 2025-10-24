@@ -1,8 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getUpstoxConfigForUser } from '@/lib/upstox-config'
 
 export async function GET(request: NextRequest) {
-  const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL
+  // Determine the correct frontend URL based on the request
+  const requestHost = request.headers.get('host');
+  const protocol = request.headers.get('x-forwarded-proto') || 'http';
+  
+  let baseUrl;
+  if (requestHost?.includes('localhost') || requestHost?.includes('127.0.0.1')) {
+    // Local development
+    baseUrl = `${protocol}://${requestHost}`;
+  } else if (requestHost?.includes('vercel.app') || requestHost?.includes('algo-horizon')) {
+    // Production
+    baseUrl = `https://${requestHost}`;
+  } else {
+    // Fallback to environment variable
+    baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || `${protocol}://${requestHost}`;
+  }
+  
   const clientId = process.env.NEXT_PUBLIC_UPSTOX_CLIENT_ID
+  
+  console.log('🌐 [CALLBACK] Environment details:', {
+    requestHost,
+    protocol,
+    baseUrl,
+    envFrontendUrl: process.env.NEXT_PUBLIC_FRONTEND_URL
+  });
   
   // Create detailed error logging function
   const logError = (step: string, error: any, details?: any) => {
@@ -45,7 +68,20 @@ export async function GET(request: NextRequest) {
       return logError('Configuration Error', 'Missing UPSTOX_CLIENT_SECRET environment variable');
     }
 
-    const redirectUri = `${baseUrl}/api/auth/callback`;
+    // Extract phone number from state to get the correct redirect URI
+    let phoneNumber = '8885615779'; // default fallback
+    if (state) {
+      const stateParts = state.split(':');
+      if (stateParts.length > 0) {
+        phoneNumber = decodeURIComponent(stateParts[0]);
+      }
+    }
+    
+    // Get the same config that was used in the authorization request
+    const { getUpstoxConfigForUser } = await import('@/lib/upstox-config');
+    const cfg = getUpstoxConfigForUser({ userId: phoneNumber });
+    const redirectUri = cfg?.redirectUri || 'https://algo-horizon.vercel.app/api/auth/callback';
+    
     const requestBody = new URLSearchParams({
       code,
       client_id: clientId,
@@ -106,8 +142,8 @@ export async function GET(request: NextRequest) {
 
     console.log('Successfully received access token')
 
-    // Store token in backend
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    // Store token in backend - HARDCODED to production backend
+    const backendUrl = 'https://api.algo-horizon.store';
     console.log('Storing token in backend:', backendUrl)
 
     const backendResponse = await fetch(`${backendUrl}/api/user/store-token`, {
@@ -116,7 +152,7 @@ export async function GET(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        phoneNumber: '8885615779',
+        phoneNumber: phoneNumber,
         tokenId: accessToken,
       }),
     })

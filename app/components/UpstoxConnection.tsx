@@ -23,9 +23,21 @@ export function UpstoxConnection() {
     }
   }
 
-  const handleLogin = () => {
-    // Redirect to our login API endpoint
-    window.location.href = '/api/auth/login'
+  const handleLogin = async () => {
+    try {
+      // Fetch the auth URL from our API
+      const response = await fetch('/api/auth/login');
+      const data = await response.json();
+      
+      if (data.authUrl) {
+        // Open in new tab
+        window.open(data.authUrl, '_blank');
+      } else {
+        console.error('No auth URL received');
+      }
+    } catch (error) {
+      console.error('Failed to get auth URL:', error);
+    }
   }
 
   const buttonClass = "w-[200px] h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center"

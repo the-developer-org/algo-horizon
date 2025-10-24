@@ -8,7 +8,6 @@
 //   Local: UPSTOX_CLIENT_ID_8885615779_LOCAL
 //   Prod:  UPSTOX_CLIENT_ID_8885615779_PROD
 
-import { getUpstoxEnvironmentSuffix, logEnvironmentInfo } from './env-utils';
 
 export interface UpstoxUserConfig {
   clientId: string;
@@ -22,21 +21,17 @@ function sanitizeKey(raw: string): string {
 
 export function getUpstoxConfigForUser(params: { userId?: string | null;  }): UpstoxUserConfig | null {
   const { userId } = params;
-  const envSuffix = getUpstoxEnvironmentSuffix();
-
-  // Log environment info for debugging
-  logEnvironmentInfo();
 
   if (userId) {
     const key = sanitizeKey(userId);
     
     // Try environment-specific variables first
-    const cid = process.env[`UPSTOX_CLIENT_ID_${key}${envSuffix}`];
-    const ruri = process.env[`UPSTOX_REDIRECT_URL_${key}${envSuffix}`];
-    const clientSecret = process.env[`UPSTOX_CLIENT_SECRET_${key}${envSuffix}`];
+    const cid = process.env[`UPSTOX_CLIENT_ID_${key}`];
+    const ruri = process.env[`UPSTOX_REDIRECT_URL_${key}`];
+    const clientSecret = process.env[`UPSTOX_CLIENT_SECRET_${key}`];
     
     if (cid && ruri) {
-      console.log(`[Upstox Config] Resolved ${envSuffix} config for userId ${userId} with key ${key}${envSuffix}`);
+      console.log(`[Upstox Config] Resolved config for userId ${userId} with key ${key}`);
       return { clientId: cid, redirectUri: ruri, clientSecret };
     }
     

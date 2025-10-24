@@ -88,14 +88,30 @@ export default function UpstoxUserManagementPage() {
                   variant={connected ? 'secondary' : 'default'}
                   disabled={connected || env === 'sandbox'}
                   className={`${connected ? 'bg-green-500 hover:bg-green-500 cursor-default' : 'bg-red-500 hover:bg-red-600'} w-full h-9 text-white text-sm`}
-                  onClick={() => {
+                  onClick={async () => {
                     if (!connected) {
                       const phoneParam = encodeURIComponent(String(u.phoneNumber ?? ''));
                       if (!phoneParam) {
                         alert('Missing phone number for this user');
                         return;
                       }
-            window.location.href = `/api/auth/login?phone=${phoneParam}`;
+                      
+                      try {
+                        // Fetch the auth URL from our API
+                        const response = await fetch(`/api/auth/login?phone=${phoneParam}`);
+                        const data = await response.json();
+                        
+                        if (data.authUrl) {
+                          // Open in new tab
+                          window.open(data.authUrl, '_blank');
+                        } else {
+                          console.error('No auth URL received');
+                          alert('Failed to get authentication URL');
+                        }
+                      } catch (error) {
+                        console.error('Failed to get auth URL:', error);
+                        alert('Failed to initiate authentication');
+                      }
                     }
                   }}
                 >{

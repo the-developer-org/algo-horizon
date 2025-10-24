@@ -11,11 +11,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing phone parameter' }, { status: 400 });
   }
   const cfg = getUpstoxConfigForUser({ userId: phone });
-  // If per-user redirect not in env, fallback to dynamic callback path (env-aware)
-  const baseFrontend = process.env.NEXT_PUBLIC_FRONTEND_URL;
-  const dynamicRedirect = baseFrontend ? `${baseFrontend}/api/auth/${encodeURIComponent(phone)}/callback` : cfg?.redirectUri;
-  
-  if (!cfg || !dynamicRedirect) {
+
+  if (!cfg) {
     return NextResponse.json({ error: 'Upstox client configuration missing for phone/group' }, { status: 500 });
   }
 
@@ -26,10 +23,15 @@ export async function GET(request: Request) {
 
   // (Optional) Set an httpOnly cookie to later validate state integrity
   const cookieValue = crypto.createHash('sha256').update(state).digest('hex');
+  debugger
 
-  const authUrl = `https://api-v2.upstox.com/login/authorization/dialog?client_id=${encodeURIComponent(cfg.clientId)}&redirect_uri=${encodeURIComponent(dynamicRedirect)}&response_type=code&state=${state}`;
+  const authUrl = `https://api-v2.upstox.com/login/authorization/dialog?client_id=${encodeURIComponent(cfg.clientId)}&redirect_uri=${encodeURIComponent(cfg?.redirectUri)}&response_type=code&state=${state}`;
 
-  const response = NextResponse.redirect(authUrl);
+  // Instead of redirecting, return the URL so client can open in new tab
+  const response = NextResponse.json({ 
+    authUrl,
+    message: 'Open this URL in a new tab to authenticate'
+  });
   response.cookies.set('upx_oauth_state', cookieValue, { httpOnly: true, path: '/', maxAge: 300 });
   return response;
 }
