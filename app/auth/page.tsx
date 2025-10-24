@@ -30,7 +30,7 @@ export default function AuthPage() {
   function getUserPhone(): string {
     switch(username) {
       case 'Nawaz':
-        return '+919154460026';
+        return '+918008752702';
       case 'Sadiq':
         return '+917036592824';
       case 'Abrar':
