@@ -1,23 +1,26 @@
+import { sendWhatsAppAlert } from '@/utils/whatsappUtils';
+import { Client } from '@stomp/stompjs';
 import { NextRequest, NextResponse } from 'next/server'
+
+
+
+function getClientDetailsForPhoneNumber(phoneNumber: string) {
+  return {
+    clientId :process.env[`UPSTOX_CLIENT_ID_${phoneNumber}`],
+    clientSecret : process.env[`UPSTOX_CLIENT_SECRET_${phoneNumber}`],
+  } 
+}
 
 
 export async function GET(request: NextRequest) {
 debugger
-  // Determine the correct frontend URL based on the request
-  const requestHost = request.headers.get('host');
-  const protocol = request.headers.get('x-forwarded-proto') || 'http';
+
   
   let baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL ;
-  
-  const clientId = process.env.NEXT_PUBLIC_UPSTOX_CLIENT_ID
-  
-  console.log('🌐 [CALLBACK] Environment details:', {
-    requestHost,
-    protocol,
-    baseUrl,
-    envFrontendUrl: process.env.NEXT_PUBLIC_FRONTEND_URL
-  });
-  
+
+
+  sendWhatsAppAlert("918885615779", "Call Back Received")
+
   // Create detailed error logging function
   const logError = (step: string, error: any, details?: any) => {
     console.error(`❌ [UPSTOX CALLBACK ERROR] ${step}:`, error);
@@ -31,16 +34,6 @@ debugger
     const code = searchParams.get('code')
     const state = searchParams.get('state')
     const error = searchParams.get('error')
-
-    console.log('🚀 [UPSTOX CALLBACK] Starting callback process');
-    console.log('📥 Received params:', { 
-      hasCode: !!code, 
-      codeLength: code?.length,
-      state, 
-      error,
-      hasClientId: !!clientId,
-      baseUrl 
-    });
     debugger; // Debug callback start
 
     if (error) {
@@ -51,16 +44,6 @@ debugger
       return logError('Missing Code', 'No authorization code received', { searchParams: Object.fromEntries(searchParams.entries()) });
     }
 
-    if (!clientId) {
-      return logError('Configuration Error', 'Missing UPSTOX_CLIENT_ID environment variable');
-    }
-
-    // Prepare token exchange request
-    const clientSecret = process.env.UPSTOX_CLIENT_SECRET;
-    if (!clientSecret) {
-      return logError('Configuration Error', 'Missing UPSTOX_CLIENT_SECRET environment variable');
-    }
-
     // Extract phone number from state to get the correct redirect URI
     let phoneNumber = '8885615779'; // default fallback
     if (state) {
@@ -68,6 +51,20 @@ debugger
       if (stateParts.length > 0) {
         phoneNumber = decodeURIComponent(stateParts[0]);
       }
+    }
+
+    const clientId = getClientDetailsForPhoneNumber(phoneNumber).clientId;
+    const clientSecret = getClientDetailsForPhoneNumber(phoneNumber).clientSecret;
+
+
+    if (!clientId) {
+      return logError('Configuration Error', 'Missing UPSTOX_CLIENT_ID environment variable');
+    }
+
+    // Prepare token exchange request
+  
+    if (!clientSecret) {
+      return logError('Configuration Error', 'Missing UPSTOX_CLIENT_SECRET environment variable');
     }
     
     // Get the same config that was used in the authorization request

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
+import { sendOtpToWhatsApp } from '@/utils/whatsappUtils';
 
 export default function AuthPage() {
   const router = useRouter();
@@ -25,42 +26,6 @@ export default function AuthPage() {
   // Generate random 5-digit OTP
   const generateOtp = (): string => {
     return Math.floor(10000 + Math.random() * 90000).toString();
-  };
-
-  function getUserPhone(): string {
-    switch(username) {
-      case 'Nawaz':
-        return '+918008752702';
-      case 'Sadiq':
-        return '+917036592824';
-      case 'Abrar':
-        return '+918885615779';
-      default:
-        return '';
-    }
-  }
-
-  // Send masked OTP directly to WhatsApp service
-  const sendOtpToWhatsApp = async (maskedOtp: number, user: string): Promise<boolean> => {
-    try {
-      // Send masked OTP directly to WhatsApp service
-      // In production, replace with actual WhatsApp API endpoint
-      const WhatsAppApiUrl = process.env.NEXT_PUBLIC_WHATSAPP_API_URL;
-      const response = await fetch(`${WhatsAppApiUrl}/send-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message : maskedOtp,
-         groupName : getUserPhone()
-        }),
-      });
-      return response.ok;
-    } catch (error) {
-      console.error('Failed to send OTP:', error);
-      return false;
-    }
   };
 
   useEffect(() => {
