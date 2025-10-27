@@ -61,10 +61,12 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
           // Admin can see all accounts
           setAvailableAccounts(data.result);
         } else {
-          // Regular users can see their own account, Main, and any accounts they created
+          // Regular users can see their own account, Main, Stryke, Algo, and any accounts they created
           const userAccounts = data.result.filter((account: string) => 
             account === currentUser || 
             account === 'Main' || 
+            account === 'Stryke' || 
+            account === 'Algo' || 
             account.startsWith(currentUser + '-')
           );
           setAvailableAccounts(userAccounts);
@@ -77,7 +79,7 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
     } catch (error) {
       console.error('Error fetching available accounts:', error);
       // Fallback to default accounts if API fails
-      setAvailableAccounts(isAdmin ? ['Main', 'Abrar', 'Sadiq', 'Nawaz'] : [currentUser, 'Main'].filter(Boolean));
+      setAvailableAccounts(isAdmin ? ['Main', 'Abrar', 'Sadiq', 'Nawaz', 'Stryke', 'Algo'] : [currentUser, 'Main', 'Stryke', 'Algo'].filter(Boolean));
     }
   };
 
@@ -183,7 +185,7 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
   // Check if current user can reset the selected account
   const canResetAccount = () => {
     // Main account can be reset by anyone
-    if (selectedAccount === 'Main') {
+    if (selectedAccount === 'Main' || selectedAccount === 'Stryke' || selectedAccount === 'Algo') {
       return true;
     }
     
@@ -329,7 +331,7 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
               <span className="text-xs text-gray-500 ml-1">({lastRefreshDisplay})</span>
             </Button>
             {/* Create Account Button - Only show when current user can create accounts for themselves */}
-            {selectedAccount !== 'Main' && selectedAccount === currentUser && (
+            {selectedAccount !== 'Main' && selectedAccount !== 'Stryke' && selectedAccount !== 'Algo' && selectedAccount === currentUser && (
               <Button
                 onClick={handleCreateAccount}
                 disabled={isCreatingAccount}
