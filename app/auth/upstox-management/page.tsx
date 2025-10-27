@@ -80,9 +80,7 @@ export default function UpstoxUserManagementPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="text-xs text-gray-600 space-y-1">
-                  <p><span className="font-semibold">Phone:</span> {u.phoneNumber || '—'}</p>
-                  <p><span className="font-semibold">Group:</span> {u.group || '—'}</p>
-                  <p><span className="font-semibold">Email:</span> {u.email ?? '—'}</p>
+                  <p><span className="font-semibold">Pin:</span> {u.pin ?? '-'}</p>
                 </div>
         <Button
                   variant={connected ? 'secondary' : 'default'}
@@ -100,7 +98,7 @@ export default function UpstoxUserManagementPage() {
                         // Fetch the auth URL from our API
                         const response = await fetch(`/api/auth/login?phone=${phoneParam}`);
                         const data = await response.json();
-                        
+                        debugger
                         if (data.authUrl) {
                           // Open in new tab
                           window.open(data.authUrl, '_blank');

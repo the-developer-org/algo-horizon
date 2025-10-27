@@ -21,9 +21,10 @@ function sanitizeKey(raw: string): string {
 
 export function getUpstoxConfigForUser(params: { userId?: string | null;  }): UpstoxUserConfig | null {
   const { userId } = params;
-
+  debugger;
   if (userId) {
     const key = sanitizeKey(userId);
+    debugger
     
     // Try environment-specific variables first
     const cid = process.env[`UPSTOX_CLIENT_ID_${key}`];

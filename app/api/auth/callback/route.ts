@@ -1,15 +1,7 @@
+import { getUpstoxConfigForUser } from '@/lib/upstox-config';
 import { sendWhatsAppAlert } from '@/utils/whatsappUtils';
 import { Client } from '@stomp/stompjs';
 import { NextRequest, NextResponse } from 'next/server'
-
-
-
-function getClientDetailsForPhoneNumber(phoneNumber: string) {
-  return {
-    clientId :process.env[`UPSTOX_CLIENT_ID_${phoneNumber}`],
-    clientSecret : process.env[`UPSTOX_CLIENT_SECRET_${phoneNumber}`],
-  } 
-}
 
 
 export async function GET(request: NextRequest) {
@@ -53,9 +45,10 @@ debugger
       }
     }
 
-    const clientId = getClientDetailsForPhoneNumber(phoneNumber).clientId;
-    const clientSecret = getClientDetailsForPhoneNumber(phoneNumber).clientSecret;
+    const cfg = getUpstoxConfigForUser({ userId: phoneNumber });
 
+    const clientId = cfg?.clientId;
+    const clientSecret = cfg?.clientSecret;
 
     if (!clientId) {
       return logError('Configuration Error', 'Missing UPSTOX_CLIENT_ID environment variable');
@@ -68,8 +61,6 @@ debugger
     }
     
     // Get the same config that was used in the authorization request
-    const { getUpstoxConfigForUser } = await import('@/lib/upstox-config');
-    const cfg = getUpstoxConfigForUser({ userId: phoneNumber });
     const redirectUri = cfg?.redirectUri || 'https://algo-horizon.vercel.app/api/auth/callback';
     
     const requestBody = new URLSearchParams({
