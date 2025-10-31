@@ -194,7 +194,9 @@ export default function AuthPage() {
                   <div key={`otp-box-${index}`} className="flex items-center">
                     <input
                       id={`otp-${index}`}
-                      type="text"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={otp[index]}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
