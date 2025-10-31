@@ -230,7 +230,7 @@ function StrikeAnalysisContent() {
   );
   const [selectedTime, setSelectedTime] = useState<string>('00:00');
   const [callType, setCallType] = useState<CallType>(CallType.INTRADAY);
-  const [strykeType, setStrykeType] = useState<'OLD' | 'NEW'>('NEW');
+  const [strykeType, setStrykeType] = useState<'OLD' | 'APP' | 'DISCORD'>('APP');
   const [stopLoss, setStopLoss] = useState<string>('0.00');
   const [target, setTarget] = useState<string>('0.00');
   const [strykeList, setStrykeList] = useState<AnalysisResponse[]>([]);
@@ -253,7 +253,8 @@ function StrikeAnalysisContent() {
   const [showStrykeAnalysis, setShowStrykeAnalysis] = useState(() => true);
   const [showFiboAnalysis, setShowFiboAnalysis] = useState(() => true);
   const [showOldAnalysis, setShowOldAnalysis] = useState(() => true); // Add this new state
-  const [showNewAnalysis, setShowNewAnalysis] = useState(() => true); // Add this new state
+  const [showAppAnalysis, setShowAppAnalysis] = useState(() => true); // Add this new state
+  const [showDiscordAnalysis, setShowDiscordAnalysis] = useState(() => true); // Add this new state
   const [activeFilter, setActiveFilter] = useState({
     date: null as FilterOrder,
     name: null as FilterOrder,
@@ -891,12 +892,13 @@ function StrikeAnalysisContent() {
       filtered = filtered.filter(item => enabledTypes.includes(item.label));
     }
 
-    // Filter by strykeType (OLD/NEW) - only filter if both are not enabled
-    // If both showOldAnalysis and showNewAnalysis are true, show all items regardless of strykeType
-    if (!showOldAnalysis || !showNewAnalysis) {
+    // Filter by strykeType (OLD/APP/DISCORD) - only filter if not all three are enabled
+    // If all three showOldAnalysis, showAppAnalysis, and showDiscordAnalysis are true, show all items regardless of strykeType
+    if (!(showOldAnalysis && showAppAnalysis && showDiscordAnalysis)) {
       const enabledStrykeTypes: string[] = [];
       if (showOldAnalysis) enabledStrykeTypes.push('OLD');
-      if (showNewAnalysis) enabledStrykeTypes.push('NEW');
+      if (showAppAnalysis) enabledStrykeTypes.push('APP');
+      if (showDiscordAnalysis) enabledStrykeTypes.push('DISCORD');
       
       if (enabledStrykeTypes.length > 0) {
         filtered = filtered.filter(item => {
@@ -916,7 +918,8 @@ function StrikeAnalysisContent() {
     showStrykeAnalysis, 
     showFiboAnalysis,
     showOldAnalysis,
-    showNewAnalysis
+    showAppAnalysis,
+    showDiscordAnalysis
   ]);
 
   const handleToggleView = (showForm: boolean, showAll: boolean, showStats: boolean, showSwing: boolean) => {
@@ -1500,11 +1503,12 @@ function StrikeAnalysisContent() {
                         <select
                           id="stryke-type"
                           value={strykeType}
-                          onChange={(e) => setStrykeType(e.target.value as 'OLD' | 'NEW')}
+                          onChange={(e) => setStrykeType(e.target.value as 'OLD' | 'APP' | 'DISCORD')}
                           className="w-full border border-gray-300 rounded-md p-2"
                         >
                           <option value="OLD">OLD</option>
-                          <option value="NEW">NEW</option>
+                          <option value="APP">APP</option>
+                          <option value="DISCORD">DISCORD</option>
                         </select>
                       </div>
 
@@ -1781,8 +1785,9 @@ function StrikeAnalysisContent() {
                       setShowAlgoAnalysis(true)
                       setShowStrykeAnalysis(true)
                       setShowFiboAnalysis(true)
-                      setShowOldAnalysis(true)   // Reset OLD analysis toggle
-                      setShowNewAnalysis(true)   // Reset NEW analysis toggle
+                      setShowOldAnalysis(true)   // Reset OLD toggle
+                      setShowAppAnalysis(true)   // Reset APP toggle
+                      setShowDiscordAnalysis(true)   // Reset DISCORD toggle
 
                       // Reset month selection
                       setSelectedMonth(null);
@@ -1873,7 +1878,7 @@ function StrikeAnalysisContent() {
                         </Button>
                       )}
 
-                      {/* NEW: OLD/NEW Analysis Toggles */}
+                      {/* NEW: OLD/APP/DISCORD Analysis Toggles */}
                       {!showOldAnalysis && (
                         <Button
                           onClick={() => {
@@ -1882,7 +1887,7 @@ function StrikeAnalysisContent() {
                           }}
                           className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
-                          Show Old Analysis
+                          Show OLD
                         </Button>
                       )}
 
@@ -1894,31 +1899,55 @@ function StrikeAnalysisContent() {
                           }}
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
-                          Hide Old Analysis
+                          Hide OLD
                         </Button>
                       )}
 
-                      {!showNewAnalysis && (
+                      {!showAppAnalysis && (
                         <Button
                           onClick={() => {
-                            setShowNewAnalysis(true)
+                            setShowAppAnalysis(true)
                             // Filtered list will be updated by useEffect
                           }}
                           className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
-                          Show New Analysis
+                          Show APP
                         </Button>
                       )}
 
-                      {showNewAnalysis && (
+                      {showAppAnalysis && (
                         <Button
                           onClick={() => {
-                            setShowNewAnalysis(false)
+                            setShowAppAnalysis(false)
                             // Filtered list will be updated by useEffect
                           }}
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
-                          Hide New Analysis
+                          Hide APP
+                        </Button>
+                      )}
+
+                      {!showDiscordAnalysis && (
+                        <Button
+                          onClick={() => {
+                            setShowDiscordAnalysis(true)
+                            // Filtered list will be updated by useEffect
+                          }}
+                          className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                        >
+                          Show Discord
+                        </Button>
+                      )}
+
+                      {showDiscordAnalysis && (
+                        <Button
+                          onClick={() => {
+                            setShowDiscordAnalysis(false)
+                            // Filtered list will be updated by useEffect
+                          }}
+                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                        >
+                          Hide Discord
                         </Button>
                       )}
                     </div>

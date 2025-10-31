@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { sendOtpToWhatsApp } from '@/utils/whatsappUtils';
+import { sendOtpToWhatsApp, getUserPhone } from '@/utils/whatsappUtils';
+import axios from 'axios';
 
 export default function AuthPage() {
   const router = useRouter();
@@ -119,6 +120,19 @@ export default function AuthPage() {
       // Store user session
       sessionStorage.setItem('isUserAuthorised', 'true');
       localStorage.setItem('currentUser', username);
+      
+      // Log login event (fire-and-forget)
+      const phoneNumber = getUserPhone(username);
+      if (phoneNumber) {
+        axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/audit/logLogin?phoneNumber=${encodeURIComponent(phoneNumber)}`, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }).catch(error => {
+          console.warn('Failed to log login event:', error);
+        });
+      }
+      
       router.replace('/');
     } else {
       setError('Invalid OTP. Please try again.');
