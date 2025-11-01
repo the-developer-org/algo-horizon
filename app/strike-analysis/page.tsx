@@ -8,8 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { CallType } from '@/components/types/strike-analysis';
+import { CallType, AnalysisResult } from '@/components/types/strike-analysis';
 import { fetchUpstoxIntradayData } from '@/components/utils/upstoxApi';
+import StrykeForm from './components/StrykeForm';
+import FilterControls from './components/FilterControls';
+import MetricsDashboard from './components/MetricsDashboard';
 
 // Define the Stryke interface based on the provided model
 interface Candle {
@@ -221,20 +224,8 @@ function StrikeAnalysisContent() {
   // Global blocking loader for long running actions (delete, bulk ops, etc.)
   const [globalLoading, setGlobalLoading] = useState(false);
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
-  const [searchTerm, setSearchTerm] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState<string>('');
-  const [selectedInstrumentKey, setSelectedInstrumentKey] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toLocaleDateString('en-GB').split('/').reverse().join('-') // Format as DD-MM-YYYY
-  );
-  const [selectedTime, setSelectedTime] = useState<string>('00:00');
-  const [callType, setCallType] = useState<CallType>(CallType.INTRADAY);
-  const [strykeType, setStrykeType] = useState<'OLD' | 'APP' | 'DISCORD'>('APP');
-  const [stopLoss, setStopLoss] = useState<string>('0.00');
-  const [target, setTarget] = useState<string>('0.00');
   const [strykeList, setStrykeList] = useState<AnalysisResponse[]>([]);
-  const [analysisResult, setAnalysisResult] = useState<Stryke | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [selectedStryke, setSelectedStryke] = useState<AnalysisResponse | null>(null);
   const [strykeAnalysisList, setStrykeAnalysisList] = useState<AnalysisResponse[]>([]);
   const [algoAnalysisList, setAlgoAnalysisList] = useState<AnalysisResponse[]>([]);
@@ -359,105 +350,9 @@ function StrikeAnalysisContent() {
   }, []);
 
 
-  // Update suggestions as user types
-  useEffect(() => {
-    if (!searchTerm) {
-      setSuggestions([]);
-      return;
-    }
-    const matches = Object.keys(keyMapping)
-      .filter(name => name.toLowerCase().includes(searchTerm.toLowerCase()))
-      .slice(0, 8);
-    setSuggestions(matches);
-  }, [searchTerm, keyMapping]);
-
-  // Handle selection from suggestions
-  const handleSelectCompany = (companyName: string) => {
-    setSelectedCompany(companyName);
-    setSelectedInstrumentKey(keyMapping[companyName]);
-    setSearchTerm(companyName);
-    setSuggestions([]);
-  };
-
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!selectedCompany || !selectedInstrumentKey) {
-      toast.error('Please select a company');
-      return;
-    }
-    try {
-      const checkIfCompanyExists = await fetchUpstoxIntradayData(selectedInstrumentKey, selectedDate);
-
-    } catch (error: any) {
-
-      if (error instanceof Error && error.message.includes('400')) {
-        toast.error('Company data is blocked by Upstox and cannot be retrieved.');
-        return;
-      }
-    }
-
-    const stopLossValue = parseFloat(stopLoss);
-    const targetValue = parseFloat(target);
-
-    if (isNaN(stopLossValue) || isNaN(targetValue)) {
-      toast.error('Stop Loss and Target must be valid numbers');
-      return;
-    }
-
-    setIsLoading(true);
-
-    const strykeInbound = {
-      instrumentKey: selectedInstrumentKey,
-      companyName: selectedCompany,
-      entryDate: selectedDate,
-      time: selectedTime,
-      callType,
-      strykeType,
-      stopLoss: stopLossValue,
-      target: targetValue,
-    };
-
-    try {
-      await addNewStock(strykeInbound);
-    } catch (error) {
-      console.error('Error in handleSubmit:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const addNewStock = async (strykeInbound: Partial<Stryke>) => {
-    try {
-      setIsLoading(true);
-      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      const response = await axios.post(`${backEndBaseUrl}/api/stryke/add-stock`, strykeInbound, {
-        headers: {
-          'accept': 'application/json',
-        },
-      });
-      const addedStock = response.data.stryke;
-      setAnalysisResult({
-        ...addedStock,
-        entryDate: new Date(addedStock.entryTime).toLocaleDateString('en-GB'),
-      }); // Display the added stock details
-      toast.success('Stock added successfully');
-
-      // Add the new stock to the list
-      setStrykeList((prevList) => [
-        {
-          ...addedStock,
-          entryDate: new Date(addedStock.entryTime).toLocaleDateString('en-GB'),
-        },
-        ...prevList,
-      ]);
-    } catch (error: any) {
-      console.error('Error adding new stock:', error);
-      toast.error(error?.response?.data?.statusText || 'Failed to add stock');
-    } finally {
-      setIsLoading(false);
-    }
+  // Handle analysis completion from StrykeForm
+  const handleAnalysisComplete = (result: AnalysisResult) => {
+    setAnalysisResult(result);
   };
 
   const recalculateStrykeAnalysis = async () => {
@@ -1413,168 +1308,11 @@ function StrikeAnalysisContent() {
             {showStrykeForm && (
               <div className="flex flex-col md:flex-row gap-4">
                 {/* Form Section */}
-                <div className="w-full md:w-1/2">
-                  <Card className="p-4 shadow-lg h-full">
-                    <form onSubmit={handleSubmit} className="space-y-3">
-                      {/* Company Search */}
-                      <div className="space-y-2">
-                        <Label htmlFor="company-search">Company</Label>
-                        <div className="relative">
-                          <Input
-                            id="company-search"
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => {
-                              setSearchTerm(e.target.value);
-                              setSelectedCompany('');
-                              setSelectedInstrumentKey('');
-                            }}
-                            placeholder="Search for a company..."
-                            className="w-full"
-                          />
-                          {suggestions.length > 0 && !selectedCompany && (
-                            <ul className="absolute z-50 w-full mt-1 border border-gray-300 rounded-md max-h-60 overflow-auto bg-white shadow-lg">
-                              {suggestions.map((name, index) => (
-                                <button
-                                  key={name}
-                                  type="button"
-                                  onClick={() => handleSelectCompany(name)}
-                                  className="p-2 cursor-pointer hover:bg-gray-100 w-full text-left"
-                                >
-                                  {name}
-                                </button>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                        {selectedCompany && (
-                          <div className="text-sm text-gray-500">
-                            Selected: <span className="font-semibold">{selectedCompany}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Date & Time */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="date-select">Date</Label>
-                          <Input
-                            id="date-select"
-                            type="date"
-                            value={selectedDate.split('-').reverse().join('-')}
-                            onChange={(e) => setSelectedDate(e.target.value.split('-').reverse().join('-'))}
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="time-select">Time</Label>
-                          <Input
-                            id="time-select"
-                            type="time"
-                            value={selectedTime}
-                            onChange={(e) => setSelectedTime(e.target.value)}
-                            className="w-full"
-                            min="09:15"
-                            max="15:30"
-                            step="60" // 1-minute intervals
-                          />
-                        </div>
-                      </div>
-
-                      {/* Call Type */}
-                      <div className="space-y-2">
-                        <Label htmlFor="call-type">Call Type</Label>
-                        <select
-                          id="call-type"
-                          value={callType}
-                          onChange={(e) => setCallType(e.target.value as CallType)}
-                          className="w-full border border-gray-300 rounded-md p-2"
-                        >
-                          <option value={CallType.INTRADAY}>Intraday</option>
-                          <option value={CallType.POSITIONAL}>Positional</option>
-                          <option value={CallType.SWING}>Swing</option>
-                          <option value={CallType.LONGTERM}>Long Term</option>
-                        </select>
-                      </div>
-
-                      {/* Stryke Type */}
-                      <div className="space-y-2">
-                        <Label htmlFor="stryke-type">Stryke Type</Label>
-                        <select
-                          id="stryke-type"
-                          value={strykeType}
-                          onChange={(e) => setStrykeType(e.target.value as 'OLD' | 'APP' | 'DISCORD')}
-                          className="w-full border border-gray-300 rounded-md p-2"
-                        >
-                          <option value="OLD">OLD</option>
-                          <option value="APP">APP</option>
-                          <option value="DISCORD">DISCORD</option>
-                        </select>
-                      </div>
-
-                      {/* Stop Loss & Target */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="stop-loss">Stop Loss</Label>
-                          <div className="relative">
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">₹</span>
-                            <Input
-                              id="stop-loss"
-                              type="text"
-                              placeholder="0.00"
-                              value={stopLoss}
-                              onChange={(e) => setStopLoss(e.target.value)}
-                              className="w-full pl-8"
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="target">Target</Label>
-                          <div className="relative">
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">₹</span>
-                            <Input
-                              id="target"
-                              type="text"
-                              placeholder="0.00"
-                              value={target}
-                              onChange={(e) => setTarget(e.target.value)}
-                              className="w-full pl-8"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Submit Button */}
-                      <Button
-                        type="submit"
-                        className={`w-full text-white ${selectedCompany && selectedInstrumentKey && selectedDate && selectedTime !== "00:00" &&
-                          stopLoss !== "0.00" &&
-                          target !== "0.00"
-                          ? 'bg-purple-600 hover:bg-purple-700'
-                          : 'bg-gray-400 cursor-not-allowed'
-                          }`}
-                        disabled={
-                          isLoading ||
-                          !selectedCompany &&
-                          !selectedInstrumentKey &&
-                          !selectedDate &&
-                          selectedTime !== "00:00" &&
-                          stopLoss !== "0.00" &&
-                          target !== "0.00"
-                        }
-                      >
-                        {isLoading ? (
-                          <div className="flex items-center justify-center">
-                            <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2"></div>
-                            Analyzing...
-                          </div>
-                        ) : (
-                          'Run Stryke Analysis'
-                        )}
-                      </Button>
-                    </form>
-                  </Card>
-                </div>
+                <StrykeForm
+                  onAnalysisComplete={handleAnalysisComplete}
+                  isLoading={isLoading}
+                  setIsLoading={setIsLoading}
+                />
 
                 {/* Results Section */}
                 <div className="w-full md:w-1/2">
@@ -1615,9 +1353,9 @@ function StrikeAnalysisContent() {
                         <div className="flex justify-between items-center pb-1 border-b">
                           <span className="font-medium">Stryke Type:</span>
                           <span className={`font-semibold px-2 py-1 rounded text-xs ${
-                            strykeType === 'OLD' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
+                            analysisResult.strykeType === 'OLD' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
                           }`}>
-                            {strykeType}
+                            {analysisResult.strykeType}
                           </span>
                         </div>
 
@@ -1691,574 +1429,34 @@ function StrikeAnalysisContent() {
               <div className="container mx-auto py-4 px-4 max-w-screen-2xl">
 
                 {/* Search, Sort, and Filter Controls */}
-                <div className="flex flex-wrap gap-1 items-center mb-4">
-
-                  {/* Search Input */}
-                  <input
-                    type="text"
-                    placeholder="Search by name..."
-                    className="border border-gray-300 rounded-md px-2 py-1"
-                    onChange={(e) => {
-                      const query = e.target.value.toLowerCase();
-                      setFilteredAnalysisList(
-                        strykeList.filter((stryke) =>
-                          stryke.companyName.toLowerCase().includes(query)
-                        )
-                      );
-                    }}
-                  />
-
-                  {/* Month Filter */}
-                  <select
-                    className="border border-gray-300 rounded-md px-2 py-1"
-                    value={selectedMonth || ''}
-                    onChange={(e) => {
-                      const monthYear = e.target.value;
-                      setSelectedMonth(monthYear || null);
-                      setFilteredAnalysisList(
-                        monthYear
-                          ? strykeList.filter((stryke) => {
-                            const addedMonthYear = new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' });
-                            return addedMonthYear === monthYear;
-                          })
-                          : strykeList
-                      );
-                    }}
-                  >
-                    <option value="">All Months</option>
-                    {Array.from(new Set(
-                      strykeList.map((stryke) =>
-                        new Date(stryke.entryTime).toLocaleString('default', { month: 'long', year: 'numeric' })
-                      )
-                    )).map((monthYear) => (
-                      <option key={monthYear} value={monthYear}>
-                        {monthYear}
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* Export Buttons */}
-                  {/* <button
-                    className="px-3 py-1 rounded-md bg-emerald-500 text-white"
-                    onClick={exportStrykeStatsToExcel}
-                  >
-                    Export As Excel
-                  </button> */}
-
-                  {/* Export Swing Stats Button */}
-                  <button
-                    className="px-3 py-1 rounded-md bg-blue-500 hover:bg-blue-600 text-white"
-                    onClick={exportSwingStatsToExcel}
-                  >
-                    Export Swing Stats
-                  </button>
-
-
-                  {/* Reset Filters Button */}
-                  <button
-                    className="px-3 py-1 rounded-md bg-red-500 hover:bg-red-600 text-white"
-                    onClick={() => {
-                      // Reset all active filters to their default state
-                      setActiveFilter({
-                        date: null,
-                        name: null,
-                        avgVolume: null,
-                        target: null,
-                        entry: null,
-                        stopLoss: null,
-                        trend: null,
-                        inResistanceZone: null,
-                        onePercChange: null,
-                        swingLabel: null,
-                        swingLabel2: null,
-                        swingLabelCombo: null,
-                        erLabel: null,
-                        erSort: null,
-                        profitSort: null,
-                        supportSort: null,
-                        resistanceSort: null,
-                        profitLabel: null,
-                        supportLabel: null,
-                        resistanceLabel: null,
-                      });
-
-                      setShowAlgoAnalysis(true)
-                      setShowStrykeAnalysis(true)
-                      setShowFiboAnalysis(true)
-                      setShowOldAnalysis(true)   // Reset OLD toggle
-                      setShowAppAnalysis(true)   // Reset APP toggle
-                      setShowDiscordAnalysis(true)   // Reset DISCORD toggle
-
-                      // Reset month selection
-                      setSelectedMonth(null);
-
-                      // Reset filtered list to original lists - this will be handled by the useEffect
-                      // setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList, ...fiboAnalysisList]);
-                    }}
-                  >
-                    Reset Filters
-                  </button>
-
-
-                  {/* Count */}
-
-                  {/* Row 3: Analysis Toggle Buttons */}
-                  <div className="inline-flex items-center gap-2">
-
-                    <div className="flex flex-wrap gap-1 items-center">
-                      {!showAlgoAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowAlgoAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 text-sm rounded-md transition"
-                        >
-                          Show Algo Analysis
-                        </Button>
-                      )}
-
-                      {showAlgoAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowAlgoAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide Algo Analysis
-                        </Button>
-                      )}
-
-                      {!showStrykeAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowStrykeAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-cyan-500 hover:bg-cyan-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show Stryke Analysis
-                        </Button>
-                      )}
-
-                      {showStrykeAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowStrykeAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide Stryke Analysis
-                        </Button>
-                      )}
-
-                      {!showFiboAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowFiboAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show Fibo Analysis
-                        </Button>
-                      )}
-
-                      {showFiboAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowFiboAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide Fibo Analysis
-                        </Button>
-                      )}
-
-                      {/* NEW: OLD/APP/DISCORD Analysis Toggles */}
-                      {!showOldAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowOldAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show OLD
-                        </Button>
-                      )}
-
-                      {showOldAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowOldAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide OLD
-                        </Button>
-                      )}
-
-                      {!showAppAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowAppAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show APP
-                        </Button>
-                      )}
-
-                      {showAppAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowAppAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide APP
-                        </Button>
-                      )}
-
-                      {!showDiscordAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowDiscordAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show Discord
-                        </Button>
-                      )}
-
-                      {showDiscordAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowDiscordAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide Discord
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <span className="text-lg font-bold">Count: {filteredAnalysisList.length}</span>
-
-
-
-                  {/* Show metrics content when showMetrics is true */}
+                <FilterControls
+                  strykeList={strykeList}
+                  filteredAnalysisList={filteredAnalysisList}
+                  setFilteredAnalysisList={setFilteredAnalysisList}
+                  selectedMonth={selectedMonth}
+                  setSelectedMonth={setSelectedMonth}
+                  showAlgoAnalysis={showAlgoAnalysis}
+                  setShowAlgoAnalysis={setShowAlgoAnalysis}
+                  showStrykeAnalysis={showStrykeAnalysis}
+                  setShowStrykeAnalysis={setShowStrykeAnalysis}
+                  showFiboAnalysis={showFiboAnalysis}
+                  setShowFiboAnalysis={setShowFiboAnalysis}
+                  showOldAnalysis={showOldAnalysis}
+                  setShowOldAnalysis={setShowOldAnalysis}
+                  showAppAnalysis={showAppAnalysis}
+                  setShowAppAnalysis={setShowAppAnalysis}
+                  showDiscordAnalysis={showDiscordAnalysis}
+                  setShowDiscordAnalysis={setShowDiscordAnalysis}
+                  exportSwingStatsToExcel={exportSwingStatsToExcel}
+                  activeFilter={activeFilter}
+                  setActiveFilter={setActiveFilter}
+                />
                   {showMetrics && (
-                    <div className="bg-gray-100 p-6 rounded-lg">
-                      <h3 className="text-lg font-semibold mb-6 text-center">Metrics Dashboard - Comparative Analysis</h3>
-
-                      {/* Metrics Summary Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        {/* Min Profits Achieved Comparison */}
-                        <div className="bg-white p-4 rounded-lg border shadow-sm">
-                          <h4 className="text-sm font-medium text-gray-700 mb-3 text-center">Min Profits Achieved  - Crossed ER-Gap</h4>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-blue-600 font-medium">Stryke:</span>
-                              <span className="text-xl font-bold text-blue-600">{strykeMetrics?.minProfitsAchieved || 0}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-green-600 font-medium">Algo:</span>
-                              <span className="text-xl font-bold text-green-600">{algoMetrics?.minProfitsAchieved || 0}</span>
-                            </div>
-                            <div className="border-t pt-2">
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-600">Difference:</span>
-                                <span className={`font-bold ${(strykeMetrics?.minProfitsAchieved || 0) > (algoMetrics?.minProfitsAchieved || 0) ? 'text-blue-600' : (strykeMetrics?.minProfitsAchieved || 0) < (algoMetrics?.minProfitsAchieved || 0) ? 'text-green-600' : 'text-amber-500'}`}>
-                                  {Math.abs((strykeMetrics?.minProfitsAchieved || 0) - (algoMetrics?.minProfitsAchieved || 0))}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Max Profits Achieved Comparison */}
-                        <div className="bg-white p-4 rounded-lg border shadow-sm">
-                          <h4 className="text-sm font-medium text-gray-700 mb-3 text-center">Max Profits Achieved - Crossed the Target</h4>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-blue-600 font-medium">Stryke:</span>
-                              <span className="text-xl font-bold text-blue-600">{strykeMetrics?.maxProfitsAchieved || 0}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-green-600 font-medium">Algo:</span>
-                              <span className="text-xl font-bold text-green-600">{algoMetrics?.maxProfitsAchieved || 0}</span>
-                            </div>
-                            <div className="border-t pt-2">
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-600">Difference:</span>
-                                <span className={`font-bold ${(strykeMetrics?.maxProfitsAchieved || 0) > (algoMetrics?.maxProfitsAchieved || 0) ? 'text-blue-600' : (strykeMetrics?.maxProfitsAchieved || 0) < (algoMetrics?.maxProfitsAchieved || 0) ? 'text-green-600' : 'text-amber-500'}`}>
-                                  {Math.abs((strykeMetrics?.maxProfitsAchieved || 0) - (algoMetrics?.maxProfitsAchieved || 0))}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Less Than Min Profits Comparison */}
-                        <div className="bg-white p-4 rounded-lg border shadow-sm">
-                          <h4 className="text-sm font-medium text-gray-700 mb-3 text-center">Less Than Min Profits - Less than ER-Gap</h4>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-blue-600 font-medium">Stryke:</span>
-                              <span className="text-xl font-bold text-red-600">{strykeMetrics?.lessThanMinProfits || 0}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-green-600 font-medium">Algo:</span>
-                              <span className="text-xl font-bold text-red-600">{algoMetrics?.lessThanMinProfits || 0}</span>
-                            </div>
-                            <div className="border-t pt-2">
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-600">Difference:</span>
-                                <span className={`font-bold ${(strykeMetrics?.lessThanMinProfits || 0) < (algoMetrics?.lessThanMinProfits || 0) ? 'text-green-600' : (strykeMetrics?.lessThanMinProfits || 0) > (algoMetrics?.lessThanMinProfits || 0) ? 'text-red-600' : 'text-amber-500'}`}>
-                                  {Math.abs((strykeMetrics?.lessThanMinProfits || 0) - (algoMetrics?.lessThanMinProfits || 0))}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* ER Gap Distribution Comparison */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                        <div className="bg-white p-4 rounded-lg border shadow-sm">
-                          <h4 className="text-lg font-semibold text-blue-700 mb-4 text-center">Stryke Analysis - ER Gap Distribution</h4>
-                          <div className="grid grid-cols-3 gap-3">
-                            <div className="text-center p-3 bg-red-50 rounded">
-                              <div className="text-2xl font-bold text-red-600">{strykeMetrics?.ErGap_L3 || 0}</div>
-                              <div className="text-xs text-gray-600">{'< 3%'}</div>
-                            </div>
-                            <div className="text-center p-3 bg-green-50 rounded">
-                              <div className="text-2xl font-bold text-green-600">{strykeMetrics?.ErGap_G3 || 0}</div>
-                              <div className="text-xs text-gray-600">≥ 3%</div>
-                            </div>
-                            <div className="text-center p-3 bg-gray-50 rounded">
-                              <div className="text-2xl font-bold text-gray-600">{strykeMetrics?.ER_Gap_AR || 0}</div>
-                              <div className="text-xs text-gray-600">Above Resistance</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-white p-4 rounded-lg border shadow-sm">
-                          <h4 className="text-lg font-semibold text-green-700 mb-4 text-center">Algo Analysis - ER Gap Distribution</h4>
-                          <div className="grid grid-cols-3 gap-3">
-                            <div className="text-center p-3 bg-red-50 rounded">
-                              <div className="text-2xl font-bold text-red-600">{algoMetrics?.ErGap_L3 || 0}</div>
-                              <div className="text-xs text-gray-600">{'< 3%'}</div>
-                            </div>
-                            <div className="text-center p-3 bg-green-50 rounded">
-                              <div className="text-2xl font-bold text-green-600">{algoMetrics?.ErGap_G3 || 0}</div>
-                              <div className="text-xs text-gray-600">≥ 3%</div>
-                            </div>
-                            <div className="text-center p-3 bg-gray-50 rounded">
-                              <div className="text-2xl font-bold text-gray-600">{algoMetrics?.ER_Gap_AR || 0}</div>
-                              <div className="text-xs text-gray-600">Above Resistance</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Profit Values and Performance Metrics */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* Stryke Analysis Detailed Metrics */}
-                        <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                          <h4 className="text-lg font-semibold text-blue-700 mb-4">Stryke Analysis Metrics</h4>
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                              <div className="bg-white p-3 rounded">
-                                <div className="font-medium text-gray-700">Supports Touched</div>
-                                <div className="text-xl font-bold text-amber-500">{strykeMetrics?.supportsTouched || 0}</div>
-                              </div>
-                              <div className="bg-white p-3 rounded">
-                                <div className="font-medium text-gray-700">Resistances Touched</div>
-                                <div className="text-xl font-bold text-amber-500">{strykeMetrics?.resistancesTouched || 0}</div>
-                              </div>
-                            </div>
-                            <div className="bg-white p-3 rounded">
-                              <div className="font-medium text-gray-700 mb-2">Profit Values (%)</div>
-                              <div className="grid grid-cols-3 gap-2 text-sm">
-                                <div className="text-center">
-                                  <div className="text-blue-600 font-bold">{strykeMetrics?.minProfitValue || 0}%</div>
-                                  <div className="text-xs">Min</div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-green-600 font-bold">{strykeMetrics?.maxProfitValue || 0}%</div>
-                                  <div className="text-xs">Max</div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-amber-500 font-bold">{strykeMetrics?.avgProfitValue || 0}%</div>
-                                  <div className="text-xs">Average</div>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="bg-white p-3 rounded">
-                              <div className="font-medium text-gray-700">Avg Time to Profits</div>
-                              <div className="text-xl font-bold text-blue-600">{strykeMetrics?.avgTimeTakenForProfits || 0} days</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Algo Analysis Detailed Metrics */}
-                        <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                          <h4 className="text-lg font-semibold text-green-700 mb-4">Algo Analysis Metrics</h4>
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                              <div className="bg-white p-3 rounded">
-                                <div className="font-medium text-gray-700">Supports Touched</div>
-                                <div className="text-xl font-bold text-amber-500">{algoMetrics?.supportsTouched || 0}</div>
-                              </div>
-                              <div className="bg-white p-3 rounded">
-                                <div className="font-medium text-gray-700">Resistances Touched</div>
-                                <div className="text-xl font-bold text-amber-500">{algoMetrics?.resistancesTouched || 0}</div>
-                              </div>
-                            </div>
-                            <div className="bg-white p-3 rounded">
-                              <div className="font-medium text-gray-700 mb-2">Profit Values (%)</div>
-                              <div className="grid grid-cols-3 gap-2 text-sm">
-                                <div className="text-center">
-                                  <div className="text-blue-600 font-bold">{algoMetrics?.minProfitValue || 0}%</div>
-                                  <div className="text-xs">Min</div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-green-600 font-bold">{algoMetrics?.maxProfitValue || 0}%</div>
-                                  <div className="text-xs">Max</div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-amber-500 font-bold">{algoMetrics?.avgProfitValue || 0}%</div>
-                                  <div className="text-xs">Average</div>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="bg-white p-3 rounded">
-                              <div className="font-medium text-gray-700">Avg Time to Profits</div>
-                              <div className="text-xl font-bold text-blue-600">{algoMetrics?.avgTimeTakenForProfits || 0} days</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Performance Comparison Progress Bar */}
-                      <div className="mt-6">
-                        <h4 className="text-lg font-semibold mb-4 text-center">Performance Comparison</h4>
-                        {(() => {
-                          const comparisons = [
-                            // Min Profits Achieved (higher is better)
-                            (strykeMetrics?.minProfitsAchieved || 0) > (algoMetrics?.minProfitsAchieved || 0) ? 'stryke' :
-                              (algoMetrics?.minProfitsAchieved || 0) > (strykeMetrics?.minProfitsAchieved || 0) ? 'algo' : null,
-
-                            // Max Profits Achieved (higher is better)
-                            (strykeMetrics?.maxProfitsAchieved || 0) > (algoMetrics?.maxProfitsAchieved || 0) ? 'stryke' :
-                              (algoMetrics?.maxProfitsAchieved || 0) > (strykeMetrics?.maxProfitsAchieved || 0) ? 'algo' : null,
-
-                            // Less Than Min Profits (lower is better)
-                            (strykeMetrics?.lessThanMinProfits || 0) < (algoMetrics?.lessThanMinProfits || 0) ? 'stryke' :
-                              (algoMetrics?.lessThanMinProfits || 0) < (strykeMetrics?.lessThanMinProfits || 0) ? 'algo' : null,
-
-                            // Supports Touched (higher is better)
-                            (strykeMetrics?.supportsTouched || 0) > (algoMetrics?.supportsTouched || 0) ? 'stryke' :
-                              (algoMetrics?.supportsTouched || 0) > (strykeMetrics?.supportsTouched || 0) ? 'algo' : null,
-
-                            // Resistances Touched (higher is better)
-                            (strykeMetrics?.resistancesTouched || 0) > (algoMetrics?.resistancesTouched || 0) ? 'stryke' :
-                              (algoMetrics?.resistancesTouched || 0) > (strykeMetrics?.resistancesTouched || 0) ? 'algo' : null,
-
-                            // Average Time to Profits (lower is better)
-                            (strykeMetrics?.avgTimeTakenForProfits || 0) < (algoMetrics?.avgTimeTakenForProfits || 0) ? 'stryke' :
-                              (algoMetrics?.avgTimeTakenForProfits || 0) < (strykeMetrics?.avgTimeTakenForProfits || 0) ? 'algo' : null,
-
-                            // Min Profit Value (higher is better)
-                            (strykeMetrics?.minProfitValue || 0) > (algoMetrics?.minProfitValue || 0) ? 'stryke' :
-                              (algoMetrics?.minProfitValue || 0) > (strykeMetrics?.minProfitValue || 0) ? 'algo' : null,
-
-                            // ER Gap < 3% (lower is better - fewer stocks below 3% gap is better)
-                            (strykeMetrics?.ErGap_L3 || 0) < (algoMetrics?.ErGap_L3 || 0) ? 'stryke' :
-                              (algoMetrics?.ErGap_L3 || 0) < (strykeMetrics?.ErGap_L3 || 0) ? 'algo' : null,
-
-                            // Above Resistance (AR) (lower is better - fewer AR cases is better)
-                            (strykeMetrics?.ER_Gap_AR || 0) < (algoMetrics?.ER_Gap_AR || 0) ? 'stryke' :
-                              (algoMetrics?.ER_Gap_AR || 0) < (strykeMetrics?.ER_Gap_AR || 0) ? 'algo' : null,
-
-                            // ER Gap >= 3% (higher is better)
-                            (strykeMetrics?.ErGap_G3 || 0) > (algoMetrics?.ErGap_G3 || 0) ? 'stryke' :
-                              (algoMetrics?.ErGap_G3 || 0) > (strykeMetrics?.ErGap_G3 || 0) ? 'algo' : null,
-
-                            // Average Profit Value (higher is better)
-                            (strykeMetrics?.avgProfitValue || 0) > (algoMetrics?.avgProfitValue || 0) ? 'stryke' :
-                              (algoMetrics?.avgProfitValue || 0) > (strykeMetrics?.avgProfitValue || 0) ? 'algo' : null,
-
-                            // Max Profit Value (higher is better)
-                            (strykeMetrics?.maxProfitValue || 0) > (algoMetrics?.maxProfitValue || 0) ? 'stryke' :
-                              (algoMetrics?.maxProfitValue || 0) > (strykeMetrics?.maxProfitValue || 0) ? 'algo' : null
-                          ];
-
-                          const strykeWins = comparisons.filter(result => result === 'stryke').length;
-                          const algoWins = comparisons.filter(result => result === 'algo').length;
-                          const totalComparisons = comparisons.filter(result => result !== null).length;
-
-                          const strykePercentage = totalComparisons > 0 ? (strykeWins / totalComparisons) * 100 : 0;
-                          const algoPercentage = totalComparisons > 0 ? (algoWins / totalComparisons) * 100 : 0;
-
-                          return (
-                            <div className="bg-white p-4 rounded-lg border shadow-sm">
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-blue-600 font-semibold">Stryke: {strykeWins} wins</span>
-                                <span className="text-green-600 font-semibold">Algo: {algoWins} wins</span>
-                              </div>
-
-                              <div className="relative w-full h-8 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className="absolute left-0 top-0 h-full bg-blue-500 transition-all duration-500 flex items-center justify-center"
-                                  style={{ width: `${strykePercentage}%` }}
-                                >
-                                  {strykeWins > 0 && (
-                                    <span className="text-white text-xs font-semibold">{strykeWins}</span>
-                                  )}
-                                </div>
-                                <div
-                                  className="absolute right-0 top-0 h-full bg-green-500 transition-all duration-500 flex items-center justify-center"
-                                  style={{ width: `${algoPercentage}%` }}
-                                >
-                                  {algoWins > 0 && (
-                                    <span className="text-white text-xs font-semibold">{algoWins}</span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex justify-between items-center mt-2">
-                                <span className="text-sm text-gray-600">{strykePercentage.toFixed(1)}%</span>
-                                <span className="text-sm font-medium text-gray-800">
-                                  {strykeWins > algoWins ? '🏆 Stryke Leads' :
-                                    algoWins > strykeWins ? '🏆 Algo Leads' :
-                                      '🤝 Tied Performance'}
-                                </span>
-                                <span className="text-sm text-gray-600">{algoPercentage.toFixed(1)}%</span>
-                              </div>
-
-                              <div className="text-center mt-2">
-                                <span className="text-xs text-gray-500">
-                                  Based on {totalComparisons} performance metrics
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
+                    <MetricsDashboard
+                      showMetrics={showMetrics}
+                      strykeMetrics={strykeMetrics}
+                      algoMetrics={algoMetrics}
+                    />
                   )}
 
 
@@ -3322,23 +2520,11 @@ function StrikeAnalysisContent() {
 
 
                 </div>
-
-              </div>
-
-            )}
-
-          </>)}
-
+              )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
-  );
-}
-
-export default function StrikeAnalysisPage() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <StrikeAnalysisContent />
-    </Suspense>
   );
 }
 

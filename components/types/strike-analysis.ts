@@ -38,3 +38,17 @@ export interface StrikeAnalysisResponse {
   message: string;
   timestamp: string;
 }
+
+export interface AnalysisResult {
+  companyName: string;
+  entryTime: string;
+  callType: string;
+  strykeType: string;
+  preEntryTrend: string;
+  postEntryTrend: string;
+  entryCandle: {
+    close: number;
+  };
+  stopLoss: number;
+  target: number;
+}
