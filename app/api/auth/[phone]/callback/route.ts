@@ -22,12 +22,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
     console.warn('[Upstox Callback] State validation failed', { state, expectedPrefix: encodeURIComponent(phone) });
     return NextResponse.redirect(`${baseUrl}/auth?error=Invalid state`);
   }
-
-  const parts = state.split(':');
-  // phoneEncoded : random : env?
-  const envPart = parts.length >= 3 ? parts[2] : 'prod';
-  const env: 'prod' | 'sandbox' = envPart === 'sandbox' ? 'sandbox' : 'prod';
-
+  
   const cfg = getUpstoxConfigForUser({ userId: phone });
   if (!cfg) {
     console.error('[Upstox Callback] No config found for phone', { phone });
@@ -38,8 +33,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
     clientId: cfg.clientId,
     redirectUri: cfg.redirectUri,
     hasClientSecret: !!cfg.clientSecret,
-    phone,
-    env 
+    phone
   });
 
   try {
@@ -63,7 +57,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
 
     // Use standard Upstox API URL for token exchange (same for both prod and sandbox)
     const apiHost = 'https://api-v2.upstox.com';
-    console.log('[Upstox Callback] Exchanging code for token', { phone, apiHost, codePreview: code.substring(0, 6) + '***', env });
+    console.log('[Upstox Callback] Exchanging code for token', { phone, apiHost, codePreview: code.substring(0, 6) + '***' });
 
   const tokenResp = await fetch(`${apiHost}/login/authorization/token`, {
       method: 'POST',
