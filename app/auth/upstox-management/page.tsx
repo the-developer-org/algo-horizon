@@ -80,6 +80,7 @@ export default function UpstoxUserManagementPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="text-xs text-gray-600 space-y-1">
+                    <p><span className="font-semibold">Phone Number:</span> {u.phoneNumber ?? '-'}</p>
                   <p><span className="font-semibold">Pin:</span> {u.pin ?? '-'}</p>
                 </div>
         <Button
