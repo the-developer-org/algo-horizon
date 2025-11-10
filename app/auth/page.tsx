@@ -30,7 +30,7 @@ export default function AuthPage() {
   };
 
   useEffect(() => {
-    const isAuthorized = sessionStorage.getItem('isUserAuthorised');
+    const isAuthorized = localStorage.getItem('isUserAuthorised');
     if (isAuthorized === 'true') {
       router.replace('/');
     } else {
@@ -117,8 +117,8 @@ export default function AuthPage() {
     // Verify OTP against the originally generated OTP
     if (otpString === generatedOtp) {
       setError('');
-      // Store user session
-      sessionStorage.setItem('isUserAuthorised', 'true');
+      // Store user session persistently across tabs
+      localStorage.setItem('isUserAuthorised', 'true');
       localStorage.setItem('currentUser', username);
       
       // Log login event (fire-and-forget)

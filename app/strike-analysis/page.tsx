@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { CallType } from '@/components/types/strike-analysis';
 import { fetchUpstoxIntradayData } from '@/components/utils/upstoxApi';
+import { set } from 'date-fns';
 
 // Define the Stryke interface based on the provided model
 interface Candle {
@@ -177,6 +178,8 @@ interface AnalysisResponse {
   daysTakenForMaxSwingProfits: number;
   daysTakenForSupportTouch: number;
   daysTakenForResistanceTouch: number;
+  daysTakenForAbsoluteProfits: number;
+  absoluteProfitsPercentage: number;
   emacross: EMACROSS;
   strykeType: string; // Add this field - expects "OLD" or "NEW"
 }
@@ -255,12 +258,16 @@ function StrikeAnalysisContent() {
   const [showOldAnalysis, setShowOldAnalysis] = useState(() => true); // Add this new state
   const [showAppAnalysis, setShowAppAnalysis] = useState(() => true); // Add this new state
   const [showDiscordAnalysis, setShowDiscordAnalysis] = useState(() => true); // Add this new state
+  const [showt2Analysis, setShowt2Analysis] = useState(() => true); // Add this new state
   const [activeFilter, setActiveFilter] = useState({
     date: null as FilterOrder,
     name: null as FilterOrder,
     avgVolume: null as FilterOrder,
     target: null as FilterOrder,
     entry: null as FilterOrder,
+    t2percentage: null as FilterOrder,
+    t2FactorFilter: 0,
+    showOnlyAbove2Percent: false,
     stopLoss: null as FilterOrder,
     trend: null as TrendFilter,
     inResistanceZone: null as 'YES' | 'NO' | null,
@@ -272,6 +279,8 @@ function StrikeAnalysisContent() {
     erSort: null as FilterOrder,
     profitLabel: null as 'ABOVE_3' | 'BELOW_3' | 'NEGATIVE' | null,
     profitSort: null as FilterOrder,
+    absoluteProfits: null as FilterOrder,
+    absoluteDays: null as FilterOrder,
     supportLabel: null as 'HIT' | 'NO_HIT' | null,
     supportSort: null as FilterOrder,
     resistanceLabel: null as 'HIT' | 'NO_HIT' | null,
@@ -919,7 +928,8 @@ function StrikeAnalysisContent() {
     showFiboAnalysis,
     showOldAnalysis,
     showAppAnalysis,
-    showDiscordAnalysis
+    showDiscordAnalysis, 
+    showt2Analysis,
   ]);
 
   const handleToggleView = (showForm: boolean, showAll: boolean, showStats: boolean, showSwing: boolean) => {
@@ -1780,6 +1790,11 @@ function StrikeAnalysisContent() {
                         profitLabel: null,
                         supportLabel: null,
                         resistanceLabel: null,
+                        t2percentage : null,
+                        showOnlyAbove2Percent : false,
+                        t2FactorFilter : 0, 
+                        absoluteDays :null,
+                        absoluteProfits : null
                       });
 
                       setShowAlgoAnalysis(true)
@@ -1787,7 +1802,8 @@ function StrikeAnalysisContent() {
                       setShowFiboAnalysis(true)
                       setShowOldAnalysis(true)   // Reset OLD toggle
                       setShowAppAnalysis(true)   // Reset APP toggle
-                      setShowDiscordAnalysis(true)   // Reset DISCORD toggle
+                      setShowDiscordAnalysis(true) 
+                      setShowt2Analysis(true)   // Reset T2 toggle
 
                       // Reset month selection
                       setSelectedMonth(null);
@@ -1950,6 +1966,31 @@ function StrikeAnalysisContent() {
                           Hide Discord
                         </Button>
                       )}
+
+                        {!showt2Analysis && (
+                        <Button
+                          onClick={() => {
+                            setShowt2Analysis(true)
+                            // Filtered list will be updated by useEffect
+                          }}
+                          className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                        >
+                          Show T2
+                        </Button>
+                      )}
+
+                      {showt2Analysis && (
+                        <Button
+                          onClick={() => {
+                            setShowt2Analysis(false)
+                            // Filtered list will be updated by useEffect
+                          }}
+                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
+                        >
+                          Hide T2
+                        </Button>
+                      )}
+
                     </div>
                   </div>
 
@@ -2435,6 +2476,83 @@ function StrikeAnalysisContent() {
                               </button>
                             </div>
                           </th>
+                                                    <th className="border border-gray-700 px-8 py-2 min-w-[120px]">
+                            <div className="flex items-center justify-between">
+                              <span>T2Sx</span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    const newOrder = activeFilter.t2percentage === 'asc' ? 'desc' : activeFilter.t2percentage === 'desc' ? null : 'asc';
+                                    setActiveFilter({ 
+                                      ...activeFilter, 
+                                      t2percentage: newOrder 
+                                    });
+                                    if (newOrder) {
+                                      setFilteredAnalysisList(
+                                        [...filteredAnalysisList].sort((a, b) => {
+                                          const aT2 = ((a.target || 0) - (a.stopLoss || 0)) / (a.stopLoss || 1) * 100;
+                                          const bT2 = ((b.target || 0) - (b.stopLoss || 0)) / (b.stopLoss || 1) * 100;
+                                          return newOrder === 'asc' ? aT2 - bT2 : bT2 - aT2;
+                                        })
+                                      );
+                                    } else {
+                                      setFilteredAnalysisList([...filteredAnalysisList]);
+                                    }
+                                  }}
+                                  className="ml-1 p-1 hover:bg-gray-300 rounded"
+                                  title={`Sort by T2% ${activeFilter.t2percentage === 'asc' ? '(Low to High)' : activeFilter.t2percentage === 'desc' ? '(High to Low)' : '(Off)'}`}
+                                >
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
+                                    activeFilter.t2percentage === 'asc'
+                                      ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
+                                      : activeFilter.t2percentage === 'desc'
+                                        ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                        : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                                  }`}>
+                                    {activeFilter.t2percentage === 'asc' ? '▲' : activeFilter.t2percentage === 'desc' ? '▼' : '⇅'}
+                                  </span>
+                                </button>
+                                <div className="relative">
+                                  <select
+                                    onChange={(e) => {
+                                      const selectedValue = Number(e.target.value);
+                                      setActiveFilter(prev => ({ 
+                                        ...prev, 
+                                        t2FactorFilter: selectedValue,
+                                        showOnlyAbove2Percent: selectedValue > 0 
+                                      }));
+                                      setFilteredAnalysisList(prev => {
+                                        if (selectedValue > 0) {
+                                          return prev.filter(item => {
+                                            const entry = Number(item.entryCandleClose ?? 0);
+                                            const target = Number(item.target ?? 0);
+                                            const stopLoss = Number(item.stopLoss ?? 0);
+                                            const targetPercentage = ((target - entry) / entry) * 100;
+                                            const stopLossPercentage = ((stopLoss - entry) / entry) * 100;
+                                            const t2Factor = Math.abs(targetPercentage / stopLossPercentage);
+                                            return t2Factor >= selectedValue;
+                                          });
+                                        }
+                                        return [...strykeAnalysisList];
+                                      });
+                                    }}
+                                    value={activeFilter.t2FactorFilter || 0}
+                                    className="appearance-none bg-white border border-gray-300 rounded-md px-2 py-1 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  >
+                                    <option value={0}>All</option>
+                                    {[...Array(10)].map((_, i) => (
+                                      <option key={i + 1} value={i + 1}>≥{i + 1}x</option>
+                                    ))}
+                                  </select>
+                                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                                    </svg>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </th>
                           <th className="border border-gray-700 px-8 py-2 min-w-[150px] relative">
                             <div className="flex items-center justify-between">
                               <span>Swing Labels</span>
@@ -2746,6 +2864,74 @@ function StrikeAnalysisContent() {
                                   </button>
                                 </div>
                               )}
+                            </div>
+                          </th>
+                          <th className="border border-gray-700 px-12 py-2 min-w-[160px] relative">
+                            <div className="flex items-center justify-between">
+                              <span>Absolute Profits</span>
+                              <button
+                                onClick={() => {
+                                  const newOrder = activeFilter.absoluteProfits === 'asc' ? 'desc' : activeFilter.absoluteProfits === 'desc' ? null : 'asc';
+                                  setActiveFilter({ ...activeFilter, absoluteProfits: newOrder });
+                                  if (newOrder) {
+                                    setFilteredAnalysisList(
+                                      [...filteredAnalysisList].sort((a, b) => {
+                                        const aProfit = a.absoluteProfitsPercentage ?? 0;
+                                        const bProfit = b.absoluteProfitsPercentage ?? 0;
+                                        return newOrder === 'asc' ? aProfit - bProfit : bProfit - aProfit;
+                                      })
+                                    );
+                                  } else {
+                                    setFilteredAnalysisList([...filteredAnalysisList]);
+                                  }
+                                }}
+                                className="ml-1 p-1 hover:bg-gray-300 rounded"
+                                title={`Sort by Absolute Profits ${activeFilter.absoluteProfits === 'asc' ? '(Low to High)' : activeFilter.absoluteProfits === 'desc' ? '(High to Low)' : '(Off)'}`}
+                              >
+                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
+                                  activeFilter.absoluteProfits === 'asc'
+                                    ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
+                                    : activeFilter.absoluteProfits === 'desc'
+                                      ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                      : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                                }`}>
+                                  {activeFilter.absoluteProfits === 'asc' ? '▲' : activeFilter.absoluteProfits === 'desc' ? '▼' : '⇅'}
+                                </span>
+                              </button>
+                            </div>
+                          </th>
+                          <th className="border border-gray-700 px-12 py-2 min-w-[120px] relative">
+                            <div className="flex items-center justify-between">
+                              <span>Absolute Days</span>
+                              <button
+                                onClick={() => {
+                                  const newOrder = activeFilter.absoluteDays === 'asc' ? 'desc' : activeFilter.absoluteDays === 'desc' ? null : 'asc';
+                                  setActiveFilter({ ...activeFilter, absoluteDays: newOrder });
+                                  if (newOrder) {
+                                    setFilteredAnalysisList(
+                                      [...filteredAnalysisList].sort((a, b) => {
+                                        const aDays = a.daysTakenForAbsoluteProfits ?? 0;
+                                        const bDays = b.daysTakenForAbsoluteProfits ?? 0;
+                                        return newOrder === 'asc' ? aDays - bDays : bDays - aDays;
+                                      })
+                                    );
+                                  } else {
+                                    setFilteredAnalysisList([...filteredAnalysisList]);
+                                  }
+                                }}
+                                className="ml-1 p-1 hover:bg-gray-300 rounded"
+                                title={`Sort by Absolute Days ${activeFilter.absoluteDays === 'asc' ? '(Low to High)' : activeFilter.absoluteDays === 'desc' ? '(High to Low)' : '(Off)'}`}
+                              >
+                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded border-2 text-sm font-bold transition-all duration-200 ${
+                                  activeFilter.absoluteDays === 'asc'
+                                    ? 'bg-green-100 border-green-500 text-green-700 shadow-sm'
+                                    : activeFilter.absoluteDays === 'desc'
+                                      ? 'bg-red-100 border-red-500 text-red-700 shadow-sm'
+                                      : 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                                }`}>
+                                  {activeFilter.absoluteDays === 'asc' ? '▲' : activeFilter.absoluteDays === 'desc' ? '▼' : '⇅'}
+                                </span>
+                              </button>
                             </div>
                           </th>
                           <th title='Time Take for Stock to Hit Support' className="border border-gray-700 px-8 py-2 relative">
@@ -3067,6 +3253,33 @@ function StrikeAnalysisContent() {
                                     return <span className={cls}>₹{stryke?.stopLoss?.toFixed(2)} ({isFinite(stopPct) ? `${stopPct}` : 'N/A'} %)</span>;
                                   })()
                                 }</td>
+                                 <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                                  (() => {
+                                    const entry = Number(stryke?.entryCandleClose ?? 0);
+                                    const target = Number(stryke?.target ?? 0);
+                                    const stopLoss = Number(stryke?.stopLoss ?? 0);
+                                    
+                                    // Calculate percentages from entry
+                                    const targetPercentage = ((target - entry) / entry) * 100;
+                                    const stopLossPercentage = ((stopLoss - entry) / entry) * 100;
+                                    
+                                    // Calculate T2 factor (ratio of target% to stopLoss%)
+                                    const t2Factor = Math.abs(targetPercentage / stopLossPercentage);
+                                    
+                                    let cls = 'text-gray-700';
+                                    if (t2Factor >= 3) {
+                                      cls = 'text-green-700 font-bold';
+                                    } else if (t2Factor >= 2) {
+                                      cls = 'text-green-600 font-semibold';
+                                    } else if (t2Factor > 1) {
+                                      cls = 'text-amber-500';
+                                    } else {
+                                      cls = 'text-red-500';
+                                    }
+                                    
+                                    return <span className={cls}>{t2Factor.toFixed(2)}x</span>;
+                                  })()
+                                }</td>
                                 <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
                                   (() => {
                                     const clsFor = (lab?: string | null) => {
@@ -3113,6 +3326,32 @@ function StrikeAnalysisContent() {
                                     return (
                                       <span className={cls}>{display}{" % "} {days != null ? `(${days} d)` : '(N/A)'}</span>
                                     );
+                                  })()
+                                }</td>
+                                <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                                  (() => {
+                                    const profits = stryke?.absoluteProfitsPercentage;
+                                    if (profits == null) return 'N/A';
+                                    
+                                    let cls = 'text-amber-500 font-semibold';
+                                    if (profits > 3) {
+                                      cls = 'text-green-700 font-semibold';
+                                    } else if (profits <= 0) {
+                                      cls = 'text-red-700 font-semibold';
+                                    }
+                                    
+                                    return <span className={cls}>{profits.toFixed(2)}%</span>;
+                                  })()
+                                }</td>
+                                <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
+                                  (() => {
+                                    const days = stryke?.daysTakenForAbsoluteProfits;
+                                    if (days == null) return 'N/A';
+                                    
+                                    let cls = 'text-green-700 font-semibold';
+                                    
+                                    
+                                    return <span className={cls}>{days} days</span>;
                                   })()
                                 }</td>
                                 <td className="border border-gray-700 px-4 py-2 text-center align-middle">{

@@ -8,39 +8,45 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { fetchUpstoxIntradayData, fetchUpstoxHistoricalData } from "@/components/utils/upstoxApi";
 import toast from 'react-hot-toast';
+import { algoHorizonApi } from "@/lib/api/algoHorizonApi";
+import { tr } from "date-fns/locale";
 
 export default function UpstoxPage() {
-    const accounts = useMemo(
-        () => [
-            "All accounts",
-            "Nawaz",
-            "Sadiq",
-            "Yasmeen",
-            "Samreen",
-            "Mudassir",
-            "Tasneem",
-            "Abrar"
-        ],
-        []
-    );
-
     // Account to phone number mapping
-    const accountPhoneMapping = useMemo(
-        () => ({
-            "Nawaz": "8008752702",
-            "Sadiq": "7036592824",
-            "Yasmeen": "7036592824",
-            "Samreen": "8885615779",
-            "Mudassir": "9154460026",
-            "Tasneem": "9154460026",
-            "Abrar": "8885615779"
-        }),
-        []
-    );
+    const [accountPhoneMapping, setAccountPhoneMapping] = useState<Record<string, string>>({});
+    const [accounts, setAccounts] = useState<string[]>([]);
+    const [accountLogin, setAccountLogin] = useState<Record<string, boolean>>({});
+
+
+
+    // Fetch phone number mapping on mount
+    useEffect(() => {
+        const fetchAllUsers = async () => {
+            try {
+                const allUsers = await algoHorizonApi.getAllUsers();
+                const phoneNumberMap: Record<string, string> = {};
+                allUsers.forEach(user => {
+                    if (user.name && user.phoneNumber) {
+                        phoneNumberMap[user.name] = String(user.phoneNumber);
+                    }
+                    const isLoggedIn = user.tokenId !== null;
+                    setAccountLogin(prev => ({ ...prev, [user.name]: isLoggedIn }));
+                });
+                setAccountPhoneMapping(phoneNumberMap);
+
+                setAccounts(["All accounts", ...Object.keys(phoneNumberMap)]);
+                setSelectedAccount(accounts[0]);
+            } catch (error) {
+                console.error('Error fetching phone number mapping:', error);
+            }
+        };
+
+        fetchAllUsers();
+    }, []);
+
     const [selectedAccount, setSelectedAccount] = useState<string>(accounts[0]);
     const featureTabs = useMemo(
         () => [
-            "Overview",
             "Place order",
             "Open Trades",
             "Completed Trades",
@@ -63,7 +69,7 @@ export default function UpstoxPage() {
     const [isLoadingPrices, setIsLoadingPrices] = React.useState<{ [account: string]: boolean }>({});
 
     // Live price indicator
-    const [isLivePrice, setIsLivePrice] = useState<boolean>(false);
+    const [isLivePrice, setIsLivePrice] = useState<boolean>(false)
     const [disclosedQuantityEnabled, setDisclosedQuantityEnabled] = React.useState<{ [account: string]: boolean }>({});
 
     // Trade history interfaces
@@ -96,14 +102,14 @@ export default function UpstoxPage() {
     const [tradeHistory, setTradeHistory] = useState<{ [account: string]: TradeData[] }>({});
     const [isLoadingTradeHistory, setIsLoadingTradeHistory] = useState<{ [account: string]: boolean }>({});
     const [selectedFinancialYear, setSelectedFinancialYear] = useState<string>('2024-25');
-    
+
     // Financial year options
     const financialYearOptions = [
         { value: '2025-26', label: 'FY 2025-26 (Apr 2025 - Mar 2026)', startDate: '2025-04-01', endDate: '2026-03-31' },
         { value: '2024-25', label: 'FY 2024-25 (Apr 2024 - Mar 2025)', startDate: '2024-04-01', endDate: '2025-03-31' },
         { value: '2023-24', label: 'FY 2023-24 (Apr 2023 - Mar 2024)', startDate: '2023-04-01', endDate: '2024-03-31' },
-        ];
-    
+    ];
+
     // Get current financial year date range
     const currentFinancialYear = financialYearOptions.find(fy => fy.value === selectedFinancialYear);
     const tradeHistoryDateRange = {
@@ -126,7 +132,7 @@ export default function UpstoxPage() {
 
     // Account capital/funds state - per account
     const [accountFunds, setAccountFunds] = useState<{ [account: string]: number }>({
-        "Nawaz": 0, 
+        "Nawaz": 0,
         "Sadiq": 0,
         "Yasmeen": 0,
         "Samreen": 0,
@@ -216,7 +222,7 @@ export default function UpstoxPage() {
 
             const isWeekday = currentDay >= 1 && currentDay <= 5;
             const isMarketOpenTime = (currentHour > 9 || (currentHour === 9 && currentMinute >= 15)) &&
-                                   (currentHour < 15 || (currentHour === 15 && currentMinute <= 30));
+                (currentHour < 15 || (currentHour === 15 && currentMinute <= 30));
             const isCurrentlyMarketHours = isWeekday && isMarketOpenTime;
 
             setIsLivePrice(isCurrentlyMarketHours);
@@ -241,7 +247,7 @@ export default function UpstoxPage() {
 
     // Fetch trade history when Completed Trades tab is activated
     useEffect(() => {
-        if (activeFeature === 'Completed Trades') {
+        if (activeFeature === 'Completed Trades' && isUserLoggedIn()) {
             fetchTradeHistory(selectedAccount);
         }
     }, [activeFeature, selectedAccount, selectedFinancialYear]);
@@ -274,7 +280,14 @@ export default function UpstoxPage() {
         fetchLastClosingPrice(instrumentKey);
     };
 
-    const isOrderMarketOrLimit = () =>{
+    const isUserLoggedIn = () => {
+        if (selectedAccount !== "All accounts") {
+            return true;
+        }
+        return isUserLoggedIn;
+    };
+
+    const isOrderMarketOrLimit = () => {
         return orderForm.orderType === 'Market' || orderForm.orderType === 'Limit'
     }
 
@@ -302,7 +315,7 @@ export default function UpstoxPage() {
             // Market is open Monday-Friday, 9:15 AM - 3:30 PM
             const isWeekday = currentDay >= 1 && currentDay <= 5;
             const isMarketOpenTime = (currentHour > 9 || (currentHour === 9 && currentMinute >= 15)) &&
-                                   (currentHour < 15 || (currentHour === 15 && currentMinute <= 30));
+                (currentHour < 15 || (currentHour === 15 && currentMinute <= 30));
             const isMarketHours = isWeekday && isMarketOpenTime;
 
             type Candle = { open: number; close: number;[key: string]: any };
@@ -455,11 +468,11 @@ export default function UpstoxPage() {
         if (!phoneNumber) return;
 
         setIsLoadingFunds(prev => ({ ...prev, [account]: true }));
-        
+
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
             const response = await fetch(`${backendUrl}/api/upstox/user/get-funds?phoneNumber=${phoneNumber}`);
-            
+
             if (response.ok) {
                 const data = await response.json();
                 if (data.status === 'SUCCESS' && data.data?.equity?.availableMargin !== undefined) {
@@ -476,6 +489,7 @@ export default function UpstoxPage() {
             setIsLoadingFunds(prev => ({ ...prev, [account]: false }));
         }
     };
+
 
     // Helper functions for capital calculation
     const getCapitalInfo = (account: string, quantity: string) => {
@@ -593,7 +607,7 @@ export default function UpstoxPage() {
         if (orderForm.transactionType === 'Buy' && orderForm.quantity && lastClosingPrice) {
             const accountToCheck = accountName || selectedAccount;
             const capitalInfo = getCapitalInfo(accountToCheck, orderForm.quantity);
-            
+
             if (capitalInfo.capitalRemaining < 0) {
                 const shortfall = Math.abs(capitalInfo.capitalRemaining);
                 errors.push(`${prefix}Insufficient funds! You need ₹${shortfall.toFixed(2)} more to place this order. Available: ₹${capitalInfo.availableFunds.toFixed(2)}, Required: ₹${(capitalInfo.availableFunds + shortfall).toFixed(2)}`);
@@ -658,7 +672,7 @@ export default function UpstoxPage() {
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
             const context = '/api/upstox/';
-            
+
             const response = await fetch(
                 `${backendUrl}${context}orders/get-trade-history?phoneNumber=${phoneNumber}&startDate=${tradeHistoryDateRange.startDate}&endDate=${tradeHistoryDateRange.endDate}`,
                 {
@@ -670,7 +684,7 @@ export default function UpstoxPage() {
             );
 
             const data: TradeHistoryResponse = await response.json();
-            
+
             console.log('Trade history API response for', account, ':', data);
             console.log('Response status:', response.status, response.ok);
             console.log('Data status:', data.status);
@@ -815,7 +829,7 @@ export default function UpstoxPage() {
                 console.log('Submitting order for account:', selectedAccount, 'with phone number:', phoneNumber);
                 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
                 const context = '/api/upstox/';
-            
+
                 const response = await fetch(`${backendUrl}${context}orders/place-order`, {
                     method: 'POST',
                     headers: {
@@ -878,8 +892,7 @@ export default function UpstoxPage() {
         <SidebarInset className="flex min-h-screen flex-col overflow-y-auto py-6 px-4 bg-gradient-to-b from-sky-50 via-[var(--upx-primary-50)] to-[rgba(84,32,135,0.1)] dark:from-[#0b1220] dark:via-[#0a0f1a] dark:to-black">
 
 
-            <div className="max-w-8xl w-full mx-auto upstox-theme rounded-2xl bg-white/70 dark:bg-slate-900/40 ring-1 ring-black/10 dark:ring-white/10 shadow-sm backdrop-blur p-4 sm:p-6">
-
+            <div className="max-w-8xl w-full mx-auto upstox-theme rounded-2xl bg-white/70 dark:bg-slate-900/40 ring-1 ring-black/10 dark:ring-white/10 shadow-sm backdrop-blur p-4 sm:p-6 relative">
                 {/* Upstox brand banner */}
                 <div className="flex"> <Link href="/" className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 bg-[rgba(84, 32, 135, 1)] hover:bg-[rgba(84,32,135,0.20)] text-[rgba(84, 32, 135, 1)] text-sm transition-colors">
                     <ArrowLeft className="h-10 w-10 text-[rgba(84,32,135,1)]" />
@@ -931,232 +944,368 @@ export default function UpstoxPage() {
 
                         {/* Body: feature content */}
                         <div className="pt-4">
-                            {/* Overview */}
-                            <TabsContent value="Overview" className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
-                                    <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Account overview</h3>
-                                </div>
-
-                            </TabsContent>
 
                             {/* Place Order */}
                             <TabsContent value="Place order" className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
-                                    <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Place order</h3>
-                                    <div className="flex items-center gap-2 ml-5">
-                                        <label htmlFor="disclosed-quantity-input" className="text-sm font-medium text-[var(--upx-primary-300)]">Add Disclosed Qty</label>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDisclosedQuantityToggle(!isDisclosedQuantityEnabled)}
-                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)] focus:ring-offset-2 ${isDisclosedQuantityEnabled ? 'bg-[var(--upx-primary)]' : 'bg-gray-200'
-                                                }`}
-                                        >
-                                            <span
-                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDisclosedQuantityEnabled ? 'translate-x-6' : 'translate-x-1'
+                                <div className="relative">
+                                    {!isUserLoggedIn && (
+                                        <div className="absolute inset-0 backdrop-blur-sm bg-white/50 dark:bg-slate-900/50 z-50 flex items-center justify-center rounded-lg">
+                                            <div className="text-center p-6 bg-white/90 dark:bg-slate-800/90 rounded-xl shadow-lg border-2 border-red-200">
+                                                <p className="text-xl font-bold text-red-600 mb-2">⚠️ Account Not Logged In</p>
+                                                <p className="text-gray-600 dark:text-gray-400">Please log in to access trading functionality for {selectedAccount}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
+                                        <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Place order</h3>
+                                        <div className="flex items-center gap-2 ml-5">
+                                            <label htmlFor="disclosed-quantity-input" className="text-sm font-medium text-[var(--upx-primary-300)]">Add Disclosed Qty</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDisclosedQuantityToggle(!isDisclosedQuantityEnabled)}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)] focus:ring-offset-2 ${isDisclosedQuantityEnabled ? 'bg-[var(--upx-primary)]' : 'bg-gray-200'
                                                     }`}
-                                            />
-                                        </button>
-                                    </div>
-                                    <div className="flex items-center gap-2 ml-5">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (selectedAccount === 'All accounts') {
-                                                    for (const account of accounts.slice(1)) {
-                                                        fetchAccountFunds(account);
-                                                    }
-                                                } else {
-                                                    fetchAccountFunds(selectedAccount);
-                                                }
-                                            }}
-                                            className="px-3 py-1 text-sm bg-[var(--upx-primary)] text-white rounded-md hover:bg-[var(--upx-primary)]/80 transition-colors"
-                                        >
-                                            Refresh Funds
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="space-y-6">
-                                    {/* Company Selection Section */}
-                                    <div className="flex gap-4 items-start">
-                                        {/* Search Input - Reduced Width */}
-                                        <div className="relative flex-1 max-w-md">
-                                            <input
-                                                type="text"
-                                                placeholder="Search for a company..."
-                                                value={searchTerm}
-                                                onChange={(e) => {
-                                                    const value = e.target.value;
-                                                    setSearchTerms(prev => ({ ...prev, [selectedAccount]: value }));
-                                                    // Clear selected company when user starts typing again
-                                                    if (selectedCompany && value !== selectedCompany) {
-                                                        setSelectedCompanies(prev => ({ ...prev, [selectedAccount]: '' }));
-                                                        setSelectedInstrumentKeys(prev => ({ ...prev, [selectedAccount]: '' }));
+                                            >
+                                                <span
+                                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDisclosedQuantityEnabled ? 'translate-x-6' : 'translate-x-1'
+                                                        }`}
+                                                />
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-2 ml-5">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (selectedAccount === 'All accounts') {
+                                                        for (const account of accounts.slice(1)) {
+                                                            fetchAccountFunds(account);
+                                                        }
+                                                    } else {
+                                                        fetchAccountFunds(selectedAccount);
                                                     }
                                                 }}
-                                                onBlur={() => {
-                                                    // Clear suggestions when input loses focus
-                                                    setTimeout(() => setSuggestions(prev => ({ ...prev, [selectedAccount]: [] })), 150);
-                                                }}
-                                                className={`w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60 ${selectedCompany
+                                                className="px-3 py-1 text-sm bg-[var(--upx-primary)] text-white rounded-md hover:bg-[var(--upx-primary)]/80 transition-colors"
+                                            >
+                                                Refresh Funds
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-6">
+                                        {/* Company Selection Section */}
+                                        <div className="flex gap-4 items-start">
+                                            {/* Search Input - Reduced Width */}
+                                            <div className="relative flex-1 max-w-md">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search for a company..."
+                                                    value={searchTerm}
+                                                    onChange={(e) => {
+                                                        const value = e.target.value;
+                                                        setSearchTerms(prev => ({ ...prev, [selectedAccount]: value }));
+                                                        // Clear selected company when user starts typing again
+                                                        if (selectedCompany && value !== selectedCompany) {
+                                                            setSelectedCompanies(prev => ({ ...prev, [selectedAccount]: '' }));
+                                                            setSelectedInstrumentKeys(prev => ({ ...prev, [selectedAccount]: '' }));
+                                                        }
+                                                    }}
+                                                    onBlur={() => {
+                                                        // Clear suggestions when input loses focus
+                                                        setTimeout(() => setSuggestions(prev => ({ ...prev, [selectedAccount]: [] })), 150);
+                                                    }}
+                                                    className={`w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60 ${selectedCompany
                                                         ? 'bg-[var(--upx-primary-50)] border-[var(--upx-border)] text-[var(--upx-primary-700)] font-medium'
                                                         : ''
-                                                    }`}
-                                            />
-                                            {currentSuggestions.length > 0 && (
-                                                <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto mt-1">
-                                                    {currentSuggestions.map((company) => (
-                                                        <button
-                                                            key={company}
-                                                            type="button"
-                                                            className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                handleSelectCompany(company);
-                                                            }}
-                                                        >
-                                                            {company}
-                                                        </button>
-                                                    ))}
+                                                        }`}
+                                                />
+                                                {currentSuggestions.length > 0 && (
+                                                    <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto mt-1">
+                                                        {currentSuggestions.map((company) => (
+                                                            <button
+                                                                key={company}
+                                                                type="button"
+                                                                className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    handleSelectCompany(company);
+                                                                }}
+                                                            >
+                                                                {company}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Live Price Display */}
+                                            {selectedCompany && (
+                                                <div className="flex-1 max-w-md p-2.5 bg-[var(--upx-primary-50)] border border-[var(--upx-border)] rounded-md">
+                                                    <div className="text-sm">
+                                                        <div className="text-[var(--upx-primary-700)]">
+                                                            {isLoadingPrice && <span>Loading price...</span>}
+                                                            {!isLoadingPrice && lastClosingPrice !== null && (
+                                                                <div className="flex items-center gap-2">
+                                                                    <span>
+                                                                        {isLivePrice ? 'Live Price:' : 'Last Recorded Price:'}
+                                                                        <strong className="text-md text-[var(--upx-primary)] ml-1">₹{lastClosingPrice.toFixed(2)}</strong>
+                                                                    </span>
+                                                                    {isLivePrice && (
+                                                                        <div className="flex items-center gap-1">
+                                                                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                                                            <span className="text-xs text-red-600 font-medium">LIVE</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                            {!isLoadingPrice && lastClosingPrice === null && (
+                                                                <span className="text-red-600">Price not available</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
 
-                                        {/* Live Price Display */}
-                                        {selectedCompany && (
-                                            <div className="flex-1 max-w-md p-2.5 bg-[var(--upx-primary-50)] border border-[var(--upx-border)] rounded-md">
-                                                <div className="text-sm">
-                                                    <div className="text-[var(--upx-primary-700)]">
-                                                        {isLoadingPrice && <span>Loading price...</span>}
-                                                        {!isLoadingPrice && lastClosingPrice !== null && (
-                                                            <div className="flex items-center gap-2">
-                                                                <span>
-                                                                    {isLivePrice ? 'Live Price:' : 'Last Recorded Price:'}
-                                                                    <strong className="text-md text-[var(--upx-primary)] ml-1">₹{lastClosingPrice.toFixed(2)}</strong>
-                                                                </span>
-                                                                {isLivePrice && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                                                                        <span className="text-xs text-red-600 font-medium">LIVE</span>
+                                        {/* Order Details Section */}
+                                        {selectedAccount === 'All accounts' ? (
+                                            /* All Accounts Mode */
+                                            <div className="space-y-6">
+                                                
+
+                                                {/* Quantity Inputs */}
+                                                {accounts.length > 1 && (
+                                                    /* Individual Quantities */
+                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                        {accounts.slice(1).map((account) => (
+                                                            <div key={account}>
+                                                                <label htmlFor={`quantity-${account}`} className="block text-sm font-medium text-gray-700 mb-1">
+                                                                    {account} <span className="text-red-500">*</span>
+                                                                </label>
+                                                                <div className="relative">
+                                                                    <div className="flex gap-0">
+                                                                        <input
+                                                                            id={`quantity-${account}`}
+                                                                            className={`flex-1 border rounded-l px-3 py-2 focus:outline-none border-r-0 ${
+                                                                                !accountLogin[account] || accountFunds[account] <= 0 
+                                                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                                                                : 'focus:ring-2 focus:ring-[var(--upx-primary)]/60 bg-white'
+                                                                            }`}
+                                                                            type="number"
+                                                                            placeholder={
+                                                                                !accountLogin[account] 
+                                                                                    ? 'Account not logged in' 
+                                                                                    : accountFunds[account] <= 0 
+                                                                                        ? 'No funds available' 
+                                                                                        : `Qty for ${account}`
+                                                                            }
+                                                                            value={orderForms[account]?.quantity || ''}
+                                                                            onChange={(e) => accountLogin[account] && accountFunds[account] > 0 && handleIndividualQuantityChange(account, e.target.value)}
+                                                                            disabled={!accountLogin[account] || accountFunds[account] <= 0}
+                                                                        />
+                                                                        {/* Capital Info - Right Half */}
+                                                                        <div className="flex-1 bg-gray-50 border rounded-r px-3 py-2 text-xs text-gray-600 border-l-0">
+                                                                            {(() => {
+                                                                                const capitalInfo = getCapitalInfo(account, orderForms[account]?.quantity || '');
+                                                                                const isLoading = isLoadingFunds[account] || false;
+                                                                                const hasInsufficientFunds = capitalInfo.capitalRemaining < 0;
+                                                                                return (
+                                                                                    <div className="flex flex-col justify-center h-full">
+                                                                                        {isLoading ? (
+                                                                                            <div className="text-center text-xs">Loading funds...</div>
+                                                                                        ) : (
+                                                                                            <>
+                                                                                                <div>₹{capitalInfo.availableFunds.toFixed(2)} Available</div>
+                                                                                                <div className={hasInsufficientFunds ? 'text-red-600 font-semibold' : ''}>
+                                                                                                    ₹{isNaN(capitalInfo.capitalRemaining) ? '0.00' : capitalInfo.capitalRemaining.toFixed(2)} After Purchase
+                                                                                                </div>
+                                                                                                {hasInsufficientFunds ? (
+                                                                                                    <div className="text-red-600 font-semibold">⚠️ Insufficient Funds!</div>
+                                                                                                ) : (
+                                                                                                    <div>Max {isNaN(capitalInfo?.purchasableStocks) ? '0' : capitalInfo?.purchasableStocks} stocks</div>
+                                                                                                )}
+                                                                                            </>
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
+                                                                            })()}
+                                                                        </div>
+                                                                        {!accountLogin[account] && (
+                                                                            <div className="absolute top-0 right-0 h-full px-3 flex items-center">
+                                                                                <span className="text-red-500">🔒</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Common Order Fields */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    {/* Left Column */}
+                                                    <div className="space-y-4">
+                                                        {/* Conditional Fields - Side by Side */}
+                                                        {(!isOrderMarketOrLimit() || isDisclosedQuantityEnabled) && (
+                                                            <div className="flex gap-3">
+                                                                {!isOrderMarketOrLimit() && (
+                                                                    <div className="flex-1">
+                                                                        <label htmlFor="trigger-price-input" className="block text-sm font-medium text-gray-700 mb-1">
+                                                                            Trigger Price <span className="text-red-500">*</span>
+                                                                        </label>
+                                                                        <input
+                                                                            id="trigger-price-input"
+                                                                            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60"
+                                                                            type="number"
+                                                                            placeholder="Trigger price (for SL orders)"
+                                                                            value={orderForm.triggerPrice}
+                                                                            onChange={(e) => handleInputChange('triggerPrice', e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                                {isDisclosedQuantityEnabled && (
+                                                                    <div className="flex-1">
+                                                                        <label htmlFor="disclosed-quantity-input" className="block text-sm font-medium text-gray-700 mb-1">
+                                                                            Disclosed Quantity
+                                                                        </label>
+                                                                        <input
+                                                                            id="disclosed-quantity-input"
+                                                                            className={`w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60 ${!isDisclosedQuantityEnabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                                                                                }`}
+                                                                            type="number"
+                                                                            placeholder="Disclosed Qty"
+                                                                            value={orderForm.disclosedQuantity || ''}
+                                                                            onChange={(e) => handleInputChange('disclosedQuantity', e.target.value)}
+                                                                            disabled={!isDisclosedQuantityEnabled}
+                                                                        />
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         )}
-                                                        {!isLoadingPrice && lastClosingPrice === null && (
-                                                            <span className="text-red-600">Price not available</span>
-                                                        )}
+                                                        <div>
+                                                            <div className="text-sm font-medium text-gray-700 mb-2">
+                                                                Order Type <span className="text-red-500">*</span>
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {['Market', 'Limit', 'Stop Loss - M'].map((type) => (
+                                                                    <button
+                                                                        key={type}
+                                                                        type="button"
+                                                                        className={`px-4 py-2 text-sm rounded-md border transition-all duration-200 ${orderForm.orderType === type
+                                                                            ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
+                                                                            : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
+                                                                            }`}
+                                                                        onClick={() => handleInputChange('orderType', type)}
+                                                                    >
+                                                                        {type}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-medium text-gray-700 mb-2">
+                                                                Product <span className="text-red-500">*</span>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                {['Delivery', 'Intraday'].map((product) => (
+                                                                    <button
+                                                                        key={product}
+                                                                        type="button"
+                                                                        className={`px-4 py-2 text-sm rounded-md border transition-all duration-200 ${orderForm.product === product
+                                                                            ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
+                                                                            : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
+                                                                            }`}
+                                                                        onClick={() => handleInputChange('product', product)}
+                                                                    >
+                                                                        {product}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-medium text-gray-700 mb-2">
+                                                                Validity <span className="text-red-500">*</span>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                {['Day', 'IOC'].map((validity) => (
+                                                                    <button
+                                                                        key={validity}
+                                                                        type="button"
+                                                                        className={`px-4 py-2 text-sm rounded-md border transition-all duration-200 ${orderForm.validity === validity
+                                                                            ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
+                                                                            : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
+                                                                            }`}
+                                                                        onClick={() => handleInputChange('validity', validity)}
+                                                                    >
+                                                                        {validity}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Right Column - Empty for now */}
+                                                    <div className="space-y-4">
                                                     </div>
                                                 </div>
                                             </div>
-                                        )}
-                                    </div>
-
-                                    {/* Order Details Section */}
-                                    {selectedAccount === 'All accounts' ? (
-                                        /* All Accounts Mode */
-                                        <div className="space-y-6">
-                                            {/* Quantity Mode Toggle */}
-                                            <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                                                <span className="text-sm font-medium text-gray-700">Quantity Mode:</span>
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setUseSameQuantityForAll(true)}
-                                                        className={`px-3 py-1 text-sm rounded-md border transition-all duration-200 ${
-                                                            useSameQuantityForAll
-                                                                ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)]'
-                                                                : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 text-gray-700'
-                                                        }`}
-                                                    >
-                                                        Same for all accounts
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setUseSameQuantityForAll(false)}
-                                                        className={`px-3 py-1 text-sm rounded-md border transition-all duration-200 ${
-                                                            !useSameQuantityForAll
-                                                                ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)]'
-                                                                : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 text-gray-700'
-                                                        }`}
-                                                    >
-                                                        Individual quantities
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* Quantity Inputs */}
-                                            {useSameQuantityForAll ? (
-                                                /* Same Quantity for All */
-                                                <div>
-                                                    <label htmlFor="same-quantity-input" className="block text-sm font-medium text-gray-700 mb-1">
-                                                        Quantity for all accounts <span className="text-red-500">*</span>
-                                                    </label>
-                                                    <div className="flex gap-0">
-                                                        {/* Quantity Input - Left Half */}
-                                                        <input
-                                                            id="same-quantity-input"
-                                                            className="flex-1 border rounded-l px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60 border-r-0"
-                                                            type="number"
-                                                            placeholder="Enter quantity"
-                                                            value={sameQuantityForAll}
-                                                            onChange={(e) => handleSameQuantityChange(e.target.value)}
-                                                        />
-                                                        {/* Capital Info - Right Half */}
-                                                        <div className="flex-1 bg-gray-50 border rounded-r px-3 py-2 text-xs text-gray-600 border-l-0">
-                                                            {(() => {
-                                                                const capitalInfo = getCapitalInfo(selectedAccount, sameQuantityForAll);
-                                                                const isLoading = isLoadingFunds[selectedAccount] || false;
-                                                                const hasInsufficientFunds = capitalInfo.capitalRemaining < 0;
-                                                                return (
-                                                                    <div className="flex flex-col justify-center h-full">
-                                                                        {isLoading ? (
-                                                                            <div className="text-center text-xs">Loading funds...</div>
-                                                                        ) : (
-                                                                            <>
-                                                                                <div>₹{capitalInfo.availableFunds.toFixed(2)} Available</div>
-                                                                                <div className={hasInsufficientFunds ? 'text-red-600 font-semibold' : ''}>
-                                                                                    ₹{isNaN(capitalInfo.capitalRemaining) ? '0.00' : capitalInfo.capitalRemaining.toFixed(2)} After Purchase
-                                                                                </div>
-                                                                                {hasInsufficientFunds ? (
-                                                                                    <div className="text-red-600 font-semibold">⚠️ Insufficient Funds!</div>
-                                                                                ) : (
-                                                                                    <div>Max {isNaN(capitalInfo?.purchasableStocks) ? '0' : capitalInfo?.purchasableStocks} stocks</div>
-                                                                                )}
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                /* Individual Quantities */
-                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                                    {accounts.slice(1).map((account) => (
-                                                        <div key={account}>
-                                                            <label htmlFor={`quantity-${account}`} className="block text-sm font-medium text-gray-700 mb-1">
-                                                                {account} <span className="text-red-500">*</span>
-                                                            </label>
-                                                            <input
-                                                                id={`quantity-${account}`}
-                                                                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60"
-                                                                type="number"
-                                                                placeholder={`Qty for ${account}`}
-                                                                value={orderForms[account]?.quantity || ''}
-                                                                onChange={(e) => handleIndividualQuantityChange(account, e.target.value)}
-                                                            />
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            {/* Common Order Fields */}
-                                            <div className="grid grid-cols-2 gap-4">
+                                        ) : (
+                                            /* Individual Account Mode */
+                                            <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
                                                 {/* Left Column */}
                                                 <div className="space-y-4">
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label htmlFor="quantity-input" className="block text-sm font-medium text-gray-700 mb-1">
+                                                                Quantity <span className="text-red-500">*</span>
+                                                            </label>
+                                                            <div className="flex gap-0">
+                                                                {/* Quantity Input - Left Half */}
+                                                                <input
+                                                                    id="quantity-input"
+                                                                    className={`flex-1 border rounded-l px-3 py-2 focus:outline-none border-r-0 ${
+                                                                        accountFunds[selectedAccount] <= 0 
+                                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                                                        : 'focus:ring-2 focus:ring-[var(--upx-primary)]/60'
+                                                                    }`}
+                                                                    type="number"
+                                                                    placeholder={accountFunds[selectedAccount] <= 0 ? "No funds available" : "Enter quantity"}
+                                                                    value={orderForm.quantity}
+                                                                    onChange={(e) => handleInputChange('quantity', e.target.value)}
+                                                                    disabled={accountFunds[selectedAccount] <= 0}
+                                                                />
+                                                                {/* Capital Info - Right Half */}
+                                                                <div className="flex-1 bg-gray-50 border rounded-r px-3 py-2 text-xs text-gray-600 border-l-0">
+                                                                    {(() => {
+                                                                        const capitalInfo = getCapitalInfo(selectedAccount, orderForm.quantity);
+                                                                        const isLoading = isLoadingFunds[selectedAccount] || false;
+                                                                        const hasInsufficientFunds = capitalInfo.capitalRemaining < 0;
+                                                                        return (
+                                                                            <div className="flex flex-col justify-center h-full">
+                                                                                {isLoading ? (
+                                                                                    <div className="text-center text-xs">Loading funds...</div>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <div>₹{capitalInfo.availableFunds.toFixed(2)} Available</div>
+                                                                                        <div className={hasInsufficientFunds ? 'text-red-600 font-semibold' : ''}>
+                                                                                            ₹{isNaN(capitalInfo.capitalRemaining) ? '0.00' : capitalInfo.capitalRemaining.toFixed(2)} After Purchase
+                                                                                        </div>
+                                                                                        {hasInsufficientFunds ? (
+                                                                                            <div className="text-red-600 font-semibold">⚠️ Insufficient Funds!</div>
+                                                                                        ) : (
+                                                                                            <div>Max {isNaN(capitalInfo?.purchasableStocks) ? '0' : capitalInfo?.purchasableStocks} stocks</div>
+                                                                                        )}
+                                                                                    </>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
                                                     {/* Conditional Fields - Side by Side */}
                                                     {(!isOrderMarketOrLimit() || isDisclosedQuantityEnabled) && (
                                                         <div className="flex gap-3">
@@ -1204,8 +1353,8 @@ export default function UpstoxPage() {
                                                                     key={type}
                                                                     type="button"
                                                                     className={`px-4 py-2 text-sm rounded-md border transition-all duration-200 ${orderForm.orderType === type
-                                                                            ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
-                                                                            : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
+                                                                        ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
+                                                                        : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
                                                                         }`}
                                                                     onClick={() => handleInputChange('orderType', type)}
                                                                 >
@@ -1224,8 +1373,8 @@ export default function UpstoxPage() {
                                                                     key={product}
                                                                     type="button"
                                                                     className={`px-4 py-2 text-sm rounded-md border transition-all duration-200 ${orderForm.product === product
-                                                                            ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
-                                                                            : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
+                                                                        ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
+                                                                        : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
                                                                         }`}
                                                                     onClick={() => handleInputChange('product', product)}
                                                                 >
@@ -1244,8 +1393,8 @@ export default function UpstoxPage() {
                                                                     key={validity}
                                                                     type="button"
                                                                     className={`px-4 py-2 text-sm rounded-md border transition-all duration-200 ${orderForm.validity === validity
-                                                                            ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
-                                                                            : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
+                                                                        ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
+                                                                        : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
                                                                         }`}
                                                                     onClick={() => handleInputChange('validity', validity)}
                                                                 >
@@ -1256,395 +1405,277 @@ export default function UpstoxPage() {
                                                     </div>
                                                 </div>
 
-                                                {/* Right Column - Empty for now */}
-                                                <div className="space-y-4">
-                                                </div>
+
                                             </div>
-                                        </div>
-                                    ) : (
-                                        /* Individual Account Mode */
-                                        <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
-                                            {/* Left Column */}
-                                            <div className="space-y-4">
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div>
-                                                        <label htmlFor="quantity-input" className="block text-sm font-medium text-gray-700 mb-1">
-                                                            Quantity <span className="text-red-500">*</span>
-                                                        </label>
-                                                        <div className="flex gap-0">
-                                                            {/* Quantity Input - Left Half */}
-                                                            <input
-                                                                id="quantity-input"
-                                                                className="flex-1 border rounded-l px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60 border-r-0"
-                                                                type="number"
-                                                                placeholder="Enter quantity"
-                                                                value={orderForm.quantity}
-                                                                onChange={(e) => handleInputChange('quantity', e.target.value)}
-                                                            />
-                                                            {/* Capital Info - Right Half */}
-                                                            <div className="flex-1 bg-gray-50 border rounded-r px-3 py-2 text-xs text-gray-600 border-l-0">
-                                                                {(() => {
-                                                                    const capitalInfo = getCapitalInfo(selectedAccount, orderForm.quantity);
-                                                                    const isLoading = isLoadingFunds[selectedAccount] || false;
-                                                                    const hasInsufficientFunds = capitalInfo.capitalRemaining < 0;
-                                                                    return (
-                                                                        <div className="flex flex-col justify-center h-full">
-                                                                            {isLoading ? (
-                                                                                <div className="text-center text-xs">Loading funds...</div>
-                                                                            ) : (
-                                                                                <>
-                                                                                    <div>₹{capitalInfo.availableFunds.toFixed(2)} Available</div>
-                                                                                    <div className={hasInsufficientFunds ? 'text-red-600 font-semibold' : ''}>
-                                                                                        ₹{isNaN(capitalInfo.capitalRemaining) ? '0.00' : capitalInfo.capitalRemaining.toFixed(2)} After Purchase
-                                                                                    </div>
-                                                                                    {hasInsufficientFunds ? (
-                                                                                        <div className="text-red-600 font-semibold">⚠️ Insufficient Funds!</div>
-                                                                                    ) : (
-                                                                                        <div>Max {isNaN(capitalInfo?.purchasableStocks) ? '0' : capitalInfo?.purchasableStocks} stocks</div>
-                                                                                    )}
-                                                                                </>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })()}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                        )}
 
-                                                {/* Conditional Fields - Side by Side */}
-                                                {(!isOrderMarketOrLimit() || isDisclosedQuantityEnabled) && (
-                                                    <div className="flex gap-3">
-                                                        {!isOrderMarketOrLimit() && (
-                                                            <div className="flex-1">
-                                                                <label htmlFor="trigger-price-input" className="block text-sm font-medium text-gray-700 mb-1">
-                                                                    Trigger Price <span className="text-red-500">*</span>
-                                                                </label>
-                                                                <input
-                                                                    id="trigger-price-input"
-                                                                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60"
-                                                                    type="number"
-                                                                    placeholder="Trigger price (for SL orders)"
-                                                                    value={orderForm.triggerPrice}
-                                                                    onChange={(e) => handleInputChange('triggerPrice', e.target.value)}
-                                                                />
-                                                            </div>
-                                                        )}
-                                                        {isDisclosedQuantityEnabled && (
-                                                            <div className="flex-1">
-                                                                <label htmlFor="disclosed-quantity-input" className="block text-sm font-medium text-gray-700 mb-1">
-                                                                    Disclosed Quantity
-                                                                </label>
-                                                                <input
-                                                                    id="disclosed-quantity-input"
-                                                                    className={`w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60 ${!isDisclosedQuantityEnabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
-                                                                        }`}
-                                                                    type="number"
-                                                                    placeholder="Disclosed Qty"
-                                                                    value={orderForm.disclosedQuantity || ''}
-                                                                    onChange={(e) => handleInputChange('disclosedQuantity', e.target.value)}
-                                                                    disabled={!isDisclosedQuantityEnabled}
-                                                                />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <div className="text-sm font-medium text-gray-700 mb-2">
-                                                        Order Type <span className="text-red-500">*</span>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {['Market', 'Limit', 'Stop Loss - M'].map((type) => (
-                                                            <button
-                                                                key={type}
-                                                                type="button"
-                                                                className={`px-4 py-2 text-sm rounded-md border transition-all duration-200 ${orderForm.orderType === type
-                                                                        ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
-                                                                        : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
-                                                                    }`}
-                                                                onClick={() => handleInputChange('orderType', type)}
-                                                            >
-                                                                {type}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-sm font-medium text-gray-700 mb-2">
-                                                        Product <span className="text-red-500">*</span>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        {['Delivery', 'Intraday'].map((product) => (
-                                                            <button
-                                                                key={product}
-                                                                type="button"
-                                                                className={`px-4 py-2 text-sm rounded-md border transition-all duration-200 ${orderForm.product === product
-                                                                        ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
-                                                                        : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
-                                                                    }`}
-                                                                onClick={() => handleInputChange('product', product)}
-                                                            >
-                                                                {product}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-sm font-medium text-gray-700 mb-2">
-                                                        Validity <span className="text-red-500">*</span>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        {['Day', 'IOC'].map((validity) => (
-                                                            <button
-                                                                key={validity}
-                                                                type="button"
-                                                                className={`px-4 py-2 text-sm rounded-md border transition-all duration-200 ${orderForm.validity === validity
-                                                                        ? 'bg-[var(--upx-primary)] text-white border-[var(--upx-primary)] shadow-sm'
-                                                                        : 'bg-white border-gray-300 hover:border-[var(--upx-primary)]/60 hover:bg-[var(--upx-primary)]/5 text-gray-700'
-                                                                    }`}
-                                                                onClick={() => handleInputChange('validity', validity)}
-                                                            >
-                                                                {validity}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        {/* Submit Button */}
+                                        <div className="pt-4 border-t border-gray-200">
+                                            {(() => {
+                                                // Check for insufficient funds and no funds
+                                                let hasInsufficientFunds = false;
+                                                let insufficientFundsAccounts: string[] = [];
+                                                let hasNoFunds = false;
 
-                                           
-                                        </div>
-                                    )}
-
-                                    {/* Submit Button */}
-                                    <div className="pt-4 border-t border-gray-200">
-                                        {(() => {
-                                            // Check for insufficient funds
-                                            let hasInsufficientFunds = false;
-                                            let insufficientFundsAccounts: string[] = [];
-
-                                            if (selectedAccount === 'All accounts') {
-                                                // Check all accounts for insufficient funds
-                                                for (const account of accounts.slice(1)) {
-                                                    const accountForm = orderForms[account];
-                                                    if (accountForm?.quantity && accountForm?.transactionType === 'Buy' && lastClosingPrice) {
-                                                        const capitalInfo = getCapitalInfo(account, accountForm.quantity);
+                                                if (selectedAccount === 'All accounts') {
+                                                    // Check all accounts for insufficient funds
+                                                    for (const account of accounts.slice(1)) {
+                                                        const accountForm = orderForms[account];
+                                                        if (accountForm?.quantity && accountForm?.transactionType === 'Buy' && lastClosingPrice) {
+                                                            const capitalInfo = getCapitalInfo(account, accountForm.quantity);
+                                                            if (capitalInfo.capitalRemaining < 0) {
+                                                                hasInsufficientFunds = true;
+                                                                insufficientFundsAccounts.push(account);
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Check single account for insufficient funds
+                                                    if (orderForm?.quantity && orderForm?.transactionType === 'Buy' && lastClosingPrice) {
+                                                        const capitalInfo = getCapitalInfo(selectedAccount, orderForm.quantity);
                                                         if (capitalInfo.capitalRemaining < 0) {
                                                             hasInsufficientFunds = true;
-                                                            insufficientFundsAccounts.push(account);
+                                                            insufficientFundsAccounts.push(selectedAccount);
                                                         }
                                                     }
                                                 }
-                                            } else {
-                                                // Check single account for insufficient funds
-                                                if (orderForm?.quantity && orderForm?.transactionType === 'Buy' && lastClosingPrice) {
-                                                    const capitalInfo = getCapitalInfo(selectedAccount, orderForm.quantity);
-                                                    if (capitalInfo.capitalRemaining < 0) {
-                                                        hasInsufficientFunds = true;
-                                                        insufficientFundsAccounts.push(selectedAccount);
-                                                    }
-                                                }
-                                            }
 
-                                            return (
-                                                <>
-                                                    {hasInsufficientFunds && (
-                                                        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-md">
-                                                            <div className="flex items-center gap-2 text-red-800">
-                                                                <span>⚠️</span>
-                                                                <span className="font-medium">Insufficient Funds</span>
+                                                // Check for no funds condition
+                                                if (selectedAccount === 'All accounts') {
+                                                    // Check if all accounts have no funds
+                                                    hasNoFunds = accounts.slice(1).every(account => accountFunds[account] <= 0);
+                                                } else {
+                                                    hasNoFunds = accountFunds[selectedAccount] <= 0;
+                                                }
+
+                                                return (
+                                                    <>
+                                                        {(hasInsufficientFunds || hasNoFunds) && (
+                                                            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                                                                <div className="flex items-center gap-2 text-red-800">
+                                                                    <span>⚠️</span>
+                                                                    <span className="font-medium">{hasNoFunds ? 'No Funds Available' : 'Insufficient Funds'}</span>
+                                                                </div>
+                                                                <div className="text-sm text-red-700 mt-1">
+                                                                    {hasNoFunds ? (
+                                                                        selectedAccount === 'All accounts'
+                                                                            ? 'All accounts have no funds available.'
+                                                                            : `${selectedAccount} has no funds available.`
+                                                                    ) : (
+                                                                        insufficientFundsAccounts.length === 1
+                                                                            ? `${insufficientFundsAccounts[0]} has insufficient funds for this order.`
+                                                                            : `${insufficientFundsAccounts.length} accounts have insufficient funds: ${insufficientFundsAccounts.join(', ')}`
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                            <div className="text-sm text-red-700 mt-1">
-                                                                {insufficientFundsAccounts.length === 1 
-                                                                    ? `${insufficientFundsAccounts[0]} has insufficient funds for this order.`
-                                                                    : `${insufficientFundsAccounts.length} accounts have insufficient funds: ${insufficientFundsAccounts.join(', ')}`
-                                                                }
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    <button 
-                                                        className={`w-full py-3 text-base font-medium rounded-md transition-colors ${
-                                                            hasInsufficientFunds 
-                                                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                                                                : 'btn-upstox hover:bg-[var(--upx-primary)]/90'
-                                                        }`}
-                                                        onClick={hasInsufficientFunds ? undefined : handleSubmitOrder}
-                                                        disabled={hasInsufficientFunds}
-                                                    >
-                                                        {hasInsufficientFunds 
-                                                            ? 'Insufficient Funds - Cannot Place Order'
-                                                            : selectedAccount === 'All accounts'
-                                                                ? `Place Orders for All Accounts (${accounts.slice(1).length} accounts)`
-                                                                : `Place Order for ${selectedAccount}`
-                                                        }
-                                                    </button>
-                                                </>
-                                            );
-                                        })()}
+                                                        )}
+                                                        <button
+                                                            className={`w-full py-3 text-base font-medium rounded-md transition-colors ${hasInsufficientFunds || hasNoFunds
+                                                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                                    : 'btn-upstox hover:bg-[var(--upx-primary)]/90'
+                                                                }`}
+                                                            onClick={hasInsufficientFunds || hasNoFunds ? undefined : handleSubmitOrder}
+                                                            disabled={hasInsufficientFunds || hasNoFunds}
+                                                        >
+                                                            {hasNoFunds
+                                                                ? selectedAccount === 'All accounts'
+                                                                    ? 'No Funds Available in Any Account'
+                                                                    : `No Funds Available in ${selectedAccount}`
+                                                                : hasInsufficientFunds
+                                                                    ? 'Insufficient Funds - Cannot Place Order'
+                                                                    : selectedAccount === 'All accounts'
+                                                                        ? `Place Orders for All Accounts (${accounts.slice(1).length} accounts)`
+                                                                        : `Place Order for ${selectedAccount}`
+                                                            }
+                                                        </button>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
                                     </div>
                                 </div>
                             </TabsContent>
 
                             {/* Open Orders */}
                             <TabsContent value="Open orders" className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
-                                    <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Open orders</h3>
+                                <div className="relative">
+                                    {!isUserLoggedIn && (
+                                        <div className="absolute inset-0 backdrop-blur-sm bg-white/50 dark:bg-slate-900/50 z-50 flex items-center justify-center rounded-lg">
+                                            <div className="text-center p-6 bg-white/90 dark:bg-slate-800/90 rounded-xl shadow-lg border-2 border-red-200">
+                                                <p className="text-xl font-bold text-red-600 mb-2">⚠️ Account Not Logged In</p>
+                                                <p className="text-gray-600 dark:text-gray-400">Please log in to access trading functionality for {selectedAccount}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
+                                        <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Open orders</h3>
+                                    </div>
+                                    <div className="upstox-surface rounded p-3 text-sm text-muted-foreground">No open orders to display.</div>
                                 </div>
-                                <div className="upstox-surface rounded p-3 text-sm text-muted-foreground">No open orders to display.</div>
                             </TabsContent>
 
                             {/* Completed Trades */}
                             <TabsContent value="Completed Trades" className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
-                                        <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Completed Trades</h3>
-                                    </div>
-                                    
-                                    {/* Financial Year Selector */}
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <label htmlFor="financial-year" className="text-gray-600 font-medium">Financial Year:</label>
-                                        <Select 
-                                            value={selectedFinancialYear} 
-                                            onValueChange={(value: string) => setSelectedFinancialYear(value)}
-                                        >
-                                            <SelectTrigger className="w-64 h-8 text-xs">
-                                                <SelectValue placeholder="Select Financial Year" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {financialYearOptions.map((fy) => (
-                                                    <SelectItem key={fy.value} value={fy.value} className="text-xs">
-                                                        {fy.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <button
-                                            onClick={() => fetchTradeHistory(selectedAccount)}
-                                            className="px-3 py-1 bg-[var(--upx-primary)] text-white rounded text-xs hover:bg-[var(--upx-primary)]/90"
-                                        >
-                                            Refresh
-                                        </button>
-                                     
-                                    </div>
-                                </div>
-
-                                {/* Trade History Content */}
-                                <div className="upstox-surface rounded">
-                                    {isLoadingTradeHistory[selectedAccount] ? (
-                                        <div className="p-4 text-center text-sm text-muted-foreground">
-                                            Loading trade history...
-                                        </div>
-                                    ) : selectedAccount === 'All accounts' ? (
-                                        /* All Accounts View */
-                                        <div className="space-y-4 p-4">
-                                            {accounts.slice(1).map(account => {
-                                                const accountTrades = tradeHistory[account] || [];
-                                                console.log('All accounts view - rendering for', account, ':', accountTrades);
-                                                return (
-                                                    <div key={account} className="border-b pb-4 last:border-b-0">
-                                                        <h4 className="font-medium text-[var(--upx-primary)] mb-2">{account}</h4>
-                                                        {accountTrades.length > 0 ? (
-                                                            <div className="overflow-x-auto">
-                                                                <table className="w-full text-xs">
-                                                                    <thead>
-                                                                        <tr className="border-b text-left">
-                                                                            <th className="p-2">Date</th>
-                                                                            <th className="p-2">Script</th>
-                                                                            <th className="p-2">Type</th>
-                                                                            <th className="p-2">Qty</th>
-                                                                            <th className="p-2">Price</th>
-                                                                            <th className="p-2">Amount</th>
-                                                                            <th className="p-2">Trade ID</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {accountTrades.map((trade, idx) => (
-                                                                            <tr key={idx} className="border-b hover:bg-gray-50">
-                                                                                <td className="p-2">{trade.tradeDate}</td>
-                                                                                <td className="p-2 font-medium">{trade.scripName || trade.symbol}</td>
-                                                                                <td className="p-2">
-                                                                                    <span className={`px-2 py-1 rounded text-xs ${
-                                                                                        trade.transactionType === 'BUY' 
-                                                                                            ? 'bg-green-100 text-green-800'
-                                                                                            : 'bg-red-100 text-red-800'
-                                                                                    }`}>
-                                                                                        {trade.transactionType}
-                                                                                    </span>
-                                                                                </td>
-                                                                                <td className="p-2">{trade.quantity}</td>
-                                                                                <td className="p-2">₹{trade.price?.toFixed(2)}</td>
-                                                                                <td className="p-2 font-medium">₹{trade.amount?.toFixed(2)}</td>
-                                                                                <td className="p-2 text-gray-500">{trade.tradeId}</td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="text-sm text-muted-foreground">No trades found for {account}</div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : (
-                                        /* Individual Account View */
-                                        <div className="p-4">
-                                            {(() => {
-                                                const accountTrades = tradeHistory[selectedAccount] || [];
-                                                console.log('Rendering trade history for', selectedAccount, ':', accountTrades);
-                                                console.log('Trade history state:', tradeHistory);
-                                                return accountTrades.length > 0 ? (
-                                                    <div className="overflow-x-auto">
-                                                        <table className="w-full text-sm">
-                                                            <thead>
-                                                                <tr className="border-b text-left">
-                                                                    <th className="p-3">Date</th>
-                                                                    <th className="p-3">Company Name</th>
-                                                                    <th className="p-3">Exchange</th>
-                                                                    <th className="p-3">Transaction</th>
-                                                                    <th className="p-3">Quantity</th>
-                                                                    <th className="p-3">Price</th>
-                                                                    <th className="p-3">Amount</th>
-                                                                    <th className="p-3">Trade ID</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {accountTrades.map((trade, idx) => (
-                                                                    <tr key={idx} className="border-b hover:bg-gray-50">
-                                                                        <td className="p-3">{new Date(trade.tradeDate).toLocaleDateString()}</td>
-                                                                        <td className="p-3">
-                                                                            <div className="font-medium">{trade.scripName || trade.symbol}</div>
-                                                                            <div className="text-xs text-gray-500">{trade.isin}</div>
-                                                                        </td>
-                                                                        <td className="p-3">{trade.exchange}</td>
-                                                                        <td className="p-3">
-                                                                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                                                                trade.transactionType === 'BUY' 
-                                                                                    ? 'bg-green-100 text-green-800'
-                                                                                    : 'bg-red-100 text-red-800'
-                                                                            }`}>
-                                                                                {trade.transactionType}
-                                                                            </span>
-                                                                        </td>
-                                                                        <td className="p-3">{trade.quantity}</td>
-                                                                        <td className="p-3">₹{trade.price?.toFixed(2)}</td>
-                                                                        <td className="p-3 font-medium">₹{trade.amount?.toFixed(2)}</td>
-                                                                        <td className="p-3 text-gray-500 font-mono text-xs">{trade.tradeId}</td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-center py-8 text-sm text-muted-foreground">
-                                                        No completed trades found for {selectedAccount} in the selected date range.
-                                                    </div>
-                                                );
-                                            })()}
+                                <div className="relative">
+                                    {!isUserLoggedIn && (
+                                        <div className="absolute inset-0 backdrop-blur-sm bg-white/50 dark:bg-slate-900/50 z-50 flex items-center justify-center rounded-lg">
+                                            <div className="text-center p-6 bg-white/90 dark:bg-slate-800/90 rounded-xl shadow-lg border-2 border-red-200">
+                                                <p className="text-xl font-bold text-red-600 mb-2">⚠️ Account Not Logged In</p>
+                                                <p className="text-gray-600 dark:text-gray-400">Please log in to access trading functionality for {selectedAccount}</p>
+                                            </div>
                                         </div>
                                     )}
+
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
+                                            <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Completed Trades</h3>
+                                        </div>
+
+                                        {/* Financial Year Selector */}
+                                        <div className="flex items-center gap-3 text-sm">
+                                            <label htmlFor="financial-year" className="text-gray-600 font-medium">Financial Year:</label>
+                                            <Select
+                                                value={selectedFinancialYear}
+                                                onValueChange={(value: string) => setSelectedFinancialYear(value)}
+                                            >
+                                                <SelectTrigger className="w-64 h-8 text-xs">
+                                                    <SelectValue placeholder="Select Financial Year" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {financialYearOptions.map((fy) => (
+                                                        <SelectItem key={fy.value} value={fy.value} className="text-xs">
+                                                            {fy.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <button
+                                                onClick={() => fetchTradeHistory(selectedAccount)}
+                                                className="px-3 py-1 bg-[var(--upx-primary)] text-white rounded text-xs hover:bg-[var(--upx-primary)]/90"
+                                            >
+                                                Refresh
+                                            </button>
+
+                                        </div>
+                                    </div>
+
+                                    {/* Trade History Content */}
+                                    <div className="upstox-surface rounded">
+                                        {isLoadingTradeHistory[selectedAccount] ? (
+                                            <div className="p-4 text-center text-sm text-muted-foreground">
+                                                Loading trade history...
+                                            </div>
+                                        ) : selectedAccount === 'All accounts' ? (
+                                            /* All Accounts View */
+                                            <div className="space-y-4 p-4">
+                                                {accounts.slice(1).map(account => {
+                                                    const accountTrades = tradeHistory[account] || [];
+                                                    console.log('All accounts view - rendering for', account, ':', accountTrades);
+                                                    return (
+                                                        <div key={account} className="border-b pb-4 last:border-b-0">
+                                                            <h4 className="font-medium text-[var(--upx-primary)] mb-2">{account}</h4>
+                                                            {accountTrades.length > 0 ? (
+                                                                <div className="overflow-x-auto">
+                                                                    <table className="w-full text-xs">
+                                                                        <thead>
+                                                                            <tr className="border-b text-left">
+                                                                                <th className="p-2">Date</th>
+                                                                                <th className="p-2">Script</th>
+                                                                                <th className="p-2">Type</th>
+                                                                                <th className="p-2">Qty</th>
+                                                                                <th className="p-2">Price</th>
+                                                                                <th className="p-2">Amount</th>
+                                                                                <th className="p-2">Trade ID</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {accountTrades.map((trade, idx) => (
+                                                                                <tr key={idx} className="border-b hover:bg-gray-50">
+                                                                                    <td className="p-2">{trade.tradeDate}</td>
+                                                                                    <td className="p-2 font-medium">{trade.scripName || trade.symbol}</td>
+                                                                                    <td className="p-2">
+                                                                                        <span className={`px-2 py-1 rounded text-xs ${trade.transactionType === 'BUY'
+                                                                                                ? 'bg-green-100 text-green-800'
+                                                                                                : 'bg-red-100 text-red-800'
+                                                                                            }`}>
+                                                                                            {trade.transactionType}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="p-2">{trade.quantity}</td>
+                                                                                    <td className="p-2">₹{trade.price?.toFixed(2)}</td>
+                                                                                    <td className="p-2 font-medium">₹{trade.amount?.toFixed(2)}</td>
+                                                                                    <td className="p-2 text-gray-500">{trade.tradeId}</td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-sm text-muted-foreground">No trades found for {account}</div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            /* Individual Account View */
+                                            <div className="p-4">
+                                                {(() => {
+                                                    const accountTrades = tradeHistory[selectedAccount] || [];
+                                                    console.log('Rendering trade history for', selectedAccount, ':', accountTrades);
+                                                    console.log('Trade history state:', tradeHistory);
+                                                    return accountTrades.length > 0 ? (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-sm">
+                                                                <thead>
+                                                                    <tr className="border-b text-left">
+                                                                        <th className="p-3">Date</th>
+                                                                        <th className="p-3">Company Name</th>
+                                                                        <th className="p-3">Exchange</th>
+                                                                        <th className="p-3">Transaction</th>
+                                                                        <th className="p-3">Quantity</th>
+                                                                        <th className="p-3">Price</th>
+                                                                        <th className="p-3">Amount</th>
+                                                                        <th className="p-3">Trade ID</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {accountTrades.map((trade, idx) => (
+                                                                        <tr key={idx} className="border-b hover:bg-gray-50">
+                                                                            <td className="p-3">{new Date(trade.tradeDate).toLocaleDateString()}</td>
+                                                                            <td className="p-3">
+                                                                                <div className="font-medium">{trade.scripName || trade.symbol}</div>
+                                                                                <div className="text-xs text-gray-500">{trade.isin}</div>
+                                                                            </td>
+                                                                            <td className="p-3">{trade.exchange}</td>
+                                                                            <td className="p-3">
+                                                                                <span className={`px-2 py-1 rounded text-xs font-medium ${trade.transactionType === 'BUY'
+                                                                                        ? 'bg-green-100 text-green-800'
+                                                                                        : 'bg-red-100 text-red-800'
+                                                                                    }`}>
+                                                                                    {trade.transactionType}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="p-3">{trade.quantity}</td>
+                                                                            <td className="p-3">₹{trade.price?.toFixed(2)}</td>
+                                                                            <td className="p-3 font-medium">₹{trade.amount?.toFixed(2)}</td>
+                                                                            <td className="p-3 text-gray-500 font-mono text-xs">{trade.tradeId}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-8 text-sm text-muted-foreground">
+                                                            No completed trades found for {selectedAccount} in the selected date range.
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </TabsContent>
 

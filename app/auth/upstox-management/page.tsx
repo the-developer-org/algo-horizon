@@ -3,16 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface UserProfile {
-  id: string;
-  phoneNumber: number;
-  name: string;
-  email: string;
-  group: string;
-  tokenId: string | null;
-  sandBoxTokenId: string | null;
-  pin: number | null;
-}
+import { UserProfile, algoHorizonApi } from '@/lib/api/algoHorizonApi';
 
 export default function UpstoxUserManagementPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -23,22 +14,8 @@ export default function UpstoxUserManagementPage() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const resp = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/get-all-users`);
-        if (!resp.ok) throw new Error(`Failed: ${resp.status}`);
-        const data = await resp?.json();
-        console.log('Raw API response:', data);
-        
-        const usersArray = Array.isArray(data) ? data : data.userProfiles || [];
-        console.log('Users array length:', usersArray.length);
-        console.log('Users array:', usersArray);
-        
-        // Remove duplicates based on phone number
-        const uniqueUsers = usersArray.filter((user: UserProfile, index: number, self: UserProfile[]) => 
-          index === self.findIndex((u: UserProfile) => u.phoneNumber === user.phoneNumber)
-        );
-        console.log('Unique users after deduplication:', uniqueUsers.length);
-        
-        setUsers(uniqueUsers);
+        const users = await algoHorizonApi.getAllUsers();
+        setUsers(users);
       } catch (e: any) {
         setError(e.message || 'Failed to load users');
       } finally {
