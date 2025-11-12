@@ -857,7 +857,7 @@ export default function UpstoxPage() {
 
                 const data = await response.json();
 
-                if (response.ok && data.success) {
+                if (response.ok && data.status === 'SUCCESS') {
                     toast.success('Order placed successfully!');
                     // Reset form after successful submission
                     setOrderForms(prev => ({
