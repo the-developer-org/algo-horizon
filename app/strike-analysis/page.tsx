@@ -1010,7 +1010,8 @@ function StrikeAnalysisContent() {
       'Days to Max Profit',
       'Support Touch Days',
       'Resistance Touch Days',
-
+      'Absolute Profits',
+      'Days Taken to Absolute Profits',
     ];
 
     const rows: (string | number)[][] = [header];
@@ -1036,6 +1037,8 @@ function StrikeAnalysisContent() {
       const maxProfitDays = stryke?.daysTakenForMaxSwingProfits != null ? Number(stryke.daysTakenForMaxSwingProfits) : '';
       const supportDays = stryke?.daysTakenForSupportTouch != null ? Number(stryke.daysTakenForSupportTouch) : '';
       const resistanceDays = stryke?.daysTakenForResistanceTouch != null ? Number(stryke.daysTakenForResistanceTouch) : '';
+      const absoluteProfits = stryke?.absoluteProfitsPercentage != null ? Number(stryke.absoluteProfitsPercentage) : '';
+      const absoluteDays = stryke?.daysTakenForAbsoluteProfits != null ? Number(stryke.daysTakenForAbsoluteProfits) : '';
 
 
 
@@ -1056,6 +1059,8 @@ function StrikeAnalysisContent() {
         maxProfitDays as any,
         supportDays as any,
         resistanceDays as any,
+        absoluteProfits as any,
+        absoluteDays as any,
 
       ]);
     });

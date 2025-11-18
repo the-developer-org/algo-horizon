@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import "./globals.css";
+import { Toaster } from "react-hot-toast";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { MainSidebar } from "../components/main-sidebar";
 
@@ -91,6 +92,7 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   // Only render main app for authenticated users
   return (
     <SidebarProvider>
+      <Toaster position="top-right" />
       <div className="flex min-h-screen w-full bg-gray-50">
         {!isUpstoxPage && (
           <MainSidebar isVisible={sidebarVisible} onToggleVisibility={toggleSidebar} />
@@ -112,6 +114,36 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <LayoutContent>
+          {/* Global Toaster with colorful defaults for success/error/loading */}
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                borderRadius: '8px',
+                fontWeight: 600,
+                boxShadow: '0 6px 18px rgba(0,0,0,0.12)'
+              },
+              success: {
+                style: {
+                  background: '#059669', // emerald-600
+                  color: '#ffffff'
+                }
+              },
+              error: {
+                style: {
+                  background: '#dc2626', // red-600
+                  color: '#ffffff'
+                }
+              },
+              loading: {
+                style: {
+                  background: '#2563eb', // blue-600
+                  color: '#ffffff'
+                }
+              }
+            }}
+          />
           {children}
         </LayoutContent>
       </body>

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { fetchUpstoxIntradayData, fetchUpstoxHistoricalData } from "@/components/utils/upstoxApi";
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 import { algoHorizonApi } from "@/lib/api/algoHorizonApi";
 import { tr } from "date-fns/locale";
 
@@ -22,6 +22,7 @@ export default function UpstoxPage() {
     // Fetch phone number mapping on mount
     useEffect(() => {
         const fetchAllUsers = async () => {
+            setIsLoadingUsers(true);
             try {
                 const allUsers = await algoHorizonApi.getAllUsers();
                 const phoneNumberMap: Record<string, string> = {};
@@ -35,9 +36,13 @@ export default function UpstoxPage() {
                 setAccountPhoneMapping(phoneNumberMap);
 
                 setAccounts(["All accounts", ...Object.keys(phoneNumberMap)]);
-                setSelectedAccount(accounts[0]);
+                setSelectedAccount("All accounts");
+                toast.success('User accounts loaded');
             } catch (error) {
                 console.error('Error fetching phone number mapping:', error);
+                toast.error('Failed to load user accounts');
+            } finally {
+                setIsLoadingUsers(false);
             }
         };
 
@@ -47,9 +52,9 @@ export default function UpstoxPage() {
     const [selectedAccount, setSelectedAccount] = useState<string>(accounts[0]);
     const featureTabs = useMemo(
         () => [
-            "Place order",
-            "Open Trades",
-            "Completed Trades",
+            "Place Order",
+            "Open Orders",
+            "Completed Orders",
             "Positions",
             "Holdings",
             "Funds & ledger",
@@ -101,6 +106,10 @@ export default function UpstoxPage() {
     // Trade history state
     const [tradeHistory, setTradeHistory] = useState<{ [account: string]: TradeData[] }>({});
     const [isLoadingTradeHistory, setIsLoadingTradeHistory] = useState<{ [account: string]: boolean }>({});
+    // Misc loading flags for API activity
+    const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
+    const [isLoadingKeyMapping, setIsLoadingKeyMapping] = useState<boolean>(false);
+    const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
     const [selectedFinancialYear, setSelectedFinancialYear] = useState<string>('2024-25');
 
     // Financial year options
@@ -184,20 +193,28 @@ export default function UpstoxPage() {
 
     // Fetch KeyMapping from Redis on mount
     useEffect(() => {
-        fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
-            method: "GET",
-            headers: {
-                Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-            },
-        })
-            .then(res => res.json())
-            .then(data => {
+        const fetchKeyMapping = async () => {
+            setIsLoadingKeyMapping(true);
+            try {
+                const res = await fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
+                    method: "GET",
+                    headers: {
+                        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+                    },
+                });
+                const data = await res.json();
                 const mapping = JSON.parse(data.result);
                 setKeyMapping(mapping);
-            })
-            .catch(() => {
-                console.error('Failed to load company data');
-            });
+                toast.success('Company mapping loaded');
+            } catch (err) {
+                console.error('Failed to load company data', err);
+                toast.error('Failed to load company data');
+            } finally {
+                setIsLoadingKeyMapping(false);
+            }
+        };
+
+        fetchKeyMapping();
     }, []);
 
     // Update suggestions as user types
@@ -374,10 +391,13 @@ export default function UpstoxPage() {
                 const currentPrice = candles[0].close;
 
                 setLastClosingPrices(prev => ({ ...prev, [selectedAccount]: currentPrice }));
+                // Inform user that price was fetched (success)
+                toast.success(`Price fetched for ${instrumentKey}`);
             }
         } catch (error) {
             console.error('Failed to fetch last closing price:', error);
             setLastClosingPrices(prev => ({ ...prev, [selectedAccount]: null }));
+            toast.error(`Failed to fetch price for instrument ${instrumentKey}`);
         } finally {
             if (!isPollingUpdate) {
                 setIsLoadingPrices(prev => ({ ...prev, [selectedAccount]: false }));
@@ -472,7 +492,6 @@ export default function UpstoxPage() {
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
             const response = await fetch(`${backendUrl}/api/upstox/user/get-funds?phoneNumber=${phoneNumber}`);
-
             if (response.ok) {
                 const data = await response.json();
                 if (data.status === 'SUCCESS' && data.data?.equity?.availableMargin !== undefined) {
@@ -481,10 +500,12 @@ export default function UpstoxPage() {
                         ...prev,
                         [account]: funds
                     }));
+                    toast.success(`Funds loaded for ${account}`);
                 }
             }
         } catch (error) {
             console.error(`Failed to fetch funds for ${account}:`, error);
+            toast.error(`Failed to fetch funds for ${account}`);
         } finally {
             setIsLoadingFunds(prev => ({ ...prev, [account]: false }));
         }
@@ -498,7 +519,7 @@ export default function UpstoxPage() {
         const price = lastClosingPrice || 0;
         const totalCost = qty * price;
         const capitalRemaining = funds - totalCost;
-        const purchasableStocks = Math.floor(funds / price);
+        const purchasableStocks = price > 0 ? Math.floor(funds / price) : 0;
 
         return {
             capitalRemaining,
@@ -657,7 +678,10 @@ export default function UpstoxPage() {
         if (account === 'All accounts') {
             // Fetch for all individual accounts
             const accountsToProcess = accounts.slice(1);
-            accountsToProcess.forEach(acc => fetchTradeHistory(acc));
+            for (const acc of accountsToProcess) {
+                // eslint-disable-next-line no-await-in-loop
+                await fetchTradeHistory(acc);
+            }
             return;
         }
 
@@ -712,6 +736,7 @@ export default function UpstoxPage() {
             }
         } catch (error) {
             console.error('Trade history fetch error:', error);
+            toast.error(`Failed to fetch trade history for ${account}`);
             setTradeHistory(prev => ({
                 ...prev,
                 [account]: []
@@ -722,7 +747,10 @@ export default function UpstoxPage() {
     }, [accounts, accountPhoneMapping, selectedFinancialYear]);
 
     const handleSubmitOrder = async () => {
+        setIsSubmittingOrder(true);
+        try {
         const apiKey = localStorage.getItem('upstoxApiKey');
+        
         if (!apiKey) {
             toast.error('No Upstox API key found. Please set your API key first.');
             return;
@@ -753,16 +781,16 @@ export default function UpstoxPage() {
                     phoneNumber: phoneNumber,
                     isSandbox: false, // Assuming production, adjust as needed
                     orderData: {
-                        quantity: parseInt(accountForm.quantity),
+                        quantity: Number.parseInt(accountForm.quantity || '0', 10) || 0,
                         product: mapProductToApi(accountForm.product),
                         validity: accountForm.validity.toUpperCase(),
-                        price: parseFloat(accountForm.price) || 0,
+                        price: Number.parseFloat(accountForm.price || '0') || 0,
                         tag: `order-${account}-${Date.now()}`,
                         instrumentToken: accountForm.instrumentKey,
                         orderType: mapOrderTypeToApi(accountForm.orderType),
                         transactionType: accountForm.transactionType.toUpperCase(),
-                        disclosedQuantity: (disclosedQuantityEnabled[account] && accountForm.disclosedQuantity) ? parseInt(accountForm.disclosedQuantity) : 0,
-                        triggerPrice: accountForm.triggerPrice ? parseFloat(accountForm.triggerPrice) : 0,
+                        disclosedQuantity: (disclosedQuantityEnabled[account] && accountForm.disclosedQuantity) ? Number.parseInt(accountForm.disclosedQuantity || '0', 10) : 0,
+                        triggerPrice: accountForm.triggerPrice ? Number.parseFloat(accountForm.triggerPrice || '0') : 0,
                         isAmo: false,
                         slice: false
                     }
@@ -788,7 +816,7 @@ export default function UpstoxPage() {
                     toast.success(`Orders completed: ${successCount}/${totalCount} successful`);
 
                     // Clear form data for successful orders
-                    accountsToProcess.forEach(account => {
+                    for (const account of accountsToProcess) {
                         setOrderForms(prev => ({
                             ...prev,
                             [account]: {
@@ -806,7 +834,7 @@ export default function UpstoxPage() {
                         setSelectedCompanies(prev => ({ ...prev, [account]: '' }));
                         setSelectedInstrumentKeys(prev => ({ ...prev, [account]: '' }));
                         setLastClosingPrices(prev => ({ ...prev, [account]: null }));
-                    });
+                    }
                 } else {
                     toast.error('Failed to place batch orders');
                 }
@@ -839,16 +867,16 @@ export default function UpstoxPage() {
                         phoneNumber: phoneNumber,
                         isSandbox: true,
                         orderData: {
-                            quantity: parseInt(orderForm.quantity),
+                            quantity: Number.parseInt(orderForm.quantity || '0', 10) || 0,
                             product: mapProductToApi(orderForm.product),
                             validity: orderForm.validity.toUpperCase(),
-                            price: parseFloat(orderForm.price) || 0,
+                            price: Number.parseFloat(orderForm.price || '0') || 0,
                             tag: `order-${selectedAccount}-${Date.now()}`,
                             instrumentToken: selectedInstrumentKey,
                             orderType: mapOrderTypeToApi(orderForm.orderType),
                             transactionType: orderForm.transactionType.toUpperCase(),
-                            disclosedQuantity: (isDisclosedQuantityEnabled && orderForm.disclosedQuantity) ? parseInt(orderForm.disclosedQuantity) : 0,
-                            triggerPrice: orderForm.triggerPrice ? parseFloat(orderForm.triggerPrice) : 0,
+                            disclosedQuantity: (isDisclosedQuantityEnabled && orderForm.disclosedQuantity) ? Number.parseInt(orderForm.disclosedQuantity || '0', 10) : 0,
+                            triggerPrice: orderForm.triggerPrice ? Number.parseFloat(orderForm.triggerPrice || '0') : 0,
                             isAmo: false,
                             slice: false
                         }
@@ -868,7 +896,7 @@ export default function UpstoxPage() {
                             disclosedQuantity: '',
                             transactionType: 'Buy',
                             orderType: 'Market',
-                            product: 'Intraday',
+                            product: 'Delivery',
                             price: '',
                             triggerPrice: '',
                             validity: 'Day'
@@ -878,6 +906,7 @@ export default function UpstoxPage() {
                     setSelectedCompanies(prev => ({ ...prev, [selectedAccount]: '' }));
                     setSelectedInstrumentKeys(prev => ({ ...prev, [selectedAccount]: '' }));
                     setLastClosingPrices(prev => ({ ...prev, [selectedAccount]: null }));
+                    setSearchTerms(prev => ({ ...prev, [selectedAccount]: '' }));                    
                 } else {
                     toast.error(data.error || 'Failed to place order');
                 }
@@ -886,6 +915,9 @@ export default function UpstoxPage() {
                 toast.error('Failed to submit order. Please try again.');
             }
         }
+        } finally {
+            setIsSubmittingOrder(false);
+        }
     };
 
     return (
@@ -893,6 +925,7 @@ export default function UpstoxPage() {
 
 
             <div className="max-w-8xl w-full mx-auto upstox-theme rounded-2xl bg-white/70 dark:bg-slate-900/40 ring-1 ring-black/10 dark:ring-white/10 shadow-sm backdrop-blur p-4 sm:p-6 relative">
+                {/* Toaster moved to global layout (app/layout.tsx) */}
                 {/* Upstox brand banner */}
                 <div className="flex"> <Link href="/" className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 bg-[rgba(84, 32, 135, 1)] hover:bg-[rgba(84,32,135,0.20)] text-[rgba(84, 32, 135, 1)] text-sm transition-colors">
                     <ArrowLeft className="h-10 w-10 text-[rgba(84,32,135,1)]" />
@@ -946,7 +979,7 @@ export default function UpstoxPage() {
                         <div className="pt-4">
 
                             {/* Place Order */}
-                            <TabsContent value="Place order" className="space-y-3">
+                            <TabsContent value="Place Order" className="space-y-3">
                                 <div className="relative">
                                     {!isUserLoggedIn && (
                                         <div className="absolute inset-0 backdrop-blur-sm bg-white/50 dark:bg-slate-900/50 z-50 flex items-center justify-center rounded-lg">
@@ -991,11 +1024,11 @@ export default function UpstoxPage() {
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="space-y-6">
+                                    <div className="space-y-6 mt-2">
                                         {/* Company Selection Section */}
-                                        <div className="flex gap-4 items-start">
+                                        <div className="flex gap-4 items-start mt-2">
                                             {/* Search Input - Reduced Width */}
-                                            <div className="relative flex-1 max-w-md">
+                                            <div className="relative flex-1 max-w-md mt-2">
                                                 <input
                                                     type="text"
                                                     placeholder="Search for a company..."
@@ -1040,7 +1073,7 @@ export default function UpstoxPage() {
 
                                             {/* Live Price Display */}
                                             {selectedCompany && (
-                                                <div className="flex-1 max-w-md p-2.5 bg-[var(--upx-primary-50)] border border-[var(--upx-border)] rounded-md">
+                                                <div className="flex-1 max-w-md p-2.5 bg-[var(--upx-primary-50)] border border-[var(--upx-border)] rounded-md mt-2">
                                                     <div className="text-sm">
                                                         <div className="text-[var(--upx-primary-700)]">
                                                             {isLoadingPrice && <span>Loading price...</span>}
@@ -1116,9 +1149,7 @@ export default function UpstoxPage() {
                                                                                         ) : (
                                                                                             <>
                                                                                                 <div>₹{capitalInfo.availableFunds.toFixed(2)} Available</div>
-                                                                                                <div className={hasInsufficientFunds ? 'text-red-600 font-semibold' : ''}>
-                                                                                                    ₹{isNaN(capitalInfo.capitalRemaining) ? '0.00' : capitalInfo.capitalRemaining.toFixed(2)} After Purchase
-                                                                                                </div>
+                                                                                            
                                                                                                 {hasInsufficientFunds ? (
                                                                                                     <div className="text-red-600 font-semibold">⚠️ Insufficient Funds!</div>
                                                                                                 ) : (
@@ -1288,9 +1319,7 @@ export default function UpstoxPage() {
                                                                                 ) : (
                                                                                     <>
                                                                                         <div>₹{capitalInfo.availableFunds.toFixed(2)} Available</div>
-                                                                                        <div className={hasInsufficientFunds ? 'text-red-600 font-semibold' : ''}>
-                                                                                            ₹{isNaN(capitalInfo.capitalRemaining) ? '0.00' : capitalInfo.capitalRemaining.toFixed(2)} After Purchase
-                                                                                        </div>
+
                                                                                         {hasInsufficientFunds ? (
                                                                                             <div className="text-red-600 font-semibold">⚠️ Insufficient Funds!</div>
                                                                                         ) : (
@@ -1412,15 +1441,28 @@ export default function UpstoxPage() {
                                         {/* Submit Button */}
                                         <div className="pt-4 border-t border-gray-200">
                                             {(() => {
-                                                // Check for insufficient funds and no funds
+                                                // Check for insufficient funds, missing selections, and no funds
                                                 let hasInsufficientFunds = false;
                                                 let insufficientFundsAccounts: string[] = [];
                                                 let hasNoFunds = false;
+                                                // True when company/instrument/quantity/search term is missing or quantity is 0
+                                                let hasMissingSelection = false;
 
                                                 if (selectedAccount === 'All accounts') {
-                                                    // Check all accounts for insufficient funds
+                                                    // Check all accounts for insufficient funds and missing selections
                                                     for (const account of accounts.slice(1)) {
                                                         const accountForm = orderForms[account];
+
+                                                        // Validate quantity/selection/search term for each account
+                                                        const acctCompany = selectedCompanies[account] || '';
+                                                        const acctInstrument = selectedInstrumentKeys[account] || '';
+                                                        const acctQty = Number.parseInt(accountForm?.quantity || '0', 10) || 0;
+                                                        const acctSearchTerm = searchTerms[account] || '';
+
+                                                        if (!acctCompany || !acctInstrument || acctQty <= 0 || !acctSearchTerm) {
+                                                            hasMissingSelection = true;
+                                                        }
+
                                                         if (accountForm?.quantity && accountForm?.transactionType === 'Buy' && lastClosingPrice) {
                                                             const capitalInfo = getCapitalInfo(account, accountForm.quantity);
                                                             if (capitalInfo.capitalRemaining < 0) {
@@ -1430,7 +1472,12 @@ export default function UpstoxPage() {
                                                         }
                                                     }
                                                 } else {
-                                                    // Check single account for insufficient funds
+                                                    // Check single account for insufficient funds and missing selection
+                                                    const acctQty = Number.parseInt(orderForm?.quantity || '0', 10) || 0;
+                                                    if (!selectedCompany || !selectedInstrumentKey || acctQty <= 0 || !searchTerm) {
+                                                        hasMissingSelection = true;
+                                                    }
+
                                                     if (orderForm?.quantity && orderForm?.transactionType === 'Buy' && lastClosingPrice) {
                                                         const capitalInfo = getCapitalInfo(selectedAccount, orderForm.quantity);
                                                         if (capitalInfo.capitalRemaining < 0) {
@@ -1469,25 +1516,56 @@ export default function UpstoxPage() {
                                                                 </div>
                                                             </div>
                                                         )}
-                                                        <button
-                                                            className={`w-full py-3 text-base font-medium rounded-md transition-colors ${hasInsufficientFunds || hasNoFunds
-                                                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                                                    : 'btn-upstox hover:bg-[var(--upx-primary)]/90'
-                                                                }`}
-                                                            onClick={hasInsufficientFunds || hasNoFunds ? undefined : handleSubmitOrder}
-                                                            disabled={hasInsufficientFunds || hasNoFunds}
-                                                        >
-                                                            {hasNoFunds
-                                                                ? selectedAccount === 'All accounts'
-                                                                    ? 'No Funds Available in Any Account'
-                                                                    : `No Funds Available in ${selectedAccount}`
-                                                                : hasInsufficientFunds
-                                                                    ? 'Insufficient Funds - Cannot Place Order'
-                                                                    : selectedAccount === 'All accounts'
-                                                                        ? `Place Orders for All Accounts (${accounts.slice(1).length} accounts)`
-                                                                        : `Place Order for ${selectedAccount}`
-                                                            }
-                                                        </button>
+                                                        {/* Two simpler buttons: one for batch (All accounts) and one for single account. */}
+                                                        {selectedAccount === 'All accounts' ? (
+                                                            (() => {
+                                                                const disabled = hasInsufficientFunds || hasNoFunds || isSubmittingOrder || hasMissingSelection;
+                                                                const className = `w-full py-3 text-base font-medium rounded-md transition-colors ${disabled ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'btn-upstox hover:bg-[var(--upx-primary)]/90'}`;
+                                                                const label = isSubmittingOrder
+                                                                    ? `Placing Orders (${accounts.slice(1).length})...`
+                                                                    : hasNoFunds
+                                                                        ? 'No Funds Available in Any Account'
+                                                                        : hasInsufficientFunds
+                                                                            ? 'Insufficient Funds - Cannot Place Order'
+                                                                            : hasMissingSelection
+                                                                                ? 'Select companies and quantities to proceed'
+                                                                                : `Place Orders for All Accounts (${accounts.slice(1).length} accounts)`;
+
+                                                                return (
+                                                                    <button
+                                                                        className={className}
+                                                                        onClick={disabled ? undefined : handleSubmitOrder}
+                                                                        disabled={disabled}
+                                                                    >
+                                                                        {label}
+                                                                    </button>
+                                                                );
+                                                            })()
+                                                        ) : (
+                                                            (() => {
+                                                                const disabled = hasInsufficientFunds || hasNoFunds || isSubmittingOrder || hasMissingSelection;
+                                                                const className = `w-full py-3 text-base font-medium rounded-md transition-colors ${disabled ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'btn-upstox hover:bg-[var(--upx-primary)]/90'}`;
+                                                                const label = isSubmittingOrder
+                                                                    ? `Placing Order for ${selectedAccount}...`
+                                                                    : hasNoFunds
+                                                                        ? `No Funds Available in ${selectedAccount}`
+                                                                        : hasInsufficientFunds
+                                                                            ? 'Insufficient Funds - Cannot Place Order'
+                                                                            : hasMissingSelection
+                                                                                ? 'Select company and quantity to proceed'
+                                                                                : `Place Order for ${selectedAccount}`;
+
+                                                                return (
+                                                                    <button
+                                                                        className={className}
+                                                                        onClick={disabled ? undefined : handleSubmitOrder}
+                                                                        disabled={disabled}
+                                                                    >
+                                                                        {label}
+                                                                    </button>
+                                                                );
+                                                            })()
+                                                        )}
                                                     </>
                                                 );
                                             })()}
@@ -1497,7 +1575,7 @@ export default function UpstoxPage() {
                             </TabsContent>
 
                             {/* Open Orders */}
-                            <TabsContent value="Open orders" className="space-y-3">
+                            <TabsContent value="Open Orders" className="space-y-3">
                                 <div className="relative">
                                     {!isUserLoggedIn && (
                                         <div className="absolute inset-0 backdrop-blur-sm bg-white/50 dark:bg-slate-900/50 z-50 flex items-center justify-center rounded-lg">
@@ -1515,8 +1593,8 @@ export default function UpstoxPage() {
                                 </div>
                             </TabsContent>
 
-                            {/* Completed Trades */}
-                            <TabsContent value="Completed Trades" className="space-y-3">
+                            {/* Completed Orders */}
+                            <TabsContent value="Completed Orders" className="space-y-3">
                                 <div className="relative">
                                     {!isUserLoggedIn && (
                                         <div className="absolute inset-0 backdrop-blur-sm bg-white/50 dark:bg-slate-900/50 z-50 flex items-center justify-center rounded-lg">
