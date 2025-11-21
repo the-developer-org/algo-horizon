@@ -245,7 +245,7 @@ export default function UpstoxPage() {
             setIsLivePrice(isCurrentlyMarketHours);
 
             if (isCurrentlyMarketHours && selectedInstrumentKey) {
-                console.log('Market is open, fetching live price...');
+                //console.log('Market is open, fetching live price...');
                 // Poll every 30 seconds during market hours
                 const intervalId = setInterval(() => {
                     fetchLastClosingPrice(selectedInstrumentKey, true);
@@ -709,21 +709,21 @@ export default function UpstoxPage() {
 
             const data: TradeHistoryResponse = await response.json();
 
-            console.log('Trade history API response for', account, ':', data);
-            console.log('Response status:', response.status, response.ok);
-            console.log('Data status:', data.status);
-            console.log('Data array:', data.data);
-            console.log('Data array length:', data.data?.length);
+            //console.log('Trade history API response for', account, ':', data);
+            //console.log('Response status:', response.status, response.ok);
+            //console.log('Data status:', data.status);
+            //console.log('Data array:', data.data);
+            //console.log('Data array length:', data.data?.length);
 
             if (response.ok && (data.status === 'success' || data.status === 'SUCCESS')) {
-                console.log('Setting trade history for', account, 'with data:', data.data);
+                //console.log('Setting trade history for', account, 'with data:', data.data);
                 toast.success(`Trade history loaded for ${account}: ${data.data?.length || 0} trades found`);
                 setTradeHistory(prev => {
                     const newState = {
                         ...prev,
                         [account]: data.data || []
                     };
-                    console.log('New trade history state:', newState);
+                    //console.log('New trade history state:', newState);
                     return newState;
                 });
             } else {
@@ -854,7 +854,7 @@ export default function UpstoxPage() {
             try {
                 // Get phone number for the selected account
                 const phoneNumber = (accountPhoneMapping as Record<string, string>)[selectedAccount];
-                console.log('Submitting order for account:', selectedAccount, 'with phone number:', phoneNumber);
+                //console.log('Submitting order for account:', selectedAccount, 'with phone number:', phoneNumber);
                 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
                 const context = '/api/upstox/';
 
@@ -1650,7 +1650,7 @@ export default function UpstoxPage() {
                                             <div className="space-y-4 p-4">
                                                 {accounts.slice(1).map(account => {
                                                     const accountTrades = tradeHistory[account] || [];
-                                                    console.log('All accounts view - rendering for', account, ':', accountTrades);
+                                                    //console.log('All accounts view - rendering for', account, ':', accountTrades);
                                                     return (
                                                         <div key={account} className="border-b pb-4 last:border-b-0">
                                                             <h4 className="font-medium text-[var(--upx-primary)] mb-2">{account}</h4>
@@ -1702,8 +1702,8 @@ export default function UpstoxPage() {
                                             <div className="p-4">
                                                 {(() => {
                                                     const accountTrades = tradeHistory[selectedAccount] || [];
-                                                    console.log('Rendering trade history for', selectedAccount, ':', accountTrades);
-                                                    console.log('Trade history state:', tradeHistory);
+                                                    //console.log('Rendering trade history for', selectedAccount, ':', accountTrades);
+                                                    //console.log('Trade history state:', tradeHistory);
                                                     return accountTrades.length > 0 ? (
                                                         <div className="overflow-x-auto">
                                                             <table className="w-full text-sm">

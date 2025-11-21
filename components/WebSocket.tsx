@@ -36,7 +36,7 @@ const useWebSocket = (): WebSocketData => {
 
     
     if (!isWithinTradingHours()) {
-      console.log("Outside trading hours — WebSocket not connected.");
+      //console.log("Outside trading hours — WebSocket not connected.");
       return;
     }
 
@@ -56,13 +56,13 @@ webSocketFactory: () => {
 
 
       onConnect: () => {
-        console.log('Connected to WebSocket');
+        //console.log('Connected to WebSocket');
 
         // Subscribe to the WebSocket topic
         client.subscribe('/topic/data', (message: IMessage) => {
           try {
             const newData: WebSocketData = JSON.parse(message.body);
-            console.log('Received:', newData);
+            //console.log('Received:', newData);
 
             setData((prevData) => ({
               ...prevData,
@@ -75,11 +75,11 @@ webSocketFactory: () => {
       },
 
       onDisconnect: () => {
-        console.log('Disconnected from WebSocket');
+        //console.log('Disconnected from WebSocket');
       },
 
       debug: (str: string) => {
-        console.log(str);
+        //console.log(str);
       },
 
       reconnectDelay: 5000,

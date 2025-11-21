@@ -10,7 +10,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
   const state = searchParams.get('state');
   // State format: phone:random[:env]
 
-  console.log('[Upstox Callback] Start', { phone, hasCode: !!code, statePrefix: state?.split(':')[0] });
+  //console.log('[Upstox Callback] Start', { phone, hasCode: !!code, statePrefix: state?.split(':')[0] });
 
   if (!code) {
     console.warn('[Upstox Callback] Missing authorization code');
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
     return NextResponse.redirect(`${baseUrl}/auth?error=Config not found for phone`);
   }
 
-  console.log('[Upstox Callback] Resolved config', { 
+  //console.log('[Upstox Callback] Resolved config', { 
     clientId: cfg.clientId,
     redirectUri: cfg.redirectUri,
     hasClientSecret: !!cfg.clientSecret,
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
       grant_type: 'authorization_code',
     });
 
-    console.log('[Upstox Callback] Token request details', {
+    //console.log('[Upstox Callback] Token request details', {
       clientId: cfg.clientId,
       redirectUri: actualRedirectUri,
       configRedirectUri: cfg.redirectUri,
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
 
     // Use standard Upstox API URL for token exchange (same for both prod and sandbox)
     const apiHost = 'https://api-v2.upstox.com';
-    console.log('[Upstox Callback] Exchanging code for token', { phone, apiHost, codePreview: code.substring(0, 6) + '***' });
+    //console.log('[Upstox Callback] Exchanging code for token', { phone, apiHost, codePreview: code.substring(0, 6) + '***' });
 
   const tokenResp = await fetch(`${apiHost}/login/authorization/token`, {
       method: 'POST',
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
       return NextResponse.redirect(`${baseUrl}/auth?error=${encodeURIComponent('Token exchange failed')}`);
     }
 
-    console.log('[Upstox Callback] Token exchange raw response length', text.length);
+    //console.log('[Upstox Callback] Token exchange raw response length', text.length);
 
     let json: any;
     try { json = JSON.parse(text); } catch (err) {
@@ -85,11 +85,11 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
       return NextResponse.redirect(`${baseUrl}/auth?error=No access token`);
     }
 
-    console.log('[Upstox Callback] Access token received (length only)', { length: accessToken.length });
+    //console.log('[Upstox Callback] Access token received (length only)', { length: accessToken.length });
 
     // Store token in backend associated with phone
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-    console.log('[Upstox Callback] Storing token to backend', { backendUrl, phone });
+    //console.log('[Upstox Callback] Storing token to backend', { backendUrl, phone });
     debugger
     await fetch(`${backendUrl}/api/user/store-token`, {
       method: 'POST',
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
       body: JSON.stringify({ phoneNumber: phone, tokenId: accessToken }),
     });
 
-    console.log('[Upstox Callback] Token stored successfully, redirecting user');
+    //console.log('[Upstox Callback] Token stored successfully, redirecting user');
 
     return NextResponse.redirect(`${baseUrl}/auth/upstox-management`);
   } catch (e: any) {

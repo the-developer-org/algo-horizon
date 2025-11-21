@@ -210,8 +210,7 @@ const retryUpstoxApiCall = async (
 
   while (currentAttempt <= maxRetries) {
     try {
-      console.log(`🔄 Attempt ${currentAttempt + 1}/${maxRetries + 1}`);
-
+     
       const response = await axios.get<UpstoxHistoricalDataResponse>(currentUrl, {
         headers: {
           'Accept': 'application/json',
@@ -220,26 +219,11 @@ const retryUpstoxApiCall = async (
         }
       });
 
-      console.log('🚀 API REQUEST DETAILS:');
-      console.log('URL:', currentUrl);
-      console.log('Method: GET');
-      console.log('Headers:', {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token.substring(0, 20)}...` // Don't log full token
-      });
-      console.log('---');
+   
 
       if (response.status !== 200 || response.data.status !== 'success') {
         throw new Error(`API request failed: ${response.data.status || 'Unknown error'}`);
       }
-
-      console.log(`✅ API request successful on attempt ${currentAttempt + 1}`);
-      console.log('📥 API RESPONSE:', {
-        status: response.status,
-        statusText: response.statusText,
-        dataStatus: response.data.status,
-        candleCount: response.data.data?.candles?.length || 0
-      });
       return response.data;
 
     } catch (error) {
@@ -377,13 +361,7 @@ export const fetchUpstoxHistoricalData = async (
   const todayString = today.toISOString().split('T')[0];
   const defaultToDate = toDate || todayString;
 
-  console.log(`🔍 API URL construction:`, {
-    unit,
-    interval,
-    toDate: defaultToDate,
-    fromDate,
-    today: todayString
-  });
+  
 
   // Get the maximum duration for this specific timeframe
   const maxDuration = getMaxDurationForTimeframe(unit, interval);
@@ -394,20 +372,18 @@ export const fetchUpstoxHistoricalData = async (
     const toDateObj = new Date(toDate);
     const daysDiff = Math.abs((toDateObj.getTime() - fromDateObj.getTime()) / (1000 * 60 * 60 * 24));
 
-    console.log(`Date range validation: ${fromDate} to ${toDate} (${daysDiff} days)`);
-    console.log(`Max duration for ${unit}/${interval}: ${maxDuration} days`);
+    
 
     // Check against timeframe-specific limits
     if (daysDiff > maxDuration) {
-      console.warn(`⚠️ Date range (${daysDiff} days) exceeds maximum for ${unit}/${interval} timeframe (${maxDuration} days)`);
-      console.warn(`API might reject this request. Consider reducing the date range.`);
+   
 
       // Optionally auto-adjust the fromDate to fit within limits
       const adjustedFromDate = new Date(toDateObj);
       adjustedFromDate.setDate(adjustedFromDate.getDate() - maxDuration);
       const adjustedFromDateString = adjustedFromDate.toISOString().split('T')[0];
 
-      console.log(`💡 Suggested adjustment: Use fromDate as ${adjustedFromDateString} instead of ${fromDate}`);
+   
     }
   } else if (!fromDate && toDate) {
     // If only toDate is provided, we might want to auto-set a reasonable fromDate
@@ -415,7 +391,7 @@ export const fetchUpstoxHistoricalData = async (
     const suggestedFromDate = new Date(toDateObj);
     suggestedFromDate.setDate(suggestedFromDate.getDate() - Math.min(maxDuration, 30)); // Use smaller of max duration or 30 days
 
-    console.log(`💡 No fromDate provided. For ${unit}/${interval}, consider using fromDate: ${suggestedFromDate.toISOString().split('T')[0]}`);
+
   }
 
   // URL encode the instrument key to handle special characters like |
@@ -428,7 +404,7 @@ export const fetchUpstoxHistoricalData = async (
     url += `/${fromDate}`;
   }
 
-  console.log('Upstox Historical API URL:', url);
+
 
   try {
     // Use retry helper for API call with automatic date range reduction
@@ -484,11 +460,8 @@ export const fetchUpstoxHistoricalData = async (
       newestCandleTime
     };
   } catch (error) {
-    console.error('Error fetching Upstox historical data:', error);
+    
     if (axios.isAxiosError(error)) {
-      console.error('Response data:', error.response?.data);
-      console.error('Response status:', error.response?.status);
-      console.error('Response headers:', error.response?.headers);
       throw new Error(`Upstox API Error (${error.response?.status}): ${error.response?.data?.message || error.message}`);
     }
     throw error;
@@ -521,7 +494,7 @@ export const fetchUpstoxIntradayData = async (
   // Intraday API endpoint
   const url = `https://api.upstox.com/v3/historical-candle/intraday/${encodedInstrumentKey}/${unit}/${interval}`;
 
-  console.log('🔴 Fetching intraday data from:', url);
+  
 
   try {
     const response = await axios.get<UpstoxHistoricalDataResponse>(url, {
@@ -536,7 +509,7 @@ export const fetchUpstoxIntradayData = async (
       throw new Error(`Intraday API request failed: ${response.data.status || 'Unknown error'}`);
     }
 
-    console.log(`✅ Intraday API request successful, got ${response.data.data.candles.length} candles`);
+   
 
     // Transform Upstox candle format to our app's Candle format
     const candles: Candle[] = response.data.data.candles.map((candleData: [string, number, number, number, number, number, number]) => {
@@ -598,7 +571,7 @@ export const fetchUpstoxCombinedData = async (
   intradayCandles?: number;
   historicalCandles?: number;
 }> => {
-  console.log(`📊 Fetching combined data for ${unit}/${interval}`);
+  
 
   let intradayCandles: Candle[] = [];
   let historicalCandles: Candle[] = [];
@@ -607,19 +580,19 @@ export const fetchUpstoxCombinedData = async (
 
     // Step 1: Fetch intraday data (only for intraday timeframes)
     if (unit === 'minutes' || unit === 'hours' || unit === 'days') {
-      console.log(`🔴 Fetching intraday data for ${unit}/${interval}`);
+  
 
       try {
         intradayCandles = await fetchUpstoxIntradayData(instrumentKey, apiKey);
-        console.log(`✅ Fetched ${intradayCandles.length} intraday candles`);
+      
       } catch (intradayError) {
-        console.warn(`⚠️ Failed to fetch intraday data, continuing with historical only:`, intradayError);
+      
         // Continue with historical data even if intraday fails
       }
     }
 
     // Step 2: Always fetch historical data
-    console.log(`📈 Fetching historical data for ${unit}/${interval}`);
+    
 
     const historicalResult = await fetchUpstoxHistoricalData(
       instrumentKey,
@@ -631,7 +604,7 @@ export const fetchUpstoxCombinedData = async (
     );
 
     historicalCandles = historicalResult.candles;
-    console.log(`✅ Fetched ${historicalCandles.length} historical candles`);
+    
 
     // Step 3: Combine intraday and historical candles (intraday first, then historical)
     const combinedCandles = [...intradayCandles, ...historicalCandles];
@@ -644,7 +617,7 @@ export const fetchUpstoxCombinedData = async (
       index === self.findIndex(c => c.timestamp === candle.timestamp)
     );
 
-    console.log(`📊 Combined data: ${intradayCandles.length} intraday + ${historicalCandles.length} historical = ${uniqueCandles.length} unique candles`);
+    
 
     const hasMoreCandles = historicalResult.hasMoreCandles;
 
@@ -697,8 +670,7 @@ export const fetchPaginatedUpstoxData = async (
       const maxDuration = getMaxDurationForTimeframe(unit, interval);
 
       if (daysDiff > maxDuration) {
-        console.warn(`⚠️ Requested range (${daysDiff} days) exceeds maximum for ${timeframe} (${maxDuration} days)`);
-        console.warn(`Breaking into chunks and making multiple API calls...`);
+        
         
         const allCandles: Candle[] = [];
         let currentFromDate = new Date(from);
@@ -717,7 +689,7 @@ export const fetchPaginatedUpstoxData = async (
           const chunkFromDateStr = currentFromDate.toISOString().split('T')[0];
           const chunkToDateStr = chunkToDate.toISOString().split('T')[0];
           
-          console.log(`📊 Fetching chunk: ${chunkFromDateStr} to ${chunkToDateStr}`);
+        
           
           try {
             const chunkResult = shouldFetchIntraDay

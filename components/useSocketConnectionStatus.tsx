@@ -33,7 +33,7 @@ const useSocketConnectionStatus = (): UseSocketConnectionStatus => {
 
   const connectWebSocket = useCallback(() => {
     if (!isWithinTradingHours()) {
-      console.log("Outside trading hours — WebSocket not connected.");
+      //console.log("Outside trading hours — WebSocket not connected.");
       return;
     }
 
@@ -43,14 +43,14 @@ const useSocketConnectionStatus = (): UseSocketConnectionStatus => {
     stompClientRef.current = new Client({
       brokerURL: undefined, // use webSocketFactory with SockJS
       webSocketFactory: () => socket,
-      debug: (str: string) => console.log(str),
+      debug: (str: string) => //console.log(str),
       connectHeaders: {},
       onConnect: () => {
-        console.log("Connected to WebSocket server");
+        //console.log("Connected to WebSocket server");
         setIsConnected(true);
       },
       onDisconnect: () => {
-        console.log("Disconnected from WebSocket server");
+        //console.log("Disconnected from WebSocket server");
         setIsConnected(false);
       },
       onStompError: (frame: any) => {

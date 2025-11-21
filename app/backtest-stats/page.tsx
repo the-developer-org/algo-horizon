@@ -25,7 +25,7 @@ export default function BackTestStatsPage() {
     try {
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
       const response = await axios.get(`${backEndBaseUrl}/api/chart-historical-data/back-test-stats`);
-      console.log('API Response:', response.data.backTestStats); // Debug log
+      //console.log('API Response:', response.data.backTestStats); // Debug log
       
       // Store raw response for debugging
       setRawApiResponse(response.data.backTestStats);

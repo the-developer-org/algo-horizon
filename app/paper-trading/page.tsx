@@ -146,10 +146,10 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
   useEffect(() => {
     const interval = setInterval(() => {
       if (isMarketHours()) {
-        console.log('Market hours - Auto-refreshing paper trading data');
+        //console.log('Market hours - Auto-refreshing paper trading data');
         fetchData();
       } else {
-        console.log('Outside market hours - Skipping auto-refresh');
+        //console.log('Outside market hours - Skipping auto-refresh');
       }
     }, 5 * 60 * 1000); // 5 minutes in milliseconds
 
@@ -218,15 +218,15 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
     setIsCreatingAccount(true);
     
     try {
-      console.log(`🚀 Creating account: ${newAccountName}`);
-      console.log(`📡 API URL: ${API_BASE}/create/${newAccountName}`);
+      //console.log(`🚀 Creating account: ${newAccountName}`);
+      //console.log(`📡 API URL: ${API_BASE}/create/${newAccountName}`);
       
       // Make API call to create the account
       const response = await axios.post(`${API_BASE}/create/${newAccountName}`);
       
-      console.log('📥 API Response:', response);
-      console.log('📊 Response Status:', response.status);
-      console.log('📄 Response Data:', response.data);
+      //console.log('📥 API Response:', response);
+      //console.log('📊 Response Status:', response.status);
+      //console.log('📄 Response Data:', response.data);
       
       // Check for successful response (status 200-299 range)
       if (response.status >= 200 && response.status < 300) {
@@ -251,7 +251,7 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
         handleRefresh();
         
         // Additional success feedback
-        console.log(`✅ Successfully created account: ${newAccountName}`);
+        //console.log(`✅ Successfully created account: ${newAccountName}`);
       } else {
         console.error('❌ Unexpected response status:', response.status);
         toast.error(`❌ Failed to create account. Status: ${response.status}`);

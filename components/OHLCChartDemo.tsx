@@ -249,7 +249,7 @@ export const OHLCChartDemo: React.FC = () => {
     }
 
     // Calculate EMA8 and EMA30 for the candles
-    console.log(`🔄 Calculating EMA for ${candlesToProcess.length} candles`);
+    //console.log(`🔄 Calculating EMA for ${candlesToProcess.length} candles`);
     const candlesWithEMA = [...candlesToProcess];
     
     // Calculate EMA8
@@ -316,7 +316,7 @@ export const OHLCChartDemo: React.FC = () => {
     const timeParam = searchParams.get('time');
 
     if (instrumentKeyParam && timeframeParam) {
-      console.log('🔗 Processing URL parameters:', { instrumentKeyParam, timeframeParam, dateParam, timeParam });
+      //console.log('🔗 Processing URL parameters:', { instrumentKeyParam, timeframeParam, dateParam, timeParam });
       
       // Validate timeframe
       const validTimeframes: Timeframe[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
@@ -337,7 +337,7 @@ export const OHLCChartDemo: React.FC = () => {
         return;
       }
 
-      console.log('✅ Found company for URL params:', { companyName, instrumentKeyParam, timeframeParam, dateParam, timeParam });
+      //console.log('✅ Found company for URL params:', { companyName, instrumentKeyParam, timeframeParam, dateParam, timeParam });
       
       // Set the state
       setSelectedCompany(companyName);
@@ -352,7 +352,7 @@ export const OHLCChartDemo: React.FC = () => {
       if (savedApiKey) {
         // Small delay to ensure state is set and then trigger data fetch
         setTimeout(() => {
-          console.log('🚀 Auto-loading data from URL parameters');
+          //console.log('🚀 Auto-loading data from URL parameters');
           // Trigger button click to fetch data
           const fetchButton = document.querySelector('[data-testid="fetch-button"]') as HTMLButtonElement;
           if (fetchButton && !fetchButton.disabled) {
@@ -383,7 +383,7 @@ export const OHLCChartDemo: React.FC = () => {
   useEffect(() => {
     if (candles.length === 0) return;
 
-    console.log(`🔄 EMA toggle changed to: ${emaCalculation}, recalculating for ${candles.length} candles`);
+    //console.log(`🔄 EMA toggle changed to: ${emaCalculation}, recalculating for ${candles.length} candles`);
     setIsCalculatingEMA(true);
     
     try {
@@ -393,7 +393,7 @@ export const OHLCChartDemo: React.FC = () => {
       // Log sample EMA values for debugging
       if (updatedCandles.length > 0) {
         const sample = updatedCandles[Math.min(10, updatedCandles.length - 1)];
-        console.log(`📊 Sample EMA values: ema8=${sample.ema8}, ema30=${sample.ema30}, showEMA=${emaCalculation}`);
+        //console.log(`📊 Sample EMA values: ema8=${sample.ema8}, ema30=${sample.ema30}, showEMA=${emaCalculation}`);
       }
       
       setCandles(updatedCandles);
@@ -403,7 +403,7 @@ export const OHLCChartDemo: React.FC = () => {
         duration: 2000
       });
       
-      console.log(`✅ EMA recalculation completed`);
+      //console.log(`✅ EMA recalculation completed`);
     } catch (error) {
       console.error('Error recalculating EMA:', error);
       toast.error('Failed to update EMA calculations');
@@ -417,7 +417,7 @@ export const OHLCChartDemo: React.FC = () => {
     return () => {
       // Only cleanup on component unmount
       if (progressiveAbortController) {
-        console.log('🧹 Cleaning up progressive loading on component unmount');
+        //console.log('🧹 Cleaning up progressive loading on component unmount');
         progressiveAbortController.abort();
       }
     };
@@ -431,11 +431,11 @@ export const OHLCChartDemo: React.FC = () => {
     const currentKey = selectedInstrumentKey;
     const previousKey = prevInstrumentKeyRef.current;
     
-    console.log(`🔍 Company change check: previous="${previousKey}", current="${currentKey}", hasAbortController=${!!progressiveAbortController}`);
+    //console.log(`🔍 Company change check: previous="${previousKey}", current="${currentKey}", hasAbortController=${!!progressiveAbortController}`);
     
     // Only abort if we have a previous key and it's different from current
     if (previousKey && previousKey !== currentKey && progressiveAbortController) {
-      console.log(`🔄 Aborting progressive loading due to company change: ${previousKey} → ${currentKey}`);
+      //console.log(`🔄 Aborting progressive loading due to company change: ${previousKey} → ${currentKey}`);
       progressiveAbortController.abort();
       setProgressiveAbortController(null);
       setIsProgressiveLoading(false);
@@ -457,7 +457,7 @@ export const OHLCChartDemo: React.FC = () => {
       // Replace - with | for the API call
       const apiInstrumentKey = instrumentKey.replace(/-/g, '|');
       
-      console.log('🗓️ Fetching entry dates for:', apiInstrumentKey);
+      //console.log('🗓️ Fetching entry dates for:', apiInstrumentKey);
       
      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -478,7 +478,7 @@ export const OHLCChartDemo: React.FC = () => {
       if (data.entryDates && Array.isArray(data.entryDates)) {
         
         setStrykeEntryDates(data.entryDates);
-        console.log('✅ Entry dates fetched successfully:', data.entryDates.length, 'dates');
+        //console.log('✅ Entry dates fetched successfully:', data.entryDates.length, 'dates');
       } else {
         console.warn('No entry dates found in response');
         setStrykeEntryDates([]);
@@ -517,7 +517,7 @@ export const OHLCChartDemo: React.FC = () => {
     }
 
     try {
-      console.log(`🔍 Starting date/time filtering with maxDate=${maxDate}, maxTime=${maxTime}`);
+      //console.log(`🔍 Starting date/time filtering with maxDate=${maxDate}, maxTime=${maxTime}`);
       
       // Parse the time with proper format (add seconds if missing)
       const timeWithSeconds = maxTime.includes(':') && maxTime.split(':').length === 2 
@@ -533,9 +533,9 @@ export const OHLCChartDemo: React.FC = () => {
         return candlesToFilter;
       }
 
-      console.log(`🔍 Filtering candles: showing data up to ${maxDateTime.toISOString()}`);
-      console.log(`🔍 Sample candle timestamps:`, candlesToFilter.slice(0, 3).map(c => c.timestamp));
-      console.log(`🔍 Sample candle timestamps (last 3):`, candlesToFilter.slice(-3).map(c => c.timestamp));
+      //console.log(`🔍 Filtering candles: showing data up to ${maxDateTime.toISOString()}`);
+      //console.log(`🔍 Sample candle timestamps:`, candlesToFilter.slice(0, 3).map(c => c.timestamp));
+      //console.log(`🔍 Sample candle timestamps (last 3):`, candlesToFilter.slice(-3).map(c => c.timestamp));
       
       // Filter candles to only include those with timestamps before or equal to maxDateTime
       const filteredCandles = candlesToFilter.filter((candle, index) => {
@@ -544,7 +544,7 @@ export const OHLCChartDemo: React.FC = () => {
         
         // Log first few comparisons for debugging
         if (index < 3) {
-          console.log(`🔍 Comparing #${index}:`, {
+          //console.log(`🔍 Comparing #${index}:`, {
             candleTime: candleTime.toISOString(),
             maxDateTime: maxDateTime.toISOString(),
             comparison: isBeforeMax,
@@ -555,11 +555,11 @@ export const OHLCChartDemo: React.FC = () => {
         return isBeforeMax;
       });
 
-      console.log(`✅ Filtered ${candlesToFilter.length} candles down to ${filteredCandles.length} candles`);
+      //console.log(`✅ Filtered ${candlesToFilter.length} candles down to ${filteredCandles.length} candles`);
       
       if (filteredCandles.length === 0 && candlesToFilter.length > 0) {
         console.warn(`⚠️ All candles filtered out! This suggests a timezone or date format issue.`);
-        console.log(`Debug info:`, {
+        //console.log(`Debug info:`, {
           maxDate,
           maxTime,
           timeWithSeconds,
@@ -579,7 +579,7 @@ export const OHLCChartDemo: React.FC = () => {
   // Re-apply date/time filtering when parameters change
   useEffect(() => {
     if (rawCandles.length > 0) {
-      console.log(`🔄 Re-applying date/time filter: date=${maxDate}, time=${maxTime}`);
+      //console.log(`🔄 Re-applying date/time filter: date=${maxDate}, time=${maxTime}`);
       const timeframeProcessedData = processTimeframeData(rawCandles, selectedTimeframe);
       const emaProcessedCandles = applyEMAToCandles(timeframeProcessedData);
       const filteredCandles = filterCandlesByDateTime(emaProcessedCandles);
@@ -595,7 +595,7 @@ export const OHLCChartDemo: React.FC = () => {
     
     // Keep the most recent candles for better performance
     const recentCandles = candles.slice(-MAX_CANDLES_FOR_CHART);
-    console.log(`Performance optimization: Showing ${recentCandles.length} of ${candles.length} candles`);
+    //console.log(`Performance optimization: Showing ${recentCandles.length} of ${candles.length} candles`);
     return recentCandles;
   }, [candles]);
 
@@ -617,11 +617,11 @@ export const OHLCChartDemo: React.FC = () => {
 
   // Progressive loading function for initial data loads
   const fetchCandlesProgressively = useCallback(async (): Promise<void> => {
-    console.log(`🚀 Starting progressive loading for ${selectedTimeframe}`);
+    //console.log(`🚀 Starting progressive loading for ${selectedTimeframe}`);
     
     // Prevent multiple concurrent progressive loading operations
     if (isProgressiveLoading) {
-      console.log('⚠️ Progressive loading already in progress, skipping');
+      //console.log('⚠️ Progressive loading already in progress, skipping');
       return;
     }
     
@@ -639,17 +639,17 @@ export const OHLCChartDemo: React.FC = () => {
 
     // Cancel any existing progressive loading
     if (progressiveAbortController) {
-      console.log('🛑 Cancelling existing progressive loading before starting new one');
+      //console.log('🛑 Cancelling existing progressive loading before starting new one');
       progressiveAbortController.abort();
     }
 
     const abortController = new AbortController();
-    console.log('🚀 Created new abort controller for progressive loading');
+    //console.log('🚀 Created new abort controller for progressive loading');
     setProgressiveAbortController(abortController);
 
     // Check if already aborted (edge case)
     if (abortController.signal.aborted) {
-      console.log('🛑 Progressive loading aborted before starting (edge case)');
+      //console.log('🛑 Progressive loading aborted before starting (edge case)');
       return;
     }
 
@@ -666,13 +666,13 @@ export const OHLCChartDemo: React.FC = () => {
 
     try {
       const lastTradingDay = getLastTradingDay(new Date());
-      console.log(`📅 Using last trading day: ${lastTradingDay.toISOString()}`);
+      //console.log(`📅 Using last trading day: ${lastTradingDay.toISOString()}`);
       
       const dateRanges = calculateProgressiveDateRanges(selectedTimeframe, lastTradingDay);
       
       setProgressiveLoadingProgress({ loaded: 0, total: dateRanges.length });
       
-      console.log(`📅 Progressive loading: ${dateRanges.length} batches planned for ${selectedTimeframe}`, {
+      //console.log(`📅 Progressive loading: ${dateRanges.length} batches planned for ${selectedTimeframe}`, {
         firstBatch: dateRanges[0] ? {
           from: dateRanges[0].from.toISOString(),
           to: dateRanges[0].to.toISOString()
@@ -689,8 +689,8 @@ export const OHLCChartDemo: React.FC = () => {
       for (const range of dateRanges) {
         // Check if aborted
         if (abortController.signal.aborted) {
-          console.log('🛑 Progressive loading aborted during batch processing - checking abort reason');
-          console.log('🛑 Abort signal details:', {
+          //console.log('🛑 Progressive loading aborted during batch processing - checking abort reason');
+          //console.log('🛑 Abort signal details:', {
             aborted: abortController.signal.aborted,
             reason: abortController.signal.reason
           });
@@ -707,7 +707,7 @@ export const OHLCChartDemo: React.FC = () => {
             limit: PROGRESSIVE_BATCH_CONFIG[selectedTimeframe].batchSize
           };
 
-          console.log(`📦 Loading batch ${batchCount + 1}/${dateRanges.length}:`, {
+          //console.log(`📦 Loading batch ${batchCount + 1}/${dateRanges.length}:`, {
             from: range.from.toISOString(),
             to: range.to.toISOString(),
             timeframe: selectedTimeframe,
@@ -719,7 +719,7 @@ export const OHLCChartDemo: React.FC = () => {
 
           // Check if aborted after API call
           if (abortController.signal.aborted) {
-            console.log('🛑 Progressive loading aborted after API call, before processing');
+            //console.log('🛑 Progressive loading aborted after API call, before processing');
             return;
           }
 
@@ -782,9 +782,9 @@ export const OHLCChartDemo: React.FC = () => {
               setAvgVolume(avgVol);
             }
 
-            console.log(`✅ Batch ${batchCount}/${dateRanges.length} loaded: ${sortedCandles.length} candles, total: ${allCandles.length}`);
+            //console.log(`✅ Batch ${batchCount}/${dateRanges.length} loaded: ${sortedCandles.length} candles, total: ${allCandles.length}`);
           } else {
-            console.log(`⚠️ Batch ${batchCount + 1} returned no data`);
+            //console.log(`⚠️ Batch ${batchCount + 1} returned no data`);
           }
 
           // Small delay between batches to prevent overwhelming the API
@@ -797,7 +797,7 @@ export const OHLCChartDemo: React.FC = () => {
           
           // Check if error is due to abort
           if (abortController.signal.aborted) {
-            console.log('🛑 Progressive loading aborted during batch processing');
+            //console.log('🛑 Progressive loading aborted during batch processing');
             return;
           }
           
@@ -806,7 +806,7 @@ export const OHLCChartDemo: React.FC = () => {
             batchError.message.includes('aborted') ||
             batchError.message.includes('cancelled')
           )) {
-            console.log('🛑 Batch loading cancelled');
+            //console.log('🛑 Batch loading cancelled');
             return;
           }
           
@@ -820,7 +820,7 @@ export const OHLCChartDemo: React.FC = () => {
       setOldestCandleTime(allCandles[0]?.timestamp);
       setNewestCandleTime(allCandles[allCandles.length - 1]?.timestamp);
       
-      console.log(`🎉 Progressive loading completed: ${allCandles.length} total candles loaded`);
+      //console.log(`🎉 Progressive loading completed: ${allCandles.length} total candles loaded`);
       toast.success(`Progressive loading complete: ${allCandles.length} candles loaded`);
 
     } catch (error) {
@@ -832,7 +832,7 @@ export const OHLCChartDemo: React.FC = () => {
         error.message.includes('cancelled') ||
         abortController.signal.aborted
       )) {
-        console.log('🛑 Progressive loading was cancelled');
+        //console.log('🛑 Progressive loading was cancelled');
         toast.error('Data loading cancelled');
       } else {
         console.error('❌ Unexpected progressive loading error:', error);
@@ -845,10 +845,10 @@ export const OHLCChartDemo: React.FC = () => {
       
       // Only clear abort controller if it's the current one we created
       if (progressiveAbortController === abortController) {
-        console.log('🧹 Cleaning up abort controller from progressive loading completion');
+        //console.log('🧹 Cleaning up abort controller from progressive loading completion');
         setProgressiveAbortController(null);
       } else {
-        console.log('⚠️ Abort controller has changed, not clearing it');
+        //console.log('⚠️ Abort controller has changed, not clearing it');
       }
       
       setVixData([]); // Clear any VIX data
@@ -885,7 +885,7 @@ export const OHLCChartDemo: React.FC = () => {
       loadingMessage = 'Loading data...'
     } = options;
 
-    console.log(`🚀 fetchCandles called with mode: ${mode}`, { 
+    //console.log(`🚀 fetchCandles called with mode: ${mode}`, { 
       selectedCompany, 
       selectedInstrumentKey, 
       timeframe,
@@ -955,7 +955,7 @@ export const OHLCChartDemo: React.FC = () => {
         from = calculateFromDate(new Date(lastTradingDay), timeframe);
       }
       
-      console.log(`📅 Date range calculation for ${mode}:`, {
+      //console.log(`📅 Date range calculation for ${mode}:`, {
         timeframe,
         from: from.toISOString(),
         to: to,
@@ -986,7 +986,7 @@ export const OHLCChartDemo: React.FC = () => {
             return timeA - timeB;
           });
 
-        console.log(`🔄 Processing ${sortedCandles.length} candles with indicators for ${mode}`);
+        //console.log(`🔄 Processing ${sortedCandles.length} candles with indicators for ${mode}`);
         const processedCandles = calculateIndicators(sortedCandles, 200, 14, false);
         
         // Handle different merge strategies based on mode
@@ -1006,7 +1006,7 @@ export const OHLCChartDemo: React.FC = () => {
             ? uniqueCandles.slice(-maxStoredCandles)
             : uniqueCandles;
             
-          console.log(`Memory optimization: Storing ${finalRawCandles.length} of ${uniqueCandles.length} total candles`);
+          //console.log(`Memory optimization: Storing ${finalRawCandles.length} of ${uniqueCandles.length} total candles`);
         } else {
           // Fresh data for initial and timeframe-change
           finalRawCandles = processedCandles;
@@ -1175,7 +1175,7 @@ export const OHLCChartDemo: React.FC = () => {
       // Use existing data and process it for the new timeframe
       try {
         const processedCandles = processTimeframeData(rawCandles, newTimeframe);
-        console.log(`🔄 Processing ${processedCandles.length} candles with indicators during timeframe change`);
+        //console.log(`🔄 Processing ${processedCandles.length} candles with indicators during timeframe change`);
         const candlesWithIndicators = calculateIndicators(processedCandles, 200, 14, false);
         
         // Apply EMA based on current toggle state

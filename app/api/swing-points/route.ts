@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
     try {
         const {lookback = 5, instrumentKey, companyName, fromDate, timeFrameSelection} = await request.json();
 
-        console.log('🎯 SWING POINTS API CALLED');
-        console.log('📝 Request params:', { instrumentKey, companyName, fromDate, lookback });
+        //console.log('🎯 SWING POINTS API CALLED');
+        //console.log('📝 Request params:', { instrumentKey, companyName, fromDate, lookback });
 
         debugger
         if (!instrumentKey || !companyName) {

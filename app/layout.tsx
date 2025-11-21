@@ -7,6 +7,7 @@ import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { MainSidebar } from "../components/main-sidebar";
+import { DeepDiveProvider } from "@/context/DeepDiveContext";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -91,17 +92,19 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
 
   // Only render main app for authenticated users
   return (
-    <SidebarProvider>
-      <Toaster position="top-right" />
-      <div className="flex min-h-screen w-full bg-gray-50">
-        {!isUpstoxPage && (
-          <MainSidebar isVisible={sidebarVisible} onToggleVisibility={toggleSidebar} />
-        )}
-        <div className="flex-1 overflow-y-auto">
-          {children}
+    <DeepDiveProvider>
+      <SidebarProvider>
+        <Toaster position="top-right" />
+        <div className="flex min-h-screen w-full bg-gray-50">
+          {!isUpstoxPage && (
+            <MainSidebar isVisible={sidebarVisible} onToggleVisibility={toggleSidebar} />
+          )}
+          <div className="flex-1 overflow-y-auto">
+            {children}
+          </div>
         </div>
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </DeepDiveProvider>
   );
 }
 

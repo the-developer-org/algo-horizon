@@ -35,7 +35,7 @@ export function WatchListModal({ isOpen, instrumentKey, onClose, fetchHistorical
     }, [isOpen]);
 
     useEffect(() => {
-        console.log("optionType", optionType)
+        //console.log("optionType", optionType)
     }, [optionType])
 
 

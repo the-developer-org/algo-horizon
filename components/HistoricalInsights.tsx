@@ -263,6 +263,7 @@ export const HistoricalInsights = ({ liveData }: Props) => {
                 (response.currentRSI < numericFilters.rsi.min ||
                   response.currentRSI > numericFilters.rsi.max);
 
+              /*
               console.log('RSI Filter:', {
                 isActive: activeFilters.includes("RSI"),
                 currentRSI: response.currentRSI,
@@ -270,6 +271,7 @@ export const HistoricalInsights = ({ liveData }: Props) => {
                 max: numericFilters.rsi.max,
                 isFiltered: isRsiFiltered
               });
+              */
 
               return (
                 !isHidden &&

@@ -32,7 +32,7 @@ export function getUpstoxConfigForUser(params: { userId?: string | null;  }): Up
     const clientSecret = process.env[`UPSTOX_CLIENT_SECRET_${key}`];
     
     if (cid && ruri) {
-      console.log(`[Upstox Config] Resolved config for userId ${userId} with key ${key}`);
+      //console.log(`[Upstox Config] Resolved config for userId ${userId} with key ${key}`);
       return { clientId: cid, redirectUri: ruri, clientSecret };
     }
     
@@ -42,7 +42,7 @@ export function getUpstoxConfigForUser(params: { userId?: string | null;  }): Up
     const fallbackSecret = process.env[`UPSTOX_CLIENT_SECRET_${key}`];
     
     if (fallbackCid && fallbackRuri) {
-      console.log(`[Upstox Config] Using fallback config for userId ${userId} with key ${key}`);
+      //console.log(`[Upstox Config] Using fallback config for userId ${userId} with key ${key}`);
       return { clientId: fallbackCid, redirectUri: fallbackRuri, clientSecret: fallbackSecret };
     }
   }
@@ -53,7 +53,7 @@ export function getUpstoxConfigForUser(params: { userId?: string | null;  }): Up
   const globalSecret = process.env[`UPSTOX_CLIENT_SECRET`];
   
   if (globalClientId && globalRedirect) {
-    console.log(`[Upstox Config] Using global fallback config`);
+    //console.log(`[Upstox Config] Using global fallback config`);
     return { clientId: globalClientId, redirectUri: globalRedirect, clientSecret: globalSecret };
   }
 

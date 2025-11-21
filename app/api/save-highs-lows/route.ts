@@ -5,9 +5,9 @@ export async function POST(request: NextRequest) {
     const { data, timeframeYears, processedAt } = await request.json();
 
     // Log the received data for debugging
-    console.log(`📥 Received highs/lows data for ${data.length} companies`);
-    console.log(`🕐 Processed at: ${processedAt}`);
-    console.log(`📅 Timeframe: ${timeframeYears} years`);
+    //console.log(`📥 Received highs/lows data for ${data.length} companies`);
+    //console.log(`🕐 Processed at: ${processedAt}`);
+    //console.log(`📅 Timeframe: ${timeframeYears} years`);
 
     // Here you would typically save to your database
     // For now, we'll just log and return success
@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
     };
 
     // Log sample of the data structure
-    console.log('📊 Sample processed company data:', data[0]);
-    console.log('📈 Processing summary:', summary);
+    //console.log('📊 Sample processed company data:', data[0]);
+    //console.log('📈 Processing summary:', summary);
 
     // In a real implementation, you would save to your database here
     // Example:

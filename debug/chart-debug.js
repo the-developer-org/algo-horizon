@@ -1,7 +1,7 @@
 // Test script to validate chart timeframe handling and timezone consistency
 // Run this in browser console to debug chart distortion issues
 
-console.log('=== Chart Timeframe & Timezone Debug Test ===');
+//console.log('=== Chart Timeframe & Timezone Debug Test ===');
 
 // Test timestamp normalization function
 function normalizeTimestamp(timestamp) {
@@ -13,12 +13,12 @@ function normalizeTimestamp(timestamp) {
   const utcTime = new Date(normalizedTimestamp).getTime();
   const unixTime = Math.floor(utcTime / 1000);
   
-  console.log('Original:', timestamp);
-  console.log('Normalized:', normalizedTimestamp);
-  console.log('UTC Time:', utcTime);
-  console.log('Unix Time:', unixTime);
-  console.log('Back to Date:', new Date(unixTime * 1000).toISOString());
-  console.log('---');
+  //console.log('Original:', timestamp);
+  //console.log('Normalized:', normalizedTimestamp);
+  //console.log('UTC Time:', utcTime);
+  //console.log('Unix Time:', unixTime);
+  //console.log('Back to Date:', new Date(unixTime * 1000).toISOString());
+  //console.log('---');
   
   return unixTime;
 }
@@ -32,13 +32,13 @@ const testTimestamps = [
   '2024-01-15T09:30:00-05:00'     // EST timezone
 ];
 
-console.log('Testing timestamp normalization:');
+//console.log('Testing timestamp normalization:');
 testTimestamps.forEach(ts => normalizeTimestamp(ts));
 
 // Function to test chart data consistency
 function validateChartData(candles) {
-  console.log('=== Chart Data Validation ===');
-  console.log('Total candles:', candles.length);
+  //console.log('=== Chart Data Validation ===');
+  //console.log('Total candles:', candles.length);
   
   if (candles.length === 0) {
     console.warn('No candles to validate');
@@ -52,7 +52,7 @@ function validateChartData(candles) {
   if (timestamps.length !== uniqueTimestamps.length) {
     console.error('Duplicate timestamps detected:', timestamps.length - uniqueTimestamps.length, 'duplicates');
   } else {
-    console.log('✓ No duplicate timestamps');
+    //console.log('✓ No duplicate timestamps');
   }
   
   // Check timestamp ordering
@@ -70,7 +70,7 @@ function validateChartData(candles) {
   }
   
   if (isOrdered) {
-    console.log('✓ Timestamps are in ascending order');
+    //console.log('✓ Timestamps are in ascending order');
   }
   
   // Check for invalid OHLC values
@@ -84,7 +84,7 @@ function validateChartData(candles) {
     console.error('Invalid OHLC data detected:', invalidCandles.length, 'candles');
     console.error('First invalid candle:', invalidCandles[0]);
   } else {
-    console.log('✓ All OHLC data is valid');
+    //console.log('✓ All OHLC data is valid');
   }
   
   // Check timeframe consistency
@@ -99,7 +99,7 @@ function validateChartData(candles) {
     const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
     const intervalMinutes = avgInterval / (1000 * 60);
     
-    console.log('Average interval between candles:', intervalMinutes.toFixed(2), 'minutes');
+    //console.log('Average interval between candles:', intervalMinutes.toFixed(2), 'minutes');
     
     // Check for irregular intervals
     const irregularIntervals = intervals.filter(interval => 
@@ -109,24 +109,24 @@ function validateChartData(candles) {
     if (irregularIntervals.length > 0) {
       console.warn('Irregular intervals detected:', irregularIntervals.length, 'out of', intervals.length);
     } else {
-      console.log('✓ Intervals are consistent');
+      //console.log('✓ Intervals are consistent');
     }
   }
 }
 
 // Function to test timeframe switching
 function testTimeframeSwitching() {
-  console.log('=== Timeframe Switching Test ===');
+  //console.log('=== Timeframe Switching Test ===');
   
   const timeframes = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
   
   timeframes.forEach(tf => {
-    console.log(`Testing timeframe: ${tf}`);
+    //console.log(`Testing timeframe: ${tf}`);
     
     // Check if the timeframe button exists and is clickable
     const button = document.querySelector(`button[title*="${tf}"]`);
     if (button) {
-      console.log(`✓ ${tf} button found`);
+      //console.log(`✓ ${tf} button found`);
     } else {
       console.warn(`⚠ ${tf} button not found`);
     }
@@ -140,5 +140,5 @@ window.chartDebug = {
   testTimeframeSwitching
 };
 
-console.log('Chart debug functions available as window.chartDebug');
-console.log('Usage: window.chartDebug.validateChartData(yourCandlesArray)');
+//console.log('Chart debug functions available as window.chartDebug');
+//console.log('Usage: window.chartDebug.validateChartData(yourCandlesArray)');

@@ -33,7 +33,7 @@ export interface SwingPoint {
 // Function to calculate swing points directly from OHLC data
 export const calculateSwingPointsFromCandles = (candles: Candle[], lookback: number = 5): SwingPoint[] => {
     if (candles.length < lookback * 2 + 1) {
-        //console.log('❌ Insufficient candles for swing point calculation');
+        ////console.log('❌ Insufficient candles for swing point calculation');
         return [];
     }
 
@@ -254,15 +254,15 @@ export const calculateSwingPointsFromCandles = (candles: Candle[], lookback: num
 
     // //console log all swing points in descending order by price
     if (finalSwingPoints.length > 0) {
-        //console.log('\n🔥 SWING POINTS ANALYSIS (Calculated from OHLC - Descending Order by Price):');
-        //console.log('=' .repeat(70));
+        ////console.log('\n🔥 SWING POINTS ANALYSIS (Calculated from OHLC - Descending Order by Price):');
+        ////console.log('=' .repeat(70));
         
         const sortedSwingPoints = [...finalSwingPoints].sort((a, b) => b.price - a.price);
         
         sortedSwingPoints.forEach((point, index) => {
             const date = new Date(point.timestamp).toLocaleDateString();
             const time = new Date(point.timestamp).toLocaleTimeString();
-            //console.log(`${index + 1}. ${point.label} - ₹${point.price.toFixed(2)} | ${date} ${time} | Candle #${point.index}`);
+            ////console.log(`${index + 1}. ${point.label} - ₹${point.price.toFixed(2)} | ${date} ${time} | Candle #${point.index}`);
         });
         
         // Separate swing points by type
@@ -271,19 +271,19 @@ export const calculateSwingPointsFromCandles = (candles: Candle[], lookback: num
         const hlPoints = finalSwingPoints.filter(p => p.label === 'HL');
         const llPoints = finalSwingPoints.filter(p => p.label === 'LL');
         
-        //console.log('\n📊 SWING POINTS BY TYPE:');
-        //console.log(`🟢 HH (Higher Highs): ${hhPoints.length} points`);
-        //console.log(`🔴 LH (Lower Highs): ${lhPoints.length} points`);
-        //console.log(`🟡 HL (Higher Lows): ${hlPoints.length} points`);
-        //console.log(`🔵 LL (Lower Lows): ${llPoints.length} points`);
+        ////console.log('\n📊 SWING POINTS BY TYPE:');
+        ////console.log(`🟢 HH (Higher Highs): ${hhPoints.length} points`);
+        ////console.log(`🔴 LH (Lower Highs): ${lhPoints.length} points`);
+        ////console.log(`🟡 HL (Higher Lows): ${hlPoints.length} points`);
+        ////console.log(`🔵 LL (Lower Lows): ${llPoints.length} points`);
         
-        //console.log('\n📅 SWING POINTS CHRONOLOGICAL ORDER:');
+        ////console.log('\n📅 SWING POINTS CHRONOLOGICAL ORDER:');
         finalSwingPoints.forEach((point, index) => {
             const date = new Date(point.timestamp).toLocaleDateString();
             const time = new Date(point.timestamp).toLocaleTimeString();
-            //console.log(`${index + 1}. ${point.label} - ₹${point.price.toFixed(2)} | ${date} ${time} | Candle #${point.index}`);
+            ////console.log(`${index + 1}. ${point.label} - ₹${point.price.toFixed(2)} | ${date} ${time} | Candle #${point.index}`);
         });
-        //console.log('=' .repeat(70));
+        ////console.log('=' .repeat(70));
     }
     
     return finalSwingPoints;

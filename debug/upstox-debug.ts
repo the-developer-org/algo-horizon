@@ -17,21 +17,21 @@ export const debugUpstoxUrl = (
   
   const url = `https://api.upstox.com/v3/historical-candle/${encodedInstrumentKey}/${unit}/${interval}/${toDate}/${fromDate}`;
   
-  console.log('=== Upstox API Debug ===');
-  console.log('Original instrument key:', instrumentKey);
-  console.log('Encoded instrument key:', encodedInstrumentKey);
-  console.log('Unit:', unit);
-  console.log('Interval:', interval);
-  console.log('From date:', fromDate);
-  console.log('To date:', toDate);
-  console.log('Final URL:', url);
-  console.log('URL length:', url.length);
+  //console.log('=== Upstox API Debug ===');
+  //console.log('Original instrument key:', instrumentKey);
+  //console.log('Encoded instrument key:', encodedInstrumentKey);
+  //console.log('Unit:', unit);
+  //console.log('Interval:', interval);
+  //console.log('From date:', fromDate);
+  //console.log('To date:', toDate);
+  //console.log('Final URL:', url);
+  //console.log('URL length:', url.length);
   
   // Check date range
   const fromDateObj = new Date(fromDate);
   const toDateObj = new Date(toDate);
   const daysDiff = Math.abs((toDateObj.getTime() - fromDateObj.getTime()) / (1000 * 60 * 60 * 24));
-  console.log('Date range (days):', daysDiff);
+  //console.log('Date range (days):', daysDiff);
   
   // Validate URL components
   const issues = [];
@@ -48,7 +48,7 @@ export const debugUpstoxUrl = (
   if (issues.length > 0) {
     console.warn('Potential issues:', issues);
   } else {
-    console.log('✅ URL appears valid');
+    //console.log('✅ URL appears valid');
   }
   
   return {
@@ -63,7 +63,7 @@ export const debugUpstoxUrl = (
 
 // Test with common scenarios
 export const runDebugTests = () => {
-  console.log('\n=== Running Debug Tests ===\n');
+  //console.log('\n=== Running Debug Tests ===\n');
   
   const testCases = [
     {
@@ -87,7 +87,7 @@ export const runDebugTests = () => {
   ];
   
   testCases.forEach((testCase, index) => {
-    console.log(`\n--- Test Case ${index + 1} ---`);
+    //console.log(`\n--- Test Case ${index + 1} ---`);
     debugUpstoxUrl(
       testCase.instrumentKey,
       testCase.timeframe,

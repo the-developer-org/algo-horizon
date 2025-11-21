@@ -183,7 +183,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
 
   const formatDateTime = (dateString: string) => {
     try {
-      //console.log('Original date string:', dateString, 'Type:', typeof dateString);
+      ////console.log('Original date string:', dateString, 'Type:', typeof dateString);
       
       // Check if dateString is valid
       if (!dateString || typeof dateString !== 'string') {
@@ -193,11 +193,11 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
       
       // Trim the date string to just YYYY-MM-DDTHH:MM format
       const trimmedDateString = dateString.substring(0, 16); // "2025-09-18T09:59"
-      //console.log('Trimmed date string:', trimmedDateString);
+      ////console.log('Trimmed date string:', trimmedDateString);
       
       const date = new Date(trimmedDateString);
-      //console.log('Parsed date object:', date);
-      //console.log('Date.getTime():', date.getTime());
+      ////console.log('Parsed date object:', date);
+      ////console.log('Date.getTime():', date.getTime());
       
       // Check if the date is valid
       if (isNaN(date.getTime())) {
@@ -213,7 +213,7 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
         minute: '2-digit',
         timeZone: 'Asia/Kolkata'
       });
-      //console.log('Formatted date:', formatted);
+      ////console.log('Formatted date:', formatted);
       return formatted;
     } catch (error) {
       //console.error('Error formatting date:', error, 'Original string:', dateString);

@@ -377,7 +377,7 @@ function HighsAndLowsInterface() {
       }
 
       const result = await response.json();
-      //console.log(`✅ Batch of ${processedData.length} companies saved to backend:`, result);
+      ////console.log(`✅ Batch of ${processedData.length} companies saved to backend:`, result);
       return result;
     } catch (error) {
       //console.error('❌ Error saving batch to backend:', error);
@@ -473,7 +473,7 @@ function HighsAndLowsInterface() {
         setCurrentAlphabetProcessed(0);
         setAlphabetDataMap({ [letter]: companies });
         
-        //console.log(`🔄 Starting Alphabet ${letter} with ${companies.length} companies`);
+        ////console.log(`🔄 Starting Alphabet ${letter} with ${companies.length} companies`);
 
          setCompletedSteps([0, 1]);
          setBatchProgress("")
@@ -536,7 +536,7 @@ function HighsAndLowsInterface() {
             
                   setSavedCount(prev => prev + batchProcessedData.length);
                   allprocessedDataLength += batchProcessedData.length;
-                  //console.log(`✅ Successfully saved batch of ${batchProcessedData.length} companies to backend`);
+                  ////console.log(`✅ Successfully saved batch of ${batchProcessedData.length} companies to backend`);
                 } catch (error) {
                   //console.error(`❌ Error saving batch to backend:`, error);
                 } finally {
@@ -562,7 +562,7 @@ function HighsAndLowsInterface() {
         
         // Mark this alphabet as completed ONLY after all companies are processed
         setProcessedAlphabets(prev => [...prev, letter]);
-        //console.log(`✅ Completed processing Alphabet ${letter} - processed ${alphabetCounter} companies`);
+        ////console.log(`✅ Completed processing Alphabet ${letter} - processed ${alphabetCounter} companies`);
         
         // Update step completion after each alphabet
         if (!completedSteps.includes(3)) {
@@ -580,8 +580,8 @@ function HighsAndLowsInterface() {
       setSavedCount(allprocessedDataLength); // All data is already saved
       setCompletedSteps([0, 1, 2, 3, 4, 5]);
 
-      //console.log(`🎉 Processing complete! Processed ${allprocessedDataLength} companies successfully.`);
-      //console.log(`Successfully processed ${allprocessedDataLength} companies with highs, lows, and swing points!`);
+      ////console.log(`🎉 Processing complete! Processed ${allprocessedDataLength} companies successfully.`);
+      ////console.log(`Successfully processed ${allprocessedDataLength} companies with highs, lows, and swing points!`);
 
     } catch (error) {
       console.error("Error during processing:", error);
@@ -1040,7 +1040,7 @@ export default function AdminActionsPage() {
         email: ''
       });
 
-      console.log('Gmail account save result:', result);
+      //console.log('Gmail account save result:', result);
       
     } catch (error) {
       console.error('Failed to save Gmail account:', error);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, use, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
@@ -10,205 +10,28 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { CallType } from '@/components/types/strike-analysis';
 import { fetchUpstoxIntradayData } from '@/components/utils/upstoxApi';
-import { set } from 'date-fns';
-
-// Define the Stryke interface based on the provided model
-interface Candle {
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  timestamp: string;
-  volume?: number;
-}
-
-interface SwingDTO {
-  timestamp: string;
-  candles: Candle[];
-  price: number;
-  label: string;
-  time: number
-}
-
-interface EMADTO {
-  // New backend shape: prefer these if available
-  ema8?: number | null;
-  ema30?: number | null;
-  ema200?: number | null;
-
-}
-
-interface SwingAnalysis {
-  minSwingProfits?: number;
-  maxSwingProfits?: number;
-  daysTakenForMaxSwingProfits?: number;
-  maxProfitCandle?: Candle;
-  algoEntryCandle?: Candle;
-  supportTouchCandle?: Candle;
-  resistanceTouchCandle?: Candle;
-  daysTakenForSupportTouch?: number;
-  daysTakenForResistanceTouch?: number;
-  algoSupport?: number;
-  algoResistance?: number;
-  currentSwing?: SwingDTO | null;
-  previousSwing?: SwingDTO | null;
-
-  emacross: EMACROSS;
- 
-
-}
-interface EMACROSS {
-  // New optional per-timeframe EMA DTOs returned by backend
-  emaDataDay?: EMADTO | null;
-  emaData4H?: EMADTO | null;
-  emaData1H?: EMADTO | null;
-  emaData15M?: EMADTO | null;
-  // Lists of ISO datetimes when EMA crossovers occurred (may be returned by backend)
-  emaCrossoverList1H?: string[] | null;
-  emaCrossoverList15M?: string[] | null;
-  emaCrossoverList4H?: string[] | null;
-  emaCrossoverListDay?: string[] | null;
-}
-
-interface FibAnalysis{
-  uuid: string;
-  companyName: string;
-  instrumentKey: string;
-  fibLevels: FibLevels;
-}
-
-interface FibLevels {
-  fibHealthyCandle?: Candle | null;
-  fib61Candle?: Candle | null;
-  fib78Candle?: Candle | null;
-  fib100Candle?: Candle | null;
-  fib161Candle?: Candle | null;
-  fib261Candle?: Candle | null;
-  fib423Candle?: Candle | null;
-  maxProfitCandle?: Candle | null;
-  maxLossCandle?: Candle | null;
-  fibHealthy?: number | null;
-  fib61?: number | null;
-  fib78?: number | null;
-  fib100?: number | null;
-  fib161?: number | null;
-  fib261?: number | null;
-  fib423?: number | null;
-  maxProfit?: number | null;
-  maxLoss?: number | null;
-}
-
-interface Stryke {
-  id: string;
-  instrumentKey: string;
-  companyName: string;
-  entryAt: string;
-  preEntryTrend: string;
-  postEntryTrend: string;
-  entryTimeZone: number;
-  callType: string;
-  entryTime: string;
-  preEntryMinuteCandles: Candle[];
-  postEntryMinuteCandles: Candle[];
-  preEntryDayCandles: Candle[];
-  postEntryDayCandles: Candle[];
-  entryDaysCandle: Candle;
-  entryCandle: Candle;
-  entryDayMinutesCandle: Candle;
-  rsi: number;
-
-
-  stopLoss: number;
-  target: number;
-  dipAfterEntry20M: boolean;
-  hitStopLoss: boolean;
-  hitTarget: boolean;
-  isInResistanceZone: boolean;
-  support: number;
-  resistance: number;
-  peakIn30M: number;
-  dipIn30M: number;
-  profit: number;
-  daysTakenToProfit: number;
-  loss: number;
-  daysTakenToLoss: number;
-  highestPrice: number;
-  lowestPrice: number;
-  maxDrawDownPercentage: number;
-  highestPriceTime: string;
-  lowestPriceTime: string;
-  remarks: string;
-  stockUuid: string;
-  lastClosingValue: number;
-  avgVolume: number;
-  dayStatsMap: { [key: string]: DayStats };
-  lastClosingValueDate: string;
-  inResistanceZone?: boolean;
-  onePercChangeMap: { [dateKey: string]: string }; // Map<LocalDate, LocalDateTime> equivalent in TypeScript
-
-  // New swing analysis structure
-  strykeSwingAnalysis?: SwingAnalysis;
-  algoSwingAnalysis?: SwingAnalysis;
-
-}
-
-interface DayStats {
-  peak: number;
-  dip: number;
-}
-
-interface StrykeListResponse {
-  swingStatsList: { [key: string]: AnalysisResponse[] };
-  statusText: string;
-}
-
-interface AnalysisResponse {
-  uuid: string;
-  label: string;
-  companyName: string;
-  instrumentKey: string;
-  entryTime: string;
-  entryCandleClose: number;
-  stopLoss: number;
-  target: number;
-  prevSwingLabel: string;
-  currentSwingLabel: string;
-  minSwingProfits: number;
-  maxSwingProfits: number;
-  daysTakenForMaxSwingProfits: number;
-  daysTakenForSupportTouch: number;
-  daysTakenForResistanceTouch: number;
-  daysTakenForAbsoluteProfits: number;
-  absoluteProfitsPercentage: number;
-  emacross: EMACROSS;
-  strykeType: string; // Add this field - expects "OLD" or "NEW"
-}
-
-
-interface metricsData {
-  minProfitsAchieved: number,
-  maxProfitsAchieved: number,
-  lessThanMinProfits: number,
-  supportsTouched: number,
-  resistancesTouched: number,
-  avgTimeTakenForProfits: number
-  ErGap_L3: number,
-  ErGap_G3: number
-  ER_Gap_AR: number
-
-  minProfitValue: number,
-  maxProfitValue: number,
-  avgProfitValue: number
-}
-
-
-// Define a type alias for filter order
-export type FilterOrder = 'asc' | 'desc' | null;
-export type TrendFilter = 'BULLISH' | 'BEARISH' | null;
+import {
+  Candle,
+  SwingDTO,
+  EMADTO,
+  SwingAnalysis,
+  EMACROSS,
+  FibAnalysis,
+  FibLevels,
+  Stryke,
+  DayStats,
+  StrykeListResponse,
+  AnalysisResponse,
+  metricsData,
+  FilterOrder,
+  TrendFilter
+} from '@/types/analysis';
+import { useDeepDive } from '@/context/DeepDiveContext';
 
 function StrikeAnalysisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { setDeepDiveData } = useDeepDive();
 
   // Get tab from URL parameter, default to 'form'
   const getInitialTab = () => {
@@ -287,6 +110,20 @@ function StrikeAnalysisContent() {
     resistanceSort: null as FilterOrder,
   });
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+
+  // Deep Dive view mode: NONE | RR_1_1 | RR_1_2
+  const [deepDiveMode, setDeepDiveMode] = useState<'NONE' | 'RR_1_1' | 'RR_1_2'>('NONE');
+
+  // Derived deep dive list based on current mode & existing filtered list
+  const deepDiveList = React.useMemo(() => {
+    if (deepDiveMode === 'NONE') return [] as AnalysisResponse[];
+    return filteredAnalysisList.filter(item => {
+      if (!item.analysisDeepDive) return false;
+      if (deepDiveMode === 'RR_1_1') return !!item.analysisDeepDive.swingLabels1;
+      if (deepDiveMode === 'RR_1_2') return !!item.analysisDeepDive.swingLabels2;
+      return false;
+    });
+  }, [deepDiveMode, filteredAnalysisList]);
 
   // Progressive loading state
   const [progressiveLoading, setProgressiveLoading] = useState(false);
@@ -564,10 +401,19 @@ function StrikeAnalysisContent() {
               // Update the UI immediately with new data
               setStrykeList(allStrykes);
 
-              // Update filtered lists with the new combined data
-              setFilteredAnalysisList((prev) => [...prev, ...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis]);
+              // Update filtered lists with the new combined data (deduplicate by UUID)
+              const combinedAnalysis = [...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis];
+              const uniqueAnalysis = combinedAnalysis.filter((item, index, self) =>
+                index === self.findIndex((t) => t.uuid === item.uuid)
+              );
+              setFilteredAnalysisList((prev) => {
+                const prevUnique = prev.filter((item, index, self) =>
+                  index === self.findIndex((t) => t.uuid === item.uuid)
+                );
+                return [...prevUnique, ...uniqueAnalysis];
+              });
 
-              console.log(`Loaded ${allStrykes.length} companies from alphabet ${alphabet}`);
+              //console.log(`Loaded ${allStrykes.length} companies from alphabet ${alphabet}`);
 
               // Reset consecutive failures on success
               consecutiveFailures = 0;
@@ -964,9 +810,9 @@ function StrikeAnalysisContent() {
   function calculateTimeDifference(startTime: string, endTime: string): number {
     const startDate = parseDateString(startTime);
     const endDate = parseDateString(endTime);
-    console.log('Start Date:', startDate);
-    console.log('End Date:', endDate);
-    console.log('Time Difference (minutes):', Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60)));
+    //console.log('Start Date:', startDate);
+    //console.log('End Date:', endDate);
+    //console.log('Time Difference (minutes):', Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60)));
     return Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60));
   }
 
@@ -1130,8 +976,8 @@ function StrikeAnalysisContent() {
         .filter(val => isFinite(val));
 
       // Debug: Check what fields are available in the analysis
-      console.log('Sample analysis object:', strykeDataWithAnalysis[0]?.analysis);
-      console.log('Available fields:', Object.keys(strykeDataWithAnalysis[0]?.analysis || {}));
+      //console.log('Sample analysis object:', strykeDataWithAnalysis[0]?.analysis);
+      //console.log('Available fields:', Object.keys(strykeDataWithAnalysis[0]?.analysis || {}));
 
       // Filter stocks where max profit is greater than ER (minSwingProfits) for time calculation
       const validStocksForTimeCalculation = strykeDataWithAnalysis.filter(item => {
@@ -1143,7 +989,7 @@ function StrikeAnalysisContent() {
       const timeTakenForProfits = validStocksForTimeCalculation
         .map(item => {
           const value = Number(item.analysis.daysTakenForMaxSwingProfits);
-          console.log(`Company: ${item.stryke.companyName}, daysTakenForMaxSwingProfits: ${item.analysis.daysTakenForMaxSwingProfits}, parsed: ${value}`);
+          //console.log(`Company: ${item.stryke.companyName}, daysTakenForMaxSwingProfits: ${item.analysis.daysTakenForMaxSwingProfits}, parsed: ${value}`);
           return value;
         })
         .filter(val => isFinite(val) && val >= 0);
@@ -1820,6 +1666,22 @@ function StrikeAnalysisContent() {
                     Reset Filters
                   </button>
 
+                  <div className="flex gap-2 ml-2">
+                    {!isLoading && (
+                      <button
+                        className="px-3 py-1 rounded-md bg-purple-500 hover:bg-purple-600 text-white transition-colors"
+                        onClick={() => {
+                          // Set data in context and navigate to deep-dive page
+                          setDeepDiveData(filteredAnalysisList);
+                          router.push('/deep-dive');
+                        }}
+                        title="Open Deep Dive Analysis"
+                      >
+                        Open Deep Dive
+                      </button>
+                    )}
+                  </div>
+
 
                   {/* Count */}
 
@@ -2000,6 +1862,8 @@ function StrikeAnalysisContent() {
                   </div>
 
                   <span className="text-lg font-bold">Count: {filteredAnalysisList.length}</span>
+
+
 
 
 
@@ -3397,12 +3261,12 @@ function StrikeAnalysisContent() {
                                 <td className="border border-gray-700 px-4 py-2 text-center align-middle">
 
                                   {stryke && (() => {
-                                    console.log('algoAnalysis:', stryke);
-                                    console.log('algoAnalysis.emacross:', stryke.emacross);
-                                    console.log('algoAnalysis.emacross.emaData1H:', stryke.emacross?.emaData1H);
+                                    //console.log('algoAnalysis:', stryke);
+                                    //console.log('algoAnalysis.emacross:', stryke.emacross);
+                                    //console.log('algoAnalysis.emacross.emaData1H:', stryke.emacross?.emaData1H);
 
                                     const cls = (stryke?.emacross?.emaData1H?.ema8 ?? 0) > (stryke?.entryCandleClose ?? 0) ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800';
-                                    console.log('Ema 1H-8', stryke?.emacross?.emaData1H?.ema8, stryke?.entryCandleClose, cls);
+                                    //console.log('Ema 1H-8', stryke?.emacross?.emaData1H?.ema8, stryke?.entryCandleClose, cls);
                                     return (<span
                                       role="button"
                                       tabIndex={0}

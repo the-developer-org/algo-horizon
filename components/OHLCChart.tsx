@@ -506,7 +506,7 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
       
       if (bestCandleIndex >= 0) {
         entryCandleIndices.add(bestCandleIndex);
-        console.log(`📍 Entry at ${entryDateStr} mapped to candle ${bestCandleIndex} (${candles[bestCandleIndex].timestamp}) for ${timeframe} timeframe`);
+        //console.log(`📍 Entry at ${entryDateStr} mapped to candle ${bestCandleIndex} (${candles[bestCandleIndex].timestamp}) for ${timeframe} timeframe`);
       } else {
         console.warn(`⚠️ Could not map entry date ${entryDateStr} to any candle for ${timeframe} timeframe - entry may be outside available data range`);
       }
@@ -621,7 +621,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const entryCandleIndices = useMemo(() => {
         const indices = mapEntryDatesToCandles(entryDates, candles, detectedTimeframe);
         if (indices.size > 0) {
-            console.log(`🎯 Entry date mapping for ${detectedTimeframe} timeframe:`, {
+            //console.log(`🎯 Entry date mapping for ${detectedTimeframe} timeframe:`, {
                 entryDatesCount: entryDates.length,
                 mappedIndices: Array.from(indices),
                 totalCandles: candles.length
@@ -633,7 +633,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
     useEffect(() => {
-       //console.log('🔄 Chart initialization effect triggered', { candlesLength: candles.length, height, width, showVolume });
+       ////console.log('🔄 Chart initialization effect triggered', { candlesLength: candles.length, height, width, showVolume });
         if (!UnderstchartContainerRef.current || !candles.length) return;
 
         // Create chart with enhanced navigation and zoom configuration
@@ -775,7 +775,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             // Fit content to show all data at normal zoom level
             chart.timeScale().fitContent();
             
-           //console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
+           ////console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
         }
 
         // Set volume data if enabled
@@ -993,7 +993,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Separate effect for EMA indicator management (EMA 8 and EMA 30)
     useEffect(() => {
-       //console.log('📊 EMA effect triggered', { showEMA, candlesLength: candles.length });
+       ////console.log('📊 EMA effect triggered', { showEMA, candlesLength: candles.length });
         if (!chartRef.current) return;
 
         const chart = chartRef.current;
@@ -1018,15 +1018,15 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 const candlesWithEma30 = candles.filter(c => typeof c.ema30 === 'number' && !isNaN(c.ema30));
                 
                 // Debug logging for EMA data analysis
-               //console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length})`);
+               ////console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length})`);
                 
                 // Debug raw candle data for EMA values
-               //console.log(`📊 Raw EMA8 candle analysis:`);
-               //console.log(`  First 5 candles EMA8: [${candles.slice(0, 5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
-               //console.log(`  Last 5 candles EMA8: [${candles.slice(-5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
+               ////console.log(`📊 Raw EMA8 candle analysis:`);
+               ////console.log(`  First 5 candles EMA8: [${candles.slice(0, 5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
+               ////console.log(`  Last 5 candles EMA8: [${candles.slice(-5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
                 if (candlesWithEma8.length > 0) {
-                   //console.log(`  EMA8 first valid candle: index ${candles.findIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles.find(c => typeof c.ema8 === 'number')?.timestamp}`);
-                   //console.log(`  EMA8 last valid candle: index ${candles.findLastIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles[candles.findLastIndex(c => typeof c.ema8 === 'number')]?.timestamp}`);
+                   ////console.log(`  EMA8 first valid candle: index ${candles.findIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles.find(c => typeof c.ema8 === 'number')?.timestamp}`);
+                   ////console.log(`  EMA8 last valid candle: index ${candles.findLastIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles[candles.findLastIndex(c => typeof c.ema8 === 'number')]?.timestamp}`);
                 }
                 
                 // Debug timestamp ordering - check if data might be in reverse order
@@ -1035,7 +1035,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     const last = candles[candles.length - 1];
                     const firstTime = parseTimestampToUnix(first.timestamp);
                     const lastTime = parseTimestampToUnix(last.timestamp);
-                   //console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
+                   ////console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
                     if (firstTime > lastTime) {
                         console.warn('⚠️ Data appears to be in reverse chronological order!');
                     }
@@ -1048,7 +1048,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     priceScaleId: '',
                     title: 'EMA 8',
                 });
-               //console.log(`🎯 Creating EMA8 chart data...`);
+               ////console.log(`🎯 Creating EMA8 chart data...`);
                 const ema8Data = candles
                     .map((c: Candle, idx: number) => {
                         const chartPoint = {
@@ -1058,7 +1058,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         
                         // Debug key data points
                         if (idx < 3 || idx >= candles.length - 3 || (idx >= 6 && idx <= 9)) {
-                           //console.log(`  Chart[${idx}] EMA8: raw=${c.ema8?.toFixed(4) || 'null'} → chart=${chartPoint.value?.toFixed(4) || 'null'} at ${new Date(chartPoint.time * 1000).toISOString()}`);
+                           ////console.log(`  Chart[${idx}] EMA8: raw=${c.ema8?.toFixed(4) || 'null'} → chart=${chartPoint.value?.toFixed(4) || 'null'} at ${new Date(chartPoint.time * 1000).toISOString()}`);
                         }
                         
                         return chartPoint;
@@ -1069,19 +1069,19 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     })
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
 
-               //console.log(`📈 EMA8 chart data summary:`);
-               //console.log(`  - Total candles processed: ${candles.length}`);
-               //console.log(`  - Valid EMA8 chart points: ${ema8Data.length}`);
-               //console.log(`  - Data reduction: ${candles.length - ema8Data.length} points filtered out`);
+               ////console.log(`📈 EMA8 chart data summary:`);
+               ////console.log(`  - Total candles processed: ${candles.length}`);
+               ////console.log(`  - Valid EMA8 chart points: ${ema8Data.length}`);
+               ////console.log(`  - Data reduction: ${candles.length - ema8Data.length} points filtered out`);
                 if (ema8Data.length > 0) {
-                   //console.log(`  - Time range: ${new Date(ema8Data[0].time * 1000).toISOString()} to ${new Date(ema8Data[ema8Data.length - 1].time * 1000).toISOString()}`);
-                   //console.log(`  - Value range: ${ema8Data[0].value?.toFixed(4)} to ${ema8Data[ema8Data.length - 1].value?.toFixed(4)}`);
+                   ////console.log(`  - Time range: ${new Date(ema8Data[0].time * 1000).toISOString()} to ${new Date(ema8Data[ema8Data.length - 1].time * 1000).toISOString()}`);
+                   ////console.log(`  - Value range: ${ema8Data[0].value?.toFixed(4)} to ${ema8Data[ema8Data.length - 1].value?.toFixed(4)}`);
                 }
 
                 // Set EMA8 data with enhanced error handling
                 if (ema8Data.length > 0) {
                     ema8SeriesRef.current.setData(ema8Data);
-                   //console.log('✅ EMA8 data set successfully');
+                   ////console.log('✅ EMA8 data set successfully');
                     
                     // Ensure EMA series scales with the main chart
                     ema8SeriesRef.current.applyOptions({
@@ -1107,15 +1107,15 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
 
-               //console.log(`EMA30 chart data points: ${ema30Data.length}`);
+               ////console.log(`EMA30 chart data points: ${ema30Data.length}`);
                 if (ema30Data.length > 0) {
-                   //console.log(`EMA30 time range: ${new Date(ema30Data[0].time * 1000).toISOString()} to ${new Date(ema30Data[ema30Data.length - 1].time * 1000).toISOString()}`);
+                   ////console.log(`EMA30 time range: ${new Date(ema30Data[0].time * 1000).toISOString()} to ${new Date(ema30Data[ema30Data.length - 1].time * 1000).toISOString()}`);
                 }
 
                 // Set EMA30 data with enhanced error handling
                 if (ema30Data.length > 0) {
                     ema30SeriesRef.current.setData(ema30Data);
-                   //console.log('✅ EMA30 data set successfully');
+                   ////console.log('✅ EMA30 data set successfully');
                     
                     // Ensure EMA series scales with the main chart
                     ema30SeriesRef.current.applyOptions({
@@ -1307,7 +1307,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 // Store swing points for use in click analysis
                 calculatedSwingPointsRef.current = calculatedSwingPoints;
             
-                console.log(`✅ Calculated ${calculatedSwingPoints.length} swing points directly from OHLC data`);
+                //console.log(`✅ Calculated ${calculatedSwingPoints.length} swing points directly from OHLC data`);
                 
                 // Collect all markers for swing points
                 const allMarkers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
@@ -1432,7 +1432,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 chartRef.current.candlestickSeries.setMarkers([]);
             }
         } else {
-            console.log('❌ Insufficient candles for swing point calculation (need at least 11)');
+            //console.log('❌ Insufficient candles for swing point calculation (need at least 11)');
         }
         
         // Return cleanup function
@@ -1861,7 +1861,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             // Check if user scrolled close to the left edge (older data)
             if (hasMoreOlderData && !isLoadingOlder && (newRange.from <= dataRange.from + threshold)) {
                 isLoadingOlder = true;
-               //console.log('📥 Loading older data due to scroll position');
+               ////console.log('📥 Loading older data due to scroll position');
                 
                 try {
                     await onLoadMoreData('older');
@@ -1876,7 +1876,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             // Check if user scrolled close to the right edge (newer data)
             if (hasMoreNewerData && !isLoadingNewer && (newRange.to >= dataRange.to - threshold)) {
                 isLoadingNewer = true;
-               //console.log('📥 Loading newer data due to scroll position');
+               ////console.log('📥 Loading newer data due to scroll position');
                 
                 try {
                     await onLoadMoreData('newer');

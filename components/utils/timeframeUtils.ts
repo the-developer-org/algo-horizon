@@ -47,6 +47,6 @@ export const processTimeframeData = (candles: Candle[], timeframe: Timeframe): C
   
   // Since we're getting data from different APIs for different timeframes,
   // we can return the candles directly without any consolidation
-  console.log(`📊 Processing ${candles.length} candles for ${timeframe} - using direct API data`);
+  //console.log(`📊 Processing ${candles.length} candles for ${timeframe} - using direct API data`);
   return candles;
 };
