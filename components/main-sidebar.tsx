@@ -62,11 +62,11 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
   }
 
   return (
-    <Sidebar variant="inset" className="bg-slate-500 w-80" {...props}>
+    <Sidebar variant="inset" className="bg-slate-500 w-80 " {...props}>
       <SidebarHeader className="bg-slate-500">
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center w-full p-3 rounded-md">
+            <div className="flex items-center w-full p-3">
               <button onClick={onToggleVisibility} className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 <TrendingUp className="size-4 text-white" />
               </button>
@@ -77,9 +77,9 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="bg-slate-200">
+      <SidebarContent className="bg-slate-900 text-white">
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-white">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {primaryItems.map(item => {
@@ -121,7 +121,7 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
         <SidebarSeparator />
 
         <SidebarGroup>
-          <SidebarGroupLabel>Utilities</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-white">Utilities</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {utilityItems.map(item => (
