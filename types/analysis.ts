@@ -137,6 +137,7 @@ export interface StrykeListResponse {
 }
 
 export interface AnalysisResponse {
+  objectId: string;
   uuid: string;
   label: string;
   companyName: string;
@@ -163,6 +164,8 @@ export interface AnalysisResponse {
     swingLabels2?: string | null;
     prelude2?: boolean;
     passing2?: boolean;
+    commentsS1?: string | null;
+    commentsS2?: string | null;
   } | null;
 }
 

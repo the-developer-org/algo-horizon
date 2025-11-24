@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { AnalysisResponse, StrykeListResponse } from '@/types/analysis';
 import toast, { Toaster } from 'react-hot-toast';
+import axios from 'axios';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
 import { setLoading, setAnalysisData } from '@/lib/store/analysisSlice';
 
@@ -23,6 +24,117 @@ export default function DeepDivePage() {
   const [showStryke, setShowStryke] = useState(true);
   const [showAlgo, setShowAlgo] = useState(true);
   const [showFibo, setShowFibo] = useState(true);
+  
+  // Search state for company name
+  const [companySearch, setCompanySearch] = useState('');
+  
+  // Comments state for each entry (key: `${uuid}-${label}`)
+  const [comments, setComments] = useState<Record<string, string>>({});
+  
+  // State to track which entry is currently being edited (for row highlighting)
+  const [editingItem, setEditingItem] = useState<{uuid: string; label: string} | null>(null);
+  
+  // Modal state for comment editing
+  const [commentModal, setCommentModal] = useState<{
+    isOpen: boolean;
+    item: AnalysisResponse | null;
+    comment: string;
+    isSaving: boolean;
+  }>({
+    isOpen: false,
+    item: null,
+    comment: '',
+    isSaving: false
+  });
+
+  // Function to open comment modal
+  const openCommentModal = (item: AnalysisResponse) => {
+    const commentKey = `${item.uuid}-${item.label}`;
+    const existingComment = comments[commentKey] || '';
+    setCommentModal({
+      isOpen: true,
+      item,
+      comment: existingComment,
+      isSaving: false
+    });
+    setEditingItem({ uuid: item.uuid, label: item.label });
+  };
+
+  // Function to close comment modal
+  const closeCommentModal = () => {
+    setCommentModal({
+      isOpen: false,
+      item: null,
+      comment: '',
+      isSaving: false
+    });
+    setEditingItem(null);
+  };
+
+  // Function to save comment
+  const saveComment = async () => {
+    if (!commentModal.item) return;
+
+    setCommentModal(prev => ({ ...prev, isSaving: true }));
+
+    try {
+      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      const response = await axios.post(`${backEndBaseUrl}/api/stryke/update-comments`, {
+        objectId: commentModal.item.objectId,
+        companyName: commentModal.item.companyName || 'Unknown',
+        analysisType: commentModal.item.label,
+        diveRatio: deepDiveMode === 'RR_1_1' ? 1 : 2,
+        comments: commentModal.comment
+      });
+  
+      if (response.status === 200) {
+        // Update local state
+        const commentKey = `${commentModal.item.objectId}-${commentModal.item.label}`;
+        setComments(prev => ({
+          ...prev,
+          [commentKey]: commentModal.comment
+        }));
+
+        // Update the deepDiveData state to reflect the saved comment
+        setDeepDiveData(prevData => 
+          prevData.map(item => {
+            if (item.objectId === commentModal?.item?.objectId && item.label === commentModal.item.label) {
+              const updatedItem = { ...item };
+              if (deepDiveMode === 'RR_1_1') {
+                updatedItem.analysisDeepDive = {
+                  ...updatedItem.analysisDeepDive,
+                  commentsS1: commentModal.comment
+                };
+              } else {
+                updatedItem.analysisDeepDive = {
+                  ...updatedItem.analysisDeepDive,
+                  commentsS2: commentModal.comment
+                };
+              }
+              return updatedItem;
+            }
+            return item;
+          })
+        );
+
+        toast.success('Comment saved successfully');
+        closeCommentModal();
+      } else {
+        toast.error(response.data.message || 'Failed to save comment');
+      }
+    } catch (error) {
+      console.error('Error saving comment:', error);
+      toast.error('Failed to save comment');
+    } finally {
+      setCommentModal(prev => ({ ...prev, isSaving: false }));
+    }
+  };
+  
+  // Function to navigate to chart page with parameters
+  const navigateToChart = (instrumentKey: string, timeframe: string) => {
+    const chartUrl = `/chart?instrumentKey=${encodeURIComponent(instrumentKey)}&timeframe=${encodeURIComponent(timeframe)}`;
+    window.open(chartUrl, '_blank');
+  };
   
   const dispatch = useAppDispatch();
   
@@ -109,14 +221,10 @@ export default function DeepDivePage() {
         }));
 
         try {
-          const response = await fetch(`${backEndBaseUrl}/api/stryke/fetch-all-analysis/${alphabet}`, {
-            headers: {
-              'accept': 'application/json',
-            },
-          });
+          const response = await axios.get(`${backEndBaseUrl}/api/stryke/fetch-all-analysis/${alphabet}`);
 
-          if (response.ok) {
-            const data: StrykeListResponse = await response.json();
+          if (response.data) {
+            const data: StrykeListResponse = response.data;
 
             if (data.swingStatsList && data.swingStatsList !== null) {
               const algoAnalysis: AnalysisResponse[] = data.swingStatsList["ALGO"] || [];
@@ -276,12 +384,22 @@ export default function DeepDivePage() {
     });
     
     // Sort by company name, then by UUID
-    return Array.from(groups.values()).sort((a, b) => {
+    let result = Array.from(groups.values()).sort((a, b) => {
       const companyCompare = a.companyName.localeCompare(b.companyName);
       if (companyCompare !== 0) return companyCompare;
       return a.uuid.localeCompare(b.uuid);
     });
-  }, [deepDiveList]);
+    
+    // Apply company search filter
+    if (companySearch.trim()) {
+      const searchTerm = companySearch.toLowerCase().trim();
+      result = result.filter(group => 
+        group.companyName.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    return result;
+  }, [deepDiveList, companySearch]);
 
   return (
     <div className="flex justify-start py-4 px-4 bg-cream">
@@ -300,12 +418,6 @@ export default function DeepDivePage() {
               >
                 {progressiveLoading ? 'Loading...' : lastFetchedAt ? 'Refresh Data' : 'Load Data'}
               </button>
-              <a
-                href="/strike-analysis"
-                className="px-4 py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
-              >
-                Back to Strike Analysis
-              </a>
             </div>
           </div>
         </div>
@@ -505,6 +617,19 @@ export default function DeepDivePage() {
             </button>
           </div>
 
+          {/* Company Search */}
+          <div className="flex items-center gap-2">
+            <label htmlFor="company-search" className="text-sm font-medium text-gray-700">Search Company:</label>
+            <input
+              id="company-search"
+              type="text"
+              value={companySearch}
+              onChange={(e) => setCompanySearch(e.target.value)}
+              placeholder="Enter company name..."
+              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
           <span className="text-lg font-bold ml-auto">
             Total Companies: {groupedByUUID.length} | Total Entries: {deepDiveList.length}
             {showStryke && (() => {
@@ -557,11 +682,22 @@ export default function DeepDivePage() {
               groupedByUUID.map((group, groupIdx) => (
                 <div key={group.uuid} className="w-full bg-white border border-gray-300 rounded-md p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
-                    <div>
+                    <div className="flex items-center gap-3">
                       <h3 className="text-lg font-bold text-gray-800">
                         {group.companyName}
                       </h3>
-
+                      <button
+                        onClick={() => {
+                          const firstEntry = group.entries[0];
+                          if (firstEntry?.instrumentKey) {
+                            navigateToChart(firstEntry.instrumentKey, '1D');
+                          }
+                        }}
+                        className="p-1.5 rounded-md bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors"
+                        title="View OHLC Chart"
+                      >
+                        📊
+                      </button>
                     </div>
                   </div>
                   
@@ -573,12 +709,13 @@ export default function DeepDivePage() {
                           <th className="border border-gray-300 px-3 py-2">Entry Date</th>
                           <th className="border border-gray-300 px-3 py-2">Entry Price</th>
                           <th className="border border-gray-300 px-3 py-2">Swing Label</th>
-                          <th className="border border-gray-300 px-3 py-2">Support (days)</th>
-                          <th className="border border-gray-300 px-3 py-2">Resistance (days)</th>
-                          <th className="border border-gray-300 px-3 py-2">Max Profit %</th>
-                          <th className="border border-gray-300 px-3 py-2">Absolute Profit %</th>
+                          <th className="border border-gray-300 px-1 py-2">Support (days)</th>
+                          <th className="border border-gray-300 px-1 py-2">Resistance (days)</th>
+                          <th className="border border-gray-300 px-1 py-2">Max Profit %</th>
+                          <th className="border border-gray-300 px-1 py-2">Absolute Profit %</th>
                           <th className="border border-gray-300 px-3 py-2">Prelude</th>
                           <th className="border border-gray-300 px-3 py-2">Passing</th>
+                          <th className="border border-gray-300 px-5 py-2">Comments</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -590,7 +727,9 @@ export default function DeepDivePage() {
                           const passing = isOneOne ? dd?.passing1 : dd?.passing2;
                           const entryDate = item.entryTime ? new Date(item.entryTime).toLocaleDateString('en-GB') : 'N/A';
                           const entryPrice = item.entryCandleClose ? Number(item.entryCandleClose).toFixed(2) : 'N/A';
-                          
+                          let analysisComment = isOneOne ? item.analysisDeepDive?.commentsS1 || '' : item.analysisDeepDive?.commentsS2 || '';
+
+                    
                           // New columns data
                           const supportDays = item?.daysTakenForSupportTouch ;
                           const resistanceDays = item.daysTakenForResistanceTouch;
@@ -602,7 +741,14 @@ export default function DeepDivePage() {
                             : 'N/A';
                           
                           return (
-                            <tr key={`${item.uuid}-${item.label}-${entryIdx}`} className="hover:bg-gray-50">
+                            <tr 
+                              key={`${item.uuid}-${item.label}-${entryIdx}`} 
+                              className={`${
+                                editingItem && editingItem.uuid === item.uuid && editingItem.label === item.label
+                                  ? 'bg-yellow-100 border-yellow-300 shadow-md' 
+                                  : 'hover:bg-gray-50'
+                              } transition-colors duration-200`}
+                            >
                               <td className="border border-gray-200 px-3 py-1">
                                 <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                                   item.label === 'ALGO' ? 'bg-indigo-100 text-indigo-700' :
@@ -629,6 +775,21 @@ export default function DeepDivePage() {
                                   {passing ? 'Yes' : 'No'}
                                 </span>
                               </td>
+                              <td className="border border-gray-200 px-3 py-1">
+                                <button
+                                  onClick={() => openCommentModal(item)}
+                                  className="w-full text-left px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                                  title="Click to edit comment"
+                                >
+                                  {analysisComment ? (
+                                    <span className="text-gray-800 whitespace-pre-wrap">
+                                      {analysisComment}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400 italic">Add comment...</span>
+                                  )}
+                                </button>
+                              </td>
                             </tr>
                           );
                         })}
@@ -644,6 +805,61 @@ export default function DeepDivePage() {
         {deepDiveMode === 'NONE' && (
           <div className="text-center py-12 text-gray-500">
             <p className="text-lg">Select a Deep Dive mode to view analysis</p>
+          </div>
+        )}
+
+        {/* Comment Modal */}
+        {commentModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  Edit Comment - {commentModal.item?.companyName} {commentModal.item?.entryTime ? new Date(commentModal.item.entryTime).toLocaleDateString('en-GB') : 'N/A'} ({commentModal.item?.label})
+                </h3>
+                <button
+                  onClick={closeCommentModal}
+                  className="text-gray-400 hover:text-gray-600 text-xl"
+                  disabled={commentModal.isSaving}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Comment
+                </label>
+                <textarea
+                  value={commentModal.comment}
+                  onChange={(e) => setCommentModal(prev => ({ ...prev, comment: e.target.value }))}
+                  placeholder="Enter your comment here..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
+                  rows={6}
+                  disabled={commentModal.isSaving}
+                  style={{ whiteSpace: 'pre-wrap' }}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={closeCommentModal}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  disabled={commentModal.isSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveComment}
+                  disabled={commentModal.isSaving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {commentModal.isSaving && (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                  {commentModal.isSaving ? 'Saving...' : 'Save Comment'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
