@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, X } from "lucide-react";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, X, Target } from "lucide-react";
 import UpstoxIcon from "@/components/icons/UpstoxIcon";
 import {
   Sidebar,
@@ -22,6 +22,7 @@ const primaryItems = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Strike Analysis Form", url: "/strike-analysis", icon: Search },
    {  title: "Swing Stats", url: "/strike-analysis?tab=swing", icon: BarChart3 },
+   { title: "Deep Dive", url: "/deep-dive", icon: Target },
    { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
   { title: "Paper Trading", url: "/paper-trading", icon: DollarSign },
   { title: "Upstox", url: "/upstox", icon: UpstoxIcon },

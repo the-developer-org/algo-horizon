@@ -544,12 +544,7 @@ export const OHLCChartDemo: React.FC = () => {
         
         // Log first few comparisons for debugging
         if (index < 3) {
-          //console.log(`🔍 Comparing #${index}:`, {
-            candleTime: candleTime.toISOString(),
-            maxDateTime: maxDateTime.toISOString(),
-            comparison: isBeforeMax,
-            candleTimestamp: candle.timestamp
-          });
+          //console.log(`🔍 Comparing #${index}:`, candleTime.toISOString(), maxDateTime.toISOString());
         }
         
         return isBeforeMax;
@@ -559,14 +554,7 @@ export const OHLCChartDemo: React.FC = () => {
       
       if (filteredCandles.length === 0 && candlesToFilter.length > 0) {
         console.warn(`⚠️ All candles filtered out! This suggests a timezone or date format issue.`);
-        //console.log(`Debug info:`, {
-          maxDate,
-          maxTime,
-          timeWithSeconds,
-          maxDateTimeISO: maxDateTime.toISOString(),
-          firstCandleTime: candlesToFilter[0]?.timestamp,
-          lastCandleTime: candlesToFilter[candlesToFilter.length - 1]?.timestamp
-        });
+        //console.log(`Debug info:`, maxDate, maxTime, maxDateTime.toISOString());
       }
       
       return filteredCandles;
@@ -672,16 +660,7 @@ export const OHLCChartDemo: React.FC = () => {
       
       setProgressiveLoadingProgress({ loaded: 0, total: dateRanges.length });
       
-      //console.log(`📅 Progressive loading: ${dateRanges.length} batches planned for ${selectedTimeframe}`, {
-        firstBatch: dateRanges[0] ? {
-          from: dateRanges[0].from.toISOString(),
-          to: dateRanges[0].to.toISOString()
-        } : null,
-        lastBatch: dateRanges[dateRanges.length - 1] ? {
-          from: dateRanges[dateRanges.length - 1].from.toISOString(),
-          to: dateRanges[dateRanges.length - 1].to.toISOString()
-        } : null
-      });
+      //console.log(`📅 Progressive loading: ${dateRanges.length} batches planned for ${selectedTimeframe}`);
 
       let allCandles: Candle[] = [];
       let batchCount = 0;
@@ -689,11 +668,7 @@ export const OHLCChartDemo: React.FC = () => {
       for (const range of dateRanges) {
         // Check if aborted
         if (abortController.signal.aborted) {
-          //console.log('🛑 Progressive loading aborted during batch processing - checking abort reason');
-          //console.log('🛑 Abort signal details:', {
-            aborted: abortController.signal.aborted,
-            reason: abortController.signal.reason
-          });
+          //console.log('🛑 Progressive loading aborted during batch processing');
           return;
         }
 
@@ -707,12 +682,7 @@ export const OHLCChartDemo: React.FC = () => {
             limit: PROGRESSIVE_BATCH_CONFIG[selectedTimeframe].batchSize
           };
 
-          //console.log(`📦 Loading batch ${batchCount + 1}/${dateRanges.length}:`, {
-            from: range.from.toISOString(),
-            to: range.to.toISOString(),
-            timeframe: selectedTimeframe,
-            abortSignalAborted: abortController.signal.aborted
-          });
+          //console.log(`📦 Loading batch ${batchCount + 1}/${dateRanges.length}`, range.from.toISOString(), range.to.toISOString());
 
           const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
           setShouldFetchIntraDay(false);
@@ -885,12 +855,7 @@ export const OHLCChartDemo: React.FC = () => {
       loadingMessage = 'Loading data...'
     } = options;
 
-    //console.log(`🚀 fetchCandles called with mode: ${mode}`, { 
-      selectedCompany, 
-      selectedInstrumentKey, 
-      timeframe,
-      upstoxApiKey: !!upstoxApiKey 
-    });
+    //console.log(`🚀 fetchCandles called with mode: ${mode}`, selectedCompany, selectedInstrumentKey, timeframe);
 
     // Validation checks
     if (!selectedCompany || !selectedInstrumentKey) {
@@ -955,12 +920,7 @@ export const OHLCChartDemo: React.FC = () => {
         from = calculateFromDate(new Date(lastTradingDay), timeframe);
       }
       
-      //console.log(`📅 Date range calculation for ${mode}:`, {
-        timeframe,
-        from: from.toISOString(),
-        to: to,
-        daysDiff: Math.floor((new Date(to).getTime() - from.getTime()) / (1000 * 60 * 60 * 24)),
-      });
+      //console.log(`📅 Date range calculation for ${mode}:`, timeframe, from.toISOString(), to);
       
       const params: UpstoxPaginationParams = {
         instrumentKey: selectedInstrumentKey,

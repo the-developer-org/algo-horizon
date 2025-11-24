@@ -43,7 +43,9 @@ const useSocketConnectionStatus = (): UseSocketConnectionStatus => {
     stompClientRef.current = new Client({
       brokerURL: undefined, // use webSocketFactory with SockJS
       webSocketFactory: () => socket,
-      debug: (str: string) => //console.log(str),
+      debug: (str: string) => {
+        //console.log(str);
+      },
       connectHeaders: {},
       onConnect: () => {
         //console.log("Connected to WebSocket server");

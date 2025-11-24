@@ -621,11 +621,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const entryCandleIndices = useMemo(() => {
         const indices = mapEntryDatesToCandles(entryDates, candles, detectedTimeframe);
         if (indices.size > 0) {
-            //console.log(`🎯 Entry date mapping for ${detectedTimeframe} timeframe:`, {
-                entryDatesCount: entryDates.length,
-                mappedIndices: Array.from(indices),
-                totalCandles: candles.length
-            });
+            //console.log(`🎯 Entry date mapping for ${detectedTimeframe} timeframe:`, entryDates.length, indices.size);
         }
         return indices;
     }, [entryDates, candles, detectedTimeframe]);

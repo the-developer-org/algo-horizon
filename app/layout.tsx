@@ -8,6 +8,7 @@ import { Toaster } from "react-hot-toast";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { MainSidebar } from "../components/main-sidebar";
 import { DeepDiveProvider } from "@/context/DeepDiveContext";
+import StoreProvider from "@/lib/store/StoreProvider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -116,39 +117,41 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <LayoutContent>
-          {/* Global Toaster with colorful defaults for success/error/loading */}
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                borderRadius: '8px',
-                fontWeight: 600,
-                boxShadow: '0 6px 18px rgba(0,0,0,0.12)'
-              },
-              success: {
+        <StoreProvider>
+          <LayoutContent>
+            {/* Global Toaster with colorful defaults for success/error/loading */}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
                 style: {
-                  background: '#059669', // emerald-600
-                  color: '#ffffff'
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.12)'
+                },
+                success: {
+                  style: {
+                    background: '#059669', // emerald-600
+                    color: '#ffffff'
+                  }
+                },
+                error: {
+                  style: {
+                    background: '#dc2626', // red-600
+                    color: '#ffffff'
+                  }
+                },
+                loading: {
+                  style: {
+                    background: '#2563eb', // blue-600
+                    color: '#ffffff'
+                  }
                 }
-              },
-              error: {
-                style: {
-                  background: '#dc2626', // red-600
-                  color: '#ffffff'
-                }
-              },
-              loading: {
-                style: {
-                  background: '#2563eb', // blue-600
-                  color: '#ffffff'
-                }
-              }
-            }}
-          />
-          {children}
-        </LayoutContent>
+              }}
+            />
+            {children}
+          </LayoutContent>
+        </StoreProvider>
       </body>
     </html>
   );

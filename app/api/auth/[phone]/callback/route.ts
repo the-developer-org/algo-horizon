@@ -29,12 +29,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
     return NextResponse.redirect(`${baseUrl}/auth?error=Config not found for phone`);
   }
 
-  //console.log('[Upstox Callback] Resolved config', { 
-    clientId: cfg.clientId,
-    redirectUri: cfg.redirectUri,
-    hasClientSecret: !!cfg.clientSecret,
-    phone
-  });
+  //console.log('[Upstox Callback] Resolved config', cfg);
 
   try {
     const actualRedirectUri = `${baseUrl}/api/auth/${encodeURIComponent(phone)}/callback`;
@@ -46,14 +41,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
       grant_type: 'authorization_code',
     });
 
-    //console.log('[Upstox Callback] Token request details', {
-      clientId: cfg.clientId,
-      redirectUri: actualRedirectUri,
-      configRedirectUri: cfg.redirectUri,
-      redirectMatch: actualRedirectUri === cfg.redirectUri,
-      hasClientSecret: !!(cfg.clientSecret || process.env.UPSTOX_CLIENT_SECRET),
-      baseUrl
-    });
+    //console.log('[Upstox Callback] Token request details', cfg, actualRedirectUri);
 
     // Use standard Upstox API URL for token exchange (same for both prod and sandbox)
     const apiHost = 'https://api-v2.upstox.com';

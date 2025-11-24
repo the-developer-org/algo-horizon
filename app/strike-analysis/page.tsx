@@ -26,12 +26,26 @@ import {
   FilterOrder,
   TrendFilter
 } from '@/types/analysis';
-import { useDeepDive } from '@/context/DeepDiveContext';
+import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
+import { setLoading, setAnalysisData, setMetrics } from '@/lib/store/analysisSlice';
 
 function StrikeAnalysisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setDeepDiveData } = useDeepDive();
+  const dispatch = useAppDispatch();
+  
+  // Get data from Redux store
+  const {
+    strykeAnalysisList: reduxStrykeAnalysisList,
+    algoAnalysisList: reduxAlgoAnalysisList,
+    fiboAnalysisList: reduxFiboAnalysisList,
+    strykeMetrics: reduxStrykeMetrics,
+    algoMetrics: reduxAlgoMetrics,
+    fiboMetrics: reduxFiboMetrics,
+    keyMapping: reduxKeyMapping,
+    lastFetchedAt,
+    isLoading: reduxIsLoading
+  } = useAppSelector((state) => state.analysis);
 
   // Get tab from URL parameter, default to 'form'
   const getInitialTab = () => {
@@ -41,12 +55,12 @@ function StrikeAnalysisContent() {
 
   // State
   const [isLoading, setIsLoading] = useState(false);
-  const [strykeMetrics, setStrykeMetrics] = useState<metricsData | null>(null);
-  const [algoMetrics, setAlgoMetrics] = useState<metricsData | null>(null);
-  const [fiboMetrics, setFiboMetrics] = useState<metricsData | null>(null);
+  const [strykeMetrics, setStrykeMetrics] = useState<metricsData | null>(reduxStrykeMetrics);
+  const [algoMetrics, setAlgoMetrics] = useState<metricsData | null>(reduxAlgoMetrics);
+  const [fiboMetrics, setFiboMetrics] = useState<metricsData | null>(reduxFiboMetrics);
   // Global blocking loader for long running actions (delete, bulk ops, etc.)
   const [globalLoading, setGlobalLoading] = useState(false);
-  const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
+  const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>(reduxKeyMapping);
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
@@ -62,9 +76,9 @@ function StrikeAnalysisContent() {
   const [strykeList, setStrykeList] = useState<AnalysisResponse[]>([]);
   const [analysisResult, setAnalysisResult] = useState<Stryke | null>(null);
   const [selectedStryke, setSelectedStryke] = useState<AnalysisResponse | null>(null);
-  const [strykeAnalysisList, setStrykeAnalysisList] = useState<AnalysisResponse[]>([]);
-  const [algoAnalysisList, setAlgoAnalysisList] = useState<AnalysisResponse[]>([]);
-  const [fiboAnalysisList, setFiboAnalysisList] = useState<AnalysisResponse[]>([]);
+  const [strykeAnalysisList, setStrykeAnalysisList] = useState<AnalysisResponse[]>(reduxStrykeAnalysisList);
+  const [algoAnalysisList, setAlgoAnalysisList] = useState<AnalysisResponse[]>(reduxAlgoAnalysisList);
+  const [fiboAnalysisList, setFiboAnalysisList] = useState<AnalysisResponse[]>(reduxFiboAnalysisList);
 
   const [filteredAnalysisList, setFilteredAnalysisList] = useState<AnalysisResponse[]>([]);
 
@@ -204,6 +218,24 @@ function StrikeAnalysisContent() {
 
   }, []);
 
+  // Sync Redux state with local state on mount or when Redux state changes
+  useEffect(() => {
+    if (reduxStrykeAnalysisList.length > 0) {
+      setStrykeAnalysisList(reduxStrykeAnalysisList);
+      setAlgoAnalysisList(reduxAlgoAnalysisList);
+      setFiboAnalysisList(reduxFiboAnalysisList);
+      const allAnalysis = [...reduxAlgoAnalysisList, ...reduxStrykeAnalysisList, ...reduxFiboAnalysisList];
+      setStrykeList(allAnalysis);
+      setFilteredAnalysisList(allAnalysis.filter((item, index, self) =>
+        index === self.findIndex((t) => t.uuid === item.uuid)
+      ));
+    }
+    if (reduxStrykeMetrics) setStrykeMetrics(reduxStrykeMetrics);
+    if (reduxAlgoMetrics) setAlgoMetrics(reduxAlgoMetrics);
+    if (reduxFiboMetrics) setFiboMetrics(reduxFiboMetrics);
+    if (Object.keys(reduxKeyMapping).length > 0) setKeyMapping(reduxKeyMapping);
+  }, [reduxStrykeAnalysisList, reduxAlgoAnalysisList, reduxFiboAnalysisList, reduxStrykeMetrics, reduxAlgoMetrics, reduxFiboMetrics, reduxKeyMapping]);
+
 
   // Update suggestions as user types
   useEffect(() => {
@@ -329,9 +361,32 @@ function StrikeAnalysisContent() {
   };
 
   // Fetch all strykes from API using progressive loading
-  const fetchStrykes = async () => {
+  const fetchStrykes = async (forceRefresh = false) => {
+    // Check if we have cached data and it's not a forced refresh
+    const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+    const isCacheValid = lastFetchedAt && (Date.now() - lastFetchedAt < CACHE_DURATION);
+    
+    if (!forceRefresh && isCacheValid && reduxStrykeAnalysisList.length > 0) {
+      // Use cached data from Redux
+      setStrykeAnalysisList(reduxStrykeAnalysisList);
+      setAlgoAnalysisList(reduxAlgoAnalysisList);
+      setFiboAnalysisList(reduxFiboAnalysisList);
+      setKeyMapping(reduxKeyMapping);
+      
+      // Combine all analysis for display
+      const allCached = [...reduxAlgoAnalysisList, ...reduxStrykeAnalysisList, ...reduxFiboAnalysisList];
+      setStrykeList(allCached);
+      setFilteredAnalysisList(allCached.filter((item, index, self) =>
+        index === self.findIndex((t) => t.uuid === item.uuid)
+      ));
+      
+      setDataLoadingAttempted(true);
+      toast.success(`Loaded ${allCached.length} companies from cache`);
+      return;
+    }
+    
     // Prevent multiple simultaneous calls
-    if (progressiveLoading) {
+    if (progressiveLoading || reduxIsLoading) {
       toast.error('Loading already in progress. Please wait...');
       return;
     }
@@ -342,6 +397,7 @@ function StrikeAnalysisContent() {
     // QWERTY order for progressive loading
     const alphabetOrder = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'];
 
+    dispatch(setLoading(true));
     setProgressiveLoading(true);
     setIsLoading(false); // Disable main loading spinner since we have progress bar
     setStrykeList([]); // Clear existing data
@@ -361,9 +417,13 @@ function StrikeAnalysisContent() {
 
     const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     let allStrykes: AnalysisResponse[] = [];
+    let allAlgoAnalysis: AnalysisResponse[] = [];
+    let allStrykeAnalysis: AnalysisResponse[] = [];
+    let allFiboAnalysis: AnalysisResponse[] = [];
     let completedAlphabets: string[] = [];
     let consecutiveFailures = 0;
     const maxConsecutiveFailures = 5; // Stop if 5 consecutive alphabets fail
+    const newKeyMapping: { [companyName: string]: string } = {};
 
     try {
       for (let i = 0; i < alphabetOrder.length; i++) {
@@ -391,6 +451,19 @@ function StrikeAnalysisContent() {
               const algoAnalysis: AnalysisResponse[] = data.swingStatsList["ALGO"] || [];
               const strykeAnalysis: AnalysisResponse[] = data.swingStatsList["STRYKE"] || [];
               const fiboAnalysis: AnalysisResponse[] = data.swingStatsList["FIBO"] || [];
+              
+              // Accumulate data for Redux
+              allAlgoAnalysis = [...allAlgoAnalysis, ...algoAnalysis];
+              allStrykeAnalysis = [...allStrykeAnalysis, ...strykeAnalysis];
+              allFiboAnalysis = [...allFiboAnalysis, ...fiboAnalysis];
+              
+              // Build key mapping
+              [...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis].forEach(item => {
+                if (item.companyName && item.instrumentKey) {
+                  newKeyMapping[item.companyName] = item.instrumentKey;
+                }
+              });
+              
               setAlgoAnalysisList((prev) => [...prev, ...algoAnalysis]);
               setStrykeAnalysisList((prev) => [...prev, ...strykeAnalysis]);
               setFiboAnalysisList((prev) => [...prev, ...fiboAnalysis]);
@@ -455,6 +528,16 @@ function StrikeAnalysisContent() {
         }
       }
 
+      // Store all data in Redux
+      dispatch(setAnalysisData({
+        strykeAnalysisList: allStrykeAnalysis,
+        algoAnalysisList: allAlgoAnalysis,
+        fiboAnalysisList: allFiboAnalysis,
+        keyMapping: newKeyMapping
+      }));
+      
+      setKeyMapping(newKeyMapping);
+
       // Mark as complete
       setLoadingProgress(prev => ({
         ...prev,
@@ -474,6 +557,7 @@ function StrikeAnalysisContent() {
       toast.error('Failed to complete data loading. Please check your connection and try again.');
     } finally {
       setProgressiveLoading(false);
+      dispatch(setLoading(false));
     }
   };
 
@@ -614,10 +698,11 @@ function StrikeAnalysisContent() {
   }, [showAllStrykes, strykeList.length, progressiveLoading, dataLoadingAttempted]);
 
   useEffect(() => {
-    if (showSwingStats && strykeList.length === 0 && !progressiveLoading && !dataLoadingAttempted) {
+    // Auto-fetch data when showing swing stats if Redux cache is empty
+    if (showSwingStats && reduxStrykeAnalysisList.length === 0 && !progressiveLoading && !dataLoadingAttempted) {
       fetchStrykes();
     }
-  }, [showSwingStats, strykeList.length, progressiveLoading, dataLoadingAttempted]);
+  }, [showSwingStats, reduxStrykeAnalysisList.length, progressiveLoading, dataLoadingAttempted]);
 
   // Close chart dropdown when clicking outside
   useEffect(() => {
@@ -1096,6 +1181,13 @@ function StrikeAnalysisContent() {
     // Calculate metrics for Fibo Analysis
     const fiboMetricsData = calculateAnalysisMetrics((stryke) => filteredAnalysisList);
     setFiboMetrics(fiboMetricsData);
+    
+    // Save metrics to Redux
+    dispatch(setMetrics({
+      strykeMetrics: strykeMetricsData,
+      algoMetrics: algoMetricsData,
+      fiboMetrics: fiboMetricsData
+    }));
 
     if (!suppressToast) {
       toast.success('Metrics calculated successfully for Stryke, Algo, and Fibo analysis');
@@ -1207,19 +1299,18 @@ function StrikeAnalysisContent() {
                 )} */}
 
 
-                {/* <Button
+                <Button
                   onClick={() => {
-                    // Reset failure tracking before refetching data
-                    (0);
                     setDataLoadingAttempted(false); // Reset the flag to allow fresh loading
-                    fetchStrykes();
+                    fetchStrykes(true); // Force refresh
                   }}
                   className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition ${progressiveLoading ? 'bg-gray-400 cursor-not-allowed' : ''
                     }`}
                   disabled={progressiveLoading}
+                  title="Force refresh data from API (cache will be updated)"
                 >
-                  {progressiveLoading ? 'Loading...' : 'Refresh List'}
-                </Button> */}
+                  {progressiveLoading ? 'Loading...' : lastFetchedAt ? 'Refresh Data' : 'Load Data'}
+                </Button>
 
 
                 {/* {!showStrykeStats && (
@@ -1666,21 +1757,7 @@ function StrikeAnalysisContent() {
                     Reset Filters
                   </button>
 
-                  <div className="flex gap-2 ml-2">
-                    {!isLoading && (
-                      <button
-                        className="px-3 py-1 rounded-md bg-purple-500 hover:bg-purple-600 text-white transition-colors"
-                        onClick={() => {
-                          // Set data in context and navigate to deep-dive page
-                          setDeepDiveData(filteredAnalysisList);
-                          router.push('/deep-dive');
-                        }}
-                        title="Open Deep Dive Analysis"
-                      >
-                        Open Deep Dive
-                      </button>
-                    )}
-                  </div>
+
 
 
                   {/* Count */}
@@ -3023,7 +3100,7 @@ function StrikeAnalysisContent() {
                         {filteredAnalysisList.map((stryke, index) => {
 
                           return (
-                            <React.Fragment key={stryke.uuid || index}>
+                            <React.Fragment key={`${stryke.uuid}-${index}`}>
 
                               <tr className={`${
                                 stryke.label === "STRYKE" ? 'bg-green-100 hover:bg-green-200 border-l-4 border-green-500' :
