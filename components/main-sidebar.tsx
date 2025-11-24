@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, X, Target } from "lucide-react";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, SquareChevronLeft } from "lucide-react";
 import UpstoxIcon from "@/components/icons/UpstoxIcon";
 import {
   Sidebar,
@@ -62,34 +62,22 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
   }
 
   return (
-    <Sidebar variant="inset" {...props}>
-      <SidebarHeader>
+    <Sidebar variant="inset" className="bg-slate-500 w-80" {...props}>
+      <SidebarHeader className="bg-slate-500">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <a href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <TrendingUp className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Algo Horizon X Upstox</span>
-                  <span className="truncate text-xs">Dashboard</span>
-                </div>
-              </a>
-            </SidebarMenuButton>
-            {onToggleVisibility && (
-              <button
-                onClick={onToggleVisibility}
-                className="p-1 hover:bg-sidebar-accent rounded-sm transition-colors"
-                title="Hide Sidebar"
-              >
-                <X className="size-4" />
+            <div className="flex items-center w-full p-3 rounded-md">
+              <button onClick={onToggleVisibility} className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                <TrendingUp className="size-4 text-white" />
               </button>
-            )}
+              <a href="/" className="flex flex-1 items-center text-left text-sm leading-tight ml-2">
+                <span className="font-semibold whitespace-nowrap text-white">Algo Horizon X Upstox</span>
+              </a>
+            </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="bg-slate-200">
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -150,8 +138,8 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
-        <div className="text-xs text-muted-foreground px-3 py-2">© {new Date().getFullYear()} Algo Horizon</div>
+      <SidebarFooter className="bg-slate-500">
+        <div className="text-xs text-muted-foreground px-3 py-2 text-white">© {new Date().getFullYear()} Algo Horizon</div>
       </SidebarFooter>
     </Sidebar>
   );
