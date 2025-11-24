@@ -39,22 +39,23 @@ export default function DeepDivePage() {
     isOpen: boolean;
     item: AnalysisResponse | null;
     comment: string;
+    originalComment: string;
     isSaving: boolean;
   }>({
     isOpen: false,
     item: null,
     comment: '',
+    originalComment: '',
     isSaving: false
   });
 
   // Function to open comment modal
-  const openCommentModal = (item: AnalysisResponse) => {
-    const commentKey = `${item.uuid}-${item.label}`;
-    const existingComment = comments[commentKey] || '';
+  const openCommentModal = (item: AnalysisResponse, existingComment: string) => {
     setCommentModal({
       isOpen: true,
       item,
       comment: existingComment,
+      originalComment: existingComment,
       isSaving: false
     });
     setEditingItem({ uuid: item.uuid, label: item.label });
@@ -66,6 +67,7 @@ export default function DeepDivePage() {
       isOpen: false,
       item: null,
       comment: '',
+      originalComment: '',
       isSaving: false
     });
     setEditingItem(null);
@@ -777,7 +779,7 @@ export default function DeepDivePage() {
                               </td>
                               <td className="border border-gray-200 px-3 py-1">
                                 <button
-                                  onClick={() => openCommentModal(item)}
+                                  onClick={() => openCommentModal(item, analysisComment)}
                                   className="w-full text-left px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
                                   title="Click to edit comment"
                                 >
@@ -850,7 +852,7 @@ export default function DeepDivePage() {
                 </button>
                 <button
                   onClick={saveComment}
-                  disabled={commentModal.isSaving}
+                  disabled={commentModal.isSaving || commentModal.comment === commentModal.originalComment}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 >
                   {commentModal.isSaving && (
