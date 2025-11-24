@@ -43,12 +43,12 @@
     "technicalindicators": "^3.1.0",
     "typescript": "^5.9.3",
     "upstox-js-sdk": "^2.20.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
     "@types/sockjs-client": "^1.5.4",
     "eslint": "^9.19.0",
     "eslint-config-next": "^16.0.3"
