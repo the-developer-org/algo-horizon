@@ -692,7 +692,7 @@ export default function DeepDivePage() {
                         onClick={() => {
                           const firstEntry = group.entries[0];
                           if (firstEntry?.instrumentKey) {
-                            navigateToChart(firstEntry.instrumentKey, '1D');
+                            navigateToChart(firstEntry.instrumentKey, '1d');
                           }
                         }}
                         className="p-1.5 rounded-md bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors"
