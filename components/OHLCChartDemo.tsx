@@ -98,7 +98,7 @@ export const OHLCChartDemo: React.FC = () => {
   }, [keyMapping]);
 
   // Function to update URL parameters
-  const updateUrlParams = useCallback((instrumentKey: string, timeframe: Timeframe, date?: string, time?: string) => {
+  const updateUrlParams = useCallback((instrumentKey: string, timeframe: Timeframe, date?: string, time?: string, strykeDate?: string, algoDate?: string) => {
     const params = new URLSearchParams();
     if (instrumentKey) {
       params.set('instrumentKey', instrumentKey);
@@ -111,6 +111,12 @@ export const OHLCChartDemo: React.FC = () => {
     }
     if (time) {
       params.set('time', time);
+    }
+    if (strykeDate) {
+      params.set('strykeDate', strykeDate);
+    }
+    if (algoDate) {
+      params.set('algoDate', algoDate);
     }
     
     const newUrl = `${window.location.pathname}?${params.toString()}`;
@@ -475,48 +481,48 @@ export const OHLCChartDemo: React.FC = () => {
 
   // Handle selection from suggestions
   // Function to fetch entry dates for the selected instrument
-  const fetchEntryDates = useCallback(async (instrumentKey: string, companyName: string) => {
-    if (!instrumentKey?.includes('NSE')) {
-      console.warn('Invalid instrument key for entry dates fetch:', instrumentKey);
-      return;
-    }
+  // const fetchEntryDates = useCallback(async (instrumentKey: string, companyName: string) => {
+  //   if (!instrumentKey?.includes('NSE')) {
+  //     console.warn('Invalid instrument key for entry dates fetch:', instrumentKey);
+  //     return;
+  //   }
 
-    try {
-      // Replace - with | for the API call
-      const apiInstrumentKey = instrumentKey.replace(/-/g, '|');
+  //   try {
+  //     // Replace - with | for the API call
+  //     const apiInstrumentKey = instrumentKey.replace(/-/g, '|');
       
-      //console.log('🗓️ Fetching entry dates for:', apiInstrumentKey);
+  //     //console.log('🗓️ Fetching entry dates for:', apiInstrumentKey);
       
-     const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+  //    const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 
-      const response = await axios.get(`${backEndBaseUrl}/api/stryke/get-entry-dates/${apiInstrumentKey}/${companyName}`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+  //     const response = await axios.get(`${backEndBaseUrl}/api/stryke/get-entry-dates/${apiInstrumentKey}/${companyName}`, {
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //     });
 
 
-      if (response.status < 200 || response.status >= 300) {
-        throw new Error(`Failed to fetch entry dates: ${response.status}`);
-      }
+  //     if (response.status < 200 || response.status >= 300) {
+  //       throw new Error(`Failed to fetch entry dates: ${response.status}`);
+  //     }
 
-      const data: EntryDatesApiResponse = response.data;
+  //     const data: EntryDatesApiResponse = response.data;
       
-      if (data.entryDates && Array.isArray(data.entryDates)) {
+  //     if (data.entryDates && Array.isArray(data.entryDates)) {
         
-        setStrykeEntryDates(data.entryDates);
-        //console.log('✅ Entry dates fetched successfully:', data.entryDates.length, 'dates');
-      } else {
-        console.warn('No entry dates found in response');
-        setStrykeEntryDates([]);
-      }
-    } catch (error) {
-      console.error('Error fetching entry dates:', error);
-      setStrykeEntryDates([]);
-      // Don't show toast error as this is not critical for main functionality
-    }
-  }, []);
+  //       setStrykeEntryDates(data.entryDates);
+  //       //console.log('✅ Entry dates fetched successfully:', data.entryDates.length, 'dates');
+  //     } else {
+  //       console.warn('No entry dates found in response');
+  //       setStrykeEntryDates([]);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching entry dates:', error);
+  //     setStrykeEntryDates([]);
+  //     // Don't show toast error as this is not critical for main functionality
+  //   }
+  // }, []);
 
   const handleSelectCompany = useCallback((companyName: string) => {
     setSelectedCompany(companyName);
@@ -527,16 +533,18 @@ export const OHLCChartDemo: React.FC = () => {
 
     // Update URL parameters
     if (instrumentKey) {
-      updateUrlParams(instrumentKey, selectedTimeframe, maxDate, maxTime);
+      const strykeDateStr = strykeEntryDates.length > 0 ? strykeEntryDates.join(',') : undefined;
+      const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
+      updateUrlParams(instrumentKey, selectedTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
     }
 
     // Fetch entry dates when a new company is selected
     if (instrumentKey && companyName) {
-      fetchEntryDates(instrumentKey, companyName);
+      //fetchEntryDates(instrumentKey, companyName);
     }
 
     // We preserve the current view (either chart view or boom days) when selecting a new company
-  }, [keyMapping, fetchEntryDates, selectedTimeframe, updateUrlParams, maxDate, maxTime]); // Add dependencies for useCallback
+  }, [keyMapping, selectedTimeframe, updateUrlParams, maxDate, maxTime]); // Add dependencies for useCallback
 
   // Function to filter candles based on max date and time for mock trading
   const filterCandlesByDateTime = useCallback((candlesToFilter: Candle[]): Candle[] => {
@@ -678,7 +686,7 @@ export const OHLCChartDemo: React.FC = () => {
     setIsProgressiveLoading(true);
     
     // Fetch entry dates
-    fetchEntryDates(selectedInstrumentKey, selectedCompany);
+   // fetchEntryDates(selectedInstrumentKey, selectedCompany);
 
     try {
       const lastTradingDay = getLastTradingDay(new Date());
@@ -855,7 +863,7 @@ export const OHLCChartDemo: React.FC = () => {
     selectedCompany,
     selectedInstrumentKey,
     upstoxApiKey,
-    fetchEntryDates,
+  //  fetchEntryDates,
     shouldFetchIntraDay,
     applyEMAToCandles,
     isFirstLoad,
@@ -919,7 +927,7 @@ export const OHLCChartDemo: React.FC = () => {
       
       // Only fetch entry dates for initial loads (not timeframe changes)
       if (mode === 'initial') {
-        fetchEntryDates(selectedInstrumentKey, selectedCompany);
+      //  fetchEntryDates(selectedInstrumentKey, selectedCompany);
       }
     }
 
@@ -1100,7 +1108,7 @@ export const OHLCChartDemo: React.FC = () => {
     upstoxApiKey, 
     selectedTimeframe, 
     isFirstLoad, 
-    fetchEntryDates,
+    //fetchEntryDates,
     candles,
     rawCandles,
     loadingOlderData,
@@ -1132,7 +1140,9 @@ export const OHLCChartDemo: React.FC = () => {
     
     // Update URL parameters
     if (selectedInstrumentKey) {
-      updateUrlParams(selectedInstrumentKey, newTimeframe, maxDate, maxTime);
+      const strykeDateStr = strykeEntryDates.length > 0 ? strykeEntryDates.join(',') : undefined;
+      const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
+      updateUrlParams(selectedInstrumentKey, newTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
     }
     
     // Check if we need to fetch new data for the timeframe
@@ -1157,7 +1167,9 @@ export const OHLCChartDemo: React.FC = () => {
           // Revert to previous timeframe on error
           setSelectedTimeframe(previousTimeframe);
           // Also revert URL parameters
-          updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime);
+          const strykeDateStr = strykeEntryDates.length > 0 ? strykeEntryDates.join(',') : undefined;
+          const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
+          updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
         });
     } else if (rawCandles.length) {
       // Use existing data and process it for the new timeframe
@@ -1177,13 +1189,17 @@ export const OHLCChartDemo: React.FC = () => {
         
         // Revert to previous timeframe on processing error
         setSelectedTimeframe(previousTimeframe);
-        updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime);
+        const strykeDateStr = strykeEntryDates.length > 0 ? strykeEntryDates.join(',') : undefined;
+        const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
+        updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
       }
     } else {
       // No data available
       toast.error(`No data available for ${newTimeframe}. Please fetch data first.`);
       setSelectedTimeframe(previousTimeframe);
-      updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime);
+      const strykeDateStr = strykeEntryDates.length > 0 ? strykeEntryDates.join(',') : undefined;
+      const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
+      updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
     }
   }, [selectedTimeframe, selectedInstrumentKey, upstoxApiKey, rawCandles, updateUrlParams, fetchCandles, applyEMAToCandles, maxDate, maxTime]);
 
@@ -1453,7 +1469,9 @@ export const OHLCChartDemo: React.FC = () => {
                   supportLevel={support?.value}
                   resistanceLevel={resistance?.value}
                   avgVolume={avgVolume}
-                  entryDates={strykeEntryDates} // Pass entry dates for highlighting
+                  entryDates={[]} // Legacy entry dates - empty when using new stryke/algo dates
+                  strykeDates={strykeEntryDates} // Stryke entry dates
+                  algoDates={algoEntryDates} // Algo entry dates
                   onLoadMoreData={undefined} // Temporarily disable automatic loading
                   hasMoreOlderData={hasMoreCandles}
                   hasMoreNewerData={false} // We typically only load historical data

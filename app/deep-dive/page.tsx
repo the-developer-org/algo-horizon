@@ -134,7 +134,44 @@ export default function DeepDivePage() {
   
   // Function to navigate to chart page with parameters
   const navigateToChart = (instrumentKey: string, timeframe: string) => {
-    const chartUrl = `/chart?instrumentKey=${encodeURIComponent(instrumentKey)}&timeframe=${encodeURIComponent(timeframe)}`;
+    // Collect stryke and algo dates from the current group
+    const strykeDates: string[] = [];
+    const algoDates: string[] = [];
+    
+    // Find the group that contains this instrument key
+    const currentGroup = groupedByUUID.find(group => 
+      group.entries.some(entry => entry.instrumentKey === instrumentKey)
+    );
+    
+    if (currentGroup) {
+      currentGroup.entries.forEach(entry => {
+        if (entry.entryTime) {
+          const date = new Date(entry.entryTime);
+          if (Number.isNaN(date.getTime())) {
+            console.error('Invalid entryTime for date formatting:', entry.entryTime, entry);
+            return; // Skip invalid dates
+          }
+          const entryDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+          if (entry.label === 'STRYKE') {
+            strykeDates.push(entryDate);
+          } else if (entry.label === 'ALGO') {
+            algoDates.push(entryDate);
+          }
+        }
+      });
+    }
+    
+    // Build URL with date parameters
+    let chartUrl = `/chart?instrumentKey=${encodeURIComponent(instrumentKey)}&timeframe=${encodeURIComponent(timeframe)}`;
+    
+    if (strykeDates.length > 0) {
+      chartUrl += `&strykeDate=${encodeURIComponent(strykeDates.join(','))}`;
+    }
+    
+    if (algoDates.length > 0) {
+      chartUrl += `&algoDate=${encodeURIComponent(algoDates.join(','))}`;
+    }
+    
     window.open(chartUrl, '_blank');
   };
   

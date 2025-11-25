@@ -408,18 +408,39 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
   
   entryDates.forEach(entryDateStr => {
     try {
-      // Parse entry date - handle various formats
+      // Parse entry date - handle various formats including MM-DD-YYYY
       let entryTime: Date;
-      if (entryDateStr.includes('T')) {
-        // ISO format: "2024-09-06T09:33:00"
-        entryTime = new Date(entryDateStr);
-      } else if (entryDateStr.includes(' ')) {
-        // Format: "2024-09-06 09:33:00"
-        entryTime = new Date(entryDateStr.replace(' ', 'T'));
-      } else {
-        // Assume it's just time: "09:33:00" - use current date
-        const today = new Date().toISOString().split('T')[0];
-        entryTime = new Date(`${today}T${entryDateStr}`);
+      
+      // First try standard YYYY-MM-DD format
+      entryTime = new Date(entryDateStr);
+      
+      // If that fails and it looks like MM-DD-YYYY format, try swapping
+      if (isNaN(entryTime.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(entryDateStr)) {
+        const parts = entryDateStr.split('-');
+        const year = parseInt(parts[0]);
+        const month = parseInt(parts[1]);
+        const day = parseInt(parts[2]);
+        
+        // If month > 12, it's likely MM-DD-YYYY format, so swap month and day
+        if (month > 12 && day <= 12) {
+          console.log(`🔄 Detected MM-DD-YYYY format, converting ${entryDateStr} to ${year}-${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`);
+          entryTime = new Date(`${year}-${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`);
+        }
+      }
+      
+      // Handle other formats
+      if (isNaN(entryTime.getTime())) {
+        if (entryDateStr.includes('T')) {
+          // ISO format: "2024-09-06T09:33:00"
+          entryTime = new Date(entryDateStr);
+        } else if (entryDateStr.includes(' ')) {
+          // Format: "2024-09-06 09:33:00"
+          entryTime = new Date(entryDateStr.replace(' ', 'T'));
+        } else {
+          // Assume it's just time: "09:33:00" - use current date
+          const today = new Date().toISOString().split('T')[0];
+          entryTime = new Date(`${today}T${entryDateStr}`);
+        }
       }
       
       if (isNaN(entryTime.getTime())) {
@@ -452,12 +473,15 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
       
       // Check if entry date is within acceptable range of available data
       // Silently filter out dates outside the range instead of showing warnings
+      console.log(`🔍 Checking date range for ${entryDateStr}: entry=${new Date(entryTimestamp).toISOString()} vs first=${new Date(firstCandleTime).toISOString()} to last=${new Date(lastCandleTime).toISOString()}`);
       if (entryTimestamp < firstCandleTime - timeTolerance) {
+        console.log(`❌ Entry date ${entryDateStr} is too old - filtering out`);
         // Entry date is too old - silently skip
         return;
       }
       
       if (entryTimestamp > lastCandleTime + timeTolerance) {
+        console.log(`❌ Entry date ${entryDateStr} is too new - filtering out`);
         // Entry date is too new - silently skip
         return;
       }
@@ -535,6 +559,8 @@ interface OHLCChartProps {
     resistanceLevel?: number; // Resistance level from backend
     avgVolume?: number; // Average volume for the stock
     entryDates?: string[]; // Entry dates to highlight on chart
+    strykeDates?: string[]; // Stryke entry dates to highlight with different style
+    algoDates?: string[]; // Algo entry dates to highlight with different style
     // Add callback for loading more data when user scrolls to edges
     onLoadMoreData?: (direction: 'older' | 'newer') => Promise<void>;
     hasMoreOlderData?: boolean;
@@ -564,6 +590,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     resistanceLevel, // Use backend-provided resistance level
     avgVolume = 0, // Average volume with default value of 0
     entryDates = [], // Entry dates to highlight
+    strykeDates = [], // Stryke entry dates to highlight
+    algoDates = [], // Algo entry dates to highlight
     onLoadMoreData, // Callback for loading more data
     hasMoreOlderData = false,
     hasMoreNewerData = false,
@@ -625,6 +653,39 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
         return indices;
     }, [entryDates, candles, detectedTimeframe]);
+
+    // Map stryke dates to candle indices
+    const strykeCandleIndices = useMemo(() => {
+        if (candles.length > 0) {
+            const firstCandle = new Date(candles[0].timestamp);
+            const lastCandle = new Date(candles[candles.length - 1].timestamp);
+            console.log(`📊 Data range: ${firstCandle.toISOString().split('T')[0]} to ${lastCandle.toISOString().split('T')[0]} (${candles.length} candles)`);
+        }
+        const indices = mapEntryDatesToCandles(strykeDates, candles, detectedTimeframe);
+        if (indices.size > 0) {
+            console.log(`🎯 Stryke date mapping for ${detectedTimeframe} timeframe:`, strykeDates.length, 'dates →', indices.size, 'markers');
+            console.log('Stryke dates:', strykeDates);
+            console.log('Stryke indices:', Array.from(indices));
+        } else if (strykeDates.length > 0) {
+            console.log(`❌ No stryke markers created for ${detectedTimeframe} timeframe:`, strykeDates.length, 'dates provided');
+            console.log('Stryke dates:', strykeDates);
+        }
+        return indices;
+    }, [strykeDates, candles, detectedTimeframe]);
+
+    // Map algo dates to candle indices
+    const algoCandleIndices = useMemo(() => {
+        const indices = mapEntryDatesToCandles(algoDates, candles, detectedTimeframe);
+        if (indices.size > 0) {
+            console.log(`🎯 Algo date mapping for ${detectedTimeframe} timeframe:`, algoDates.length, 'dates →', indices.size, 'markers');
+            console.log('Algo dates:', algoDates);
+            console.log('Algo indices:', Array.from(indices));
+        } else if (algoDates.length > 0) {
+            console.log(`❌ No algo markers created for ${detectedTimeframe} timeframe:`, algoDates.length, 'dates provided');
+            console.log('Algo dates:', algoDates);
+        }
+        return indices;
+    }, [algoDates, candles, detectedTimeframe]);
 
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
@@ -951,7 +1012,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             volumeSeriesRef.current = null;
             avgVolumeLineRef.current = null;
         };
-    }, [candles, height, width, showVolume, entryCandleIndices]); // Added entryCandleIndices to dependencies
+    }, [candles, height, width, showVolume, entryCandleIndices, strykeDates, algoDates]); // Added entryCandleIndices, strykeDates, algoDates to dependencies
 
     // Manage Avg Volume reference line on the volume histogram
     useEffect(() => {
@@ -1370,30 +1431,90 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 });
                 
                 // Add entry date markers and dotted lines only if we have Stryke entry dates
-                if (entryCandleIndices && entryCandleIndices.size > 0) {
+                if (entryCandleIndices && entryCandleIndices.size > 0 && (strykeCandleIndices.size === 0 && algoCandleIndices.size === 0)) {
                     entryCandleIndices.forEach((entryIndex) => {
                         if (entryIndex < candles.length) {
                             const entryCandle = candles[entryIndex];
                             const entryTime = parseTimestampToUnix(entryCandle.timestamp);
                             
-                            // Add entry marker (Stryke) with flag shape so the label is visible
+                             // Add stryke marker with different color and style
                             allMarkers.push({
                                 time: entryTime,
                                 position: 'aboveBar',
-                                color: '#0328fcff', // Orange color for entry points
+                                color: '#ff6b35', // Orange color for stryke points
                                 shape: 'flag',
                                 text: 'Stryke',
-                                size: 5,
+                                size: 10,
                             });
                             
-                            // Add pink circle marker on top of the entry candle
+                            // Add circle marker for stryke
                             allMarkers.push({
                                 time: entryTime,
                                 position: 'aboveBar',
-                                color: '#5af806ff', // Deep pink color for the circle
+                                color: '#ff6b35', // Orange color for the circle
                                 shape: 'circle',
                                 text: '', // No text for the circle
-                                size: 2, // Smaller size for the circle
+                                size: 0.5,
+                            });
+                        }
+                    });
+                }
+
+                // Add stryke date markers
+                if (strykeCandleIndices && strykeCandleIndices.size > 0) {
+                    strykeCandleIndices.forEach((entryIndex) => {
+                        if (entryIndex < candles.length) {
+                            const entryCandle = candles[entryIndex];
+                            const entryTime = parseTimestampToUnix(entryCandle.timestamp);
+                            
+                            // Add stryke marker with different color and style
+                            allMarkers.push({
+                                time: entryTime,
+                                position: 'aboveBar',
+                                color: '#e32424ff', // Red color for stryke points
+                                shape: 'flag',
+                                text: 'S',
+                                size: 10,
+                            });
+                            
+                            // Add circle marker for stryke
+                            allMarkers.push({
+                                time: entryTime,
+                                position: 'aboveBar',
+                                color: '#e32424ff', // Red color for the circle
+                                shape: 'circle',
+                                text: '', // No text for the circle
+                                size: 0.5,
+                            });
+                        }
+                    });
+                }
+
+                // Add algo date markers
+                if (algoCandleIndices && algoCandleIndices.size > 0) {
+                    algoCandleIndices.forEach((entryIndex) => {
+                        if (entryIndex < candles.length) {
+                            const entryCandle = candles[entryIndex];
+                            const entryTime = parseTimestampToUnix(entryCandle.timestamp);
+                            
+                            // Add algo marker with different color and style
+                            allMarkers.push({
+                                time: entryTime,
+                                position: 'aboveBar',
+                                color: '#18ebe1ff', // Teal color for algo points
+                                shape: 'flag',
+                                text: 'A',
+                                size: 10,
+                            });
+                            
+                            // Add circle marker for algo
+                            allMarkers.push({
+                                time: entryTime,
+                                position: 'aboveBar',
+                                color: '#4ecdc4', // Teal color for the circle
+                                shape: 'circle',
+                                text: '', // No text for the circle
+                                size: 0.5,
                             });
                         }
                     });
@@ -1451,7 +1572,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 trendLinesRef.current = [];
             }
         };
-    }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices]); // Added entryCandleIndices
+    }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices, strykeCandleIndices, algoCandleIndices]); // Added entryCandleIndices, strykeCandleIndices, algoCandleIndices
 
     // Crosshair move handler effect - updates when chart changes
     useEffect(() => {
