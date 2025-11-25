@@ -2144,7 +2144,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             
             <div ref={UnderstchartContainerRef} style={{ 
                 width: '100%', 
-                height: 'calc(100% - 40px)', // Reduce height to leave space for x-axis
+                height: '100%', // Reduce height to leave space for x-axis
                 paddingBottom: '10px' // Additional padding for x-axis visibility
             }} />
             

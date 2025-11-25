@@ -70,6 +70,7 @@ export const OHLCChartDemo: React.FC = () => {
   
   // Entry dates state
   const [strykeEntryDates, setStrykeEntryDates] = useState<string[]>([]);
+  const [algoEntryDates, setAlgoEntryDates] = useState<string[]>([]);
 
   const [shouldFetchIntraDay, setShouldFetchIntraDay] = useState(true);
 
@@ -314,6 +315,8 @@ export const OHLCChartDemo: React.FC = () => {
     const timeframeParam = searchParams.get('timeframe') as Timeframe;
     const dateParam = searchParams.get('date');
     const timeParam = searchParams.get('time');
+    const strykeDateParam = searchParams.get('strykeDate');
+    const algoDateParam = searchParams.get('algoDate');
 
     if (instrumentKeyParam && timeframeParam) {
       //console.log('🔗 Processing URL parameters:', { instrumentKeyParam, timeframeParam, dateParam, timeParam });
@@ -345,6 +348,31 @@ export const OHLCChartDemo: React.FC = () => {
       setSelectedTimeframe(timeframeParam);
       setMaxDate(dateParam || '');
       setMaxTime(timeParam || '');
+      
+      // Parse and set stryke and algo dates
+      if (strykeDateParam) {
+        try {
+          const strykeDates = strykeDateParam.split(',').map(date => date.trim()).filter(date => date);
+          setStrykeEntryDates(strykeDates);
+        } catch (error) {
+          console.warn('Invalid strykeDate parameter:', strykeDateParam);
+          setStrykeEntryDates([]);
+        }
+      } else {
+        setStrykeEntryDates([]);
+      }
+      
+      if (algoDateParam) {
+        try {
+          const algoDates = algoDateParam.split(',').map(date => date.trim()).filter(date => date);
+          setAlgoEntryDates(algoDates);
+        } catch (error) {
+          console.warn('Invalid algoDate parameter:', algoDateParam);
+          setAlgoEntryDates([]);
+        }
+      } else {
+        setAlgoEntryDates([]);
+      }
       setSearchTerm(companyName);
       
       // Auto-load data if API key is available
@@ -1179,7 +1207,7 @@ export const OHLCChartDemo: React.FC = () => {
   }
 
   return (
-    <div>
+    <div className="flex flex-col min-h-screen">
       <Toaster position="top-right" />
       {selectedCompany && (
         <h2 className="text-2xl font-bold text-center mb-2">
@@ -1391,7 +1419,7 @@ export const OHLCChartDemo: React.FC = () => {
         // If not showing boom days, show chart
         if (!showBoomDays) {
           return (
-            <>
+            <div className="mt-auto">
               {candles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 bg-gray-50 border border-gray-200 rounded-lg m-4">
                   <div className="text-center space-y-3">
@@ -1456,7 +1484,7 @@ export const OHLCChartDemo: React.FC = () => {
                   <span className="text-green-800">Loading historical data...</span>
                 </div>
               )}
-            </>
+            </div>
           );
         }
 
