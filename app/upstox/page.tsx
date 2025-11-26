@@ -16,8 +16,34 @@ export default function UpstoxPage() {
     const [accountPhoneMapping, setAccountPhoneMapping] = useState<Record<string, string>>({});
     const [accounts, setAccounts] = useState<string[]>([]);
     const [accountLogin, setAccountLogin] = useState<Record<string, boolean>>({});
+    const [selectedAccount, setSelectedAccount] = useState<string>(accounts[0]);
+    const featureTabs = useMemo(
+        () => [
+            "Place Order",
+            "Open Orders",
+            "Completed Orders",
+            "Positions",
+            "Holdings",
+            "Funds & ledger",
+            "P&L & reconciliation",
+        ],
+        []
+    );
+    const [activeFeature, setActiveFeature] = React.useState<string>(featureTabs[0]);
 
+    // Company search state - per account
+    const [keyMapping, setKeyMapping] = React.useState<{ [companyName: string]: string }>({});
+    const [searchTerms, setSearchTerms] = React.useState<{ [account: string]: string }>({});
+    const [suggestions, setSuggestions] = React.useState<{ [account: string]: string[] }>({});
+    const [selectedCompanies, setSelectedCompanies] = React.useState<{ [account: string]: string }>({});
+    const [selectedInstrumentKeys, setSelectedInstrumentKeys] = React.useState<{ [account: string]: string }>({});
+    const [lastClosingPrices, setLastClosingPrices] = React.useState<{ [account: string]: number | null }>({});
+    const [companyPrices, setCompanyPrices] = React.useState<{ [company: string]: number | null }>({});
+    const [isLoadingPrices, setIsLoadingPrices] = React.useState<{ [account: string]: boolean }>({});
 
+    // Live price indicator
+    const [isLivePrice, setIsLivePrice] = useState<boolean>(false)
+    const [disclosedQuantityEnabled, setDisclosedQuantityEnabled] = React.useState<{ [account: string]: boolean }>({});
 
     // Fetch phone number mapping on mount
     useEffect(() => {
@@ -49,34 +75,6 @@ export default function UpstoxPage() {
         fetchAllUsers();
     }, []);
 
-    const [selectedAccount, setSelectedAccount] = useState<string>(accounts[0]);
-    const featureTabs = useMemo(
-        () => [
-            "Place Order",
-            "Open Orders",
-            "Completed Orders",
-            "Positions",
-            "Holdings",
-            "Funds & ledger",
-            "P&L & reconciliation",
-        ],
-        []
-    );
-    const [activeFeature, setActiveFeature] = React.useState<string>(featureTabs[0]);
-
-    // Company search state - per account
-    const [keyMapping, setKeyMapping] = React.useState<{ [companyName: string]: string }>({});
-    const [searchTerms, setSearchTerms] = React.useState<{ [account: string]: string }>({});
-    const [suggestions, setSuggestions] = React.useState<{ [account: string]: string[] }>({});
-    const [selectedCompanies, setSelectedCompanies] = React.useState<{ [account: string]: string }>({});
-    const [selectedInstrumentKeys, setSelectedInstrumentKeys] = React.useState<{ [account: string]: string }>({});
-    const [lastClosingPrices, setLastClosingPrices] = React.useState<{ [account: string]: number | null }>({});
-    const [isLoadingPrices, setIsLoadingPrices] = React.useState<{ [account: string]: boolean }>({});
-
-    // Live price indicator
-    const [isLivePrice, setIsLivePrice] = useState<boolean>(false)
-    const [disclosedQuantityEnabled, setDisclosedQuantityEnabled] = React.useState<{ [account: string]: boolean }>({});
-
     // Trade history interfaces
     interface TradeData {
         exchange: string;
@@ -103,9 +101,31 @@ export default function UpstoxPage() {
         metaData?: any;
     }
 
+    interface OrderTradeRecord {
+        tradeDate: string;
+        orderId: string;
+        tradeId: string;
+        isHolding: boolean;
+        avgPrice: number;
+        totalQty: number;
+        holdingQty: number;
+    }
+
+    interface OpenOrders {
+        id: string;
+        phoneNumber: number;
+        companyName: string;
+        instrumentKey: string;
+        buyingOrders: OrderTradeRecord[];
+        isHolding: boolean;
+    }
+
     // Trade history state
     const [tradeHistory, setTradeHistory] = useState<{ [account: string]: TradeData[] }>({});
     const [isLoadingTradeHistory, setIsLoadingTradeHistory] = useState<{ [account: string]: boolean }>({});
+    // Open orders state
+    const [openOrders, setOpenOrders] = useState<{ [account: string]: OpenOrders[] }>({});
+    const [isLoadingOpenOrders, setIsLoadingOpenOrders] = useState<{ [account: string]: boolean }>({});
     // Misc loading flags for API activity
     const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
     const [isLoadingKeyMapping, setIsLoadingKeyMapping] = useState<boolean>(false);
@@ -269,6 +289,13 @@ export default function UpstoxPage() {
         }
     }, [activeFeature, selectedAccount, selectedFinancialYear]);
 
+    // Fetch open orders when Open Orders tab is activated
+    useEffect(() => {
+        if (activeFeature === 'Open Orders' && isUserLoggedIn()) {
+            fetchOpenOrders(selectedAccount);
+        }
+    }, [activeFeature, selectedAccount]);
+
     // Fetch funds when account is selected or when Place order tab is activated
     useEffect(() => {
         if (activeFeature === 'Place order' && selectedAccount !== 'All accounts') {
@@ -320,6 +347,7 @@ export default function UpstoxPage() {
             if (!apiKey) {
                 console.warn('No Upstox API key found');
                 setLastClosingPrices(prev => ({ ...prev, [selectedAccount]: null }));
+                setCompanyPrices(prev => ({ ...prev, [instrumentKey]: null }));
                 return;
             }
 
@@ -391,12 +419,14 @@ export default function UpstoxPage() {
                 const currentPrice = candles[0].close;
 
                 setLastClosingPrices(prev => ({ ...prev, [selectedAccount]: currentPrice }));
+                setCompanyPrices(prev => ({ ...prev, [instrumentKey]: currentPrice }));
                 // Inform user that price was fetched (success)
                 toast.success(`Price fetched for ${instrumentKey}`);
             }
         } catch (error) {
             console.error('Failed to fetch last closing price:', error);
             setLastClosingPrices(prev => ({ ...prev, [selectedAccount]: null }));
+            setCompanyPrices(prev => ({ ...prev, [instrumentKey]: null }));
             toast.error(`Failed to fetch price for instrument ${instrumentKey}`);
         } finally {
             if (!isPollingUpdate) {
@@ -481,6 +511,49 @@ export default function UpstoxPage() {
 
     // State for loading funds
     const [isLoadingFunds, setIsLoadingFunds] = useState<{ [account: string]: boolean }>({});
+
+    // Sell modal state
+    const [sellModalOpen, setSellModalOpen] = useState(false);
+    const [selectedOrderToSell, setSelectedOrderToSell] = useState<any>(null);
+    const [sellQuantity, setSellQuantity] = useState('');
+
+
+    const fetchOpenOrders = async (account: string) => {
+        const phoneNumber = (accountPhoneMapping as Record<string, string>)[account];
+        if (!phoneNumber) return;
+
+        setIsLoadingOpenOrders(prev => ({ ...prev, [account]: true }));
+
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+            const response = await fetch(`${backendUrl}/api/upstox/orders/get-open-orders?phoneNumber=${phoneNumber}`);
+            if (response.ok) {
+                const data: OpenOrders[] = await response.json();
+
+                setOpenOrders(prev => ({
+                    ...prev,
+                    [account]: data
+                }));
+                toast.success(`Open orders loaded for ${account}`);
+
+                // Fetch prices for companies in open orders
+                const instrumentKeys = data.map((order: OpenOrders) => order.instrumentKey);
+                const uniqueInstrumentKeys = Array.from(new Set(instrumentKeys));
+                if (uniqueInstrumentKeys.length > 0) {
+                    for (const instrumentKey of uniqueInstrumentKeys) {
+                        // await fetchLastClosingPrice(instrumentKey);
+                    }
+                }
+
+            }
+        } catch (error) {
+            console.error(`Failed to fetch open orders for ${account}:`, error);
+            toast.error(`Failed to fetch open orders for ${account}`);
+        } finally {
+            setIsLoadingOpenOrders(prev => ({ ...prev, [account]: false }));
+        }
+    };
+
 
     // Helper function to fetch funds from API
     const fetchAccountFunds = async (account: string) => {
@@ -749,77 +822,148 @@ export default function UpstoxPage() {
     const handleSubmitOrder = async () => {
         setIsSubmittingOrder(true);
         try {
-        const apiKey = localStorage.getItem('upstoxApiKey');
-        
-        if (!apiKey) {
-            toast.error('No Upstox API key found. Please set your API key first.');
-            return;
-        }
+            const apiKey = localStorage.getItem('upstoxApiKey');
 
-        if (selectedAccount === 'All accounts') {
-            // Validate all accounts have required data
-            const accountsToProcess = accounts.slice(1); // Skip 'All accounts'
-            const validationErrors: string[] = [];
-
-            accountsToProcess.forEach(account => {
-                const accountForm = orderForms[account];
-                const accountValidation = validateOrderData(accountForm, account);
-                validationErrors.push(...accountValidation.errors);
-            });
-
-            if (validationErrors.length > 0) {
-                toast.error(`Validation errors:\n${validationErrors.join('\n')}`);
+            if (!apiKey) {
+                toast.error('No Upstox API key found. Please set your API key first.');
                 return;
             }
 
-            // Prepare batch order requests
-            const orderRequests = accountsToProcess.map(account => {
-                const accountForm = orderForms[account];
-                const phoneNumber = (accountPhoneMapping as Record<string, string>)[account];
+            if (selectedAccount === 'All accounts') {
+                // Validate all accounts have required data
+                const accountsToProcess = accounts.slice(1); // Skip 'All accounts'
+                const validationErrors: string[] = [];
 
-                return {
-                    phoneNumber: phoneNumber,
-                    isSandbox: false, // Assuming production, adjust as needed
-                    orderData: {
-                        quantity: Number.parseInt(accountForm.quantity || '0', 10) || 0,
-                        product: mapProductToApi(accountForm.product),
-                        validity: accountForm.validity.toUpperCase(),
-                        price: Number.parseFloat(accountForm.price || '0') || 0,
-                        tag: `order-${account}-${Date.now()}`,
-                        instrumentToken: accountForm.instrumentKey,
-                        orderType: mapOrderTypeToApi(accountForm.orderType),
-                        transactionType: accountForm.transactionType.toUpperCase(),
-                        disclosedQuantity: (disclosedQuantityEnabled[account] && accountForm.disclosedQuantity) ? Number.parseInt(accountForm.disclosedQuantity || '0', 10) : 0,
-                        triggerPrice: accountForm.triggerPrice ? Number.parseFloat(accountForm.triggerPrice || '0') : 0,
-                        isAmo: false,
-                        slice: false
-                    }
-                };
-            });
-
-            try {
-                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
-                const context = '/api/upstox/';
-                const response = await fetch(`${backendUrl}${context}orders/batch-order`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(orderRequests),
+                accountsToProcess.forEach(account => {
+                    const accountForm = orderForms[account];
+                    const accountValidation = validateOrderData(accountForm, account);
+                    validationErrors.push(...accountValidation.errors);
                 });
 
-                const data = await response.json();
+                if (validationErrors.length > 0) {
+                    toast.error(`Validation errors:\n${validationErrors.join('\n')}`);
+                    return;
+                }
 
-                if (response.ok && Array.isArray(data)) {
-                    const successCount = data.filter((result: any) => result.success !== false).length;
-                    const totalCount = data.length;
-                    toast.success(`Orders completed: ${successCount}/${totalCount} successful`);
+                // Prepare batch order requests
+                const orderRequests = accountsToProcess.map(account => {
+                    const accountForm = orderForms[account];
+                    const phoneNumber = (accountPhoneMapping as Record<string, string>)[account];
 
-                    // Clear form data for successful orders
-                    for (const account of accountsToProcess) {
+                    return {
+                        phoneNumber: phoneNumber,
+                        isSandbox: false, // Assuming production, adjust as needed
+                        orderData: {
+                            quantity: Number.parseInt(accountForm.quantity || '0', 10) || 0,
+                            product: mapProductToApi(accountForm.product),
+                            validity: accountForm.validity.toUpperCase(),
+                            price: Number.parseFloat(accountForm.price || '0') || 0,
+                            tag: `order-${account}-${Date.now()}`,
+                            instrumentToken: accountForm.instrumentKey,
+                            orderType: mapOrderTypeToApi(accountForm.orderType),
+                            transactionType: accountForm.transactionType.toUpperCase(),
+                            disclosedQuantity: (disclosedQuantityEnabled[account] && accountForm.disclosedQuantity) ? Number.parseInt(accountForm.disclosedQuantity || '0', 10) : 0,
+                            triggerPrice: accountForm.triggerPrice ? Number.parseFloat(accountForm.triggerPrice || '0') : 0,
+                            isAmo: false,
+                            slice: false
+                        }
+                    };
+                });
+
+                try {
+                    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+                    const context = '/api/upstox/';
+                    const response = await fetch(`${backendUrl}${context}orders/batch-order`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(orderRequests),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && Array.isArray(data)) {
+                        const successCount = data.filter((result: any) => result.success !== false).length;
+                        const totalCount = data.length;
+                        toast.success(`Orders completed: ${successCount}/${totalCount} successful`);
+
+                        // Clear form data for successful orders
+                        for (const account of accountsToProcess) {
+                            setOrderForms(prev => ({
+                                ...prev,
+                                [account]: {
+                                    instrumentKey: '',
+                                    quantity: '',
+                                    disclosedQuantity: '',
+                                    transactionType: 'Buy',
+                                    orderType: 'Market',
+                                    product: 'Delivery',
+                                    price: '',
+                                    triggerPrice: '',
+                                    validity: 'Day'
+                                }
+                            }));
+                            setSelectedCompanies(prev => ({ ...prev, [account]: '' }));
+                            setSelectedInstrumentKeys(prev => ({ ...prev, [account]: '' }));
+                            setLastClosingPrices(prev => ({ ...prev, [account]: null }));
+                        }
+                    } else {
+                        toast.error('Failed to place batch orders');
+                    }
+                } catch (error) {
+                    console.error('Batch order submission error:', error);
+                    toast.error('Failed to submit batch orders. Please try again.');
+                }
+
+            } else {
+                // Single account order validation
+                const validation = validateOrderData(orderForm);
+                if (!validation.isValid) {
+                    toast.error(`Validation errors:\n${validation.errors.join('\n')}`);
+                    return;
+                }
+
+                try {
+                    // Get phone number for the selected account
+                    const phoneNumber = (accountPhoneMapping as Record<string, string>)[selectedAccount];
+                    //console.log('Submitting order for account:', selectedAccount, 'with phone number:', phoneNumber);
+                    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+                    const context = '/api/upstox/';
+
+                    const response = await fetch(`${backendUrl}${context}orders/place-order`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            phoneNumber: phoneNumber,
+                            isSandbox: true,
+                            orderData: {
+                                quantity: Number.parseInt(orderForm.quantity || '0', 10) || 0,
+                                product: mapProductToApi(orderForm.product),
+                                validity: orderForm.validity.toUpperCase(),
+                                price: Number.parseFloat(orderForm.price || '0') || 0,
+                                tag: `order-${selectedAccount}-${Date.now()}`,
+                                instrumentToken: selectedInstrumentKey,
+                                orderType: mapOrderTypeToApi(orderForm.orderType),
+                                transactionType: orderForm.transactionType.toUpperCase(),
+                                disclosedQuantity: (isDisclosedQuantityEnabled && orderForm.disclosedQuantity) ? Number.parseInt(orderForm.disclosedQuantity || '0', 10) : 0,
+                                triggerPrice: orderForm.triggerPrice ? Number.parseFloat(orderForm.triggerPrice || '0') : 0,
+                                isAmo: false,
+                                slice: false
+                            }
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.status === 'SUCCESS') {
+                        toast.success('Order placed successfully!');
+                        // Reset form after successful submission
                         setOrderForms(prev => ({
                             ...prev,
-                            [account]: {
+                            [selectedAccount]: {
                                 instrumentKey: '',
                                 quantity: '',
                                 disclosedQuantity: '',
@@ -831,93 +975,261 @@ export default function UpstoxPage() {
                                 validity: 'Day'
                             }
                         }));
-                        setSelectedCompanies(prev => ({ ...prev, [account]: '' }));
-                        setSelectedInstrumentKeys(prev => ({ ...prev, [account]: '' }));
-                        setLastClosingPrices(prev => ({ ...prev, [account]: null }));
+                        // Clear selected company
+                        setSelectedCompanies(prev => ({ ...prev, [selectedAccount]: '' }));
+                        setSelectedInstrumentKeys(prev => ({ ...prev, [selectedAccount]: '' }));
+                        setLastClosingPrices(prev => ({ ...prev, [selectedAccount]: null }));
+                        setSearchTerms(prev => ({ ...prev, [selectedAccount]: '' }));
+                    } else {
+                        toast.error(data.error || 'Failed to place order');
                     }
-                } else {
-                    toast.error('Failed to place batch orders');
+                } catch (error) {
+                    console.error('Order submission error:', error);
+                    toast.error('Failed to submit order. Please try again.');
                 }
-            } catch (error) {
-                console.error('Batch order submission error:', error);
-                toast.error('Failed to submit batch orders. Please try again.');
             }
-
-        } else {
-            // Single account order validation
-            const validation = validateOrderData(orderForm);
-            if (!validation.isValid) {
-                toast.error(`Validation errors:\n${validation.errors.join('\n')}`);
-                return;
-            }
-
-            try {
-                // Get phone number for the selected account
-                const phoneNumber = (accountPhoneMapping as Record<string, string>)[selectedAccount];
-                //console.log('Submitting order for account:', selectedAccount, 'with phone number:', phoneNumber);
-                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
-                const context = '/api/upstox/';
-
-                const response = await fetch(`${backendUrl}${context}orders/place-order`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        phoneNumber: phoneNumber,
-                        isSandbox: true,
-                        orderData: {
-                            quantity: Number.parseInt(orderForm.quantity || '0', 10) || 0,
-                            product: mapProductToApi(orderForm.product),
-                            validity: orderForm.validity.toUpperCase(),
-                            price: Number.parseFloat(orderForm.price || '0') || 0,
-                            tag: `order-${selectedAccount}-${Date.now()}`,
-                            instrumentToken: selectedInstrumentKey,
-                            orderType: mapOrderTypeToApi(orderForm.orderType),
-                            transactionType: orderForm.transactionType.toUpperCase(),
-                            disclosedQuantity: (isDisclosedQuantityEnabled && orderForm.disclosedQuantity) ? Number.parseInt(orderForm.disclosedQuantity || '0', 10) : 0,
-                            triggerPrice: orderForm.triggerPrice ? Number.parseFloat(orderForm.triggerPrice || '0') : 0,
-                            isAmo: false,
-                            slice: false
-                        }
-                    }),
-                });
-
-                const data = await response.json();
-
-                if (response.ok && data.status === 'SUCCESS') {
-                    toast.success('Order placed successfully!');
-                    // Reset form after successful submission
-                    setOrderForms(prev => ({
-                        ...prev,
-                        [selectedAccount]: {
-                            instrumentKey: '',
-                            quantity: '',
-                            disclosedQuantity: '',
-                            transactionType: 'Buy',
-                            orderType: 'Market',
-                            product: 'Delivery',
-                            price: '',
-                            triggerPrice: '',
-                            validity: 'Day'
-                        }
-                    }));
-                    // Clear selected company
-                    setSelectedCompanies(prev => ({ ...prev, [selectedAccount]: '' }));
-                    setSelectedInstrumentKeys(prev => ({ ...prev, [selectedAccount]: '' }));
-                    setLastClosingPrices(prev => ({ ...prev, [selectedAccount]: null }));
-                    setSearchTerms(prev => ({ ...prev, [selectedAccount]: '' }));                    
-                } else {
-                    toast.error(data.error || 'Failed to place order');
-                }
-            } catch (error) {
-                console.error('Order submission error:', error);
-                toast.error('Failed to submit order. Please try again.');
-            }
-        }
         } finally {
             setIsSubmittingOrder(false);
         }
+    };
+
+    // Sell order handlers
+    const handleSellOrder = (orderRecord: any) => {
+        setSelectedOrderToSell(orderRecord);
+        setSellQuantity(orderRecord.holdingQty.toString());
+        setSellModalOpen(true);
+    };
+
+    const handleSellAll = (companyName: string, account: string) => {
+        const accountOrders = openOrders[account] || [];
+        const companyOrders = accountOrders.find(order => order.companyName === companyName);
+        if (companyOrders) {
+            const totalHoldingQty = companyOrders.buyingOrders.reduce((sum, order) => sum + order.holdingQty, 0);
+            setSelectedOrderToSell({ companyName, instrumentKey: companyOrders.instrumentKey, holdingQty: totalHoldingQty, isSellAll: true });
+            setSellQuantity(totalHoldingQty.toString());
+            setSellModalOpen(true);
+        }
+    };
+
+    const placeSellOrder = async (orderData: any) => {
+        const apiKey = localStorage.getItem('upstoxApiKey');
+        if (!apiKey) {
+            toast.error('No Upstox API key found. Please set your API key first.');
+            return;
+        }
+
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+            const context = '/api/upstox/';
+
+            const response = await fetch(`${backendUrl}${context}orders/place-order`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(orderData),
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === 'SUCCESS') {
+                toast.success('Sell order placed successfully!');
+                // Refresh open orders after successful sell
+                fetchOpenOrders(selectedAccount);
+                return true;
+            } else {
+                toast.error(data.error || 'Failed to place sell order');
+                return false;
+            }
+        } catch (error) {
+            console.error('Sell order submission error:', error);
+            toast.error('Failed to submit sell order. Please try again.');
+            return false;
+        }
+    };
+
+    const confirmSellOrder = async () => {
+        if (!selectedOrderToSell || !sellQuantity) return;
+
+        const quantity = Number.parseInt(sellQuantity);
+        if (quantity <= 0) {
+            toast.error('Please enter a valid quantity');
+            return;
+        }
+
+        if (quantity > selectedOrderToSell.holdingQty) {
+            toast.error('Cannot sell more than holding quantity');
+            return;
+        }
+
+        setIsSubmittingOrder(true);
+        try {
+            const phoneNumber = accountPhoneMapping[selectedAccount];
+
+            const orderData = {
+                phoneNumber: phoneNumber,
+                isSandbox: true,
+                orderData: {
+                    quantity: quantity,
+                    product: 'D', // Default to Delivery for sells
+                    validity: 'DAY',
+                    price: 0, // Market order
+                    tag: `sell-${selectedAccount}-${Date.now()}`,
+                    instrumentToken: selectedOrderToSell.instrumentKey,
+                    orderType: 'MARKET',
+                    transactionType: 'SELL',
+                    disclosedQuantity: 0,
+                    triggerPrice: 0,
+                    isAmo: false,
+                    slice: false
+                }
+            };
+
+            const success = await placeSellOrder(orderData);
+            if (success) {
+                setSellModalOpen(false);
+                setSelectedOrderToSell(null);
+                setSellQuantity('');
+            }
+        } finally {
+            setIsSubmittingOrder(false);
+        }
+    };
+
+    // Helper functions for rendering open orders
+    const renderCompanyOrdersSection = (companyName: string, orders: any[], isCompact: boolean, account: string) => {
+        const padding = isCompact ? 'p-2' : 'p-3';
+        const textSize = isCompact ? 'text-xs' : 'text-sm';
+        const companyPrice = companyPrices[companyName];
+
+        // Calculate weighted average price from all orders
+        const totalValue = orders.reduce((sum, order) => sum + (order.avgPrice * order.holdingQty), 0);
+        const totalQty = orders.reduce((sum, order) => sum + order.holdingQty, 0);
+        const avgPrice = totalQty > 0 ? totalValue / totalQty : 0;
+
+        return (
+            <div key={companyName} className="border rounded-lg p-4 mb-4 bg-gray-50/50">
+                {/* Company Header with Price */}
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-10">
+                        <h4 className="text-lg font-semibold text-[var(--upx-primary)]">{companyName}</h4>
+                        <div className="text-sm text-gray-600">
+                            {companyPrice === null ? (
+                                <span className="text-gray-500">Price: Loading...</span>
+                            ) : (
+                                <span className={`font-medium px-2 py-1 rounded bg-white/80 border ${companyPrice > avgPrice ? 'text-green-600 border-green-200' : 'text-red-600 border-red-200'}`}>
+                                    ₹{companyPrice?.toFixed(2) || '0.0'}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-10">
+                        <button className={`px-3 py-1 text-white text-xs rounded hover:opacity-80 ${companyPrice && companyPrice * totalQty > totalValue ? 'bg-green-500' : 'bg-red-500'}`} onClick={() => handleSellAll(companyName, account)}>
+                            Sell All
+                        </button>
+                    </div>
+                </div>
+
+                {/* Orders Table */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                        <thead>
+                            <tr className="border-b text-left bg-white/50">
+                                <th className={padding}>Order ID</th>
+                                <th className={padding}>Trade Date</th>
+                                <th className={padding}>Avg Price</th>
+                                <th className={padding}>Investment</th>
+                                <th className={padding}>Market Value</th>
+                                <th className={padding}>Total Qty</th>
+                                <th className={padding}>Holding Qty</th>
+                                <th className={padding}>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {orders.map((record, idx) => (
+                                <tr key={`${companyName}-${idx}`} className="border-b hover:bg-white/30">
+                                    <td className={`${padding} text-gray-500 font-mono`}>{record.orderId}</td>
+                                    <td className={padding}>
+                                        {isCompact ? record.tradeDate : new Date(record.tradeDate).toLocaleDateString()}
+                                    </td>
+                                    <td className={padding}>₹{record.avgPrice?.toFixed(2)}</td>
+                                    <td className={padding}>₹{(record.avgPrice * record.holdingQty)?.toFixed(2)}</td>
+                                    <td className={`${padding} ${companyPrice && companyPrice * record.holdingQty > record.avgPrice * record.holdingQty ? 'text-green-600' : 'text-red-600'}`}>₹{(companyPrice ? (companyPrice * record.holdingQty)?.toFixed(2) : '0.0')}</td>
+                                    <td className={padding}>{record.totalQty}</td>
+                                    <td className={padding}>{record.holdingQty}</td>
+                                    <td className={padding}>
+                                        <button className={`px-2 py-1 text-white text-xs rounded hover:opacity-80 ${companyPrice && companyPrice * record.holdingQty > record.avgPrice * record.holdingQty ? 'bg-green-500' : 'bg-red-500'}`} onClick={() => handleSellOrder(record)}>
+                                            Sell
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    const renderAllAccountsOpenOrdersView = () => (
+        <div className="space-y-4 p-4">
+            {accounts.slice(1).map(account => {
+                const accountOrders = openOrders[account] || [];
+                return (
+                    <div key={account} className="border-b pb-4 last:border-b-0">
+                        <h4 className="font-medium text-[var(--upx-primary)] mb-2">{account}</h4>
+                        {accountOrders.length > 0 ? (
+                            <div className="space-y-2">
+                                {/* Group orders by company */}
+                                {(() => {
+                                    const ordersByCompany = accountOrders.reduce((acc, order) => {
+                                        const company = order.companyName;
+                                        if (!acc[company]) acc[company] = [];
+                                        acc[company].push(...order.buyingOrders.map(record => ({ ...record, instrumentKey: order.instrumentKey })));
+                                        return acc;
+                                    }, {} as Record<string, any[]>);
+
+                                    return Object.entries(ordersByCompany).map(([companyName, orders]) =>
+                                        renderCompanyOrdersSection(companyName, orders, true, account)
+                                    );
+                                })()}
+                            </div>
+                        ) : (
+                            <div className="text-sm text-muted-foreground">No open orders found for {account}</div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+
+    const renderIndividualAccountOpenOrdersView = () => {
+        const accountOrders = openOrders[selectedAccount] || [];
+        return accountOrders.length > 0 ? (
+            <div className="p-4">
+                <div className="space-y-2">
+                    {/* Group orders by company */}
+                    {(() => {
+                        const ordersByCompany = accountOrders.reduce((acc, order) => {
+                            const company = order.companyName;
+                            if (!acc[company]) acc[company] = [];
+                            acc[company].push(...order.buyingOrders.map(record => ({ ...record, instrumentKey: order.instrumentKey })));
+                            return acc;
+                        }, {} as Record<string, any[]>);
+
+                        return Object.entries(ordersByCompany).map(([companyName, orders]) =>
+                            renderCompanyOrdersSection(companyName, orders, false, selectedAccount)
+                        );
+                    })()}
+                </div>
+            </div>
+        ) : (
+            <div className="p-4">
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                    No open orders found for {selectedAccount}.
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -1104,7 +1416,7 @@ export default function UpstoxPage() {
                                         {selectedAccount === 'All accounts' ? (
                                             /* All Accounts Mode */
                                             <div className="space-y-6">
-                                                
+
 
                                                 {/* Quantity Inputs */}
                                                 {accounts.length > 1 && (
@@ -1119,17 +1431,16 @@ export default function UpstoxPage() {
                                                                     <div className="flex gap-0">
                                                                         <input
                                                                             id={`quantity-${account}`}
-                                                                            className={`flex-1 border rounded-l px-3 py-2 focus:outline-none border-r-0 ${
-                                                                                !accountLogin[account] || accountFunds[account] <= 0 
-                                                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                                                            className={`flex-1 border rounded-l px-3 py-2 focus:outline-none border-r-0 ${!accountLogin[account] || accountFunds[account] <= 0
+                                                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                                                                 : 'focus:ring-2 focus:ring-[var(--upx-primary)]/60 bg-white'
-                                                                            }`}
+                                                                                }`}
                                                                             type="number"
                                                                             placeholder={
-                                                                                !accountLogin[account] 
-                                                                                    ? 'Account not logged in' 
-                                                                                    : accountFunds[account] <= 0 
-                                                                                        ? 'No funds available' 
+                                                                                !accountLogin[account]
+                                                                                    ? 'Account not logged in'
+                                                                                    : accountFunds[account] <= 0
+                                                                                        ? 'No funds available'
                                                                                         : `Qty for ${account}`
                                                                             }
                                                                             value={orderForms[account]?.quantity || ''}
@@ -1149,7 +1460,7 @@ export default function UpstoxPage() {
                                                                                         ) : (
                                                                                             <>
                                                                                                 <div>₹{capitalInfo.availableFunds.toFixed(2)} Available</div>
-                                                                                            
+
                                                                                                 {hasInsufficientFunds ? (
                                                                                                     <div className="text-red-600 font-semibold">⚠️ Insufficient Funds!</div>
                                                                                                 ) : (
@@ -1295,11 +1606,10 @@ export default function UpstoxPage() {
                                                                 {/* Quantity Input - Left Half */}
                                                                 <input
                                                                     id="quantity-input"
-                                                                    className={`flex-1 border rounded-l px-3 py-2 focus:outline-none border-r-0 ${
-                                                                        accountFunds[selectedAccount] <= 0 
-                                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                                                    className={`flex-1 border rounded-l px-3 py-2 focus:outline-none border-r-0 ${accountFunds[selectedAccount] <= 0
+                                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                                                         : 'focus:ring-2 focus:ring-[var(--upx-primary)]/60'
-                                                                    }`}
+                                                                        }`}
                                                                     type="number"
                                                                     placeholder={accountFunds[selectedAccount] <= 0 ? "No funds available" : "Enter quantity"}
                                                                     value={orderForm.quantity}
@@ -1585,11 +1895,28 @@ export default function UpstoxPage() {
                                             </div>
                                         </div>
                                     )}
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
-                                        <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Open orders</h3>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
+                                            <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)] py-2">Open orders</h3>
+                                        </div>
+                                        <button
+                                            onClick={() => fetchOpenOrders(selectedAccount)}
+                                            className="px-3 py-1 bg-[var(--upx-primary)] text-white rounded text-xs hover:bg-[var(--upx-primary)]/90"
+                                        >
+                                            Refresh
+                                        </button>
                                     </div>
-                                    <div className="upstox-surface rounded p-3 text-sm text-muted-foreground">No open orders to display.</div>
+                                    {/* Open Orders Content */}
+                                    <div className="upstox-surface rounded">
+                                        {isLoadingOpenOrders[selectedAccount] ? (
+                                            <div className="p-4 text-center text-sm text-muted-foreground">
+                                                Loading open orders...
+                                            </div>
+                                        ) : (
+                                            selectedAccount === 'All accounts' ? renderAllAccountsOpenOrdersView() : renderIndividualAccountOpenOrdersView()
+                                        )}
+                                    </div>
                                 </div>
                             </TabsContent>
 
@@ -1675,8 +2002,8 @@ export default function UpstoxPage() {
                                                                                     <td className="p-2 font-medium">{trade.scripName || trade.symbol}</td>
                                                                                     <td className="p-2">
                                                                                         <span className={`px-2 py-1 rounded text-xs ${trade.transactionType === 'BUY'
-                                                                                                ? 'bg-green-100 text-green-800'
-                                                                                                : 'bg-red-100 text-red-800'
+                                                                                            ? 'bg-green-100 text-green-800'
+                                                                                            : 'bg-red-100 text-red-800'
                                                                                             }`}>
                                                                                             {trade.transactionType}
                                                                                         </span>
@@ -1730,8 +2057,8 @@ export default function UpstoxPage() {
                                                                             <td className="p-3">{trade.exchange}</td>
                                                                             <td className="p-3">
                                                                                 <span className={`px-2 py-1 rounded text-xs font-medium ${trade.transactionType === 'BUY'
-                                                                                        ? 'bg-green-100 text-green-800'
-                                                                                        : 'bg-red-100 text-red-800'
+                                                                                    ? 'bg-green-100 text-green-800'
+                                                                                    : 'bg-red-100 text-red-800'
                                                                                     }`}>
                                                                                     {trade.transactionType}
                                                                                 </span>
@@ -1804,6 +2131,62 @@ export default function UpstoxPage() {
                     </Tabs>
                 </div>
             </div>
+
+            {/* Sell Confirmation Modal */}
+            {sellModalOpen && selectedOrderToSell && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                        <h3 className="text-lg font-semibold mb-4 text-[var(--upx-primary)]">
+                            Confirm Sell Order
+                        </h3>
+                        <div className="space-y-4">
+                            <div>
+                                <p className="text-sm text-gray-600">
+                                    Company: <span className="font-medium">{selectedOrderToSell.companyName}</span>
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                    Available Quantity: <span className="font-medium">{selectedOrderToSell.holdingQty}</span>
+                                </p>
+                            </div>
+                            <div>
+                                <label htmlFor="sell-quantity" className="block text-sm font-medium text-gray-700 mb-2">
+                                    Quantity to Sell <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    id="sell-quantity"
+                                    type="number"
+                                    value={sellQuantity}
+                                    onChange={(e) => setSellQuantity(e.target.value)}
+                                    className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60"
+                                    placeholder="Enter quantity"
+                                    min="1"
+                                    max={selectedOrderToSell.holdingQty}
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => {
+                                        setSellModalOpen(false);
+                                        setSelectedOrderToSell(null);
+                                        setSellQuantity('');
+                                    }}
+                                    className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                                    disabled={isSubmittingOrder}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmSellOrder}
+                                    className="flex-1 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                                    disabled={isSubmittingOrder || !sellQuantity || Number.parseInt(sellQuantity) <= 0 || Number.parseInt(sellQuantity) > selectedOrderToSell.holdingQty}
+                                >
+                                    {isSubmittingOrder ? 'Placing Order...' : 'Confirm Sell'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </SidebarInset>
     );
 }

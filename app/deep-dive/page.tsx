@@ -747,6 +747,8 @@ export default function DeepDivePage() {
                           <th className="border border-gray-300 px-3 py-2">Type</th>
                           <th className="border border-gray-300 px-3 py-2">Entry Date</th>
                           <th className="border border-gray-300 px-3 py-2">Entry Price</th>
+                           <th className="border border-gray-300 px-3 py-2">Target</th>
+                          <th className="border border-gray-300 px-3 py-2">SL</th>
                           <th className="border border-gray-300 px-3 py-2">Swing Label</th>
                           <th className="border border-gray-300 px-1 py-2">Support (days)</th>
                           <th className="border border-gray-300 px-1 py-2">Resistance (days)</th>
@@ -771,6 +773,8 @@ export default function DeepDivePage() {
                           const passing = isOneOne ? dd?.passing1 : dd?.passing2;
                           const entryDate = item.entryTime ? new Date(item.entryTime).toLocaleDateString('en-GB') : 'N/A';
                           const entryPrice = item.entryCandleClose ? Number(item.entryCandleClose).toFixed(2) : 'N/A';
+                          const targetPrice = item.target ? Number(item.target).toFixed(2) : 'N/A';
+                          const stopLossPrice = item.stopLoss ? Number(item.stopLoss).toFixed(2) : 'N/A';
                           let analysisComment = isOneOne ? item.analysisDeepDive?.commentsS1 || '' : item.analysisDeepDive?.commentsS2 || '';
 
                     
@@ -804,6 +808,8 @@ export default function DeepDivePage() {
                               </td>
                               <td className="border border-gray-200 px-3 py-1 text-xs">{entryDate}</td>
                               <td className="border border-gray-200 px-3 py-1 text-xs font-mono">{entryPrice}</td>
+                              <td className="border border-gray-200 px-3 py-1 text-xs font-mono">{targetPrice}</td>
+                              <td className="border border-gray-200 px-3 py-1 text-xs font-mono">{stopLossPrice}</td>
                               <td className="border border-gray-200 px-3 py-1 font-mono text-xs">{swingLabel || '—'}</td>
                               <td className="border border-gray-200 px-3 py-1 text-xs">{supportDays}</td>
                               <td className="border border-gray-200 px-3 py-1 text-xs">{resistanceDays}</td>
