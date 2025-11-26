@@ -868,8 +868,8 @@ export default function DeepDivePage() {
                           const passing = isOneOne ? dd?.passing1 : dd?.passing2;
                           const entryDate = item.entryTime ? new Date(item.entryTime).toLocaleDateString('en-GB') : 'N/A';
                           const entryPrice = item.entryCandleClose ? Number(item.entryCandleClose).toFixed(2) : 'N/A';
-                          const targetPrice = item.target ? Number(item.target).toFixed(2) : 'N/A';
-                          const stopLossPrice = item.stopLoss ? Number(item.stopLoss).toFixed(2) : 'N/A';
+                          const targetPrice = item.target && item.entryCandleClose ? `${Number(item.target).toFixed(2)} (${(((Number(item.target) - Number(item.entryCandleClose)) / Number(item.entryCandleClose)) * 100).toFixed(2)}%)` : item.target ? Number(item.target).toFixed(2) : 'N/A';
+                          const stopLossPrice = item.stopLoss && item.entryCandleClose ? `${Number(item.stopLoss).toFixed(2)} (${(((Number(item.stopLoss) - Number(item.entryCandleClose)) / Number(item.entryCandleClose)) * 100).toFixed(2)}%)` : item.stopLoss ? Number(item.stopLoss).toFixed(2) : 'N/A';
                           let analysisComment = isOneOne ? item.analysisDeepDive?.commentsS1 || '' : item.analysisDeepDive?.commentsS2 || '';
 
                     
