@@ -440,6 +440,90 @@ export default function DeepDivePage() {
     return result;
   }, [deepDiveList, companySearch]);
 
+  // Export Deep Dive data to Excel
+  const exportDeepDiveToExcel = async () => {
+    const rows = buildDeepDiveRowsForExcel();
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Deep Dive Analysis');
+    XLSX.writeFile(wb, `deep-dive-analysis-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  // Build rows for Excel export
+  const buildDeepDiveRowsForExcel = () => {
+    const header: string[] = [
+      'Slno',
+      'Company Name',
+      'Analysis Type',
+      'Entry Date',
+      'Entry Price',
+      'Target',
+      'SL',
+      'Swing Label',
+      'Support Days',
+      'Resistance Days',
+      'Max Profit %',
+      'Absolute Profit %',
+      'EMA 200 1H',
+      'EMA 200 1D',
+      'EMA 8 1H',
+      'EMA 8 1D',
+      'RSI',
+      'Prelude',
+      'Passing',
+      'Comments'
+    ];
+
+    const rows: (string | number)[][] = [header];
+
+    groupedByUUID.forEach((group, groupIdx) => {
+      group.entries.forEach((item, entryIdx) => {
+        const dd = item.analysisDeepDive;
+        const isOneOne = deepDiveMode === 'RR_1_1';
+        const swingLabel = isOneOne ? dd?.swingLabels1 : dd?.swingLabels2;
+        const prelude = isOneOne ? dd?.prelude1 : dd?.prelude2;
+        const passing = isOneOne ? dd?.passing1 : dd?.passing2;
+        const entryDate = item.entryTime ? new Date(item.entryTime).toLocaleDateString() : 'N/A';
+        const entryPrice = item.entryCandleClose ? Number(item.entryCandleClose) : 0;
+        const targetPrice = item.target ? Number(item.target) : 0;
+        const stopLossPrice = item.stopLoss ? Number(item.stopLoss) : 0;
+        const analysisComment = isOneOne ? item.analysisDeepDive?.commentsS1 || '' : item.analysisDeepDive?.commentsS2 || '';
+
+        // Additional data
+        const supportDays = item.daysTakenForSupportTouch || 0;
+        const resistanceDays = item.daysTakenForResistanceTouch || 0;
+        const maxProfit = item.maxSwingProfits != null ? Number(item.maxSwingProfits) : 0;
+        const absoluteProfit = item.absoluteProfitsPercentage != null ? Number(item.absoluteProfitsPercentage) : 0;
+
+        rows.push([
+          groupIdx + 1,
+          String(group.companyName || ''),
+          String(item.label || ''),
+          entryDate,
+          Number(entryPrice.toFixed(2)),
+          Number(targetPrice.toFixed(2)),
+          Number(stopLossPrice.toFixed(2)),
+          String(swingLabel || ''),
+          supportDays,
+          resistanceDays,
+          Number(maxProfit.toFixed(2)),
+          Number(absoluteProfit.toFixed(2)),
+          Number(item?.emacross?.emaData1H?.ema200 || 0),
+          Number(item?.emacross?.emaDataDay?.ema200 || 0),
+          Number(item?.emacross?.emaData1H?.ema8 || 0),
+          Number(item?.emacross?.emaDataDay?.ema8 || 0),
+          item?.emacross?.rsi != null ? Number(item.emacross.rsi) : 0,
+          prelude ? 'Yes' : 'No',
+          passing ? 'Yes' : 'No',
+          String(analysisComment || '')
+        ]);
+      });
+    });
+
+    return rows;
+  };
+
   return (
     <div className="flex justify-start py-4 px-4 bg-cream">
       <div className="w-full max-w-screen-2xl ml-24 mr-0">
@@ -669,6 +753,17 @@ export default function DeepDivePage() {
             />
           </div>
 
+          {/* Export Button */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportDeepDiveToExcel}
+              className="px-4 py-2 rounded-md bg-green-500 hover:bg-green-600 text-white transition-colors"
+              title="Export current filtered data to Excel"
+            >
+              Export to Excel
+            </button>
+          </div>
+
           <span className="text-lg font-bold ml-auto">
             Total Companies: {groupedByUUID.length} | Total Entries: {deepDiveList.length}
             {showStryke && (() => {
@@ -747,7 +842,7 @@ export default function DeepDivePage() {
                           <th className="border border-gray-300 px-3 py-2">Type</th>
                           <th className="border border-gray-300 px-3 py-2">Entry Date</th>
                           <th className="border border-gray-300 px-3 py-2">Entry Price</th>
-                           <th className="border border-gray-300 px-3 py-2">Target</th>
+                          <th className="border border-gray-300 px-3 py-2">Target</th>
                           <th className="border border-gray-300 px-3 py-2">SL</th>
                           <th className="border border-gray-300 px-3 py-2">Swing Label</th>
                           <th className="border border-gray-300 px-1 py-2">Support (days)</th>
