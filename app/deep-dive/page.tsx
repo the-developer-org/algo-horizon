@@ -752,6 +752,11 @@ export default function DeepDivePage() {
                           <th className="border border-gray-300 px-1 py-2">Resistance (days)</th>
                           <th className="border border-gray-300 px-1 py-2">Max Profit %</th>
                           <th className="border border-gray-300 px-1 py-2">Absolute Profit %</th>
+                          <th className="border border-gray-300 px-3 py-2">EMA 200 1H</th>
+                          <th className="border border-gray-300 px-3 py-2">EMA 200 1D</th>
+                          <th className="border border-gray-300 px-3 py-2">EMA 8 1H</th>
+                          <th className="border border-gray-300 px-3 py-2">EMA 8 1D</th>
+                          <th className="border border-gray-300 px-3 py-2">RSI</th>
                           <th className="border border-gray-300 px-3 py-2">Prelude</th>
                           <th className="border border-gray-300 px-3 py-2">Passing</th>
                           <th className="border border-gray-300 px-5 py-2">Comments</th>
@@ -804,6 +809,11 @@ export default function DeepDivePage() {
                               <td className="border border-gray-200 px-3 py-1 text-xs">{resistanceDays}</td>
                               <td className="border border-gray-200 px-3 py-1 text-xs font-mono">{maxProfit}</td>
                               <td className="border border-gray-200 px-3 py-1 text-xs font-mono">{absoluteProfit}</td>
+                              <td className="border border-gray-200 px-3 py-1 text-xs font-mono">{item?.emacross?.emaData1H?.ema200 ?? 0.0}</td>
+                              <td className="border border-gray-200 px-3 py-1 text-xs font-mono">{item?.emacross?.emaDataDay?.ema200 ?? 0.0}</td>
+                              <td className="border border-gray-200 px-3 py-1 text-xs font-mono">{item?.emacross?.emaData1H?.ema8 ?? 0.0}</td>
+                              <td className="border border-gray-200 px-3 py-1 text-xs font-mono">{item?.emacross?.emaDataDay?.ema8 ?? 0.0}</td>
+                              <td className="border border-gray-200 px-3 py-1 text-xs font-mono">{item?.emacross?.rsi != null ? Number(item?.emacross?.rsi).toFixed(2) : 'N/A'}</td>
                               <td className="border border-gray-200 px-3 py-1">
                                 <span className={`px-2 py-0.5 rounded text-xs font-semibold ${prelude ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                   {prelude ? 'Yes' : 'No'}

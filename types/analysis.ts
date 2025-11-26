@@ -47,6 +47,7 @@ export interface EMACROSS {
   emaCrossoverList15M?: string[] | null;
   emaCrossoverList4H?: string[] | null;
   emaCrossoverListDay?: string[] | null;
+  rsi?: number | null;
 }
 
 export interface FibAnalysis {
