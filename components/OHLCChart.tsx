@@ -423,7 +423,7 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
         
         // If month > 12, it's likely MM-DD-YYYY format, so swap month and day
         if (month > 12 && day <= 12) {
-          console.log(`🔄 Detected MM-DD-YYYY format, converting ${entryDateStr} to ${year}-${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`);
+          ////console.log(`🔄 Detected MM-DD-YYYY format, converting ${entryDateStr} to ${year}-${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`);
           entryTime = new Date(`${year}-${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`);
         }
       }
@@ -444,7 +444,7 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
       }
       
       if (isNaN(entryTime.getTime())) {
-        console.warn('Invalid entry date format:', entryDateStr);
+        ////console.warn('Invalid entry date format:', entryDateStr);
         return;
       }
       
@@ -473,15 +473,15 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
       
       // Check if entry date is within acceptable range of available data
       // Silently filter out dates outside the range instead of showing warnings
-      console.log(`🔍 Checking date range for ${entryDateStr}: entry=${new Date(entryTimestamp).toISOString()} vs first=${new Date(firstCandleTime).toISOString()} to last=${new Date(lastCandleTime).toISOString()}`);
+      ////console.log(`🔍 Checking date range for ${entryDateStr}: entry=${new Date(entryTimestamp).toISOString()} vs first=${new Date(firstCandleTime).toISOString()} to last=${new Date(lastCandleTime).toISOString()}`);
       if (entryTimestamp < firstCandleTime - timeTolerance) {
-        console.log(`❌ Entry date ${entryDateStr} is too old - filtering out`);
+        ////console.log(`❌ Entry date ${entryDateStr} is too old - filtering out`);
         // Entry date is too old - silently skip
         return;
       }
       
       if (entryTimestamp > lastCandleTime + timeTolerance) {
-        console.log(`❌ Entry date ${entryDateStr} is too new - filtering out`);
+        ////console.log(`❌ Entry date ${entryDateStr} is too new - filtering out`);
         // Entry date is too new - silently skip
         return;
       }
@@ -530,13 +530,13 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
       
       if (bestCandleIndex >= 0) {
         entryCandleIndices.add(bestCandleIndex);
-        //console.log(`📍 Entry at ${entryDateStr} mapped to candle ${bestCandleIndex} (${candles[bestCandleIndex].timestamp}) for ${timeframe} timeframe`);
+        //////console.log(`📍 Entry at ${entryDateStr} mapped to candle ${bestCandleIndex} (${candles[bestCandleIndex].timestamp}) for ${timeframe} timeframe`);
       } else {
-        console.warn(`⚠️ Could not map entry date ${entryDateStr} to any candle for ${timeframe} timeframe - entry may be outside available data range`);
+        ////console.warn(`⚠️ Could not map entry date ${entryDateStr} to any candle for ${timeframe} timeframe - entry may be outside available data range`);
       }
       
     } catch (error) {
-      console.error('Error processing entry date:', entryDateStr, error);
+      ////console.error('Error processing entry date:', entryDateStr, error);
     }
   });
   
@@ -561,6 +561,7 @@ interface OHLCChartProps {
     entryDates?: string[]; // Entry dates to highlight on chart
     strykeDates?: string[]; // Stryke entry dates to highlight with different style
     algoDates?: string[]; // Algo entry dates to highlight with different style
+    zoneStartDates?: string[]; // Dates to use for calculating zone start times
     entryPrice?: number; // Entry price for plotting target/SL lines
     targetPrice?: number; // Target price for plotting target line
     stopLossPrice?: number; // Stop loss price for plotting SL line
@@ -595,6 +596,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     entryDates = [], // Entry dates to highlight
     strykeDates = [], // Stryke entry dates to highlight
     algoDates = [], // Algo entry dates to highlight
+    zoneStartDates = [], // Dates to use for calculating zone start times
     entryPrice, // Entry price for plotting target/SL lines
     targetPrice, // Target price for plotting target line
     stopLossPrice, // Stop loss price for plotting SL line
@@ -613,6 +615,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const [candleAnalysis, setCandleAnalysis] = useState<CandleAnalysis | null>(null);
     const ema8SeriesRef = useRef<any>(null);
     const ema30SeriesRef = useRef<any>(null);
+    const ema200SeriesRef = useRef<any>(null);
     const rsiSeriesRef = useRef<any>(null);
     const vixSeriesRef = useRef<any>(null);
     const swingPointsSeriesRef = useRef<any>(null);
@@ -659,7 +662,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const entryCandleIndices = useMemo(() => {
         const indices = mapEntryDatesToCandles(entryDates, candles, detectedTimeframe);
         if (indices.size > 0) {
-            //console.log(`🎯 Entry date mapping for ${detectedTimeframe} timeframe:`, entryDates.length, indices.size);
+            //////console.log(`🎯 Entry date mapping for ${detectedTimeframe} timeframe:`, entryDates.length, indices.size);
         }
         return indices;
     }, [entryDates, candles, detectedTimeframe]);
@@ -669,16 +672,16 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         if (candles.length > 0) {
             const firstCandle = new Date(candles[0].timestamp);
             const lastCandle = new Date(candles[candles.length - 1].timestamp);
-            console.log(`📊 Data range: ${firstCandle.toISOString().split('T')[0]} to ${lastCandle.toISOString().split('T')[0]} (${candles.length} candles)`);
+            ////console.log(`📊 Data range: ${firstCandle.toISOString().split('T')[0]} to ${lastCandle.toISOString().split('T')[0]} (${candles.length} candles)`);
         }
         const indices = mapEntryDatesToCandles(strykeDates, candles, detectedTimeframe);
         if (indices.size > 0) {
-            console.log(`🎯 Stryke date mapping for ${detectedTimeframe} timeframe:`, strykeDates.length, 'dates →', indices.size, 'markers');
-            console.log('Stryke dates:', strykeDates);
-            console.log('Stryke indices:', Array.from(indices));
+            ////console.log(`🎯 Stryke date mapping for ${detectedTimeframe} timeframe:`, strykeDates.length, 'dates →', indices.size, 'markers');
+            ////console.log('Stryke dates:', strykeDates);
+            ////console.log('Stryke indices:', Array.from(indices));
         } else if (strykeDates.length > 0) {
-            console.log(`❌ No stryke markers created for ${detectedTimeframe} timeframe:`, strykeDates.length, 'dates provided');
-            console.log('Stryke dates:', strykeDates);
+            ////console.log(`❌ No stryke markers created for ${detectedTimeframe} timeframe:`, strykeDates.length, 'dates provided');
+            //console.log('Stryke dates:', strykeDates);
         }
         return indices;
     }, [strykeDates, candles, detectedTimeframe]);
@@ -687,12 +690,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const algoCandleIndices = useMemo(() => {
         const indices = mapEntryDatesToCandles(algoDates, candles, detectedTimeframe);
         if (indices.size > 0) {
-            console.log(`🎯 Algo date mapping for ${detectedTimeframe} timeframe:`, algoDates.length, 'dates →', indices.size, 'markers');
-            console.log('Algo dates:', algoDates);
-            console.log('Algo indices:', Array.from(indices));
+            //console.log(`🎯 Algo date mapping for ${detectedTimeframe} timeframe:`, algoDates.length, 'dates →', indices.size, 'markers');
+            //console.log('Algo dates:', algoDates);
+            //console.log('Algo indices:', Array.from(indices));
         } else if (algoDates.length > 0) {
-            console.log(`❌ No algo markers created for ${detectedTimeframe} timeframe:`, algoDates.length, 'dates provided');
-            console.log('Algo dates:', algoDates);
+            //console.log(`❌ No algo markers created for ${detectedTimeframe} timeframe:`, algoDates.length, 'dates provided');
+            //console.log('Algo dates:', algoDates);
         }
         return indices;
     }, [algoDates, candles, detectedTimeframe]);
@@ -700,7 +703,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
     useEffect(() => {
-       ////console.log('🔄 Chart initialization effect triggered', { candlesLength: candles.length, height, width, showVolume });
+       //////console.log('🔄 Chart initialization effect triggered', { candlesLength: candles.length, height, width, showVolume });
         if (!UnderstchartContainerRef.current || !candles.length) return;
 
         // Create chart with enhanced navigation and zoom configuration
@@ -842,7 +845,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             // Fit content to show all data at normal zoom level
             chart.timeScale().fitContent();
             
-           ////console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
+           //////console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
         }
 
         // Set volume data if enabled
@@ -950,7 +953,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         }
                     }, 200);
                 } catch (error) {
-                    console.warn('Failed to auto-fit chart content:', error);
+                    //console.warn('Failed to auto-fit chart content:', error);
                 }
             }
         };
@@ -1058,9 +1061,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
     }, [avgVolume, showVolume, candles]);
 
-    // Separate effect for EMA indicator management (EMA 8 and EMA 30)
+    // Separate effect for EMA indicator management (EMA 8, EMA 30, and EMA 200)
     useEffect(() => {
-       ////console.log('📊 EMA effect triggered', { showEMA, candlesLength: candles.length });
+       //////console.log('📊 EMA effect triggered', { showEMA, candlesLength: candles.length });
         if (!chartRef.current) return;
 
         const chart = chartRef.current;
@@ -1074,6 +1077,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             try {
                 if (ema30SeriesRef.current) { chart.removeSeries(ema30SeriesRef.current); ema30SeriesRef.current = null; }
             } catch {}
+            try {
+                if (ema200SeriesRef.current) { chart.removeSeries(ema200SeriesRef.current); ema200SeriesRef.current = null; }
+            } catch {}
         };
 
         if (showEMA) {
@@ -1083,18 +1089,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 // Check raw EMA values in candles
                 const candlesWithEma8 = candles.filter(c => typeof c.ema8 === 'number' && !isNaN(c.ema8));
                 const candlesWithEma30 = candles.filter(c => typeof c.ema30 === 'number' && !isNaN(c.ema30));
+                const candlesWithEma200 = candles.filter(c => typeof c.ema === 'number' && !isNaN(c.ema));
                 
                 // Debug logging for EMA data analysis
-               ////console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length})`);
-                
-                // Debug raw candle data for EMA values
-               ////console.log(`📊 Raw EMA8 candle analysis:`);
-               ////console.log(`  First 5 candles EMA8: [${candles.slice(0, 5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
-               ////console.log(`  Last 5 candles EMA8: [${candles.slice(-5).map(c => c.ema8?.toFixed(2) || 'null').join(', ')}]`);
-                if (candlesWithEma8.length > 0) {
-                   ////console.log(`  EMA8 first valid candle: index ${candles.findIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles.find(c => typeof c.ema8 === 'number')?.timestamp}`);
-                   ////console.log(`  EMA8 last valid candle: index ${candles.findLastIndex(c => typeof c.ema8 === 'number')}, timestamp: ${candles[candles.findLastIndex(c => typeof c.ema8 === 'number')]?.timestamp}`);
-                }
+               //////console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length}) EMA200(${candlesWithEma200.length})`);
                 
                 // Debug timestamp ordering - check if data might be in reverse order
                 if (candles.length >= 2) {
@@ -1102,9 +1100,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     const last = candles[candles.length - 1];
                     const firstTime = parseTimestampToUnix(first.timestamp);
                     const lastTime = parseTimestampToUnix(last.timestamp);
-                   ////console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
+                   //////console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
                     if (firstTime > lastTime) {
-                        console.warn('⚠️ Data appears to be in reverse chronological order!');
+                        //console.warn('⚠️ Data appears to be in reverse chronological order!');
                     }
                 }
                 
@@ -1115,19 +1113,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     priceScaleId: '',
                     title: 'EMA 8',
                 });
-               ////console.log(`🎯 Creating EMA8 chart data...`);
+               //////console.log(`🎯 Creating EMA8 chart data...`);
                 const ema8Data = candles
                     .map((c: Candle, idx: number) => {
                         const chartPoint = {
                             time: parseTimestampToUnix(c.timestamp),
                             value: typeof c.ema8 === 'number' && !isNaN(c.ema8) ? c.ema8 : null,
                         };
-                        
-                        // Debug key data points
-                        if (idx < 3 || idx >= candles.length - 3 || (idx >= 6 && idx <= 9)) {
-                           ////console.log(`  Chart[${idx}] EMA8: raw=${c.ema8?.toFixed(4) || 'null'} → chart=${chartPoint.value?.toFixed(4) || 'null'} at ${new Date(chartPoint.time * 1000).toISOString()}`);
-                        }
-                        
                         return chartPoint;
                     })
                     .filter((item: any) => {
@@ -1136,19 +1128,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     })
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
 
-               ////console.log(`📈 EMA8 chart data summary:`);
-               ////console.log(`  - Total candles processed: ${candles.length}`);
-               ////console.log(`  - Valid EMA8 chart points: ${ema8Data.length}`);
-               ////console.log(`  - Data reduction: ${candles.length - ema8Data.length} points filtered out`);
-                if (ema8Data.length > 0) {
-                   ////console.log(`  - Time range: ${new Date(ema8Data[0].time * 1000).toISOString()} to ${new Date(ema8Data[ema8Data.length - 1].time * 1000).toISOString()}`);
-                   ////console.log(`  - Value range: ${ema8Data[0].value?.toFixed(4)} to ${ema8Data[ema8Data.length - 1].value?.toFixed(4)}`);
-                }
-
                 // Set EMA8 data with enhanced error handling
                 if (ema8Data.length > 0) {
                     ema8SeriesRef.current.setData(ema8Data);
-                   ////console.log('✅ EMA8 data set successfully');
+                   //////console.log('✅ EMA8 data set successfully');
                     
                     // Ensure EMA series scales with the main chart
                     ema8SeriesRef.current.applyOptions({
@@ -1174,15 +1157,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
 
-               ////console.log(`EMA30 chart data points: ${ema30Data.length}`);
-                if (ema30Data.length > 0) {
-                   ////console.log(`EMA30 time range: ${new Date(ema30Data[0].time * 1000).toISOString()} to ${new Date(ema30Data[ema30Data.length - 1].time * 1000).toISOString()}`);
-                }
-
                 // Set EMA30 data with enhanced error handling
                 if (ema30Data.length > 0) {
                     ema30SeriesRef.current.setData(ema30Data);
-                   ////console.log('✅ EMA30 data set successfully');
+                   //////console.log('✅ EMA30 data set successfully');
                     
                     // Ensure EMA series scales with the main chart
                     ema30SeriesRef.current.applyOptions({
@@ -1191,25 +1169,53 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     });
                 }
 
+                // EMA 200
+                ema200SeriesRef.current = chart.addLineSeries({
+                    color: '#9C27B0', // Purple
+                    lineWidth: 2,
+                    priceScaleId: '',
+                    title: 'EMA 200',
+                });
+                const ema200Data = candles
+                    .map((c: Candle) => {
+                        return {
+                            time: parseTimestampToUnix(c.timestamp),
+                            value: typeof c.ema === 'number' && !isNaN(c.ema) ? c.ema : null,
+                        };
+                    })
+                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
+                    .sort((a, b) => a.time - b.time); // Ensure ascending time order
+
+                // Set EMA200 data with enhanced error handling
+                if (ema200Data.length > 0) {
+                    ema200SeriesRef.current.setData(ema200Data);
+                   //////console.log('✅ EMA200 data set successfully');
+                    
+                    // Ensure EMA series scales with the main chart
+                    ema200SeriesRef.current.applyOptions({
+                        lastValueVisible: true,
+                        priceLineVisible: false,
+                    });
+                }
+
                 // Enhanced error checking with detailed logging
-                if (!ema8Data.length && !ema30Data.length) {
-                    console.error('❌ EMA Error Details:');
-                    console.error(`- Total candles: ${candles.length}`);
-                    console.error(`- Candles with EMA8: ${candlesWithEma8.length}`);
-                    console.error(`- Candles with EMA30: ${candlesWithEma30.length}`);
-                    console.error(`- EMA8 data points after processing: ${ema8Data.length}`);
-                    console.error(`- EMA30 data points after processing: ${ema30Data.length}`);
-                    throw new Error('Insufficient EMA data - both EMA8 and EMA30 arrays are empty');
+                if (!ema8Data.length && !ema30Data.length && !ema200Data.length) {
+                    //console.error('❌ EMA Error Details:');
+                    //console.error(`- Total candles: ${candles.length}`);
+                    //console.error(`- Candles with EMA8: ${candlesWithEma8.length}`);
+                    //console.error(`- Candles with EMA30: ${candlesWithEma30.length}`);
+                    //console.error(`- Candles with EMA200: ${candlesWithEma200.length}`);
+                    throw new Error('Insufficient EMA data - EMA arrays are empty');
                 }
             } catch (err) {
-                console.error('EMA calculation error:', err);
+                //console.error('EMA calculation error:', err);
                 setEmaError('Insufficient EMA data available');
                 removeEmaSeries();
             }
         } else {
             removeEmaSeries();
         }
-    }, [showEMA]); // Removed candles dependency since EMA is pre-calculated in candles data
+    }, [showEMA, candles]); // Added candles dependency to ensure EMA updates when data changes
 
     // Separate effect for RSI indicator management
     useEffect(() => {
@@ -1245,7 +1251,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     autoScale: true,
                 });
             } catch (err) {
-                console.error('RSI calculation error:', err);
+                //console.error('RSI calculation error:', err);
                 setRsiError('Insufficient RSI data available');
                 if (rsiSeriesRef.current) {
                     chart.removeSeries(rsiSeriesRef.current);
@@ -1312,7 +1318,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         setVixValue(formattedVix[formattedVix.length - 1].value);
                     }
                 } catch (err) {
-                    console.error('VIX calculation error:', err);
+                    //console.error('VIX calculation error:', err);
                     setVixError('Insufficient VIX data available');
                     if (vixSeriesRef.current) {
                         chart.removeSeries(vixSeriesRef.current);
@@ -1340,40 +1346,40 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Note: We can't easily identify which lines are entry lines, so we'll skip cleanup for now
         // and let the swing points effect handle the main cleanup
 
-        // Add target and SL lines if they exist
-        if (targetPrice && typeof targetPrice === 'number') {
-            const timeScale = chart.timeScale();
-            const visibleRange = timeScale.getVisibleRange();
+        // // Add target and SL lines if they exist
+        // if (targetPrice && typeof targetPrice === 'number') {
+        //     const timeScale = chart.timeScale();
+        //     const visibleRange = timeScale.getVisibleRange();
             
-            let startTime, endTime;
-            if (visibleRange) {
-                startTime = visibleRange.from;
-                endTime = visibleRange.to;
-            } else if (candles.length > 0) {
-                startTime = parseTimestampToUnix(candles[0].timestamp);
-                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
-            } else {
-                return;
-            }
+        //     let startTime, endTime;
+        //     if (visibleRange) {
+        //         startTime = visibleRange.from;
+        //         endTime = visibleRange.to;
+        //     } else if (candles.length > 0) {
+        //         startTime = parseTimestampToUnix(candles[0].timestamp);
+        //         endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+        //     } else {
+        //         return;
+        //     }
 
-            const targetLineSeries = chart.addLineSeries({
-                color: '#10b981', // Emerald green to match profit zone
-                lineWidth: 3,
-                lineStyle: 0,
-                title: `Target: ₹${targetPrice.toFixed(2)}`,
-                priceLineVisible: false,
-                lastValueVisible: false,
-                crosshairMarkerVisible: false,
-            });
+        //     const targetLineSeries = chart.addLineSeries({
+        //         color: '#10b981', // Emerald green to match profit zone
+        //         lineWidth: 3,
+        //         lineStyle: 0,
+        //         title: `Target: ₹${targetPrice.toFixed(2)}`,
+        //         priceLineVisible: false,
+        //         lastValueVisible: false,
+        //         crosshairMarkerVisible: false,
+        //     });
 
-            targetLineSeries.setData([
-                { time: startTime, value: targetPrice },
-                { time: endTime, value: targetPrice }
-            ]);
+        //     targetLineSeries.setData([
+        //         { time: startTime, value: targetPrice },
+        //         { time: endTime, value: targetPrice }
+        //     ]);
 
-            // Store for cleanup
-            entryLinesRef.current.push(targetLineSeries);
-        }
+        //     // Store for cleanup
+        //     entryLinesRef.current.push(targetLineSeries);
+        // }
 
         // Add entry line if entryPrice exists
         if (entryPrice && typeof entryPrice === 'number') {
@@ -1410,39 +1416,39 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             entryLinesRef.current.push(entryLineSeries);
         }
 
-        if (stopLossPrice && typeof stopLossPrice === 'number') {
-            const timeScale = chart.timeScale();
-            const visibleRange = timeScale.getVisibleRange();
+        // if (stopLossPrice && typeof stopLossPrice === 'number') {
+        //     const timeScale = chart.timeScale();
+        //     const visibleRange = timeScale.getVisibleRange();
             
-            let startTime, endTime;
-            if (visibleRange) {
-                startTime = visibleRange.from;
-                endTime = visibleRange.to;
-            } else if (candles.length > 0) {
-                startTime = parseTimestampToUnix(candles[0].timestamp);
-                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
-            } else {
-                return;
-            }
+        //     let startTime, endTime;
+        //     if (visibleRange) {
+        //         startTime = visibleRange.from;
+        //         endTime = visibleRange.to;
+        //     } else if (candles.length > 0) {
+        //         startTime = parseTimestampToUnix(candles[0].timestamp);
+        //         endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+        //     } else {
+        //         return;
+        //     }
 
-            const stopLossLineSeries = chart.addLineSeries({
-                color: '#ef4444', // Bright red to match loss zone
-                lineWidth: 3,
-                lineStyle: 0,
-                title: `SL: ₹${stopLossPrice.toFixed(2)}`,
-                priceLineVisible: false,
-                lastValueVisible: false,
-                crosshairMarkerVisible: false,
-            });
+        //     const stopLossLineSeries = chart.addLineSeries({
+        //         color: '#ef4444', // Bright red to match loss zone
+        //         lineWidth: 3,
+        //         lineStyle: 0,
+        //         title: `SL: ₹${stopLossPrice.toFixed(2)}`,
+        //         priceLineVisible: false,
+        //         lastValueVisible: false,
+        //         crosshairMarkerVisible: false,
+        //     });
 
-            stopLossLineSeries.setData([
-                { time: startTime, value: stopLossPrice },
-                { time: endTime, value: stopLossPrice }
-            ]);
+        //     stopLossLineSeries.setData([
+        //         { time: startTime, value: stopLossPrice },
+        //         { time: endTime, value: stopLossPrice }
+        //     ]);
 
-            // Store for cleanup
-            entryLinesRef.current.push(stopLossLineSeries);
-        }
+        //     // Store for cleanup
+        //     entryLinesRef.current.push(stopLossLineSeries);
+        // }
 
         // Add profit zone (green area between entry and target)
         if (entryPrice && targetPrice && typeof entryPrice === 'number' && typeof targetPrice === 'number') {
@@ -1452,14 +1458,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             let algoStartTime = null;
             if (candles.length > 0) {
                 let algoStartDate;
-                if (algoDates.length > 0) {
+                if (zoneStartDates.length > 0) {
                     // Use the first algo date from URL parameters
-                    algoStartDate = algoDates[0];
-                    console.log('🤖 Profit zone using algo entry date from URL params:', algoStartDate);
+                    algoStartDate = zoneStartDates[0];
                 } else {
                     // Fallback to first candle date if no algo date provided
                     algoStartDate = new Date(candles[0].timestamp).toISOString().split('T')[0];
-                    console.log('🤖 Profit zone auto-detected algo entry date from first candle:', algoStartDate);
                 }
                 
                 // Find the candle that matches the algo start date and use its timestamp
@@ -1467,8 +1471,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     candle.timestamp.startsWith(algoStartDate)
                 );
                 if (algoStartCandle) {
-                    algoStartTime = parseTimestampToUnix(algoStartCandle.timestamp);
-                    console.log('🤖 Profit zone calculated algoStartTime:', algoStartTime);
+                    algoStartTime = parseTimestampToUnix(algoStartCandle.timestamp); 
                 }
             }
             
@@ -1476,7 +1479,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             if (algoStartTime) {
                 startTime = algoStartTime;
                 endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
-                console.log('🤖 Profit zone using algo override - startTime:', startTime, 'endTime:', endTime);
+
             } else if (candles.length > 0) {
                 startTime = parseTimestampToUnix(candles[0].timestamp);
                 endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
@@ -1518,15 +1521,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             let algoStartTime = null;
             if (candles.length > 0) {
                 let algoStartDate;
-                console.log(algoDates.length, " algoDates");
-                if (algoDates.length > 0) {
+                if (zoneStartDates.length > 0) {
                     // Use the first algo date from URL parameters
-                    algoStartDate = algoDates[0];
-                    console.log('🤖 Using algo entry date from URL params:', algoStartDate);
+                    algoStartDate = zoneStartDates[0];
                 } else {
                     // Fallback to first candle date if no algo date provided
                     algoStartDate = new Date(candles[0].timestamp).toISOString().split('T')[0];
-                    console.log('🤖 Auto-detected algo entry date from first candle:', algoStartDate, 'at price:', candles[0].close);
                 }
                 
                 // Find the candle that matches the algo start date and use its timestamp
@@ -1535,8 +1535,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 );
                 if (algoStartCandle) {
                     algoStartTime = parseTimestampToUnix(algoStartCandle.timestamp);
-                    console.log('🤖 Found algo start candle at price:', algoStartCandle.close, 'on date:', algoStartDate);
-                    console.log('🤖 Calculated algoStartTime:', algoStartTime);
                 }
             }
             
@@ -1544,7 +1542,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             if (algoStartTime) {
                 startTime = algoStartTime;
                 endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
-                console.log('🤖 Loss zone using algo override - startTime:', startTime, 'endTime:', endTime);
             } else if (candles.length > 0) {
                 startTime = parseTimestampToUnix(candles[0].timestamp);
                 endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
@@ -1552,7 +1549,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 return;
             }
 
-            console.log("Base value for loss zone:", entryPrice);
             const lossZoneSeries = chart.addBaselineSeries({
                 baseValue: { type: 'price', price: entryPrice },
                 topFillColor1: 'rgba(239, 68, 68, 0.35)', // Bright red
@@ -1579,7 +1575,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             entryLinesRef.current.unshift(lossZoneSeries);
         }
 
-    }, [entryPrice, targetPrice, stopLossPrice, candles]);
+    }, [entryPrice, targetPrice, stopLossPrice, candles, zoneStartDates]);
     useEffect(() => {
         return () => {
             if (entryLinesRef.current && entryLinesRef.current.length && chartRef.current) {
@@ -1589,7 +1585,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             chartRef.current.removeSeries(line);
                         } catch (err) {
                             // Ignore cleanup errors - chart may already be destroyed
-                            console.warn('Error cleaning up entry line:', err);
                         }
                     }
                 });
@@ -1610,7 +1605,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         chart.removeSeries(line);
                     } catch (err) {
                         // Ignore cleanup errors - chart may already be destroyed
-                        console.warn('Error cleaning up trend line:', err);
+                        //console.warn('Error cleaning up trend line:', err);
                     }
                 }
             });
@@ -1640,7 +1635,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 // Store swing points for use in click analysis
                 calculatedSwingPointsRef.current = calculatedSwingPoints;
             
-                //console.log(`✅ Calculated ${calculatedSwingPoints.length} swing points directly from OHLC data`);
+                ////console.log(`✅ Calculated ${calculatedSwingPoints.length} swing points directly from OHLC data`);
                 
                 // Collect all markers for swing points
                 const allMarkers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
@@ -1801,10 +1796,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 // First check for direct props (from URL parameters) - DISABLED to avoid duplication
                 /*
                 if (entryTime && entryPrice) {
-                    console.log('🎯 OHLCChart: Drawing entry marker and lines from URL props:', { entryTime, entryPrice, targetPrice, stopLossPrice });
-                    console.log('🎯 Chart exists:', !!chart);
+                    //console.log('🎯 OHLCChart: Drawing entry marker and lines from URL props:', { entryTime, entryPrice, targetPrice, stopLossPrice });
+                    //console.log('🎯 Chart exists:', !!chart);
                     const entryTimestamp = parseTimestampToUnix(entryTime);
-                    console.log('🎯 Entry timestamp parsed:', entryTimestamp);
+                    //console.log('🎯 Entry timestamp parsed:', entryTimestamp);
                     
                     // Add entry marker
                     allMarkers.push({
@@ -1840,10 +1835,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         }
                     });
                     
-                    console.log('🎯 Closest entry candle index found:', entryCandleIndex, 'with time diff:', minTimeDiff, 'seconds');
+                    //console.log('🎯 Closest entry candle index found:', entryCandleIndex, 'with time diff:', minTimeDiff, 'seconds');
                     
                     if (entryCandleIndex >= 0) {
-                        console.log('🎯 Drawing target and SL lines from closest candle at index:', entryCandleIndex);
+                        //console.log('🎯 Drawing target and SL lines from closest candle at index:', entryCandleIndex);
                         // Target line (light green) - draw across visible range
                         if (targetPrice && typeof targetPrice === 'number') {
                             // Get the visible time range or use the full data range
@@ -1865,7 +1860,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 { time: endTime, value: targetPrice }
                             ];
                             
-                            console.log('🎯 Creating target line from', startTime, 'to', endTime, 'at price', targetPrice);
+                            //console.log('🎯 Creating target line from', startTime, 'to', endTime, 'at price', targetPrice);
                             
                             const targetLineSeries = chart.addLineSeries({
                                 color: '#90EE90', // Light green
@@ -1879,7 +1874,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             
                             targetLineSeries.setData(targetLineData);
                             trendLinesRef.current.push(targetLineSeries);
-                            console.log('🎯 Target line created and added to trendLinesRef');
+                            //console.log('🎯 Target line created and added to trendLinesRef');
                         }
                         
                         // Entry line (blue) - draw across visible range
@@ -1903,7 +1898,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 { time: endTime, value: entryPrice }
                             ];
                             
-                            console.log('🎯 Creating entry line from', startTime, 'to', endTime, 'at price', entryPrice);
+                            //console.log('🎯 Creating entry line from', startTime, 'to', endTime, 'at price', entryPrice);
                             
                             const entryLineSeries = chart.addLineSeries({
                                 color: '#2563eb', // Blue
@@ -1917,7 +1912,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             
                             entryLineSeries.setData(entryLineData);
                             trendLinesRef.current.push(entryLineSeries);
-                            console.log('🎯 Entry line created and added to trendLinesRef');
+                            //console.log('🎯 Entry line created and added to trendLinesRef');
                         }
                         
                         // Stop Loss line (light red) - draw across visible range
@@ -1941,7 +1936,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 { time: endTime, value: stopLossPrice }
                             ];
                             
-                            console.log('🎯 Creating stop loss line from', startTime, 'to', endTime, 'at price', stopLossPrice);
+                            //console.log('🎯 Creating stop loss line from', startTime, 'to', endTime, 'at price', stopLossPrice);
                             
                             const stopLossLineSeries = chart.addLineSeries({
                                 color: '#FFB6C1', // Light red
@@ -1955,7 +1950,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             
                             stopLossLineSeries.setData(stopLossLineData);
                             trendLinesRef.current.push(stopLossLineSeries);
-                            console.log('🎯 Stop loss line created and added to trendLinesRef');
+                            //console.log('🎯 Stop loss line created and added to trendLinesRef');
                         }
                     }
                 }
@@ -2064,7 +2059,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 candlestickSeries.setMarkers(dedupedMarkers);
                 
             } catch (err) {
-                console.error('Swing points calculation error:', err);
+                //console.error('Swing points calculation error:', err);
                 toast.error('Error calculating swing points', { duration: 4000 });
             }
         } else if (!showSwingPoints) {
@@ -2076,7 +2071,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 chartRef.current.candlestickSeries.setMarkers([]);
             }
         } else {
-            //console.log('❌ Insufficient candles for swing point calculation (need at least 11)');
+            ////console.log('❌ Insufficient candles for swing point calculation (need at least 11)');
         }
         
         // Return cleanup function
@@ -2505,14 +2500,14 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             // Check if user scrolled close to the left edge (older data)
             if (hasMoreOlderData && !isLoadingOlder && (newRange.from <= dataRange.from + threshold)) {
                 isLoadingOlder = true;
-               ////console.log('📥 Loading older data due to scroll position');
+               //////console.log('📥 Loading older data due to scroll position');
                 
                 try {
                     await onLoadMoreData('older');
                     // Add a small delay to prevent rapid loading
                     setTimeout(() => { isLoadingOlder = false; }, 1000);
                 } catch (error) {
-                    console.error('Failed to load older data:', error);
+                    //console.error('Failed to load older data:', error);
                     isLoadingOlder = false;
                 }
             }
@@ -2520,14 +2515,14 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             // Check if user scrolled close to the right edge (newer data)
             if (hasMoreNewerData && !isLoadingNewer && (newRange.to >= dataRange.to - threshold)) {
                 isLoadingNewer = true;
-               ////console.log('📥 Loading newer data due to scroll position');
+               //////console.log('📥 Loading newer data due to scroll position');
                 
                 try {
                     await onLoadMoreData('newer');
                     // Add a small delay to prevent rapid loading
                     setTimeout(() => { isLoadingNewer = false; }, 1000);
                 } catch (error) {
-                    console.error('Failed to load newer data:', error);
+                    //console.error('Failed to load newer data:', error);
                     isLoadingNewer = false;
                 }
             }
@@ -2541,7 +2536,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 chart.timeScale().unsubscribeVisibleTimeRangeChange(handleVisibleTimeRangeChange);
             } catch (error) {
                 // Chart might have been destroyed
-                console.warn('Failed to unsubscribe from visible time range changes:', error);
+                //console.warn('Failed to unsubscribe from visible time range changes:', error);
             }
         };
     }, [onLoadMoreData, hasMoreOlderData, hasMoreNewerData, isLoadingMoreData]); // Removed candles from dependencies

@@ -138,6 +138,14 @@ export default function DeepDivePage() {
     const strykeDates: string[] = [];
     const algoDates: string[] = [];
     
+    let strykeEntryPrice: number | undefined;
+    let strykeTargetPrice: number | undefined;
+    let strykeStopLossPrice: number | undefined;
+
+    let algoEntryPrice: number | undefined;
+    let algoTargetPrice: number | undefined;
+    let algoStopLossPrice: number | undefined;
+    
     // Find the group that contains this instrument key
     const currentGroup = groupedByUUID.find(group => 
       group.entries.some(entry => entry.instrumentKey === instrumentKey)
@@ -154,8 +162,14 @@ export default function DeepDivePage() {
           const entryDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
           if (entry.label === 'STRYKE') {
             strykeDates.push(entryDate);
+            if (entry.entryCandleClose) strykeEntryPrice = Number(entry.entryCandleClose);
+            if (entry.target) strykeTargetPrice = Number(entry.target);
+            if (entry.stopLoss) strykeStopLossPrice = Number(entry.stopLoss);
           } else if (entry.label === 'ALGO') {
             algoDates.push(entryDate);
+            if (entry.entryCandleClose) algoEntryPrice = Number(entry.entryCandleClose);
+            if (entry.target) algoTargetPrice = Number(entry.target);
+            if (entry.stopLoss) algoStopLossPrice = Number(entry.stopLoss);
           }
         }
       });
@@ -166,10 +180,16 @@ export default function DeepDivePage() {
     
     if (strykeDates.length > 0) {
       chartUrl += `&strykeDate=${encodeURIComponent(strykeDates.join(','))}`;
+      if (strykeEntryPrice) chartUrl += `&strykeEntryPrice=${strykeEntryPrice}`;
+      if (strykeTargetPrice) chartUrl += `&strykeTargetPrice=${strykeTargetPrice}`;
+      if (strykeStopLossPrice) chartUrl += `&strykeStopLossPrice=${strykeStopLossPrice}`;
     }
     
     if (algoDates.length > 0) {
       chartUrl += `&algoDate=${encodeURIComponent(algoDates.join(','))}`;
+      if (algoEntryPrice) chartUrl += `&algoEntryPrice=${algoEntryPrice}`;
+      if (algoTargetPrice) chartUrl += `&algoTargetPrice=${algoTargetPrice}`;
+      if (algoStopLossPrice) chartUrl += `&algoStopLossPrice=${algoStopLossPrice}`;
     }
     
     window.open(chartUrl, '_blank');

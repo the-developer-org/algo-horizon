@@ -24,9 +24,9 @@ const PROGRESSIVE_BATCH_CONFIG = {
   '15m': { batchSize: 2500, targetDays: 365, maxBatches: 15 },  // 37.5k ≈ 1y
   '30m': { batchSize: 2000, targetDays: 365, maxBatches: 10 },  // 20k ≈ 1y
   '1h': { batchSize: 1000, targetDays: 365, maxBatches: 10 },   // 10k ≈ 1y
-  '4h': { batchSize: 500, targetDays: 365, maxBatches: 5 },     // 2.5k ≈ 1y
-  '1d': { batchSize: 365, targetDays: 365, maxBatches: 1 },     // 365 = 1y
-  '1w': { batchSize: 52, targetDays: 365, maxBatches: 1 },      // 52 = 1y
+  '4h': { batchSize: 1500, targetDays: 730, maxBatches: 5 },    // 2.5k ≈ 2y
+  '1d': { batchSize: 1500, targetDays: 1500, maxBatches: 1 },   // 1500 ≈ 4y
+  '1w': { batchSize: 520, targetDays: 3650, maxBatches: 1 },    // 520 ≈ 10y
 } as const;
 
 export const OHLCChartDemo: React.FC = () => {
@@ -72,10 +72,26 @@ export const OHLCChartDemo: React.FC = () => {
   const [strykeEntryDates, setStrykeEntryDates] = useState<string[]>([]);
   const [algoEntryDates, setAlgoEntryDates] = useState<string[]>([]);
 
+  // View mode state
+  const [viewMode, setViewMode] = useState<'stryke' | 'algo'>('stryke');
+
   // Risk-reward parameters from URL
   const [entryPrice, setEntryPrice] = useState<number | undefined>(undefined);
   const [targetPrice, setTargetPrice] = useState<number | undefined>(undefined);
   const [stopLossPrice, setStopLossPrice] = useState<number | undefined>(undefined);
+
+  // Specific configs for Stryke and Algo
+  const [strykeConfig, setStrykeConfig] = useState<{
+    entryPrice?: number;
+    targetPrice?: number;
+    stopLossPrice?: number;
+  }>({});
+
+  const [algoConfig, setAlgoConfig] = useState<{
+    entryPrice?: number;
+    targetPrice?: number;
+    stopLossPrice?: number;
+  }>({});
 
   const [shouldFetchIntraDay, setShouldFetchIntraDay] = useState(true);
 
@@ -256,37 +272,14 @@ export const OHLCChartDemo: React.FC = () => {
       return candlesToProcess.map(candle => ({
         ...candle,
         ema8: undefined,
-        ema30: undefined
+        ema30: undefined,
+        ema: undefined
       }));
     }
 
-    // Calculate EMA8 and EMA30 for the candles
-    //console.log(`🔄 Calculating EMA for ${candlesToProcess.length} candles`);
-    const candlesWithEMA = [...candlesToProcess];
-    
-    // Calculate EMA8
-    let ema8 = candlesWithEMA[0]?.close || 0;
-    const multiplier8 = 2 / (8 + 1);
-    
-    // Calculate EMA30
-    let ema30 = candlesWithEMA[0]?.close || 0;
-    const multiplier30 = 2 / (30 + 1);
-    
-    candlesWithEMA.forEach((candle, index) => {
-      if (index === 0) {
-        candle.ema8 = candle.close;
-        candle.ema30 = candle.close;
-        ema8 = candle.close;
-        ema30 = candle.close;
-      } else {
-        ema8 = (candle.close * multiplier8) + (ema8 * (1 - multiplier8));
-        ema30 = (candle.close * multiplier30) + (ema30 * (1 - multiplier30));
-        candle.ema8 = ema8;
-        candle.ema30 = ema30;
-      }
-    });
-
-    return candlesWithEMA;
+    // Calculate EMA8, EMA30, and EMA200 using the shared utility
+    // This ensures consistency across the app
+    return calculateIndicators(candlesToProcess, 200, 14, false);
   }, [emaCalculation]);
 
   // Unified function to apply EMA calculations to candles
@@ -332,6 +325,15 @@ export const OHLCChartDemo: React.FC = () => {
     const targetPriceParam = searchParams.get('targetPrice');
     const stopLossPriceParam = searchParams.get('stopLossPrice');
 
+    // New params for specific configs
+    const strykeEntryPriceParam = searchParams.get('strykeEntryPrice');
+    const strykeTargetPriceParam = searchParams.get('strykeTargetPrice');
+    const strykeStopLossPriceParam = searchParams.get('strykeStopLossPrice');
+
+    const algoEntryPriceParam = searchParams.get('algoEntryPrice');
+    const algoTargetPriceParam = searchParams.get('algoTargetPrice');
+    const algoStopLossPriceParam = searchParams.get('algoStopLossPrice');
+
     if (instrumentKeyParam && timeframeParam) {
       //console.log('🔗 Processing URL parameters:', { instrumentKeyParam, timeframeParam, dateParam, timeParam });
       
@@ -364,10 +366,14 @@ export const OHLCChartDemo: React.FC = () => {
       setMaxTime(timeParam || '');
       
       // Parse and set stryke and algo dates
+      let hasStrykeData = false;
+      let hasAlgoData = false;
+
       if (strykeDateParam) {
         try {
           const strykeDates = strykeDateParam.split(',').map(date => date.trim()).filter(date => date);
           setStrykeEntryDates(strykeDates);
+          if (strykeDates.length > 0) hasStrykeData = true;
         } catch (error) {
           console.warn('Invalid strykeDate parameter:', strykeDateParam);
           setStrykeEntryDates([]);
@@ -380,6 +386,7 @@ export const OHLCChartDemo: React.FC = () => {
         try {
           const algoDates = algoDateParam.split(',').map(date => date.trim()).filter(date => date);
           setAlgoEntryDates(algoDates);
+          if (algoDates.length > 0) hasAlgoData = true;
         } catch (error) {
           console.warn('Invalid algoDate parameter:', algoDateParam);
           setAlgoEntryDates([]);
@@ -388,10 +395,9 @@ export const OHLCChartDemo: React.FC = () => {
         setAlgoEntryDates([]);
       }
       
-      // Parse risk-reward parameters
+      // Parse risk-reward parameters (Legacy/Global)
       if (entryPriceParam) {
         const parsedEntryPrice = Number.parseFloat(entryPriceParam);
-        console.log('📊 Parsed entryPrice from URL:', entryPriceParam, '->', parsedEntryPrice);
         setEntryPrice(Number.isNaN(parsedEntryPrice) ? undefined : parsedEntryPrice);
       } else {
         setEntryPrice(undefined);
@@ -399,7 +405,6 @@ export const OHLCChartDemo: React.FC = () => {
       
       if (targetPriceParam) {
         const parsedTargetPrice = Number.parseFloat(targetPriceParam);
-        console.log('📊 Parsed targetPrice from URL:', targetPriceParam, '->', parsedTargetPrice);
         setTargetPrice(Number.isNaN(parsedTargetPrice) ? undefined : parsedTargetPrice);
       } else {
         setTargetPrice(undefined);
@@ -407,10 +412,36 @@ export const OHLCChartDemo: React.FC = () => {
       
       if (stopLossPriceParam) {
         const parsedStopLossPrice = Number.parseFloat(stopLossPriceParam);
-        console.log('📊 Parsed stopLossPrice from URL:', stopLossPriceParam, '->', parsedStopLossPrice);
         setStopLossPrice(Number.isNaN(parsedStopLossPrice) ? undefined : parsedStopLossPrice);
       } else {
         setStopLossPrice(undefined);
+      }
+
+      // Parse Stryke Config
+      const newStrykeConfig = {
+        entryPrice: strykeEntryPriceParam ? Number.parseFloat(strykeEntryPriceParam) : undefined,
+        targetPrice: strykeTargetPriceParam ? Number.parseFloat(strykeTargetPriceParam) : undefined,
+        stopLossPrice: strykeStopLossPriceParam ? Number.parseFloat(strykeStopLossPriceParam) : undefined,
+      };
+      setStrykeConfig(newStrykeConfig);
+      if (newStrykeConfig.entryPrice) hasStrykeData = true;
+
+      // Parse Algo Config
+      const newAlgoConfig = {
+        entryPrice: algoEntryPriceParam ? Number.parseFloat(algoEntryPriceParam) : undefined,
+        targetPrice: algoTargetPriceParam ? Number.parseFloat(algoTargetPriceParam) : undefined,
+        stopLossPrice: algoStopLossPriceParam ? Number.parseFloat(algoStopLossPriceParam) : undefined,
+      };
+      setAlgoConfig(newAlgoConfig);
+      if (newAlgoConfig.entryPrice) hasAlgoData = true;
+
+      // Determine default view mode
+      if (hasStrykeData && hasAlgoData) {
+        setViewMode('stryke');
+      } else if (hasAlgoData) {
+        setViewMode('algo');
+      } else {
+        setViewMode('stryke');
       }
       
       // Auto-load data if API key is available
@@ -769,11 +800,8 @@ export const OHLCChartDemo: React.FC = () => {
               )
               .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-            // Process candles with indicators
-            const processedCandles = calculateIndicators(sortedCandles, 200, 14, false);
-            
             // Merge with existing candles
-            allCandles = [...allCandles, ...processedCandles];
+            allCandles = [...allCandles, ...sortedCandles];
             
             // Remove duplicates across all batches
             const uniqueCandles = allCandles.filter((candle, index, self) =>
@@ -1014,15 +1042,12 @@ export const OHLCChartDemo: React.FC = () => {
             return timeA - timeB;
           });
 
-        //console.log(`🔄 Processing ${sortedCandles.length} candles with indicators for ${mode}`);
-        const processedCandles = calculateIndicators(sortedCandles, 200, 14, false);
-        
         // Handle different merge strategies based on mode
         let finalRawCandles: Candle[];
         
         if (mode === 'pagination') {
           // Merge with existing candles for pagination
-          const combinedCandles = [...processedCandles, ...rawCandles];
+          const combinedCandles = [...sortedCandles, ...rawCandles];
           const uniqueCandles = combinedCandles.filter((candle, index, self) =>
             index === self.findIndex((c) => c.timestamp === candle.timestamp)
           );
@@ -1037,7 +1062,7 @@ export const OHLCChartDemo: React.FC = () => {
           //console.log(`Memory optimization: Storing ${finalRawCandles.length} of ${uniqueCandles.length} total candles`);
         } else {
           // Fresh data for initial and timeframe-change
-          finalRawCandles = processedCandles;
+          finalRawCandles = sortedCandles;
         }
         
         setRawCandles(finalRawCandles);
@@ -1055,7 +1080,7 @@ export const OHLCChartDemo: React.FC = () => {
 
         // Calculate average volume and set additional data for initial loads
         if (mode === 'initial') {
-          const volumes = processedCandles.map((candle) => candle.volume);
+          const volumes = sortedCandles.map((candle) => candle.volume);
           const avgVol = volumes.reduce((a, b) => a + b, 0) / volumes.length;
           setAvgVolume(avgVol);
           
@@ -1358,6 +1383,32 @@ export const OHLCChartDemo: React.FC = () => {
             Overall Stats
           </a>
 
+          {/* View Mode Toggle - Only visible if both data sources are available */}
+          {(strykeEntryDates.length > 0 || strykeConfig.entryPrice) && (algoEntryDates.length > 0 || algoConfig.entryPrice) && (
+            <div className="flex bg-gray-200 rounded-lg p-1 gap-1">
+              <button
+                onClick={() => setViewMode('stryke')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  viewMode === 'stryke'
+                    ? 'bg-white text-orange-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Stryke
+              </button>
+              <button
+                onClick={() => setViewMode('algo')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  viewMode === 'algo'
+                    ? 'bg-white text-teal-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Algo
+              </button>
+            </div>
+          )}
+
           {/* Entry Dates Indicator */}
           {strykeEntryDates && strykeEntryDates.length > 0 && (
             <div className="px-3 py-2 rounded-md bg-orange-100 border border-orange-300 text-orange-800 text-sm font-medium flex items-center gap-1">
@@ -1416,7 +1467,7 @@ export const OHLCChartDemo: React.FC = () => {
             </div>
           )}
 
-          {/* EMA Calculation Toggle
+          {/* EMA Calculation Toggle */}
           {!showBoomDays && candles.length > 0 && (
             <button
               onClick={() => setEmaCalculation(!emaCalculation)}
@@ -1433,7 +1484,7 @@ export const OHLCChartDemo: React.FC = () => {
               )}
               EMA {emaCalculation ? 'ON' : 'OFF'}
             </button>
-          )} */}
+          )}
           
           {/* Load More Historical Data button */}
           {!showBoomDays && candles.length > 0 && hasMoreCandles && (
@@ -1504,9 +1555,15 @@ export const OHLCChartDemo: React.FC = () => {
                   entryDates={[]} // Legacy entry dates - empty when using new stryke/algo dates
                   strykeDates={strykeEntryDates} // Stryke entry dates
                   algoDates={algoEntryDates} // Algo entry dates
-                  entryPrice={entryPrice}
-                  targetPrice={targetPrice}
-                  stopLossPrice={stopLossPrice}
+                  
+                  // Pass active config based on view mode
+                  entryPrice={viewMode === 'stryke' ? (strykeConfig.entryPrice || entryPrice) : (algoConfig.entryPrice || entryPrice)}
+                  targetPrice={viewMode === 'stryke' ? (strykeConfig.targetPrice || targetPrice) : (algoConfig.targetPrice || targetPrice)}
+                  stopLossPrice={viewMode === 'stryke' ? (strykeConfig.stopLossPrice || stopLossPrice) : (algoConfig.stopLossPrice || stopLossPrice)}
+                  
+                  // Pass active dates for zone calculation
+                  zoneStartDates={viewMode === 'stryke' ? strykeEntryDates : algoEntryDates}
+                  
                   onLoadMoreData={undefined} // Temporarily disable automatic loading
                   hasMoreOlderData={hasMoreCandles}
                   hasMoreNewerData={false} // We typically only load historical data
