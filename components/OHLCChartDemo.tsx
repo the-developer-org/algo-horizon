@@ -72,6 +72,11 @@ export const OHLCChartDemo: React.FC = () => {
   const [strykeEntryDates, setStrykeEntryDates] = useState<string[]>([]);
   const [algoEntryDates, setAlgoEntryDates] = useState<string[]>([]);
 
+  // Risk-reward parameters from URL
+  const [entryPrice, setEntryPrice] = useState<number | undefined>(undefined);
+  const [targetPrice, setTargetPrice] = useState<number | undefined>(undefined);
+  const [stopLossPrice, setStopLossPrice] = useState<number | undefined>(undefined);
+
   const [shouldFetchIntraDay, setShouldFetchIntraDay] = useState(true);
 
   // Mock trading date/time filter state
@@ -323,6 +328,9 @@ export const OHLCChartDemo: React.FC = () => {
     const timeParam = searchParams.get('time');
     const strykeDateParam = searchParams.get('strykeDate');
     const algoDateParam = searchParams.get('algoDate');
+    const entryPriceParam = searchParams.get('entryPrice');
+    const targetPriceParam = searchParams.get('targetPrice');
+    const stopLossPriceParam = searchParams.get('stopLossPrice');
 
     if (instrumentKeyParam && timeframeParam) {
       //console.log('🔗 Processing URL parameters:', { instrumentKeyParam, timeframeParam, dateParam, timeParam });
@@ -379,7 +387,31 @@ export const OHLCChartDemo: React.FC = () => {
       } else {
         setAlgoEntryDates([]);
       }
-      setSearchTerm(companyName);
+      
+      // Parse risk-reward parameters
+      if (entryPriceParam) {
+        const parsedEntryPrice = Number.parseFloat(entryPriceParam);
+        console.log('📊 Parsed entryPrice from URL:', entryPriceParam, '->', parsedEntryPrice);
+        setEntryPrice(Number.isNaN(parsedEntryPrice) ? undefined : parsedEntryPrice);
+      } else {
+        setEntryPrice(undefined);
+      }
+      
+      if (targetPriceParam) {
+        const parsedTargetPrice = Number.parseFloat(targetPriceParam);
+        console.log('📊 Parsed targetPrice from URL:', targetPriceParam, '->', parsedTargetPrice);
+        setTargetPrice(Number.isNaN(parsedTargetPrice) ? undefined : parsedTargetPrice);
+      } else {
+        setTargetPrice(undefined);
+      }
+      
+      if (stopLossPriceParam) {
+        const parsedStopLossPrice = Number.parseFloat(stopLossPriceParam);
+        console.log('📊 Parsed stopLossPrice from URL:', stopLossPriceParam, '->', parsedStopLossPrice);
+        setStopLossPrice(Number.isNaN(parsedStopLossPrice) ? undefined : parsedStopLossPrice);
+      } else {
+        setStopLossPrice(undefined);
+      }
       
       // Auto-load data if API key is available
       const savedApiKey = localStorage.getItem('upstoxApiKey');
@@ -1472,6 +1504,9 @@ export const OHLCChartDemo: React.FC = () => {
                   entryDates={[]} // Legacy entry dates - empty when using new stryke/algo dates
                   strykeDates={strykeEntryDates} // Stryke entry dates
                   algoDates={algoEntryDates} // Algo entry dates
+                  entryPrice={entryPrice}
+                  targetPrice={targetPrice}
+                  stopLossPrice={stopLossPrice}
                   onLoadMoreData={undefined} // Temporarily disable automatic loading
                   hasMoreOlderData={hasMoreCandles}
                   hasMoreNewerData={false} // We typically only load historical data

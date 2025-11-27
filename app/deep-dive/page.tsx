@@ -608,9 +608,9 @@ export default function DeepDivePage() {
               <button
                 className={`px-3 py-1 rounded-md text-white transition-colors ${deepDiveMode === 'RR_1_1' ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-500 hover:bg-gray-600'}`}
                 onClick={() => setDeepDiveMode(prev => prev === 'RR_1_1' ? 'NONE' : 'RR_1_1')}
-                title="Toggle Deep Dive 1:1 (swingLabels1)"
+                title="Toggle Deep Dive 1:1.5 (swingLabels1)"
               >
-                Deep Dive 1:1
+                Deep Dive 1:1.5
               </button>
               <button
                 className={`px-3 py-1 rounded-md text-white transition-colors ${deepDiveMode === 'RR_1_2' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-500 hover:bg-gray-600'}`}

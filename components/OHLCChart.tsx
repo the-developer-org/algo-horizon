@@ -554,13 +554,16 @@ interface OHLCChartProps {
     showRSI?: boolean;
     showVIX?: boolean;
     showSwingPoints?: boolean;
-    analysisList?: { timestamp: string; swingLabel?: string; }[]; // Added analysisList prop
+    analysisList?: { timestamp: string; swingLabel?: string; entryTime?: string; entryCandleClose?: number; target?: number; stopLoss?: number; }[]; // Updated to include entry/target/SL data
     supportLevel?: number; // Support level from backend
     resistanceLevel?: number; // Resistance level from backend
     avgVolume?: number; // Average volume for the stock
     entryDates?: string[]; // Entry dates to highlight on chart
     strykeDates?: string[]; // Stryke entry dates to highlight with different style
     algoDates?: string[]; // Algo entry dates to highlight with different style
+    entryPrice?: number; // Entry price for plotting target/SL lines
+    targetPrice?: number; // Target price for plotting target line
+    stopLossPrice?: number; // Stop loss price for plotting SL line
     // Add callback for loading more data when user scrolls to edges
     onLoadMoreData?: (direction: 'older' | 'newer') => Promise<void>;
     hasMoreOlderData?: boolean;
@@ -592,6 +595,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     entryDates = [], // Entry dates to highlight
     strykeDates = [], // Stryke entry dates to highlight
     algoDates = [], // Algo entry dates to highlight
+    entryPrice, // Entry price for plotting target/SL lines
+    targetPrice, // Target price for plotting target line
+    stopLossPrice, // Stop loss price for plotting SL line
     onLoadMoreData, // Callback for loading more data
     hasMoreOlderData = false,
     hasMoreNewerData = false,
@@ -618,9 +624,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const staticResistanceLineRef = useRef<any>(null);
     const dynamicSupportLineRef = useRef<any>(null);
     const dynamicResistanceLineRef = useRef<any>(null);
+    const trendLinesRef = useRef<any[]>([]);
     
     // Store calculated swing points for reuse in click analysis
     const calculatedSwingPointsRef = useRef<any[]>([]);
+
+    // Separate ref for entry/target/SL lines to prevent them from being cleaned up by swing points effect
+    const entryLinesRef = useRef<any[]>([]);
 
   
 
@@ -1317,10 +1327,149 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
     }, [showVIX, vixData]); // Removed candles dependency
 
-    // Reference to store trend lines for cleanup
-    const trendLinesRef = useRef<any[]>([]);
-    
-    // Define candlestickSeries and implement swing points logic
+    // Separate effect for entry/target/SL lines from URL parameters
+    useEffect(() => {
+        console.log('🎯 Entry lines effect triggered with:', { entryPrice, targetPrice, stopLossPrice, chartExists: !!chartRef.current, candlesLength: candles.length });
+        if (!chartRef.current || !entryPrice) {
+            console.log('🎯 Entry lines effect skipped:', { chartExists: !!chartRef.current, entryPrice });
+            return;
+        }
+
+        const chart = chartRef.current;
+        console.log('🎯 Entry lines effect proceeding - drawing lines');
+
+        // Clean up any existing entry lines
+        const existingEntryLines: any[] = [];
+        // Note: We can't easily identify which lines are entry lines, so we'll skip cleanup for now
+        // and let the swing points effect handle the main cleanup
+
+        // Add target and SL lines if they exist
+        if (targetPrice && typeof targetPrice === 'number') {
+            const timeScale = chart.timeScale();
+            const visibleRange = timeScale.getVisibleRange();
+            
+            let startTime, endTime;
+            if (visibleRange) {
+                startTime = visibleRange.from;
+                endTime = visibleRange.to;
+            } else if (candles.length > 0) {
+                startTime = parseTimestampToUnix(candles[0].timestamp);
+                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+            } else {
+                return;
+            }
+
+            const targetLineSeries = chart.addLineSeries({
+                color: '#90EE90',
+                lineWidth: 2,
+                lineStyle: 0,
+                title: `Target: ₹${targetPrice.toFixed(2)}`,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                crosshairMarkerVisible: false,
+            });
+
+            targetLineSeries.setData([
+                { time: startTime, value: targetPrice },
+                { time: endTime, value: targetPrice }
+            ]);
+
+            // Store for cleanup
+            entryLinesRef.current.push(targetLineSeries);
+            console.log('🎯 Target line added at price:', targetPrice);
+        }
+
+        // Add entry line if entryPrice exists
+        if (entryPrice && typeof entryPrice === 'number') {
+            const timeScale = chart.timeScale();
+            const visibleRange = timeScale.getVisibleRange();
+            
+            let startTime, endTime;
+            if (visibleRange) {
+                startTime = visibleRange.from;
+                endTime = visibleRange.to;
+            } else if (candles.length > 0) {
+                startTime = parseTimestampToUnix(candles[0].timestamp);
+                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+            } else {
+                return;
+            }
+
+            const entryLineSeries = chart.addLineSeries({
+                color: '#2563eb',
+                lineWidth: 2,
+                lineStyle: 0,
+                title: `Entry: ₹${entryPrice.toFixed(2)}`,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                crosshairMarkerVisible: false,
+            });
+
+            entryLineSeries.setData([
+                { time: startTime, value: entryPrice },
+                { time: endTime, value: entryPrice }
+            ]);
+
+            // Store for cleanup
+            entryLinesRef.current.push(entryLineSeries);
+            console.log('🎯 Entry line added at price:', entryPrice);
+        }
+
+        if (stopLossPrice && typeof stopLossPrice === 'number') {
+            const timeScale = chart.timeScale();
+            const visibleRange = timeScale.getVisibleRange();
+            
+            let startTime, endTime;
+            if (visibleRange) {
+                startTime = visibleRange.from;
+                endTime = visibleRange.to;
+            } else if (candles.length > 0) {
+                startTime = parseTimestampToUnix(candles[0].timestamp);
+                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+            } else {
+                return;
+            }
+
+            const stopLossLineSeries = chart.addLineSeries({
+                color: '#FFB6C1',
+                lineWidth: 2,
+                lineStyle: 0,
+                title: `SL: ₹${stopLossPrice.toFixed(2)}`,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                crosshairMarkerVisible: false,
+            });
+
+            stopLossLineSeries.setData([
+                { time: startTime, value: stopLossPrice },
+                { time: endTime, value: stopLossPrice }
+            ]);
+
+            // Store for cleanup
+            entryLinesRef.current.push(stopLossLineSeries);
+            console.log('🎯 Stop loss line added at price:', stopLossPrice);
+        }
+
+    }, [entryPrice, targetPrice, stopLossPrice, candles]);
+
+    // Cleanup entry lines when component unmounts or parameters change
+    useEffect(() => {
+        return () => {
+            if (entryLinesRef.current && entryLinesRef.current.length && chartRef.current) {
+                entryLinesRef.current.forEach(line => {
+                    if (line && chartRef.current) {
+                        try {
+                            chartRef.current.removeSeries(line);
+                        } catch (err) {
+                            // Ignore cleanup errors - chart may already be destroyed
+                            console.warn('Error cleaning up entry line:', err);
+                        }
+                    }
+                });
+                entryLinesRef.current = [];
+            }
+        };
+    }, []);
     useEffect(() => {
         if (!chartRef.current) return;
 
@@ -1519,6 +1668,257 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         }
                     });
                 }
+
+                // Add entry, target, and SL markers and lines from props or analysisList
+                // NOTE: URL parameter lines are now handled by the separate effect above
+                // First check for direct props (from URL parameters) - DISABLED to avoid duplication
+                /*
+                if (entryTime && entryPrice) {
+                    console.log('🎯 OHLCChart: Drawing entry marker and lines from URL props:', { entryTime, entryPrice, targetPrice, stopLossPrice });
+                    console.log('🎯 Chart exists:', !!chart);
+                    const entryTimestamp = parseTimestampToUnix(entryTime);
+                    console.log('🎯 Entry timestamp parsed:', entryTimestamp);
+                    
+                    // Add entry marker
+                    allMarkers.push({
+                        time: entryTimestamp,
+                        position: 'aboveBar',
+                        color: '#2563eb', // Blue for entry
+                        shape: 'flag',
+                        text: 'E',
+                        size: 10,
+                    });
+                    
+                    // Add circle marker for entry
+                    allMarkers.push({
+                        time: entryTimestamp,
+                        position: 'aboveBar',
+                        color: '#2563eb',
+                        shape: 'circle',
+                        text: '',
+                        size: 0.5,
+                    });
+                    
+                    // Find entry candle index for line calculations
+                    // Instead of exact match, find the closest candle to the entry time
+                    let entryCandleIndex = -1;
+                    let minTimeDiff = Infinity;
+                    
+                    candles.forEach((candle, index) => {
+                        const candleTime = parseTimestampToUnix(candle.timestamp);
+                        const timeDiff = Math.abs(candleTime - entryTimestamp);
+                        if (timeDiff < minTimeDiff) {
+                            minTimeDiff = timeDiff;
+                            entryCandleIndex = index;
+                        }
+                    });
+                    
+                    console.log('🎯 Closest entry candle index found:', entryCandleIndex, 'with time diff:', minTimeDiff, 'seconds');
+                    
+                    if (entryCandleIndex >= 0) {
+                        console.log('🎯 Drawing target and SL lines from closest candle at index:', entryCandleIndex);
+                        // Target line (light green) - draw across visible range
+                        if (targetPrice && typeof targetPrice === 'number') {
+                            // Get the visible time range or use the full data range
+                            const timeScale = chart.timeScale();
+                            const visibleRange = timeScale.getVisibleRange();
+                            
+                            let startTime, endTime;
+                            if (visibleRange) {
+                                startTime = visibleRange.from;
+                                endTime = visibleRange.to;
+                            } else {
+                                // Fallback to data range
+                                startTime = parseTimestampToUnix(candles[0].timestamp);
+                                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+                            }
+                            
+                            const targetLineData = [
+                                { time: startTime, value: targetPrice },
+                                { time: endTime, value: targetPrice }
+                            ];
+                            
+                            console.log('🎯 Creating target line from', startTime, 'to', endTime, 'at price', targetPrice);
+                            
+                            const targetLineSeries = chart.addLineSeries({
+                                color: '#90EE90', // Light green
+                                lineWidth: 2,
+                                lineStyle: 0,
+                                title: `Target: ₹${targetPrice.toFixed(2)}`,
+                                priceLineVisible: false,
+                                lastValueVisible: false,
+                                crosshairMarkerVisible: false,
+                            });
+                            
+                            targetLineSeries.setData(targetLineData);
+                            trendLinesRef.current.push(targetLineSeries);
+                            console.log('🎯 Target line created and added to trendLinesRef');
+                        }
+                        
+                        // Entry line (blue) - draw across visible range
+                        if (entryPrice && typeof entryPrice === 'number') {
+                            // Get the visible time range or use the full data range
+                            const timeScale = chart.timeScale();
+                            const visibleRange = timeScale.getVisibleRange();
+                            
+                            let startTime, endTime;
+                            if (visibleRange) {
+                                startTime = visibleRange.from;
+                                endTime = visibleRange.to;
+                            } else {
+                                // Fallback to data range
+                                startTime = parseTimestampToUnix(candles[0].timestamp);
+                                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+                            }
+                            
+                            const entryLineData = [
+                                { time: startTime, value: entryPrice },
+                                { time: endTime, value: entryPrice }
+                            ];
+                            
+                            console.log('🎯 Creating entry line from', startTime, 'to', endTime, 'at price', entryPrice);
+                            
+                            const entryLineSeries = chart.addLineSeries({
+                                color: '#2563eb', // Blue
+                                lineWidth: 2,
+                                lineStyle: 0,
+                                title: `Entry: ₹${entryPrice.toFixed(2)}`,
+                                priceLineVisible: false,
+                                lastValueVisible: false,
+                                crosshairMarkerVisible: false,
+                            });
+                            
+                            entryLineSeries.setData(entryLineData);
+                            trendLinesRef.current.push(entryLineSeries);
+                            console.log('🎯 Entry line created and added to trendLinesRef');
+                        }
+                        
+                        // Stop Loss line (light red) - draw across visible range
+                        if (stopLossPrice && typeof stopLossPrice === 'number') {
+                            // Get the visible time range or use the full data range
+                            const timeScale = chart.timeScale();
+                            const visibleRange = timeScale.getVisibleRange();
+                            
+                            let startTime, endTime;
+                            if (visibleRange) {
+                                startTime = visibleRange.from;
+                                endTime = visibleRange.to;
+                            } else {
+                                // Fallback to data range
+                                startTime = parseTimestampToUnix(candles[0].timestamp);
+                                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+                            }
+                            
+                            const stopLossLineData = [
+                                { time: startTime, value: stopLossPrice },
+                                { time: endTime, value: stopLossPrice }
+                            ];
+                            
+                            console.log('🎯 Creating stop loss line from', startTime, 'to', endTime, 'at price', stopLossPrice);
+                            
+                            const stopLossLineSeries = chart.addLineSeries({
+                                color: '#FFB6C1', // Light red
+                                lineWidth: 2,
+                                lineStyle: 0,
+                                title: `SL: ₹${stopLossPrice.toFixed(2)}`,
+                                priceLineVisible: false,
+                                lastValueVisible: false,
+                                crosshairMarkerVisible: false,
+                            });
+                            
+                            stopLossLineSeries.setData(stopLossLineData);
+                            trendLinesRef.current.push(stopLossLineSeries);
+                            console.log('🎯 Stop loss line created and added to trendLinesRef');
+                        }
+                    }
+                }
+                */
+                
+                // Then check analysisList for additional entries
+                if (propAnalysisList && propAnalysisList.length > 0) {
+                    propAnalysisList.forEach((analysis) => {
+                        if (analysis.entryTime && analysis.entryCandleClose) {
+                            const entryTime = parseTimestampToUnix(analysis.entryTime);
+                            
+                            // Add entry marker
+                            allMarkers.push({
+                                time: entryTime,
+                                position: 'aboveBar',
+                                color: '#2563eb', // Blue for entry
+                                shape: 'flag',
+                                text: 'E',
+                                size: 10,
+                            });
+                            
+                            // Add circle marker for entry
+                            allMarkers.push({
+                                time: entryTime,
+                                position: 'aboveBar',
+                                color: '#2563eb',
+                                shape: 'circle',
+                                text: '',
+                                size: 0.5,
+                            });
+                            
+                            // Find entry candle index for line calculations
+                            const entryCandleIndex = candles.findIndex(c => parseTimestampToUnix(c.timestamp) === entryTime);
+                            
+                            if (entryCandleIndex >= 0) {
+                                const entryPrice = analysis.entryCandleClose;
+                                
+                                // Target line (light green)
+                                if (analysis.target && typeof analysis.target === 'number') {
+                                    const targetPrice = analysis.target;
+                                    const endIndex = Math.min(entryCandleIndex + 20, candles.length - 1); // 20 candles ahead or end of data
+                                    const endTime = parseTimestampToUnix(candles[endIndex].timestamp);
+                                    
+                                    const targetLineData = [
+                                        { time: entryTime, value: entryPrice },
+                                        { time: endTime, value: targetPrice }
+                                    ];
+                                    
+                                    const targetLineSeries = chart.addLineSeries({
+                                        color: '#90EE90', // Light green
+                                        lineWidth: 2,
+                                        lineStyle: 0,
+                                        title: `Target: ₹${targetPrice.toFixed(2)}`,
+                                        priceLineVisible: false,
+                                        lastValueVisible: false,
+                                        crosshairMarkerVisible: false,
+                                    });
+                                    
+                                    targetLineSeries.setData(targetLineData);
+                                    trendLinesRef.current.push(targetLineSeries);
+                                }
+                                
+                                // Stop Loss line (light red)
+                                if (analysis.stopLoss && typeof analysis.stopLoss === 'number') {
+                                    const stopLossPrice = analysis.stopLoss;
+                                    const endIndex = Math.min(entryCandleIndex + 20, candles.length - 1); // 20 candles ahead or end of data
+                                    const endTime = parseTimestampToUnix(candles[endIndex].timestamp);
+                                    
+                                    const stopLossLineData = [
+                                        { time: entryTime, value: entryPrice },
+                                        { time: endTime, value: stopLossPrice }
+                                    ];
+                                    
+                                    const stopLossLineSeries = chart.addLineSeries({
+                                        color: '#FFB6C1', // Light red
+                                        lineWidth: 2,
+                                        lineStyle: 0,
+                                        title: `SL: ₹${stopLossPrice.toFixed(2)}`,
+                                        priceLineVisible: false,
+                                        lastValueVisible: false,
+                                        crosshairMarkerVisible: false,
+                                    });
+                                    
+                                    stopLossLineSeries.setData(stopLossLineData);
+                                    trendLinesRef.current.push(stopLossLineSeries);
+                                }
+                            }
+                        }
+                    });
+                }
                 
                 // Ensure markers are ordered and unique by time before setting them
                 allMarkers.sort((a, b) => a.time - b.time);
@@ -1572,7 +1972,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 trendLinesRef.current = [];
             }
         };
-    }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices, strykeCandleIndices, algoCandleIndices]); // Added entryCandleIndices, strykeCandleIndices, algoCandleIndices
+    }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices, strykeCandleIndices, algoCandleIndices, entryPrice, targetPrice, stopLossPrice]); // Added entryCandleIndices, strykeCandleIndices, algoCandleIndices, entryPrice, targetPrice, stopLossPrice
 
     // Crosshair move handler effect - updates when chart changes
     useEffect(() => {
