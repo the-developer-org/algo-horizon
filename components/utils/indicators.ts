@@ -240,7 +240,21 @@ function calculateIndicatorsInChronologicalOrder(
 
     // Use TradingView-compatible calculation for ALL EMAs to ensure consistency
     // This also handles array padding correctly (returns array of size N with nulls)
-    const emaValues = calculateTradingViewEMA(closes, emaPeriod);
+    
+    // For larger periods (like 200), use the technicalindicators library which might match 
+    // external charts better due to internal precision or initialization differences.
+    // For smaller periods (8, 30), stick to our custom implementation as verified correct.
+    let emaValues: (number | null)[];
+    if (emaPeriod > 50) {
+        const calculated = EMA.calculate({ period: emaPeriod, values: closes });
+        // Pad with nulls to match closes length
+        const paddingCount = closes.length - calculated.length;
+        const padding = new Array(paddingCount).fill(null);
+        emaValues = [...padding, ...calculated];
+    } else {
+        emaValues = calculateTradingViewEMA(closes, emaPeriod);
+    }
+
     const ema8Values = calculateTradingViewEMA(closes, 8);
     const ema30Values = calculateTradingViewEMA(closes, 30);
     
