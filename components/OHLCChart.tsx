@@ -1329,14 +1329,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Separate effect for entry/target/SL lines from URL parameters
     useEffect(() => {
-        console.log('🎯 Entry lines effect triggered with:', { entryPrice, targetPrice, stopLossPrice, chartExists: !!chartRef.current, candlesLength: candles.length });
         if (!chartRef.current || !entryPrice) {
-            console.log('🎯 Entry lines effect skipped:', { chartExists: !!chartRef.current, entryPrice });
             return;
         }
 
         const chart = chartRef.current;
-        console.log('🎯 Entry lines effect proceeding - drawing lines');
 
         // Clean up any existing entry lines
         const existingEntryLines: any[] = [];
@@ -1360,8 +1357,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             }
 
             const targetLineSeries = chart.addLineSeries({
-                color: '#90EE90',
-                lineWidth: 2,
+                color: '#10b981', // Emerald green to match profit zone
+                lineWidth: 3,
                 lineStyle: 0,
                 title: `Target: ₹${targetPrice.toFixed(2)}`,
                 priceLineVisible: false,
@@ -1376,7 +1373,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
             // Store for cleanup
             entryLinesRef.current.push(targetLineSeries);
-            console.log('🎯 Target line added at price:', targetPrice);
         }
 
         // Add entry line if entryPrice exists
@@ -1396,9 +1392,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             }
 
             const entryLineSeries = chart.addLineSeries({
-                color: '#2563eb',
-                lineWidth: 2,
-                lineStyle: 0,
+                color: '#1d4ed8', // Stronger blue for entry
+                lineWidth: 3,
+                lineStyle: 2, // Dashed line to distinguish from target/SL
                 title: `Entry: ₹${entryPrice.toFixed(2)}`,
                 priceLineVisible: false,
                 lastValueVisible: false,
@@ -1412,7 +1408,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
             // Store for cleanup
             entryLinesRef.current.push(entryLineSeries);
-            console.log('🎯 Entry line added at price:', entryPrice);
         }
 
         if (stopLossPrice && typeof stopLossPrice === 'number') {
@@ -1431,8 +1426,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             }
 
             const stopLossLineSeries = chart.addLineSeries({
-                color: '#FFB6C1',
-                lineWidth: 2,
+                color: '#ef4444', // Bright red to match loss zone
+                lineWidth: 3,
                 lineStyle: 0,
                 title: `SL: ₹${stopLossPrice.toFixed(2)}`,
                 priceLineVisible: false,
@@ -1447,12 +1442,144 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
             // Store for cleanup
             entryLinesRef.current.push(stopLossLineSeries);
-            console.log('🎯 Stop loss line added at price:', stopLossPrice);
+        }
+
+        // Add profit zone (green area between entry and target)
+        if (entryPrice && targetPrice && typeof entryPrice === 'number' && typeof targetPrice === 'number') {
+            let startTime, endTime;
+            
+            // Always calculate algo start time first, regardless of visible range
+            let algoStartTime = null;
+            if (candles.length > 0) {
+                let algoStartDate;
+                if (algoDates.length > 0) {
+                    // Use the first algo date from URL parameters
+                    algoStartDate = algoDates[0];
+                    console.log('🤖 Profit zone using algo entry date from URL params:', algoStartDate);
+                } else {
+                    // Fallback to first candle date if no algo date provided
+                    algoStartDate = new Date(candles[0].timestamp).toISOString().split('T')[0];
+                    console.log('🤖 Profit zone auto-detected algo entry date from first candle:', algoStartDate);
+                }
+                
+                // Find the candle that matches the algo start date and use its timestamp
+                const algoStartCandle = candles.find(candle => 
+                    candle.timestamp.startsWith(algoStartDate)
+                );
+                if (algoStartCandle) {
+                    algoStartTime = parseTimestampToUnix(algoStartCandle.timestamp);
+                    console.log('🤖 Profit zone calculated algoStartTime:', algoStartTime);
+                }
+            }
+            
+            // Use algo start time if available, otherwise fallback to visible range or data range
+            if (algoStartTime) {
+                startTime = algoStartTime;
+                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+                console.log('🤖 Profit zone using algo override - startTime:', startTime, 'endTime:', endTime);
+            } else if (candles.length > 0) {
+                startTime = parseTimestampToUnix(candles[0].timestamp);
+                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+            } else {
+                return;
+            }
+
+            const profitZoneSeries = chart.addBaselineSeries({
+                baseValue: { type: 'price', price: entryPrice },
+                topFillColor1: 'rgba(16, 185, 129, 0.35)', // Emerald green
+                topFillColor2: 'rgba(16, 185, 129, 0.08)',
+                topLineColor: 'rgba(16, 185, 129, 1.0)',
+                bottomFillColor1: 'rgba(16, 185, 129, 0.08)',
+                bottomFillColor2: 'rgba(16, 185, 129, 0.35)',
+                bottomLineColor: 'rgba(16, 185, 129, 1.0)',
+                lineWidth: 2,
+                crosshairMarkerVisible: false,
+                priceLineVisible: false,
+                lastValueVisible: false,
+            });
+
+            // Create area data points - line at the target price
+            const areaData = [
+                { time: startTime, value: targetPrice },
+                { time: endTime, value: targetPrice },
+            ];
+
+            profitZoneSeries.setData(areaData);
+            
+            // Store for cleanup - add profit zone first for proper layering
+            entryLinesRef.current.unshift(profitZoneSeries);
+        }
+
+        // Add loss zone (red area between entry and stop loss)
+        if (entryPrice && stopLossPrice && typeof entryPrice === 'number' && typeof stopLossPrice === 'number') {
+            let startTime, endTime;
+            
+            // Always calculate algo start time first, regardless of visible range
+            let algoStartTime = null;
+            if (candles.length > 0) {
+                let algoStartDate;
+                console.log(algoDates.length, " algoDates");
+                if (algoDates.length > 0) {
+                    // Use the first algo date from URL parameters
+                    algoStartDate = algoDates[0];
+                    console.log('🤖 Using algo entry date from URL params:', algoStartDate);
+                } else {
+                    // Fallback to first candle date if no algo date provided
+                    algoStartDate = new Date(candles[0].timestamp).toISOString().split('T')[0];
+                    console.log('🤖 Auto-detected algo entry date from first candle:', algoStartDate, 'at price:', candles[0].close);
+                }
+                
+                // Find the candle that matches the algo start date and use its timestamp
+                const algoStartCandle = candles.find(candle => 
+                    candle.timestamp.startsWith(algoStartDate)
+                );
+                if (algoStartCandle) {
+                    algoStartTime = parseTimestampToUnix(algoStartCandle.timestamp);
+                    console.log('🤖 Found algo start candle at price:', algoStartCandle.close, 'on date:', algoStartDate);
+                    console.log('🤖 Calculated algoStartTime:', algoStartTime);
+                }
+            }
+            
+            // Use algo start time if available, otherwise fallback to visible range or data range
+            if (algoStartTime) {
+                startTime = algoStartTime;
+                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+                console.log('🤖 Loss zone using algo override - startTime:', startTime, 'endTime:', endTime);
+            } else if (candles.length > 0) {
+                startTime = parseTimestampToUnix(candles[0].timestamp);
+                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
+            } else {
+                return;
+            }
+
+            console.log("Base value for loss zone:", entryPrice);
+            const lossZoneSeries = chart.addBaselineSeries({
+                baseValue: { type: 'price', price: entryPrice },
+                topFillColor1: 'rgba(239, 68, 68, 0.35)', // Bright red
+                topFillColor2: 'rgba(239, 68, 68, 0.08)',
+                topLineColor: 'rgba(239, 68, 68, 1.0)',
+                bottomFillColor1: 'rgba(239, 68, 68, 0.08)',
+                bottomFillColor2: 'rgba(239, 68, 68, 0.35)',
+                bottomLineColor: 'rgba(239, 68, 68, 1.0)',
+                lineWidth: 2,
+                crosshairMarkerVisible: false,
+                priceLineVisible: false,
+                lastValueVisible: false,
+            });
+
+            // Create area data points - line at the stop loss price
+            const areaData = [
+                { time: startTime, value: stopLossPrice },
+                { time: endTime, value: stopLossPrice },
+            ];
+
+            lossZoneSeries.setData(areaData);
+
+            // Store for cleanup - add loss zone after profit zone for proper layering
+            entryLinesRef.current.unshift(lossZoneSeries);
         }
 
     }, [entryPrice, targetPrice, stopLossPrice, candles]);
-
-    // Cleanup entry lines when component unmounts or parameters change
     useEffect(() => {
         return () => {
             if (entryLinesRef.current && entryLinesRef.current.length && chartRef.current) {
