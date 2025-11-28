@@ -492,6 +492,7 @@ export default function DeepDivePage() {
       'RSI',
       'Prelude',
       'Passing',
+      'HH Break',
       'Comments'
     ];
 
@@ -504,6 +505,7 @@ export default function DeepDivePage() {
         const swingLabel = isOneOne ? dd?.swingLabels1 : dd?.swingLabels2;
         const prelude = isOneOne ? dd?.prelude1 : dd?.prelude2;
         const passing = isOneOne ? dd?.passing1 : dd?.passing2;
+        const hhBreak = dd?.hhBreakOut;
         const entryDate = item.entryTime ? new Date(item.entryTime).toLocaleDateString() : 'N/A';
         const entryPrice = item.entryCandleClose ? Number(item.entryCandleClose) : 0;
         const targetPrice = item.target ? Number(item.target) : 0;
@@ -536,6 +538,7 @@ export default function DeepDivePage() {
           item?.emacross?.rsi != null ? Number(item.emacross.rsi) : 0,
           prelude ? 'Yes' : 'No',
           passing ? 'Yes' : 'No',
+          hhBreak === true ? 'True' : hhBreak === false ? 'False' : '',
           String(analysisComment || '')
         ]);
       });
@@ -795,7 +798,8 @@ export default function DeepDivePage() {
                 const passing = isOneOne ? dd?.passing1 : dd?.passing2;
                 return prelude && passing;
               }).length;
-              return ` | STRYKE: ${strykePassingCount}/${strykeEntries.length}`;
+              const strykeBreakCount = strykeEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
+              return ` | STRYKE: ${strykePassingCount}/${strykeEntries.length}  | HH BREAK: ${strykeBreakCount}`;
             })()}
             {showAlgo && (() => {
               const algoEntries = deepDiveList.filter(item => item.label === 'ALGO');
@@ -806,7 +810,8 @@ export default function DeepDivePage() {
                 const passing = isOneOne ? dd?.passing1 : dd?.passing2;
                 return prelude && passing;
               }).length;
-              return ` | ALGO: ${algoPassingCount}/${algoEntries.length}`;
+              const algoBreakCount = algoEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
+              return ` | ALGO: ${algoPassingCount}/${algoEntries.length}  | ALGO HH BREAK: ${algoBreakCount}`;
             })()}
             {showFibo && (() => {
               const fiboEntries = deepDiveList.filter(item => item.label === 'FIBO');
@@ -817,7 +822,8 @@ export default function DeepDivePage() {
                 const passing = isOneOne ? dd?.passing1 : dd?.passing2;
                 return prelude && passing;
               }).length;
-              return ` | FIBO: ${fiboPassingCount}/${fiboEntries.length}`;
+              const fiboBreakCount = fiboEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
+              return ` | FIBO: ${fiboPassingCount}/${fiboEntries.length}  | FIBO HH BREAK: ${fiboBreakCount}`;
             })()}
           </span>
         </div>
@@ -876,6 +882,7 @@ export default function DeepDivePage() {
                           <th className="border border-gray-300 px-3 py-2">RSI</th>
                           <th className="border border-gray-300 px-3 py-2">Prelude</th>
                           <th className="border border-gray-300 px-3 py-2">Passing</th>
+                          <th className="border border-gray-300 px-3 py-2">HH Break</th>
                           <th className="border border-gray-300 px-5 py-2">Comments</th>
                         </tr>
                       </thead>
@@ -886,6 +893,7 @@ export default function DeepDivePage() {
                           const swingLabel = isOneOne ? dd?.swingLabels1 : dd?.swingLabels2;
                           const prelude = isOneOne ? dd?.prelude1 : dd?.prelude2;
                           const passing = isOneOne ? dd?.passing1 : dd?.passing2;
+                          const hhBreak = dd?.hhBreakOut;
                           const entryDate = item.entryTime ? new Date(item.entryTime).toLocaleDateString('en-GB') : 'N/A';
                           const entryPrice = item.entryCandleClose ? Number(item.entryCandleClose).toFixed(2) : 'N/A';
                           const targetPrice = item.target && item.entryCandleClose ? `${Number(item.target).toFixed(2)} (${(((Number(item.target) - Number(item.entryCandleClose)) / Number(item.entryCandleClose)) * 100).toFixed(2)}%)` : item.target ? Number(item.target).toFixed(2) : 'N/A';
@@ -944,6 +952,19 @@ export default function DeepDivePage() {
                                 <span className={`px-2 py-0.5 rounded text-xs font-semibold ${passing ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                   {passing ? 'Yes' : 'No'}
                                 </span>
+                              </td>
+                              <td className="border border-gray-200 px-3 py-1 text-center">
+                                {hhBreak === true ? (
+                                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">
+                                    True
+                                  </span>
+                                ) : hhBreak === false ? (
+                                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">
+                                    False
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
                               </td>
                               <td className="border border-gray-200 px-3 py-1">
                                 <button

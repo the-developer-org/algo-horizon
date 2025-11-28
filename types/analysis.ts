@@ -167,6 +167,7 @@ export interface AnalysisResponse {
     passing2?: boolean;
     commentsS1?: string | null;
     commentsS2?: string | null;
+    hhBreakOut?: boolean | null;
   } | null;
 }
 
