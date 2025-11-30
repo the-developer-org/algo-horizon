@@ -20,6 +20,9 @@ export default function DeepDivePage() {
   // Filter state for support not touched
   const [filterSupportNotTouched, setFilterSupportNotTouched] = useState(false);
   
+  // Filter state for HH Break
+  const [filterHHBreak, setFilterHHBreak] = useState(false);
+  
   // Filter state for analysis types (default all enabled)
   const [showStryke, setShowStryke] = useState(true);
   const [showAlgo, setShowAlgo] = useState(true);
@@ -396,6 +399,13 @@ export default function DeepDivePage() {
           return false;
         }
       }
+
+      // Apply HH Break filter
+      if (filterHHBreak) {
+        if (item.analysisDeepDive?.hhBreakOut !== true) {
+          return false;
+        }
+      }
       
       // Apply analysis type filters
       if (item.label === 'STRYKE' && !showStryke) return false;
@@ -404,7 +414,7 @@ export default function DeepDivePage() {
       
       return true;
     });
-  }, [deepDiveMode, deepDiveData, filterLabelCombo, selectedMonth, filterSupportNotTouched, showStryke, showAlgo, showFibo]);
+  }, [deepDiveMode, deepDiveData, filterLabelCombo, selectedMonth, filterSupportNotTouched, filterHHBreak, showStryke, showAlgo, showFibo]);
 
   // Group deep dive entries by UUID (each UUID can have max 3 entries: ALGO, STRYKE, FIBO)
   const groupedByUUID = React.useMemo(() => {
@@ -723,6 +733,17 @@ export default function DeepDivePage() {
             >
               {filterSupportNotTouched ? '✓ Support Not Touched' : 'Support Not Touched'}
             </button>
+            <button
+              onClick={() => setFilterHHBreak(!filterHHBreak)}
+              className={`px-3 py-1 rounded-md text-white transition-colors ${
+                filterHHBreak 
+                  ? 'bg-green-600 hover:bg-green-700' 
+                  : 'bg-gray-500 hover:bg-gray-600'
+              }`}
+              title="Toggle to show only entries with HH Break"
+            >
+              {filterHHBreak ? '✓ HH Break' : 'HH Break'}
+            </button>
           </div>
 
           {/* Analysis Type Filters */}
@@ -799,7 +820,7 @@ export default function DeepDivePage() {
                 return prelude && passing;
               }).length;
               const strykeBreakCount = strykeEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
-              return ` | STRYKE: ${strykePassingCount}/${strykeEntries.length}  | HH BREAK: ${strykeBreakCount}`;
+              return ` | STRYKE: ${strykePassingCount}/${strykeEntries.length} | HH BREAK: ${strykeBreakCount}`;
             })()}
             {showAlgo && (() => {
               const algoEntries = deepDiveList.filter(item => item.label === 'ALGO');
@@ -811,7 +832,7 @@ export default function DeepDivePage() {
                 return prelude && passing;
               }).length;
               const algoBreakCount = algoEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
-              return ` | ALGO: ${algoPassingCount}/${algoEntries.length}  | ALGO HH BREAK: ${algoBreakCount}`;
+              return ` | ALGO: ${algoPassingCount}/${algoEntries.length} | HH BREAK: ${algoBreakCount}`;
             })()}
             {showFibo && (() => {
               const fiboEntries = deepDiveList.filter(item => item.label === 'FIBO');
@@ -823,7 +844,7 @@ export default function DeepDivePage() {
                 return prelude && passing;
               }).length;
               const fiboBreakCount = fiboEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
-              return ` | FIBO: ${fiboPassingCount}/${fiboEntries.length}  | FIBO HH BREAK: ${fiboBreakCount}`;
+              return ` | FIBO: ${fiboPassingCount}/${fiboEntries.length} | HH BREAK: ${fiboBreakCount}`;
             })()}
           </span>
         </div>
