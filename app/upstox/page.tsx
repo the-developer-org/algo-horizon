@@ -9,7 +9,6 @@ import { ArrowLeft } from "lucide-react";
 import { fetchUpstoxIntradayData, fetchUpstoxHistoricalData } from "@/components/utils/upstoxApi";
 import toast, { Toaster } from 'react-hot-toast';
 import { algoHorizonApi } from "@/lib/api/algoHorizonApi";
-import { tr } from "date-fns/locale";
 
 export default function UpstoxPage() {
     // Account to phone number mapping
@@ -61,7 +60,21 @@ export default function UpstoxPage() {
                 });
                 setAccountPhoneMapping(phoneNumberMap);
 
-                setAccounts(["All accounts", ...Object.keys(phoneNumberMap)]);
+                const accountList = ["All accounts", ...Object.keys(phoneNumberMap)];
+                setAccounts(accountList);
+
+                // Initialize lastClosingPrices for all accounts
+                setLastClosingPrices(prev => {
+                    const newState = { ...prev };
+                    accountList.forEach(acc => {
+                        // Initialize with null if not present
+                        if (newState[acc] === undefined) {
+                            newState[acc] = null;
+                        }
+                    });
+                    return newState;
+                });
+
                 setSelectedAccount("All accounts");
                 toast.success('User accounts loaded');
             } catch (error) {
@@ -107,7 +120,7 @@ export default function UpstoxPage() {
         tradeId: string;
         isHolding: boolean;
         avgPrice: number;
-        totalQty: number;
+        buyingQty: number;
         holdingQty: number;
     }
 
@@ -126,6 +139,9 @@ export default function UpstoxPage() {
     // Open orders state
     const [openOrders, setOpenOrders] = useState<{ [account: string]: OpenOrders[] }>({});
     const [isLoadingOpenOrders, setIsLoadingOpenOrders] = useState<{ [account: string]: boolean }>({});
+    // Completed orders state
+    const [completedOrders, setCompletedOrders] = useState<{ [account: string]: OpenOrders[] }>({});
+    const [isLoadingCompletedOrders, setIsLoadingCompletedOrders] = useState<{ [account: string]: boolean }>({});
     // Misc loading flags for API activity
     const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
     const [isLoadingKeyMapping, setIsLoadingKeyMapping] = useState<boolean>(false);
@@ -282,13 +298,6 @@ export default function UpstoxPage() {
         return () => clearInterval(statusCheckInterval);
     }, [selectedInstrumentKey]);
 
-    // Fetch trade history when Completed Trades tab is activated
-    useEffect(() => {
-        if (activeFeature === 'Completed Trades' && isUserLoggedIn()) {
-            fetchTradeHistory(selectedAccount);
-        }
-    }, [activeFeature, selectedAccount, selectedFinancialYear]);
-
     // Fetch open orders when Open Orders tab is activated
     useEffect(() => {
         if (activeFeature === 'Open Orders' && isUserLoggedIn()) {
@@ -296,11 +305,18 @@ export default function UpstoxPage() {
         }
     }, [activeFeature, selectedAccount]);
 
+    // Fetch completed orders when Completed Orders tab is activated
+    useEffect(() => {
+        if (activeFeature === 'Completed Orders' && isUserLoggedIn()) {
+            fetchCompletedOrders(selectedAccount);
+        }
+    }, [activeFeature, selectedAccount]);
+
     // Fetch funds when account is selected or when Place order tab is activated
     useEffect(() => {
-        if (activeFeature === 'Place order' && selectedAccount !== 'All accounts') {
+        if (activeFeature === 'Place Order' && selectedAccount !== 'All accounts') {
             fetchAccountFunds(selectedAccount);
-        } else if (activeFeature === 'Place order' && selectedAccount === 'All accounts') {
+        } else if (activeFeature === 'Place Order' && selectedAccount === 'All accounts') {
             // Fetch funds for all accounts
             accounts.slice(1).forEach(account => fetchAccountFunds(account));
         }
@@ -343,13 +359,10 @@ export default function UpstoxPage() {
             setIsLoadingPrices(prev => ({ ...prev, [selectedAccount]: true }));
         }
         try {
-            const apiKey = localStorage.getItem('upstoxApiKey');
+            let apiKey = localStorage.getItem('upstoxApiKey');
             if (!apiKey) {
-                console.warn('No Upstox API key found');
-                setLastClosingPrices(prev => ({ ...prev, [selectedAccount]: null }));
-                setCompanyPrices(prev => ({ ...prev, [instrumentKey]: null }));
-                return;
-            }
+                apiKey = 'DEFAULT_API_KEY';
+             } // Use a default or placeholder API key            }
 
             // Check market hours: Monday-Friday, 9:15 AM to 3:30 PM
             const now = new Date();
@@ -541,7 +554,7 @@ export default function UpstoxPage() {
                 const uniqueInstrumentKeys = Array.from(new Set(instrumentKeys));
                 if (uniqueInstrumentKeys.length > 0) {
                     for (const instrumentKey of uniqueInstrumentKeys) {
-                        // await fetchLastClosingPrice(instrumentKey);
+                        await fetchLastClosingPrice(instrumentKey);
                     }
                 }
 
@@ -551,6 +564,32 @@ export default function UpstoxPage() {
             toast.error(`Failed to fetch open orders for ${account}`);
         } finally {
             setIsLoadingOpenOrders(prev => ({ ...prev, [account]: false }));
+        }
+    };
+
+      const fetchCompletedOrders = async (account: string) => {
+        const phoneNumber = (accountPhoneMapping as Record<string, string>)[account];
+        if (!phoneNumber) return;
+
+        setIsLoadingCompletedOrders(prev => ({ ...prev, [account]: true }));
+
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+            const response = await fetch(`${backendUrl}/api/upstox/orders/get-completed-orders?phoneNumber=${phoneNumber}`);
+            if (response.ok) {
+                const data: OpenOrders[] = await response.json();
+
+                setCompletedOrders(prev => ({
+                    ...prev,
+                    [account]: data
+                }));
+                toast.success(`Completed orders loaded for ${account}`);
+            }
+        } catch (error) {
+            console.error(`Failed to fetch completed orders for ${account}:`, error);
+            toast.error(`Failed to fetch completed orders for ${account}`);
+        } finally {
+            setIsLoadingCompletedOrders(prev => ({ ...prev, [account]: false }));
         }
     };
 

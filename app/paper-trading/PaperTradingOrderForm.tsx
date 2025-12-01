@@ -177,7 +177,8 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
 
   // Fetch company price data function
   const fetchCompanyPrice = async () => {
-    if (!selectedCompany || !formData.instrumentKey || !formData.entryDate || !formData.entryTime) {
+    try{
+      if (!selectedCompany || !formData.instrumentKey || !formData.entryDate || !formData.entryTime) {
       return;
     }
 
@@ -191,21 +192,13 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     }
 
     setIsLoadingPrice(true);
-    try {
-      const apiKey = localStorage.getItem('upstoxApiKey');
-      if (!apiKey) {
-        console.warn('No Upstox API key found');
-        setCompanyPrice(null);
-        setCompanyChange(null);
-        return;
-      }
+
     
-let result;
+    let result;
       // Fetch minute data for the selected date
       if(formData.entryDate === new Date().toISOString().split('T')[0]){
         result = await fetchUpstoxIntradayData(
           formData.instrumentKey,
-          apiKey,
           'minutes',
           '1'
         );
@@ -215,8 +208,7 @@ let result;
         'minutes',
         '1',
         formData.entryDate,
-        formData.entryDate,
-        apiKey
+        formData.entryDate
       );
     }
 

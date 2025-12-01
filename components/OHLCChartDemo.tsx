@@ -443,24 +443,7 @@ export const OHLCChartDemo: React.FC = () => {
       } else {
         setViewMode('stryke');
       }
-      
-      // Auto-load data if API key is available
-      const savedApiKey = localStorage.getItem('upstoxApiKey');
-      if (savedApiKey) {
-        // Small delay to ensure state is set and then trigger data fetch
-        setTimeout(() => {
-          //console.log('🚀 Auto-loading data from URL parameters');
-          // Trigger button click to fetch data
-          const fetchButton = document.querySelector('[data-testid="fetch-button"]') as HTMLButtonElement;
-          if (fetchButton && !fetchButton.disabled) {
-            fetchButton.click();
-          }
-        }, 200);
-      } else {
-        toast.error('Upstox API key required. Please configure your API key first.', {
-          duration: 4000
-        });
-      }
+    
     }
   }, [keyMapping, searchParams, findCompanyNameFromInstrumentKey]);
 
