@@ -9,6 +9,7 @@ import { ArrowLeft } from "lucide-react";
 import { fetchUpstoxIntradayData, fetchUpstoxHistoricalData } from "@/components/utils/upstoxApi";
 import toast, { Toaster } from 'react-hot-toast';
 import { algoHorizonApi } from "@/lib/api/algoHorizonApi";
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function UpstoxPage() {
     // Account to phone number mapping
@@ -29,6 +30,9 @@ export default function UpstoxPage() {
         []
     );
     const [activeFeature, setActiveFeature] = React.useState<string>(featureTabs[0]);
+
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
     // Company search state - per account
     const [keyMapping, setKeyMapping] = React.useState<{ [companyName: string]: string }>({});
@@ -75,7 +79,16 @@ export default function UpstoxPage() {
                     return newState;
                 });
 
-                setSelectedAccount("All accounts");
+                const accountParam = searchParams?.get('account');
+                const tabParam = searchParams?.get('tab');
+                if (accountParam && accountList.includes(accountParam)) {
+                    setSelectedAccount(accountParam);
+                } else {
+                    setSelectedAccount("All accounts");
+                }
+                if (tabParam && featureTabs.includes(tabParam)) {
+                    setActiveFeature(tabParam);
+                }
                 toast.success('User accounts loaded');
             } catch (error) {
                 console.error('Error fetching phone number mapping:', error);
@@ -322,6 +335,14 @@ export default function UpstoxPage() {
         }
     }, [activeFeature, selectedAccount]);
 
+    // Update URL params when state changes
+    useEffect(() => {
+        const params = new URLSearchParams();
+        params.set('account', selectedAccount);
+        params.set('tab', activeFeature);
+        router.replace(`?${params.toString()}`, { scroll: false });
+    }, [selectedAccount, activeFeature, router]);
+
     // Handle selection from suggestions
     const handleSelectCompany = (companyName: string) => {
         const instrumentKey = keyMapping[companyName];
@@ -425,7 +446,7 @@ export default function UpstoxPage() {
                     candles = (result as { candles: Candle[] }).candles;
                 }
             }
-
+    
             if (candles.length > 0) {
                 // Assuming candles are sorted with newest first
 
@@ -1194,7 +1215,7 @@ export default function UpstoxPage() {
                                     <td className={padding}>₹{record.avgPrice?.toFixed(2)}</td>
                                     <td className={padding}>₹{(record.avgPrice * record.holdingQty)?.toFixed(2)}</td>
                                     <td className={`${padding} ${companyPrice && companyPrice * record.holdingQty > record.avgPrice * record.holdingQty ? 'text-green-600' : 'text-red-600'}`}>₹{(companyPrice ? (companyPrice * record.holdingQty)?.toFixed(2) : '0.0')}</td>
-                                    <td className={padding}>{record.totalQty}</td>
+                                    <td className={padding}>{record.buyingQty}</td>
                                     <td className={padding}>{record.holdingQty}</td>
                                     <td className={padding}>
                                         <button className={`px-2 py-1 text-white text-xs rounded hover:opacity-80 ${companyPrice && companyPrice * record.holdingQty > record.avgPrice * record.holdingQty ? 'bg-green-500' : 'bg-red-500'}`} onClick={() => handleSellOrder(record)}>
