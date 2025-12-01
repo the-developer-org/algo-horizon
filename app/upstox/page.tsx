@@ -22,9 +22,6 @@ export default function UpstoxPage() {
             "Place Order",
             "Open Orders",
             "Completed Orders",
-            "Positions",
-            "Holdings",
-            "Funds & ledger",
             "P&L & reconciliation",
         ],
         []
@@ -127,14 +124,21 @@ export default function UpstoxPage() {
         metaData?: any;
     }
 
-    interface OrderTradeRecord {
+    interface BuyOrderTradeRecord {
         tradeDate: string;
         orderId: string;
-        tradeId: string;
         isHolding: boolean;
         avgPrice: number;
         buyingQty: number;
         holdingQty: number;
+    }
+
+     interface SellOrderTradeRecord {
+        tradeDate: string;
+        orderId: string;
+        isHolding: boolean;
+        avgPrice: number;
+        sellingQty: number;
     }
 
     interface OpenOrders {
@@ -142,7 +146,8 @@ export default function UpstoxPage() {
         phoneNumber: number;
         companyName: string;
         instrumentKey: string;
-        buyingOrders: OrderTradeRecord[];
+        buyingOrders: BuyOrderTradeRecord[];
+        sellingOrders: SellOrderTradeRecord[];
         isHolding: boolean;
     }
 
@@ -597,6 +602,7 @@ export default function UpstoxPage() {
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
             const response = await fetch(`${backendUrl}/api/upstox/orders/get-completed-orders?phoneNumber=${phoneNumber}`);
+            debugger
             if (response.ok) {
                 const data: OpenOrders[] = await response.json();
 
@@ -1156,11 +1162,67 @@ export default function UpstoxPage() {
         }
     };
 
-    // Helper functions for rendering open orders
-    const renderCompanyOrdersSection = (companyName: string, orders: any[], isCompact: boolean, account: string) => {
+    // Helper functions for rendering completed orders
+    const renderCompanyCompletedOrdersSection = (companyName: string, orders: any[], isCompact: boolean, account: string) => {
         const padding = isCompact ? 'p-2' : 'p-3';
         const textSize = isCompact ? 'text-xs' : 'text-sm';
-        const companyPrice = companyPrices[companyName];
+        const companyPrice = lastClosingPrices[selectedAccount];
+        
+
+        // Only show selling orders for completed trades
+        const sellOrders = orders.filter(o => o.type === 'sell');
+
+        // Weighted Average Selling Price
+        const totalSellValue = sellOrders.reduce((sum, o) => sum + (o.avgPrice * o.holdingQty), 0);
+        const totalSellQty = sellOrders.reduce((sum, o) => sum + o.holdingQty, 0);
+        const avgSellPrice = totalSellQty > 0 ? totalSellValue / totalSellQty : 0;
+
+        return (
+            <div key={companyName} className="border rounded-lg p-4 mb-4 bg-gray-50/50">
+                {/* Company Header with Price */}
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-10">
+                        <h4 className="text-lg font-semibold text-[var(--upx-primary)]">{companyName}</h4>
+                    </div>
+                </div>
+
+                {/* Orders Table */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                        <thead>
+                            <tr className="border-b text-left bg-white/50">
+                                <th className={padding}>Order ID</th>
+                                <th className={padding}>Trade Date</th>
+                                <th className={padding}>Selling Price</th>
+                                <th className={padding}>Sold Market Value</th>
+                                <th className={padding}>Sold Qty</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sellOrders.map((record, idx) => (
+                                <tr key={`${companyName}-${idx}`} className="border-b hover:bg-white/30">
+                                    <td className={`${padding} text-gray-500 font-mono`}>{record.orderId}</td>
+                                    <td className={padding}>
+                                        {isCompact ? record.tradeDate : new Date(record.tradeDate).toLocaleDateString()}
+                                    </td>
+                                    <td className={padding}>₹{record.avgPrice?.toFixed(2)}</td>
+                                    <td className={`${padding}`}>₹{(record.avgPrice ? (record.avgPrice * record.sellingQty)?.toFixed(2) : '0.0')}</td>
+                                    <td className={padding}>{record.sellingQty}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    // Helper function for rendering open orders
+    const renderCompanyOrdersSection = (companyName: string, orders: any[], isCompact: boolean, account: string, hasAction: boolean = false) => {
+        const padding = isCompact ? 'p-2' : 'p-3';
+        const textSize = isCompact ? 'text-xs' : 'text-sm';
+        const companyPrice = lastClosingPrices[selectedAccount];
+        
 
         // Calculate weighted average price from all orders
         const totalValue = orders.reduce((sum, order) => sum + (order.avgPrice * order.holdingQty), 0);
@@ -1184,9 +1246,11 @@ export default function UpstoxPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-10">
-                        <button className={`px-3 py-1 text-white text-xs rounded hover:opacity-80 ${companyPrice && companyPrice * totalQty > totalValue ? 'bg-green-500' : 'bg-red-500'}`} onClick={() => handleSellAll(companyName, account)}>
-                            Sell All
-                        </button>
+                        {hasAction && (
+                            <button className={`px-3 py-1 text-white text-xs rounded hover:opacity-80 ${companyPrice && companyPrice * totalQty > totalValue ? 'bg-green-500' : 'bg-red-500'}`} onClick={() => handleSellAll(companyName, account)}>
+                                Sell All
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -1202,7 +1266,7 @@ export default function UpstoxPage() {
                                 <th className={padding}>Market Value</th>
                                 <th className={padding}>Total Qty</th>
                                 <th className={padding}>Holding Qty</th>
-                                <th className={padding}>Action</th>
+                                {hasAction && <th className={padding}>Action</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -1217,11 +1281,13 @@ export default function UpstoxPage() {
                                     <td className={`${padding} ${companyPrice && companyPrice * record.holdingQty > record.avgPrice * record.holdingQty ? 'text-green-600' : 'text-red-600'}`}>₹{(companyPrice ? (companyPrice * record.holdingQty)?.toFixed(2) : '0.0')}</td>
                                     <td className={padding}>{record.buyingQty}</td>
                                     <td className={padding}>{record.holdingQty}</td>
-                                    <td className={padding}>
-                                        <button className={`px-2 py-1 text-white text-xs rounded hover:opacity-80 ${companyPrice && companyPrice * record.holdingQty > record.avgPrice * record.holdingQty ? 'bg-green-500' : 'bg-red-500'}`} onClick={() => handleSellOrder(record)}>
-                                            Sell
-                                        </button>
-                                    </td>
+                                    {hasAction && (
+                                        <td className={padding}>
+                                            <button className={`px-2 py-1 text-white text-xs rounded hover:opacity-80 ${companyPrice && companyPrice * record.holdingQty > record.avgPrice * record.holdingQty ? 'bg-green-500' : 'bg-red-500'}`} onClick={() => handleSellOrder(record)}>
+                                                Sell
+                                            </button>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
@@ -1278,7 +1344,7 @@ export default function UpstoxPage() {
                         }, {} as Record<string, any[]>);
 
                         return Object.entries(ordersByCompany).map(([companyName, orders]) =>
-                            renderCompanyOrdersSection(companyName, orders, false, selectedAccount)
+                            renderCompanyOrdersSection(companyName, orders, false, selectedAccount, true)
                         );
                     })()}
                 </div>
@@ -1287,6 +1353,69 @@ export default function UpstoxPage() {
             <div className="p-4">
                 <div className="text-center py-8 text-sm text-muted-foreground">
                     No open orders found for {selectedAccount}.
+                </div>
+            </div>
+        );
+    };
+
+    const renderAllAccountsCompletedOrdersView = () => (
+        <div className="space-y-4 p-4">
+            {accounts.slice(1).map(account => {
+                const accountOrders = completedOrders[account] || [];
+                return (
+                    <div key={account} className="border-b pb-4 last:border-b-0">
+                        <h4 className="font-medium text-[var(--upx-primary)] mb-2">{account}</h4>
+                        {accountOrders.length > 0 ? (
+                            <div className="space-y-2">
+                                {/* Group orders by company */}
+                                {(() => {
+                                    const ordersByCompany = accountOrders.reduce((acc, order) => {
+                                        const company = order.companyName;
+                                        if (!acc[company]) acc[company] = [];
+                                        acc[company].push(...(order.buyingOrders || []).map(record => ({ ...record, instrumentKey: order.instrumentKey, type: 'buy' })));
+                                        acc[company].push(...(order.sellingOrders || []).map(record => ({ ...record, instrumentKey: order.instrumentKey, type: 'sell' })));
+                                        return acc;
+                                    }, {} as Record<string, any[]>);
+
+                                    return Object.entries(ordersByCompany).map(([companyName, orders]) =>
+                                        renderCompanyCompletedOrdersSection(companyName, orders, true, account)
+                                    );
+                                })()}
+                            </div>
+                        ) : (
+                            <div className="text-sm text-muted-foreground">No completed orders found for {account}</div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+
+    const renderIndividualAccountCompletedOrdersView = () => {
+        const accountOrders = completedOrders[selectedAccount] || [];
+        return accountOrders.length > 0 ? (
+            <div className="p-4">
+                <div className="space-y-2">
+                    {/* Group orders by company */}
+                    {(() => {
+                        const ordersByCompany = accountOrders.reduce((acc, order) => {
+                            const company = order.companyName;
+                            if (!acc[company]) acc[company] = [];
+                            acc[company].push(...(order.buyingOrders || []).map(record => ({ ...record, instrumentKey: order.instrumentKey, type: 'buy' })));
+                            acc[company].push(...(order.sellingOrders || []).map(record => ({ ...record, instrumentKey: order.instrumentKey, type: 'sell' })));
+                            return acc;
+                        }, {} as Record<string, any[]>);
+
+                        return Object.entries(ordersByCompany).map(([companyName, orders]) =>
+                            renderCompanyCompletedOrdersSection(companyName, orders, false, selectedAccount)
+                        );
+                    })()}
+                </div>
+            </div>
+        ) : (
+            <div className="p-4">
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                    No completed orders found for {selectedAccount}.
                 </div>
             </div>
         );
@@ -2000,24 +2129,9 @@ export default function UpstoxPage() {
 
                                         {/* Financial Year Selector */}
                                         <div className="flex items-center gap-3 text-sm">
-                                            <label htmlFor="financial-year" className="text-gray-600 font-medium">Financial Year:</label>
-                                            <Select
-                                                value={selectedFinancialYear}
-                                                onValueChange={(value: string) => setSelectedFinancialYear(value)}
-                                            >
-                                                <SelectTrigger className="w-64 h-8 text-xs">
-                                                    <SelectValue placeholder="Select Financial Year" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {financialYearOptions.map((fy) => (
-                                                        <SelectItem key={fy.value} value={fy.value} className="text-xs">
-                                                            {fy.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+
                                             <button
-                                                onClick={() => fetchTradeHistory(selectedAccount)}
+                                                onClick={() => fetchCompletedOrders(selectedAccount)}
                                                 className="px-3 py-1 bg-[var(--upx-primary)] text-white rounded text-xs hover:bg-[var(--upx-primary)]/90"
                                             >
                                                 Refresh
@@ -2028,155 +2142,13 @@ export default function UpstoxPage() {
 
                                     {/* Trade History Content */}
                                     <div className="upstox-surface rounded">
-                                        {isLoadingTradeHistory[selectedAccount] ? (
+                                        {isLoadingCompletedOrders[selectedAccount] ? (
                                             <div className="p-4 text-center text-sm text-muted-foreground">
-                                                Loading trade history...
+                                                Loading completed orders...
                                             </div>
-                                        ) : selectedAccount === 'All accounts' ? (
-                                            /* All Accounts View */
-                                            <div className="space-y-4 p-4">
-                                                {accounts.slice(1).map(account => {
-                                                    const accountTrades = tradeHistory[account] || [];
-                                                    //console.log('All accounts view - rendering for', account, ':', accountTrades);
-                                                    return (
-                                                        <div key={account} className="border-b pb-4 last:border-b-0">
-                                                            <h4 className="font-medium text-[var(--upx-primary)] mb-2">{account}</h4>
-                                                            {accountTrades.length > 0 ? (
-                                                                <div className="overflow-x-auto">
-                                                                    <table className="w-full text-xs">
-                                                                        <thead>
-                                                                            <tr className="border-b text-left">
-                                                                                <th className="p-2">Date</th>
-                                                                                <th className="p-2">Script</th>
-                                                                                <th className="p-2">Type</th>
-                                                                                <th className="p-2">Qty</th>
-                                                                                <th className="p-2">Price</th>
-                                                                                <th className="p-2">Amount</th>
-                                                                                <th className="p-2">Trade ID</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {accountTrades.map((trade, idx) => (
-                                                                                <tr key={idx} className="border-b hover:bg-gray-50">
-                                                                                    <td className="p-2">{trade.tradeDate}</td>
-                                                                                    <td className="p-2 font-medium">{trade.scripName || trade.symbol}</td>
-                                                                                    <td className="p-2">
-                                                                                        <span className={`px-2 py-1 rounded text-xs ${trade.transactionType === 'BUY'
-                                                                                            ? 'bg-green-100 text-green-800'
-                                                                                            : 'bg-red-100 text-red-800'
-                                                                                            }`}>
-                                                                                            {trade.transactionType}
-                                                                                        </span>
-                                                                                    </td>
-                                                                                    <td className="p-2">{trade.quantity}</td>
-                                                                                    <td className="p-2">₹{trade.price?.toFixed(2)}</td>
-                                                                                    <td className="p-2 font-medium">₹{trade.amount?.toFixed(2)}</td>
-                                                                                    <td className="p-2 text-gray-500">{trade.tradeId}</td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                    </table>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="text-sm text-muted-foreground">No trades found for {account}</div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : (
-                                            /* Individual Account View */
-                                            <div className="p-4">
-                                                {(() => {
-                                                    const accountTrades = tradeHistory[selectedAccount] || [];
-                                                    //console.log('Rendering trade history for', selectedAccount, ':', accountTrades);
-                                                    //console.log('Trade history state:', tradeHistory);
-                                                    return accountTrades.length > 0 ? (
-                                                        <div className="overflow-x-auto">
-                                                            <table className="w-full text-sm">
-                                                                <thead>
-                                                                    <tr className="border-b text-left">
-                                                                        <th className="p-3">Date</th>
-                                                                        <th className="p-3">Company Name</th>
-                                                                        <th className="p-3">Exchange</th>
-                                                                        <th className="p-3">Transaction</th>
-                                                                        <th className="p-3">Quantity</th>
-                                                                        <th className="p-3">Price</th>
-                                                                        <th className="p-3">Amount</th>
-                                                                        <th className="p-3">Trade ID</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {accountTrades.map((trade, idx) => (
-                                                                        <tr key={idx} className="border-b hover:bg-gray-50">
-                                                                            <td className="p-3">{new Date(trade.tradeDate).toLocaleDateString()}</td>
-                                                                            <td className="p-3">
-                                                                                <div className="font-medium">{trade.scripName || trade.symbol}</div>
-                                                                                <div className="text-xs text-gray-500">{trade.isin}</div>
-                                                                            </td>
-                                                                            <td className="p-3">{trade.exchange}</td>
-                                                                            <td className="p-3">
-                                                                                <span className={`px-2 py-1 rounded text-xs font-medium ${trade.transactionType === 'BUY'
-                                                                                    ? 'bg-green-100 text-green-800'
-                                                                                    : 'bg-red-100 text-red-800'
-                                                                                    }`}>
-                                                                                    {trade.transactionType}
-                                                                                </span>
-                                                                            </td>
-                                                                            <td className="p-3">{trade.quantity}</td>
-                                                                            <td className="p-3">₹{trade.price?.toFixed(2)}</td>
-                                                                            <td className="p-3 font-medium">₹{trade.amount?.toFixed(2)}</td>
-                                                                            <td className="p-3 text-gray-500 font-mono text-xs">{trade.tradeId}</td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-center py-8 text-sm text-muted-foreground">
-                                                            No completed trades found for {selectedAccount} in the selected date range.
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </div>
-                                        )}
+                                        ) : selectedAccount === 'All accounts' ? renderAllAccountsCompletedOrdersView() : renderIndividualAccountCompletedOrdersView()}
                                     </div>
                                 </div>
-                            </TabsContent>
-
-                            {/* Positions */}
-                            <TabsContent value="Positions" className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
-                                    <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Positions</h3>
-                                </div>
-                                <div className="upstox-surface rounded p-3 text-sm text-muted-foreground">No positions to display.</div>
-                            </TabsContent>
-
-                            {/* Holdings */}
-                            <TabsContent value="Holdings" className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
-                                    <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Holdings</h3>
-                                </div>
-                                <div className="upstox-surface rounded p-3 text-sm text-muted-foreground">No holdings to display.</div>
-                            </TabsContent>
-
-                            {/* Funds & Ledger */}
-                            <TabsContent value="Funds & ledger" className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-5 w-1 rounded bg-[var(--upx-primary)]" />
-                                    <h3 className="text-lg font-semibold text-[var(--upx-primary)] dark:text-[var(--upx-primary-300)]">Funds & ledger</h3>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm">
-                                    <label className="text-muted-foreground" htmlFor="ledger-period">Period:</label>
-                                    <select id="ledger-period" className="border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[var(--upx-primary)]/60">
-                                        <option>Week</option>
-                                        <option>Month</option>
-                                        <option>Custom</option>
-                                    </select>
-                                </div>
-                                <div className="upstox-surface rounded p-3 text-sm text-muted-foreground">No ledger entries to display.</div>
                             </TabsContent>
 
                             {/* PnL & Recon */}
