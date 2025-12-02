@@ -332,13 +332,12 @@ export default function UpstoxPage() {
 
     // Fetch funds when account is selected or when Place order tab is activated
     useEffect(() => {
-        if (activeFeature === 'Place Order' && selectedAccount !== 'All accounts') {
+        if (selectedAccount !== 'All accounts') {
             fetchAccountFunds(selectedAccount);
-        } else if (activeFeature === 'Place Order' && selectedAccount === 'All accounts') {
-            // Fetch funds for all accounts
+        } else {
             accounts.slice(1).forEach(account => fetchAccountFunds(account));
         }
-    }, [activeFeature, selectedAccount]);
+    }, [selectedAccount, accounts]);
 
     // Update URL params when state changes
     useEffect(() => {
@@ -974,6 +973,8 @@ export default function UpstoxPage() {
                             setSelectedInstrumentKeys(prev => ({ ...prev, [account]: '' }));
                             setLastClosingPrices(prev => ({ ...prev, [account]: null }));
                         }
+                        // Refresh funds for all accounts after successful batch orders
+                        accounts.slice(1).forEach(account => fetchAccountFunds(account));
                     } else {
                         toast.error('Failed to place batch orders');
                     }
@@ -1046,6 +1047,8 @@ export default function UpstoxPage() {
                         setSelectedInstrumentKeys(prev => ({ ...prev, [selectedAccount]: '' }));
                         setLastClosingPrices(prev => ({ ...prev, [selectedAccount]: null }));
                         setSearchTerms(prev => ({ ...prev, [selectedAccount]: '' }));
+                        // Refresh funds after successful order
+                        fetchAccountFunds(selectedAccount);
                     } else {
                         toast.error(data.error || 'Failed to place order');
                     }
@@ -1156,6 +1159,8 @@ export default function UpstoxPage() {
                 setSellModalOpen(false);
                 setSelectedOrderToSell(null);
                 setSellQuantity('');
+                // Refresh funds after successful sell order
+                fetchAccountFunds(selectedAccount);
             }
         } finally {
             setIsSubmittingOrder(false);
@@ -1193,7 +1198,7 @@ export default function UpstoxPage() {
                             <tr className="border-b text-left bg-white/50">
                                 <th className={padding}>Order ID</th>
                                 <th className={padding}>Trade Date</th>
-                                <th className={padding}>Selling Price</th>
+                                <th className={padding}>Stock Selling Price</th>
                                 <th className={padding}>Sold Market Value</th>
                                 <th className={padding}>Sold Qty</th>
                             </tr>
@@ -1218,7 +1223,7 @@ export default function UpstoxPage() {
     };
 
     // Helper function for rendering open orders
-    const renderCompanyOrdersSection = (companyName: string, orders: any[], isCompact: boolean, account: string, hasAction: boolean = false) => {
+    const renderCompanyOrdersSection = (companyName: string, orders: any[], isCompact: boolean, account: string) => {
         const padding = isCompact ? 'p-2' : 'p-3';
         const textSize = isCompact ? 'text-xs' : 'text-sm';
         const companyPrice = lastClosingPrices[selectedAccount];
@@ -1228,6 +1233,16 @@ export default function UpstoxPage() {
         const totalValue = orders.reduce((sum, order) => sum + (order.avgPrice * order.holdingQty), 0);
         const totalQty = orders.reduce((sum, order) => sum + order.holdingQty, 0);
         const avgPrice = totalQty > 0 ? totalValue / totalQty : 0;
+
+        // Check if it's market hours
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentDay = now.getDay();
+        const isWeekday = currentDay >= 1 && currentDay <= 5;
+        const isMarketOpenTime = (currentHour > 9 || (currentHour === 9 && currentMinute >= 15)) &&
+            (currentHour < 15 || (currentHour === 15 && currentMinute <= 30));
+        const isMarketHours = isWeekday && isMarketOpenTime;
 
         return (
             <div key={companyName} className="border rounded-lg p-4 mb-4 bg-gray-50/50">
@@ -1239,15 +1254,15 @@ export default function UpstoxPage() {
                             {companyPrice === null ? (
                                 <span className="text-gray-500">Price: Loading...</span>
                             ) : (
-                                <span className={`font-medium px-2 py-1 rounded bg-white/80 border ${companyPrice > avgPrice ? 'text-green-600 border-green-200' : 'text-red-600 border-red-200'}`}>
+                                <span className={`font-medium px-2 py-1 rounded bg-white/80 border ${!isMarketHours ? 'text-gray-600 border-gray-200' : (companyPrice > avgPrice ? 'text-green-600 border-green-200' : 'text-red-600 border-red-200')}`}>
                                     ₹{companyPrice?.toFixed(2) || '0.0'}
                                 </span>
                             )}
                         </div>
                     </div>
                     <div className="flex items-center gap-10">
-                        {hasAction && (
-                            <button className={`px-3 py-1 text-white text-xs rounded hover:opacity-80 ${companyPrice && companyPrice * totalQty > totalValue ? 'bg-green-500' : 'bg-red-500'}`} onClick={() => handleSellAll(companyName, account)}>
+                        {(
+                            <button className={`px-3 py-1 text-white text-xs rounded hover:opacity-80 ${!isMarketHours ? 'bg-gray-500' : (companyPrice && companyPrice * totalQty > totalValue ? 'bg-green-500' : 'bg-red-500')}`} disabled={!isMarketHours} onClick={() => handleSellAll(companyName, account)}>
                                 Sell All
                             </button>
                         )}
@@ -1266,7 +1281,6 @@ export default function UpstoxPage() {
                                 <th className={padding}>Market Value</th>
                                 <th className={padding}>Total Qty</th>
                                 <th className={padding}>Holding Qty</th>
-                                {hasAction && <th className={padding}>Action</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -1278,16 +1292,16 @@ export default function UpstoxPage() {
                                     </td>
                                     <td className={padding}>₹{record.avgPrice?.toFixed(2)}</td>
                                     <td className={padding}>₹{(record.avgPrice * record.holdingQty)?.toFixed(2)}</td>
-                                    <td className={`${padding} ${companyPrice && companyPrice * record.holdingQty > record.avgPrice * record.holdingQty ? 'text-green-600' : 'text-red-600'}`}>₹{(companyPrice ? (companyPrice * record.holdingQty)?.toFixed(2) : '0.0')}</td>
+                                    <td className={`${padding} ${companyPrice && companyPrice * record.holdingQty > record.avgPrice * record.holdingQty ? 'text-green-600' : 'text-red-600'}`}>
+                                        ₹{(companyPrice ? (companyPrice * record.holdingQty)?.toFixed(2) : '0.0')}
+                                        {companyPrice && record.avgPrice ? (
+                                            <span className="text-xs ml-1">
+                                                ({(((companyPrice * record.holdingQty - record.avgPrice * record.holdingQty) / (record.avgPrice * record.holdingQty)) * 100).toFixed(2)}%)
+                                            </span>
+                                        ) : null}
+                                    </td>
                                     <td className={padding}>{record.buyingQty}</td>
                                     <td className={padding}>{record.holdingQty}</td>
-                                    {hasAction && (
-                                        <td className={padding}>
-                                            <button className={`px-2 py-1 text-white text-xs rounded hover:opacity-80 ${companyPrice && companyPrice * record.holdingQty > record.avgPrice * record.holdingQty ? 'bg-green-500' : 'bg-red-500'}`} onClick={() => handleSellOrder(record)}>
-                                                Sell
-                                            </button>
-                                        </td>
-                                    )}
                                 </tr>
                             ))}
                         </tbody>
@@ -1344,7 +1358,7 @@ export default function UpstoxPage() {
                         }, {} as Record<string, any[]>);
 
                         return Object.entries(ordersByCompany).map(([companyName, orders]) =>
-                            renderCompanyOrdersSection(companyName, orders, false, selectedAccount, true)
+                            renderCompanyOrdersSection(companyName, orders, false, selectedAccount)
                         );
                     })()}
                 </div>
