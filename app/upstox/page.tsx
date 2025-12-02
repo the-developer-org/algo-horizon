@@ -556,6 +556,13 @@ export default function UpstoxPage() {
     const [sellQuantity, setSellQuantity] = useState('');
 
 
+    // Fetch price when sell modal opens
+    useEffect(() => {
+        if (sellModalOpen && selectedOrderToSell) {
+            fetchLastClosingPrice(selectedOrderToSell.instrumentKey);
+        }
+    }, [sellModalOpen, selectedOrderToSell]);
+
     const fetchOpenOrders = async (account: string) => {
         const phoneNumber = (accountPhoneMapping as Record<string, string>)[account];
         if (!phoneNumber) return;
@@ -2181,7 +2188,7 @@ export default function UpstoxPage() {
             {/* Sell Confirmation Modal */}
             {sellModalOpen && selectedOrderToSell && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
                         <h3 className="text-lg font-semibold mb-4 text-[var(--upx-primary)]">
                             Confirm Sell Order
                         </h3>
@@ -2193,7 +2200,12 @@ export default function UpstoxPage() {
                                 <p className="text-sm text-gray-600">
                                     Available Quantity: <span className="font-medium">{selectedOrderToSell.holdingQty}</span>
                                 </p>
+                                <p className="text-sm text-gray-600">
+                                    Current Price: <span className="font-medium">{lastClosingPrices[selectedAccount] ? `₹${lastClosingPrices[selectedAccount].toFixed(2)}` : 'Loading...'}</span>
+                                </p>
                             </div>
+
+                            {/* Quantity */}
                             <div>
                                 <label htmlFor="sell-quantity" className="block text-sm font-medium text-gray-700 mb-2">
                                     Quantity to Sell <span className="text-red-500">*</span>
@@ -2208,7 +2220,34 @@ export default function UpstoxPage() {
                                     min="1"
                                     max={selectedOrderToSell.holdingQty}
                                 />
+                                {/* Percentage Buttons */}
+                                <div className="flex gap-2 mt-2">
+                                    {[25, 50, 75, 100].map((p) => {
+                                        const qty = Math.floor((selectedOrderToSell.holdingQty * p) / 100);
+                                        const isValid = qty >= 1;
+                                        return isValid ? (
+                                            <button
+                                                key={p}
+                                                type="button"
+                                                onClick={() => setSellQuantity(qty.toString())}
+                                                className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+                                            >
+                                                {p}%
+                                            </button>
+                                        ) : null;
+                                    })}
+                                </div>
                             </div>
+
+                            {/* Estimated Proceeds */}
+                            {sellQuantity && (
+                                <div className="p-3 bg-gray-50 rounded">
+                                    <p className="text-sm text-gray-600">
+                                        Estimated Proceeds: <span className="font-medium">₹{(Number.parseInt(sellQuantity) * (lastClosingPrices[selectedAccount] || 0)).toFixed(2)}</span>
+                                    </p>
+                                </div>
+                            )}
+
                             <div className="flex gap-3 pt-4">
                                 <button
                                     onClick={() => {
