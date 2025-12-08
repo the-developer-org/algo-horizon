@@ -24,7 +24,7 @@
     "date-fns": "^4.1.0",
     "lightweight-charts": "^4.1.0",
     "lucide-react": "^0.469.0",
-    "next": "^16.0.3",
+    "next": "^16.0.7",
     "or": "^0.2.0",
     "radix-ui": "^1.0.1",
     "react": "^19",
@@ -51,6 +51,6 @@
     "@types/node": "^22",
     "@types/sockjs-client": "^1.5.4",
     "eslint": "^9.19.0",
-    "eslint-config-next": "^16.0.3"
+    "eslint-config-next": "^16.0.7"
   }
 }
