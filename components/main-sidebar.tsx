@@ -26,6 +26,7 @@ const primaryItems = [
    { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
   { title: "Paper Trading", url: "/paper-trading", icon: DollarSign },
   { title: "Upstox", url: "/upstox", icon: UpstoxIcon },
+  { title: "Tick Data", url: "/tick-data", icon: TrendingUp },
   { title: "Boom Days & Watch Lists", url: "/boom-days", icon: Calendar },
   { title: "Backtest Stats", url: "/backtest-stats", icon: FileText },
   { title: "Portfolio", url: "/portfolio", icon: Layers },

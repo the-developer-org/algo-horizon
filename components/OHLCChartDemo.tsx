@@ -48,6 +48,7 @@ export const OHLCChartDemo: React.FC = () => {
   const [showBoomDays, setShowBoomDays] = useState(false);
   const [hasBoomDaysData, setHasBoomDaysData] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [shouldAutoLoad, setShouldAutoLoad] = useState(false);
   const [avgVolume, setAvgVolume] = useState<number>(0);
   // Chart indicator toggles
   const [showRSI] = useState(false);
@@ -443,9 +444,24 @@ export const OHLCChartDemo: React.FC = () => {
       } else {
         setViewMode('stryke');
       }
+
+      // Mark that we have URL parameters to auto-load
+      if (instrumentKeyParam && timeframeParam && upstoxApiKey) {
+        setShouldAutoLoad(true);
+      }
     
     }
-  }, [keyMapping, searchParams, findCompanyNameFromInstrumentKey]);
+  }, [keyMapping, searchParams, findCompanyNameFromInstrumentKey, upstoxApiKey]);
+
+  // Auto-load data when all required state is ready
+  useEffect(() => {
+    if (shouldAutoLoad && selectedCompany && selectedInstrumentKey && upstoxApiKey && isFirstLoad) {
+      console.log('🔄 Auto-loading data - all state ready');
+      setIsFirstLoad(false);
+      setShouldAutoLoad(false);
+      handleFetchData();
+    }
+  }, [shouldAutoLoad, selectedCompany, selectedInstrumentKey, upstoxApiKey, isFirstLoad]);
 
   // Update suggestions as user types
   useEffect(() => {

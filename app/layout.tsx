@@ -8,6 +8,7 @@ import { Toaster } from "react-hot-toast";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { MainSidebar } from "../components/main-sidebar";
 import { DeepDiveProvider } from "@/context/DeepDiveContext";
+import { MarketDataProvider } from "@/context/MarketDataContext";
 import StoreProvider from "@/lib/store/StoreProvider";
 
 const geistSans = localFont({
@@ -94,17 +95,19 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   // Only render main app for authenticated users
   return (
     <DeepDiveProvider>
-      <SidebarProvider>
-        <Toaster position="top-right" />
-        <div className="flex min-h-screen w-full bg-gray-50">
-          {!isUpstoxPage && (
-            <MainSidebar isVisible={sidebarVisible} onToggleVisibility={toggleSidebar} />
-          )}
-          <div className="flex-1 overflow-y-auto">
-            {children}
+      <MarketDataProvider>
+        <SidebarProvider>
+          <Toaster position="top-right" />
+          <div className="flex min-h-screen w-full bg-gray-50">
+            {!isUpstoxPage && (
+              <MainSidebar isVisible={sidebarVisible} onToggleVisibility={toggleSidebar} />
+            )}
+            <div className="flex-1 overflow-y-auto">
+              {children}
+            </div>
           </div>
-        </div>
-      </SidebarProvider>
+        </SidebarProvider>
+      </MarketDataProvider>
     </DeepDiveProvider>
   );
 }
