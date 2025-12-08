@@ -19,12 +19,14 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@reduxjs/toolkit": "^2.10.1",
     "@stomp/stompjs": "^7.1.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "axios": "^1.10.0",
     "class-variance-authority": "^0.7.1",
     "date-fns": "^4.1.0",
     "lightweight-charts": "^4.1.0",
     "lucide-react": "^0.469.0",
-    "next": "^16.0.3",
+    "next": "^15.5.7",
     "or": "^0.2.0",
     "radix-ui": "^1.0.1",
     "react": "^19",
@@ -43,9 +45,7 @@
     "technicalindicators": "^3.1.0",
     "typescript": "^5.9.3",
     "upstox-js-sdk": "^2.20.0",
-    "xlsx": "^0.18.5",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22",
