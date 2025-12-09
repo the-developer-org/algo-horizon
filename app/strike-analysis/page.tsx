@@ -315,6 +315,7 @@ function StrikeAnalysisContent() {
           'accept': 'application/json',
         },
       });
+      debugger
       const addedStock = response.data.stryke;
       setAnalysisResult({
         ...addedStock,
@@ -1551,17 +1552,17 @@ function StrikeAnalysisContent() {
 
                         <div className="flex justify-between items-center pb-1 border-b">
                           <span className="font-medium">Company:</span>
-                          <span>{analysisResult.companyName}</span>
+                          <span>{analysisResult?.companyName ?? 'N/A'}</span>
                         </div>
 
                         <div className="flex justify-between items-center pb-1 border-b">
                           <span className="font-medium">Date & Time:</span>
-                          <span>{`${analysisResult.entryTime}`}</span>
+                          <span>{`${analysisResult?.entryTime ?? 'N/A'}`}</span>
                         </div>
 
                         <div className="flex justify-between items-center pb-1 border-b">
                           <span className="font-medium">Call Type:</span>
-                          <span>{analysisResult.callType}</span>
+                          <span>{analysisResult?.callType ?? 'N/A'}</span>
                         </div>
 
                         <div className="flex justify-between items-center pb-1 border-b">
@@ -1576,8 +1577,8 @@ function StrikeAnalysisContent() {
                         <div className="flex justify-between items-center pb-1 border-b">
                           <span
                             className={
-                              analysisResult.preEntryTrend === 'BULLISH' ? 'text-green-600' :
-                                analysisResult.preEntryTrend === 'BEARISH' ? 'text-red-600' :
+                              analysisResult?.preEntryTrend === 'BULLISH' ? 'text-green-600' :
+                                analysisResult?.preEntryTrend === 'BEARISH' ? 'text-red-600' :
                                   'text-orange-600'
                             }
                           >
@@ -1585,8 +1586,8 @@ function StrikeAnalysisContent() {
                           </span>
                           <span
                             className={
-                              analysisResult.preEntryTrend === 'BULLISH' ? 'text-green-600' :
-                                analysisResult.preEntryTrend === 'BEARISH' ? 'text-red-600' :
+                              analysisResult?.preEntryTrend === 'BULLISH' ? 'text-green-600' :
+                                analysisResult?.preEntryTrend === 'BEARISH' ? 'text-red-600' :
                                   'text-orange-600'
                             }
                           >
@@ -1597,8 +1598,8 @@ function StrikeAnalysisContent() {
                         <div className="flex justify-between items-center pb-1 border-b">
                           <span
                             className={
-                              analysisResult.postEntryTrend === 'BULLISH' ? 'text-green-600' :
-                                analysisResult.postEntryTrend === 'BEARISH' ? 'text-red-600' :
+                              analysisResult?.postEntryTrend === 'BULLISH' ? 'text-green-600' :
+                                analysisResult?.postEntryTrend === 'BEARISH' ? 'text-red-600' :
                                   'text-orange-600'
                             }
                           >
@@ -1606,8 +1607,8 @@ function StrikeAnalysisContent() {
                           </span>
                           <span
                             className={
-                              analysisResult.postEntryTrend === 'BULLISH' ? 'text-green-600' :
-                                analysisResult.postEntryTrend === 'BEARISH' ? 'text-red-600' :
+                              analysisResult?.postEntryTrend === 'BULLISH' ? 'text-green-600' :
+                                analysisResult?.postEntryTrend === 'BEARISH' ? 'text-red-600' :
                                   'text-orange-600'
                             }
                           >
@@ -1617,17 +1618,17 @@ function StrikeAnalysisContent() {
 
                         <div className="flex justify-between items-center pb-1 border-b">
                           <span className="font-medium">Entry Price:</span>
-                          <span>₹{analysisResult.entryCandle.close?.toFixed(2) || 'N/A'}</span>
+                          <span>₹{analysisResult?.entryCandle.close?.toFixed(2) || 'N/A'}</span>
                         </div>
 
                         <div className="flex justify-between items-center pb-1 border-b">
                           <span className="font-medium">Stop Loss:</span>
-                          <span>₹{analysisResult.stopLoss?.toFixed(2)}</span>
+                          <span>₹{analysisResult?.stopLoss?.toFixed(2)}</span>
                         </div>
 
                         <div className="flex justify-between items-center pb-1 border-b">
                           <span className="font-medium">Target:</span>
-                          <span>₹{analysisResult.target?.toFixed(2)}</span>
+                          <span>₹{analysisResult?.target?.toFixed(2)}</span>
                         </div>
                       </div>
                     )}
