@@ -1618,7 +1618,7 @@ function StrikeAnalysisContent() {
 
                         <div className="flex justify-between items-center pb-1 border-b">
                           <span className="font-medium">Entry Price:</span>
-                          <span>₹{analysisResult?.entryCandle.close?.toFixed(2) || 'N/A'}</span>
+                          <span>₹{analysisResult?.entryCandle ? analysisResult.entryCandle.close?.toFixed(2) || 'N/A' : 'N/A'}</span>
                         </div>
 
                         <div className="flex justify-between items-center pb-1 border-b">
