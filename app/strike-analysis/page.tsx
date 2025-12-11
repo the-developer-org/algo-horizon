@@ -1097,7 +1097,7 @@ function StrikeAnalysisContent() {
             ? ((target - entry) / entry * 100)
             : 0;
         } else {
-          const entry = Number(stryke.algoSwingAnalysis?.algoentryCandle.close ?? 0);
+          const entry = Number(stryke.algoSwingAnalysis?.algoentryCandle?.close ?? 0);
           const target = Number(stryke.algoSwingAnalysis?.algoResistance ?? 0);
           return isFinite(entry) && isFinite(target) && entry > 0
             ? ((target - entry) / entry * 100)
@@ -1612,7 +1612,7 @@ function StrikeAnalysisContent() {
                                   'text-orange-600'
                             }
                           >
-                            {analysisResult.postEntryTrend}
+                            {analysisResult?.postEntryTrend ?? 'N/A'}
                           </span>
                         </div>
 

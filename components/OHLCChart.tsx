@@ -411,7 +411,7 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
       // Parse entry date - handle various formats including MM-DD-YYYY
       let entryTime: Date;
       
-      // First try standard YYYY-MM-DD format
+      // First Ptry standard YYYY-MM-DD format
       entryTime = new Date(entryDateStr);
       
       // If that fails and it looks like MM-DD-YYYY format, try swapping
@@ -635,6 +635,27 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     // Separate ref for entry/target/SL lines to prevent them from being cleaned up by swing points effect
     const entryLinesRef = useRef<any[]>([]);
 
+    // Mobile detection and responsive values
+    const [isMobile, setIsMobile] = useState(false);
+    const [containerDimensions, setContainerDimensions] = useState({ width: maxWidth, height: chartHeight });
+
+    // Detect mobile and update dimensions
+    useEffect(() => {
+        const checkMobile = () => {
+            const mobile = window.innerWidth < 768;
+            setIsMobile(mobile);
+            
+            // Update container dimensions based on screen size
+            const newWidth = window.innerWidth;
+            const newHeight = mobile ? window.innerHeight * 0.75 : window.innerHeight * 0.91;
+            setContainerDimensions({ width: newWidth, height: newHeight });
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
   
 
     // Detect timeframe from candle intervals
@@ -706,10 +727,14 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
        //////console.log('🔄 Chart initialization effect triggered', { candlesLength: candles.length, height, width, showVolume });
         if (!UnderstchartContainerRef.current || !candles.length) return;
 
-        // Create chart with enhanced navigation and zoom configuration
+        // Performance optimization: reduce data points on mobile
+        const maxVisibleCandles = isMobile ? 500 : MAX_VISIBLE_CANDLES;
+        const processedCandles = candles.length > maxVisibleCandles ? candles.slice(-maxVisibleCandles) : candles;
+
+        // Create chart with enhanced navigation and zoom configuration optimized for mobile
         const chart = createChart(UnderstchartContainerRef.current, {
-            width: maxWidth,
-            height: 800 * 0.9, // Reduce height to leave space for x-axis
+            width: containerDimensions.width,
+            height: containerDimensions.height * 0.9, // Leave space for UI elements
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
@@ -721,57 +746,57 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             timeScale: {
                 timeVisible: true,
                 secondsVisible: false,
-                // Enhanced navigation settings
-                fixLeftEdge: false,  // Allow scrolling beyond the leftmost data point
-                fixRightEdge: false, // Allow scrolling beyond the rightmost data point
-                lockVisibleTimeRangeOnResize: false, // Allow automatic adjustment on resize
+                // Enhanced navigation settings optimized for mobile
+                fixLeftEdge: false,
+                fixRightEdge: false,
+                lockVisibleTimeRangeOnResize: false,
                 borderVisible: true,
                 visible: true,
-                rightOffset: 50,     // Increased from 12 to provide more space for navigation
-                minBarSpacing: 0.5,  // Reduced from 3 to allow more zoom levels
+                rightOffset: isMobile ? 20 : 50,
+                minBarSpacing: isMobile ? 1 : 0.5,
                 borderColor: '#333333',
-                // Enhanced scroll and zoom behavior
-                shiftVisibleRangeOnNewBar: true, // Auto-scroll with new data
+                // Enhanced scroll and zoom behavior for mobile
+                shiftVisibleRangeOnNewBar: true,
             },
             crosshair: {
                 mode: 0, // Normal crosshair mode
                 vertLine: {
                     color: '#758696',
-                    width: 1,
+                    width: isMobile ? 2 : 1,
                     style: 2, // Dashed line
                     visible: true,
-                    labelVisible: true,
+                    labelVisible: !isMobile, // Hide labels on mobile for cleaner look
                 },
                 horzLine: {
                     color: '#758696',
-                    width: 1,
+                    width: isMobile ? 2 : 1,
                     style: 2, // Dashed line
                     visible: true,
-                    labelVisible: true,
+                    labelVisible: !isMobile, // Hide labels on mobile for cleaner look
                 },
             },
             handleScroll: {
-                mouseWheel: true,      // Enable mouse wheel scrolling
-                pressedMouseMove: true, // Enable drag scrolling
-                horzTouchDrag: true,    // Enable horizontal touch drag
-                vertTouchDrag: true,    // Enable vertical touch drag
+                mouseWheel: true,
+                pressedMouseMove: true,
+                horzTouchDrag: true,
+                vertTouchDrag: true,
             },
             handleScale: {
                 axisPressedMouseMove: {
-                    time: true,  // Enable time axis scaling with mouse
-                    price: true, // Enable price axis scaling with mouse
+                    time: true,
+                    price: true,
                 },
-                mouseWheel: true,        // Enable mouse wheel scaling
-                pinch: true,            // Enable pinch scaling on touch devices
+                mouseWheel: true,
+                pinch: true, // Enhanced pinch-to-zoom for mobile
                 axisDoubleClickReset: {
-                    time: true,  // Double-click time axis to reset
-                    price: true, // Double-click price axis to reset
+                    time: true,
+                    price: true,
                 },
             },
-            // Enhanced kinetic scrolling for better user experience
+            // Enhanced kinetic scrolling optimized for mobile
             kineticScroll: {
-                touch: true,    // Enable kinetic scrolling on touch
-                mouse: false,   // Disable for mouse (can be distracting)
+                touch: true,
+                mouse: false,
             },
         });
         chartRef.current = chart;
@@ -814,9 +839,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             });
         }
 
-        // Format data for the chart using candles
+        // Format data for the chart using processed candles (performance optimized)
         // Use consistent timestamp handling to prevent chart distortion
-        const formattedData = candles.map(candle => {
+        const formattedData = processedCandles.map(candle => {
             return {
                 time: parseTimestampToUnix(candle.timestamp),
                 open: candle.open,
@@ -851,7 +876,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Set volume data if enabled
         if (showVolume && volumeSeries) {
             // Use consistent timestamp handling for volume data
-            const volumeData = candles.map(candle => {
+            const volumeData = processedCandles.map(candle => {
                 return {
                     time: parseTimestampToUnix(candle.timestamp),
                     value: candle.volume,
@@ -2184,20 +2209,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         return { gap, todayOpen: todayFirstCandle.open, prevClose: prevDayLastCandle.close };
     }
 
-    // Chart container - adaptive width, reasonable height
-    const chartAreaStyle = {
-        position: 'relative' as const,
-        top: 50,
-        left: 0,
-        width: '100vw', // Revert to original width
-        height: '90vh', // Revert to original height
-        zIndex: 1,
-        background: '#fff',
-        // Add padding to ensure x-axis is visible
-        paddingBottom: '40px', // Add space for x-axis
-        // Add negative margin to lift it up further
-    };
-
+    // Chart container - responsive design for mobile and desktop
     const getSwingPointColor = (label: string): string => {
         switch (label) {
             case 'HH':
@@ -2567,26 +2579,26 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     };
 
     return (
-        <div style={chartAreaStyle}>
+        <div className="relative w-full bg-white z-1 md:top-12 top-8 md:h-[85vh] h-[70vh] md:pb-10 pb-5">
             <LoadingOverlay />
             <Toaster position="top-right" />
             {/* Error messages for indicators */}
             {(emaError || rsiError || vixError) && (
-                <div style={{ position: 'absolute', top: 5, right: 16, zIndex: 202, background: '#ffeaea', color: '#c62828', padding: '8px 20px', borderRadius: 10, fontWeight: 600, fontSize: 15, border: '2px solid #c62828', minWidth: 400, width: 420 }}>
+                <div className="absolute top-1 right-4 z-[202] bg-red-50 text-red-700 p-2 md:p-5 rounded-lg font-semibold text-sm md:text-base border-2 border-red-700 md:min-w-[400px] md:w-[420px] min-w-[280px] w-[300px]">
                     {emaError && <div>{emaError}</div>}
                     {rsiError && <div>{rsiError}</div>}
                     {vixError && <div>{vixError}</div>}
                 </div>
             )}
             {/* Stats section */}
-            <div style={{ position: 'absolute', top: -80, left: 16, zIndex: 203, background: 'rgba(255,255,255,0.96)', padding: '8px 20px', borderRadius: 10, fontWeight: 600, fontSize: 15, color: '#333', boxShadow: '0 2px 12px rgba(0,0,0,0.10)', border: '2px solid #bdbdbd', minWidth: 400, width: 420, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: '#333' }}>Stats</span>
+            <div className="absolute md:-top-20 -top-16 left-4 z-[203] bg-white/96 p-2 md:p-5 rounded-lg font-semibold text-sm md:text-base text-gray-800 shadow-lg border-2 border-gray-400 md:min-w-[400px] md:w-[420px] min-w-[280px] w-[300px] flex flex-col gap-1">
+                <span className="font-bold text-sm md:text-base text-gray-800">Stats</span>
                 {(() => {
                     const gapInfo = getPrevCloseToTodayOpenGap(ohlcInfo ? { ...ohlcInfo, timestamp: (candles.find(c => c.close === ohlcInfo.close && c.open === ohlcInfo.open && c.high === ohlcInfo.high && c.low === ohlcInfo.low && c.volume === ohlcInfo.volume)?.timestamp) || candles[candles.length - 1].timestamp } : candles[candles.length - 1]);
-                    if (!gapInfo) return <span style={{ fontSize: 13, color: '#888' }}>No gap data</span>;
+                    if (!gapInfo) return <span className="text-xs md:text-sm text-gray-500">No gap data</span>;
                     const sign = gapInfo.gap > 0 ? '+' : '';
                     return (
-                        <span style={{ fontSize: 15, color: gapInfo.gap > 0 ? '#1e7e34' : '#c62828' }}>
+                        <span className={`text-sm md:text-base font-semibold ${gapInfo.gap > 0 ? 'text-green-600' : 'text-red-700'}`}>
                             Gap Up / Down: <b>{sign}{gapInfo.gap.toFixed(2)}</b>
                         </span>
                     );
@@ -2594,25 +2606,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             </div>
             {/* Floating OHLC info at top left (inside chart area) */}
             {ohlcInfo && (
-                <div style={{
-                    position: 'absolute',
-                    top: 5,
-                    left: 16,
-                    zIndex: 200,
-                    background: 'rgba(255,255,255,0.92)',
-                    padding: '8px 20px',
-                    borderRadius: 10,
-                    fontWeight: 700,
-                    fontSize: 17,
-                    color: ohlcInfo.close >= ohlcInfo.open ? '#1e7e34' : '#c62828',
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
-                    border: '2px solid #bdbdbd',
-                    letterSpacing: '0.5px',
-                    minWidth: 320,
-                    textAlign: 'left',
-                    display: 'flex',
-                    gap: 16,
-                }}>
+                <div className={`absolute top-1 left-4 z-[200] bg-white/92 p-2 md:p-5 rounded-lg font-bold text-base md:text-lg shadow-lg border-2 border-gray-400 tracking-wide min-w-[320px] md:min-w-[400px] text-left flex flex-wrap md:flex-nowrap gap-4 ${ohlcInfo.close >= ohlcInfo.open ? 'text-green-600' : 'text-red-700'}`}>
                     <span>O <b>{ohlcInfo.open.toLocaleString()}</b></span>
                     <span>H <b>{ohlcInfo.high.toLocaleString()}</b></span>
                     <span>L <b>{ohlcInfo.low.toLocaleString()}</b></span>
@@ -2633,7 +2627,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         })()}
                     </span>
                     {(typeof vixValue === 'number' && !isNaN(vixValue)) ? (
-                        <span style={{ color: '#FFD600', fontWeight: 700 }}>VIX <b>{vixValue.toFixed(2)}</b></span>
+                        <span className="text-yellow-400 font-bold">VIX <b>{vixValue.toFixed(2)}</b></span>
                     ) : null}
                      {/* Average Volume Information */}
             {avgVolume > 0 && (
@@ -2659,10 +2653,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         </b>
                     </span>
                     {ohlcInfo?.volume && (
-                        <div style={{ marginTop: 4, fontSize: 14 }}>
-                            {ohlcInfo.volume > avgVolume 
-                                ? <span style={{ color: '#1e7e34' }}>Volume is <b>{(ohlcInfo.volume / avgVolume).toFixed(1)}x</b> average</span>
-                                : <span style={{ color: '#c62828' }}>Volume is <b>{(ohlcInfo.volume / avgVolume).toFixed(1)}x</b> average</span>
+                        <div className="mt-1 text-sm">
+                            {ohlcInfo.volume > avgVolume
+                                ? <span className="text-green-600">Volume is <b>{(ohlcInfo.volume / avgVolume).toFixed(1)}x</b> average</span>
+                                : <span className="text-red-700">Volume is <b>{(ohlcInfo.volume / avgVolume).toFixed(1)}x</b> average</span>
                             }
                         </div>
                     )}
@@ -2671,95 +2665,57 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
             {/* Floating Candle Analysis info at top right (inside chart area) */}
             {candleAnalysis && (
-                <div style={{
-                    position: 'absolute',
-                    top: 5,
-                    right: -400,
-                    zIndex: 200,
-                    background: 'rgba(255,255,255,0.95)',
-                    padding: '12px 16px',
-                    borderRadius: 10,
-                    fontWeight: 600,
-                    fontSize: 14,
-                    color: '#333',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                    border: `3px solid ${candleAnalysis.finalProfitLoss >= 0 ? '#1e7e34' : '#c62828'}`,
-                    minWidth: 280,
-                    maxWidth: 350,
-                }}>
-                    <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center', 
-                        marginBottom: 8,
-                        borderBottom: '1px solid #eee',
-                        paddingBottom: 6
-                    }}>
-                        <span style={{ fontWeight: 700, fontSize: 16 }}>📊 Candle Analysis</span>
-                        <button 
+                <div className={`absolute top-1 md:-right-[400px] -right-[280px] z-[200] bg-white/95 p-3 md:p-4 rounded-lg font-semibold text-sm md:text-base text-gray-800 shadow-xl border-4 min-w-[280px] max-w-[350px] ${candleAnalysis.finalProfitLoss >= 0 ? 'border-green-600' : 'border-red-700'}`}>
+                    <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-gray-200">
+                        <span className="font-bold text-base md:text-lg">📊 Candle Analysis</span>
+                        <button
                             onClick={() => setCandleAnalysis(null)}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                fontSize: 18,
-                                cursor: 'pointer',
-                                color: '#999',
-                                padding: '0 4px'
-                            }}
+                            className="bg-none border-none text-lg cursor-pointer text-gray-500 px-1 hover:text-gray-700"
                         >×</button>
                     </div>
                     
                     <div style={{ lineHeight: 1.4 }}>
                         <div style={{ marginBottom: 6 }}>
                             <span style={{ color: '#666' }}>Trend:</span> 
-                            <span style={{ 
-                                fontWeight: 700,
-                                color: candleAnalysis.trendDirection === 'bullish' ? '#1e7e34' : '#c62828'
-                            }}>
+                            <span className={`font-bold ${candleAnalysis.trendDirection === 'bullish' ? 'text-green-600' : 'text-red-700'}`}>
                                 {candleAnalysis.trendDirection === 'bullish' ? '📈 Bullish' : '📉 Bearish'}
                             </span>
                         </div>
                         
-                        <div style={{ marginBottom: 6 }}>
-                            <span style={{ color: '#666' }}>Duration:</span> 
+                        <div className="mb-1.5">
+                            <span className="text-gray-600">Duration:</span>
                             <b> {candleAnalysis.candlesAnalyzed} candles</b>
-                            <span style={{ fontSize: 12, color: '#888', marginLeft: 4 }}>
+                            <span className="text-xs text-gray-500 ml-1">
                                 (until {candleAnalysis.swingPointLabel})
                             </span>
                         </div>
-                        
-                        <div style={{ marginBottom: 6 }}>
-                            <span style={{ color: '#666' }}>Period:</span> 
-                            <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>
+
+                        <div className="mb-1.5">
+                            <span className="text-gray-600">Period:</span>
+                            <div className="text-xs text-gray-700 mt-0.5">
                                 <div><b>Start:</b> {candleAnalysis.startDate}</div>
                                 <div><b>End:</b> {candleAnalysis.endDate}</div>
                             </div>
                         </div>
-                        
-                        <div style={{ marginBottom: 6 }}>
-                            <span style={{ color: '#666' }}>Max Profit:</span> 
-                            <span style={{ color: '#1e7e34', fontWeight: 700 }}>
-                                +{candleAnalysis.maxProfitPercent.toFixed(2)}% 
+
+                        <div className="mb-1.5">
+                            <span className="text-gray-600">Max Profit:</span>
+                            <span className="text-green-600 font-bold">
+                                +{candleAnalysis.maxProfitPercent.toFixed(2)}%
                                 (₹{candleAnalysis.maxProfitPrice.toFixed(2)})
                             </span>
                         </div>
-                        
-                        <div style={{ marginBottom: 6 }}>
-                            <span style={{ color: '#666' }}>Max Loss:</span> 
-                            <span style={{ color: '#c62828', fontWeight: 700 }}>
-                                {candleAnalysis.maxLossPercent.toFixed(2)}% 
+
+                        <div className="mb-1.5">
+                            <span className="text-gray-600">Max Loss:</span>
+                            <span className="text-red-700 font-bold">
+                                {candleAnalysis.maxLossPercent.toFixed(2)}%
                                 (₹{candleAnalysis.maxLossPrice.toFixed(2)})
                             </span>
                         </div>
-                        
-                        <div style={{ 
-                            marginTop: 10, 
-                            paddingTop: 8, 
-                            borderTop: '1px solid #eee',
-                            fontWeight: 700,
-                            fontSize: 15
-                        }}>
-                            <span style={{ color: '#666' }}>Final Result:</span> 
+
+                        <div className="mt-2.5 pt-2 border-t border-gray-200 font-bold text-sm md:text-base">
+                            <span className="text-gray-600">Final Result:</span> 
                             <span style={{ 
                                 color: candleAnalysis.finalProfitLoss >= 0 ? '#1e7e34' : '#c62828'
                             }}>

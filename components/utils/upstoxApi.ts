@@ -14,7 +14,7 @@ interface UpstoxHistoricalDataResponse {
 export interface UpstoxPaginationParams {
   instrumentKey: string;
   timeframe: Timeframe;
-  apiKey: string;
+  apiKey?: string;
   from?: string;
   to?: string;
   limit?: number;

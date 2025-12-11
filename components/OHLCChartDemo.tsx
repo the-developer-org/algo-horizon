@@ -4,14 +4,13 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import { OHLCChart } from './OHLCChart';
-import { BoomDaysTable } from './BoomDaysTable';
 import { Candle } from './types/candle';
 import { calculateIndicators } from './utils/indicators';
 import { Timeframe, processTimeframeData } from './utils/timeframeUtils';
 import { fetchPaginatedUpstoxData, UpstoxPaginationParams } from './utils/upstoxApi';
-import { ApiKeyModal } from './ApiKeyModal';
 import { EntryDatesApiResponse } from './types/entry-dates';
 import axios from 'axios';
+import { set } from 'date-fns';
 
 // Performance optimization constants
 const MAX_CANDLES_FOR_CHART = 10000; // Limit for ultra-fast performance
@@ -43,10 +42,6 @@ export const OHLCChartDemo: React.FC = () => {
   const [analysisList, setAnalysisList] = useState<{ timestamp: string; swingLabel?: string; }[]>([]);
   const [support, setSupport] = useState<{ value: number } | null>(null);
   const [resistance, setResistance] = useState<{ value: number } | null>(null);
-  // Boom Days data
-  const [boomDaysData, setBoomDaysData] = useState<import('./types/backtest').BackTest[]>([]);
-  const [showBoomDays, setShowBoomDays] = useState(false);
-  const [hasBoomDaysData, setHasBoomDaysData] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [shouldAutoLoad, setShouldAutoLoad] = useState(false);
   const [avgVolume, setAvgVolume] = useState<number>(0);
@@ -66,8 +61,6 @@ export const OHLCChartDemo: React.FC = () => {
   const [oldestCandleTime, setOldestCandleTime] = useState<string | undefined>(undefined);
   const [newestCandleTime, setNewestCandleTime] = useState<string | undefined>(undefined);
   // API Key modal
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
-  const [upstoxApiKey, setUpstoxApiKey] = useState('alpha');
   
   // Entry dates state
   const [strykeEntryDates, setStrykeEntryDates] = useState<string[]>([]);
@@ -288,13 +281,7 @@ export const OHLCChartDemo: React.FC = () => {
     return calculateEMAForCandles(candlesToProcess);
   }, [calculateEMAForCandles]);
 
-  // Initialize API key from localStorage after hydration
-  useEffect(() => {
-    const savedApiKey = localStorage.getItem('upstoxApiKey') || '';
-    setUpstoxApiKey(savedApiKey);
-  }, []);
-
-    // Fetch KeyMapping from Redis on mount
+  // Fetch KeyMapping from Redis on mount
   useEffect(() => {
     setIsLoading(true);
     fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
@@ -446,22 +433,22 @@ export const OHLCChartDemo: React.FC = () => {
       }
 
       // Mark that we have URL parameters to auto-load
-      if (instrumentKeyParam && timeframeParam && upstoxApiKey) {
+      if (instrumentKeyParam && timeframeParam) {
         setShouldAutoLoad(true);
       }
     
     }
-  }, [keyMapping, searchParams, findCompanyNameFromInstrumentKey, upstoxApiKey]);
+  }, [keyMapping, searchParams, findCompanyNameFromInstrumentKey]);
 
   // Auto-load data when all required state is ready
   useEffect(() => {
-    if (shouldAutoLoad && selectedCompany && selectedInstrumentKey && upstoxApiKey && isFirstLoad) {
+    if (shouldAutoLoad && selectedCompany && selectedInstrumentKey && isFirstLoad) {
       console.log('🔄 Auto-loading data - all state ready');
       setIsFirstLoad(false);
       setShouldAutoLoad(false);
       handleFetchData();
     }
-  }, [shouldAutoLoad, selectedCompany, selectedInstrumentKey, upstoxApiKey, isFirstLoad]);
+  }, [shouldAutoLoad, selectedCompany, selectedInstrumentKey, isFirstLoad]);
 
   // Update suggestions as user types
   useEffect(() => {
@@ -685,22 +672,6 @@ export const OHLCChartDemo: React.FC = () => {
     return recentCandles;
   }, [candles]);
 
-  // Handle API key modal functions
-  const handleOpenApiKeyModal = useCallback(() => {
-    setIsApiKeyModalOpen(true);
-  }, []);
-
-  const handleCloseApiKeyModal = useCallback(() => {
-    setIsApiKeyModalOpen(false);
-  }, []);
-
-  const handleSaveApiKey = useCallback((newApiKey: string) => {
-    setUpstoxApiKey(newApiKey);
-    if (newApiKey) {
-      toast.success('API key saved. You can now fetch data from Upstox.');
-    }
-  }, []);
-
   // Progressive loading function for initial data loads
   const fetchCandlesProgressively = useCallback(async (): Promise<void> => {
     //console.log(`🚀 Starting progressive loading for ${selectedTimeframe}`);
@@ -717,12 +688,6 @@ export const OHLCChartDemo: React.FC = () => {
       return;
     }
     
-    if (!upstoxApiKey) {
-      toast.error('Upstox API key is required to fetch market data.', { duration: 4000 });
-      handleOpenApiKeyModal();
-      return;
-    }
-
     // Cancel any existing progressive loading
     if (progressiveAbortController) {
       //console.log('🛑 Cancelling existing progressive loading before starting new one');
@@ -774,7 +739,6 @@ export const OHLCChartDemo: React.FC = () => {
           const params: UpstoxPaginationParams = {
             instrumentKey: selectedInstrumentKey,
             timeframe: selectedTimeframe,
-            apiKey: upstoxApiKey,
             from: range.from.toISOString(),
             to: range.to.toISOString(),
             limit: PROGRESSIVE_BATCH_CONFIG[selectedTimeframe].batchSize
@@ -829,13 +793,10 @@ export const OHLCChartDemo: React.FC = () => {
               
               // Set other initial data
               setAnalysisList([]);
-              setBoomDaysData([]);
-              setHasBoomDaysData(false);
               setSupport(null);
               setResistance(null);
               
               if (isFirstLoad) {
-                setShowBoomDays(false);
                 setIsFirstLoad(false);
               }
             }
@@ -921,13 +882,11 @@ export const OHLCChartDemo: React.FC = () => {
   }, [
     selectedCompany,
     selectedInstrumentKey,
-    upstoxApiKey,
   //  fetchEntryDates,
     shouldFetchIntraDay,
     applyEMAToCandles,
     isFirstLoad,
-    isProgressiveLoading,
-    handleOpenApiKeyModal
+    isProgressiveLoading
   ]); // Removed progressiveAbortController from dependencies to prevent recreation
 
   // Unified function to fetch candles for all scenarios
@@ -958,12 +917,6 @@ export const OHLCChartDemo: React.FC = () => {
       return;
     }
     
-    if (!upstoxApiKey) {
-      toast.error('Upstox API key is required to fetch market data. Please configure your API key first.', { duration: 4000 });
-      handleOpenApiKeyModal();
-      return;
-    }
-
     // Early return for pagination if already loading
     if (mode === 'pagination' && loadingOlderData) {
       return;
@@ -1020,7 +973,6 @@ export const OHLCChartDemo: React.FC = () => {
       const params: UpstoxPaginationParams = {
         instrumentKey: selectedInstrumentKey,
         timeframe: timeframe,
-        apiKey: upstoxApiKey,
         from: from.toISOString(),
         to: to,
         limit: PAGINATION_CHUNK_SIZE
@@ -1084,13 +1036,10 @@ export const OHLCChartDemo: React.FC = () => {
           setAvgVolume(avgVol);
           
           setAnalysisList([]);
-          setBoomDaysData([]);
-          setHasBoomDaysData(false);
           setSupport(null);
           setResistance(null);
           
           if (isFirstLoad) {
-            setShowBoomDays(false);
             setIsFirstLoad(false);
           }
         }
@@ -1161,15 +1110,13 @@ export const OHLCChartDemo: React.FC = () => {
   }, [
     selectedCompany, 
     selectedInstrumentKey, 
-    upstoxApiKey, 
     selectedTimeframe, 
     isFirstLoad, 
     //fetchEntryDates,
     candles,
     rawCandles,
     loadingOlderData,
-    applyEMAToCandles,
-    handleOpenApiKeyModal
+    applyEMAToCandles
   ]);
 
   // Wrapper functions for backward compatibility and cleaner interface
@@ -1204,7 +1151,7 @@ export const OHLCChartDemo: React.FC = () => {
     // Check if we need to fetch new data for the timeframe
     const needsNewData = shouldFetchNewDataForTimeframe(previousTimeframe, newTimeframe);
     
-    if (needsNewData && selectedInstrumentKey && upstoxApiKey) {
+    if (needsNewData && selectedInstrumentKey) {
       // Fetch fresh data for the new timeframe using unified function
       fetchCandles({ 
         mode: 'timeframe-change', 
@@ -1257,7 +1204,7 @@ export const OHLCChartDemo: React.FC = () => {
       const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
       updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
     }
-  }, [selectedTimeframe, selectedInstrumentKey, upstoxApiKey, rawCandles, updateUrlParams, fetchCandles, applyEMAToCandles, maxDate, maxTime]);
+  }, [selectedTimeframe, selectedInstrumentKey, rawCandles, updateUrlParams, fetchCandles, applyEMAToCandles, maxDate, maxTime]);
 
   // Helper function to determine if we need to fetch new data
   const shouldFetchNewDataForTimeframe = (currentTf: Timeframe, newTf: Timeframe): boolean => {
@@ -1282,14 +1229,14 @@ export const OHLCChartDemo: React.FC = () => {
     <div className="flex flex-col min-h-screen">
       <Toaster position="top-right" />
       {selectedCompany && (
-        <h2 className="text-2xl font-bold text-center mb-2">
+        <h2 className="text-xl md:text-2xl font-bold text-center mb-2 px-4">
           {selectedCompany}
         </h2>
       )}
-      <div className="mb-4 flex flex-col items-center p-4">
-        {/* Search bar and controls centered */}
-        <div className="flex flex-wrap items-center justify-center w-full max-w-4xl gap-4 mx-auto">
-          <div className="w-64 relative">
+      <div className="mb-4 flex flex-col items-center p-2 md:p-4">
+        {/* Mobile-first responsive controls */}
+        <div className="flex flex-col md:flex-row md:flex-wrap items-center justify-center w-full max-w-4xl gap-2 md:gap-4 mx-auto">
+          <div className="w-full md:w-64 relative">
             <input
               type="text"
               value={searchTerm}
@@ -1300,7 +1247,7 @@ export const OHLCChartDemo: React.FC = () => {
                 // Don't reset isFirstLoad to preserve the current view when changing search term
               }}
               placeholder="Search for a company..."
-              className="p-2 border border-gray-300 rounded-md w-full"
+              className="p-3 border border-gray-300 rounded-md w-full text-base md:text-sm"
             />
             {/* Only show suggestions if not selected */}
             {suggestions.length > 0 && !selectedCompany && (
@@ -1309,7 +1256,7 @@ export const OHLCChartDemo: React.FC = () => {
                   <button
                     key={name}
                     onClick={() => handleSelectCompany(name)}
-                    className="p-2 cursor-pointer hover:bg-gray-100 w-full text-left"
+                    className="p-3 cursor-pointer hover:bg-gray-100 w-full text-left text-base md:text-sm"
                   >
                     {name}
                   </button>
@@ -1318,129 +1265,91 @@ export const OHLCChartDemo: React.FC = () => {
             )}
           </div>
 
-          {/* Spacer to push other items to the right */}
-
-          <button
-            onClick={handleFetchData}
-            data-testid="fetch-button"
-            className="bg-blue-500 text-white px-4 py-2 rounded-md"
-          >
-            Load Data
-          </button>
-
-          {/* API Key Configuration Button */}
-          <button
-            onClick={handleOpenApiKeyModal}
-            className={`px-4 py-2 rounded-md flex items-center gap-1 transition-colors ${
-              upstoxApiKey 
-                ? 'bg-green-600 text-white hover:bg-green-700' 
-                : 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
-            }`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1 1 21 9z" />
-            </svg>
-            {upstoxApiKey ? 'Upstox Connected ✓' : 'Connect Upstox API'}
-          </button>
-
-          {/* Boom Days button - now always visible */}
-          {showBoomDays ? (
+          {/* Primary action buttons - responsive grid */}
+          <div className="flex flex-wrap gap-2 justify-center w-full md:w-auto">
             <button
-              onClick={() => setShowBoomDays(false)}
-              className="px-4 py-2 rounded-md transition-colors bg-gray-600 text-white"
+              onClick={handleFetchData}
+              data-testid="fetch-button"
+              className="bg-blue-500 text-white px-4 py-3 md:px-4 md:py-2 rounded-md text-base md:text-sm font-medium min-w-[120px] md:min-w-0"
             >
-              Show Chart
+              Load Data
             </button>
-          ) : (
-            <button
-              onClick={() => hasBoomDaysData && setShowBoomDays(true)}
-              disabled={!hasBoomDaysData}
-              className={`px-4 py-2 rounded-md transition-colors ${
-                hasBoomDaysData 
-                  ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
-              title={hasBoomDaysData ? 'View boom days analysis' : 'No boom days data available'}
+
+            {/* Home button */}
+            <a
+              href="/"
+              className="px-4 py-3 md:px-4 md:py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors text-base md:text-sm font-medium min-w-[100px] md:min-w-0 text-center"
             >
-              Boom Days
-            </button>
-          )}
+              Home
+            </a>
+          </div>
 
-          {/* Home button */}
-          <a
-            href="/"
-            className="px-4 py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
-          >
-            Home
-          </a>
+          {/* Secondary controls - responsive layout */}
+          <div className="flex flex-col md:flex-row items-center gap-2 w-full md:w-auto">
+            {/* View Mode Toggle - Only visible if both data sources are available */}
+            {(strykeEntryDates.length > 0 || strykeConfig.entryPrice) && (algoEntryDates.length > 0 || algoConfig.entryPrice) && (
+              <div className="flex bg-gray-200 rounded-lg p-1 gap-1 w-full md:w-auto justify-center">
+                <button
+                  onClick={() => setViewMode('stryke')}
+                  className={`px-3 py-2 md:px-3 md:py-1.5 rounded-md text-sm font-medium transition-all flex-1 md:flex-none ${
+                    viewMode === 'stryke'
+                      ? 'bg-white text-orange-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Stryke
+                </button>
+                <button
+                  onClick={() => setViewMode('algo')}
+                  className={`px-3 py-2 md:px-3 md:py-1.5 rounded-md text-sm font-medium transition-all flex-1 md:flex-none ${
+                    viewMode === 'algo'
+                      ? 'bg-white text-teal-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Algo
+                </button>
+              </div>
+            )}
 
-          {/* Stats button - always visible */}
-          <a
-            href="/backtest-stats"
-            className="px-4 py-2 rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors"
-          >
-            Overall Stats
-          </a>
+            {/* Entry Dates Indicator */}
+            {strykeEntryDates && strykeEntryDates.length > 0 && (
+              <div className="px-3 py-2 rounded-md bg-orange-100 border border-orange-300 text-orange-800 text-sm font-medium flex items-center gap-1 w-full md:w-auto justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-center">
+                  {strykeEntryDates.length} Stryke Points
+                </span>
+              </div>
+            )}
 
-          {/* View Mode Toggle - Only visible if both data sources are available */}
-          {(strykeEntryDates.length > 0 || strykeConfig.entryPrice) && (algoEntryDates.length > 0 || algoConfig.entryPrice) && (
-            <div className="flex bg-gray-200 rounded-lg p-1 gap-1">
-              <button
-                onClick={() => setViewMode('stryke')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  viewMode === 'stryke'
-                    ? 'bg-white text-orange-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                Stryke
-              </button>
-              <button
-                onClick={() => setViewMode('algo')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  viewMode === 'algo'
-                    ? 'bg-white text-teal-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                Algo
-              </button>
-            </div>
-          )}
-
-          {/* Entry Dates Indicator */}
-          {strykeEntryDates && strykeEntryDates.length > 0 && (
-            <div className="px-3 py-2 rounded-md bg-orange-100 border border-orange-300 text-orange-800 text-sm font-medium flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              {strykeEntryDates.length} Stryke Points
-            </div>
-          )}
-
-          {/* Progressive Loading Indicator */}
-          {isProgressiveLoading && progressiveLoadingProgress.total > 0 && (
-            <div className="px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium flex items-center gap-2">
-              <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-blue-600"></div>
-              <span>Loading batches: {progressiveLoadingProgress.loaded}/{progressiveLoadingProgress.total}</span>
-              {progressiveLoadingProgress.loaded > 0 && (
-                <div className="w-16 bg-blue-200 rounded-full h-1.5">
-                  <div 
-                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                    style={{ width: `${(progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100}%` }}
-                  ></div>
+            {/* Progressive Loading Indicator */}
+            {isProgressiveLoading && progressiveLoadingProgress.total > 0 && (
+              <div className="px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium flex flex-col items-center gap-2 w-full md:w-auto">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-blue-600"></div>
+                  <span>Loading batches: {progressiveLoadingProgress.loaded}/{progressiveLoadingProgress.total}</span>
                 </div>
-              )}
-            </div>
-          )}
+                {progressiveLoadingProgress.loaded > 0 && (
+                  <div className="w-full bg-blue-200 rounded-full h-1.5">
+                    <div 
+                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${(progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100}%` }}
+                    ></div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-          {/* Timeframe selector */}
-          {!showBoomDays && candles.length > 0 && (
-            <div className="flex bg-white bg-opacity-90 border border-gray-300 rounded-lg overflow-hidden shadow-sm">
+          {/* Timeframe selector - responsive */}
+          {candles.length > 0 && (
+            <div className="flex bg-white bg-opacity-90 border border-gray-300 rounded-lg overflow-hidden shadow-sm flex-wrap w-full md:w-auto justify-center">
               {(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'] as Timeframe[]).map((tf) => {
                 const isSelected = selectedTimeframe === tf;
-                const baseClasses = 'px-3 py-1 text-sm font-medium transition-colors';
+                const baseClasses = 'px-3 py-2 md:px-3 md:py-1 text-sm font-medium transition-colors flex-1 md:flex-none text-center';
                 
                 let stateClasses: string;
                 if (isSelected) {
@@ -1467,11 +1376,11 @@ export const OHLCChartDemo: React.FC = () => {
           )}
 
           {/* EMA Calculation Toggle */}
-          {!showBoomDays && candles.length > 0 && (
+          {candles.length > 0 && (
             <button
               onClick={() => setEmaCalculation(!emaCalculation)}
               disabled={isCalculatingEMA}
-              className={`px-4 py-2 rounded-md transition-colors flex items-center gap-2 ${
+              className={`px-4 py-3 md:px-4 md:py-2 rounded-md transition-colors flex items-center gap-2 text-base md:text-sm font-medium min-w-[120px] md:min-w-0 justify-center ${
                 emaCalculation
                   ? 'bg-orange-500 text-white hover:bg-orange-600'
                   : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
@@ -1486,11 +1395,11 @@ export const OHLCChartDemo: React.FC = () => {
           )}
           
           {/* Load More Historical Data button */}
-          {!showBoomDays && candles.length > 0 && hasMoreCandles && (
+          {candles.length > 0 && hasMoreCandles && (
             <button
               onClick={() => loadMoreHistoricalData()}
               disabled={loadingOlderData}
-              className={`px-4 py-2 rounded-md ${
+              className={`px-4 py-3 md:px-4 md:py-2 rounded-md text-base md:text-sm font-medium min-w-[160px] md:min-w-0 ${
                 loadingOlderData
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-green-600 text-white hover:bg-green-700'
@@ -1499,7 +1408,6 @@ export const OHLCChartDemo: React.FC = () => {
               {loadingOlderData ? 'Loading...' : 'Load More History'}
             </button>
           )}
-
         </div>
       </div>
 
@@ -1514,117 +1422,85 @@ export const OHLCChartDemo: React.FC = () => {
           );
         }
 
-        // If not showing boom days, show chart
-        if (!showBoomDays) {
-          return (
-            <div className="mt-auto">
-              {candles.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 bg-gray-50 border border-gray-200 rounded-lg m-4">
-                  <div className="text-center space-y-3">
-                    <div className="text-4xl text-gray-400">📊</div>
-                    <h3 className="text-lg font-semibold text-gray-600">No Chart Data</h3>
-                    <p className="text-gray-500 max-w-md">
-                      {(() => {
-                        if (!upstoxApiKey) {
-                          return 'Please connect your Upstox API first, then select a company and click "Load Data".';
-                        }
-                        if (!selectedCompany) {
-                          return 'Please select a company from the search dropdown and click "Load Data".';
-                        }
-                        return 'Click "Load Data" to fetch historical data for the selected company.';
-                      })()}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <OHLCChart
-                  candles={optimizedCandles}
-                  vixData={vixData}
-                  title={`${selectedCompany || 'Select a company'} - ${selectedTimeframe} Chart`}
-                  height={1100}
-                  showVolume={true}
-                  showEMA={showEMA}
-                  showRSI={showRSI}
-                  showVIX={showVIX}
-                  showSwingPoints={showSwingPoints}
-                  analysisList={analysisList}
-                  supportLevel={support?.value}
-                  resistanceLevel={resistance?.value}
-                  avgVolume={avgVolume}
-                  entryDates={[]} // Legacy entry dates - empty when using new stryke/algo dates
-                  strykeDates={strykeEntryDates} // Stryke entry dates
-                  algoDates={algoEntryDates} // Algo entry dates
-                  
-                  // Pass active config based on view mode
-                  entryPrice={viewMode === 'stryke' ? (strykeConfig.entryPrice || entryPrice) : (algoConfig.entryPrice || entryPrice)}
-                  targetPrice={viewMode === 'stryke' ? (strykeConfig.targetPrice || targetPrice) : (algoConfig.targetPrice || targetPrice)}
-                  stopLossPrice={viewMode === 'stryke' ? (strykeConfig.stopLossPrice || stopLossPrice) : (algoConfig.stopLossPrice || stopLossPrice)}
-                  
-                  // Pass active dates for zone calculation
-                  zoneStartDates={viewMode === 'stryke' ? strykeEntryDates : algoEntryDates}
-                  
-                  onLoadMoreData={undefined} // Temporarily disable automatic loading
-                  hasMoreOlderData={hasMoreCandles}
-                  hasMoreNewerData={false} // We typically only load historical data
-                  isLoadingMoreData={loadingOlderData}
-                />
-              )}
-              
-              {/* Progressive loading indicator in chart area */}
-              {isProgressiveLoading && candles.length > 0 && (
-                <div className="flex items-center justify-center p-3 bg-blue-50 border border-blue-200 rounded-md m-4">
-                  <div className="animate-pulse rounded-full h-2 w-2 bg-blue-600 mr-3"></div>
-                  <span className="text-blue-800 text-sm font-medium">
-                    Loading more historical data... ({progressiveLoadingProgress.loaded}/{progressiveLoadingProgress.total} batches)
-                  </span>
-                  <div className="ml-3 w-24 bg-blue-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${progressiveLoadingProgress.total > 0 ? (progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100 : 0}%` }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-              
-              {/* Loading older data indicator */}
-              {loadingOlderData && (
-                <div className="flex items-center justify-center p-4 bg-green-50 border border-green-200 rounded-md m-4">
-                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-green-500 mr-3"></div>
-                  <span className="text-green-800">Loading historical data...</span>
-                </div>
-              )}
-            </div>
-          );
-        }
-
-        // Otherwise show boom days table
+        // Show chart
         return (
-          <div className="p-4 mb-40"> {/* Increased bottom margin to ensure pagination is visible */}
-            {boomDaysData.length > 0 ? (
-              <div className="mb-20"> {/* Added bottom margin container for extra space */}
-                <BoomDaysTable
-                  data={boomDaysData}
-                  stockName={selectedCompany}
-                  avgVolume={avgVolume}
-                />
+          <div className="mt-auto">
+            {candles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 bg-gray-50 border border-gray-200 rounded-lg m-4">
+                <div className="text-center space-y-3">
+                  <div className="text-4xl text-gray-400">📊</div>
+                  <h3 className="text-lg font-semibold text-gray-600">No Chart Data</h3>
+                  <p className="text-gray-500 max-w-md">
+                    {(() => {
+                      if (!selectedCompany) {
+                        return 'Please select a company from the search dropdown and click "Load Data".';
+                      }
+                      return 'Click "Load Data" to fetch historical data for the selected company.';
+                    })()}
+                  </p>
+                </div>
               </div>
             ) : (
-              <div className="w-full p-8 text-center text-gray-500 border border-gray-200 rounded-lg shadow-sm">
-                <h3 className="text-xl font-semibold mb-2">No Boom Days Data</h3>
-                <p>There are no boom days recorded for {selectedCompany}.</p>
+              <OHLCChart
+                candles={optimizedCandles}
+                vixData={vixData}
+                title={`${selectedCompany || 'Select a company'} - ${selectedTimeframe} Chart`}
+                height={1100}
+                showVolume={true}
+                showEMA={showEMA}
+                showRSI={showRSI}
+                showVIX={showVIX}
+                showSwingPoints={showSwingPoints}
+                analysisList={analysisList}
+                supportLevel={support?.value}
+                resistanceLevel={resistance?.value}
+                avgVolume={avgVolume}
+                entryDates={[]} // Legacy entry dates - empty when using new stryke/algo dates
+                strykeDates={strykeEntryDates} // Stryke entry dates
+                algoDates={algoEntryDates} // Algo entry dates
+                
+                // Pass active config based on view mode
+                entryPrice={viewMode === 'stryke' ? (strykeConfig.entryPrice || entryPrice) : (algoConfig.entryPrice || entryPrice)}
+                targetPrice={viewMode === 'stryke' ? (strykeConfig.targetPrice || targetPrice) : (algoConfig.targetPrice || targetPrice)}
+                stopLossPrice={viewMode === 'stryke' ? (strykeConfig.stopLossPrice || stopLossPrice) : (algoConfig.stopLossPrice || stopLossPrice)}
+                
+                // Pass active dates for zone calculation
+                zoneStartDates={viewMode === 'stryke' ? strykeEntryDates : algoEntryDates}
+                
+                onLoadMoreData={undefined} // Temporarily disable automatic loading
+                hasMoreOlderData={hasMoreCandles}
+                hasMoreNewerData={false} // We typically only load historical data
+                isLoadingMoreData={loadingOlderData}
+              />
+            )}
+            
+            {/* Progressive loading indicator in chart area */}
+            {isProgressiveLoading && candles.length > 0 && (
+              <div className="flex items-center justify-center p-3 bg-blue-50 border border-blue-200 rounded-md m-4">
+                <div className="animate-pulse rounded-full h-2 w-2 bg-blue-600 mr-3"></div>
+                <span className="text-blue-800 text-sm font-medium">
+                  Loading more historical data... ({progressiveLoadingProgress.loaded}/{progressiveLoadingProgress.total} batches)
+                </span>
+                <div className="ml-3 w-24 bg-blue-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progressiveLoadingProgress.total > 0 ? (progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+            
+            {/* Loading older data indicator */}
+            {loadingOlderData && (
+              <div className="flex items-center justify-center p-4 bg-green-50 border border-green-200 rounded-md m-4">
+                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-green-500 mr-3"></div>
+                <span className="text-green-800">Loading historical data...</span>
               </div>
             )}
           </div>
         );
       })()}
       
-      {/* API Key Modal */}
-      <ApiKeyModal
-        isOpen={isApiKeyModalOpen}
-        onClose={handleCloseApiKeyModal}
-        onSave={handleSaveApiKey}
-        initialApiKey={upstoxApiKey}
-      />
     </div>
   );
 };
