@@ -57,20 +57,7 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
       const data = response.data;
       
       if (data.result && Array.isArray(data.result)) {
-        if (isAdmin) {
-          // Admin can see all accounts
-          setAvailableAccounts(data.result);
-        } else {
-          // Regular users can see their own account, Main, Stryke, Algo, and any accounts they created
-          const userAccounts = data.result.filter((account: string) => 
-            account === currentUser || 
-            account === 'Main' || 
-            account === 'Stryke' || 
-            account === 'Algo' || 
-            account.startsWith(currentUser + '-')
-          );
-          setAvailableAccounts(userAccounts);
-        }
+        setAvailableAccounts(data.result);
       } else {
         console.error('Invalid API response format:', data);
         // Fallback to default accounts if API fails
