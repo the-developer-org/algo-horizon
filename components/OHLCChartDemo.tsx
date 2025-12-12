@@ -330,7 +330,7 @@ export const OHLCChartDemo: React.FC = () => {
   const chartHeight = useMemo(() => {
     if (isMobile) {
       // On mobile/tablet, use viewport-based height for responsiveness
-      return Math.max(windowHeight, 400); // Use full viewport height, minimum 400px
+      return Math.max(windowHeight); // Use full viewport height, minimum 400px
     } else {
       // On PC/laptop, use fixed height for optimal layout
       return 1100;
