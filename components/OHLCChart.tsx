@@ -734,7 +734,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Create chart with enhanced navigation and zoom configuration optimized for mobile
         const chart = createChart(UnderstchartContainerRef.current, {
             width: containerDimensions.width,
-             height: isMobile ? containerDimensions.height + 90 : containerDimensions.height - 120, // Different heights for mobile vs desktop
+             height: isMobile ? containerDimensions.height + 30 : containerDimensions.height - 120, // Different heights for mobile vs desktop
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
