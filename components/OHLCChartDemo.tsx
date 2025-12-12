@@ -98,6 +98,13 @@ export const OHLCChartDemo: React.FC = () => {
   const [progressiveLoadingProgress, setProgressiveLoadingProgress] = useState({ loaded: 0, total: 0 });
   const [progressiveAbortController, setProgressiveAbortController] = useState<AbortController | null>(null);
 
+  // Device detection for responsive design
+  const [isMobile, setIsMobile] = useState(false);
+  const [windowHeight, setWindowHeight] = useState(0);
+
+  // Controls visibility state
+  const [showControls, setShowControls] = useState(false);
+
   // Next.js routing hooks for URL parameters
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -298,6 +305,37 @@ export const OHLCChartDemo: React.FC = () => {
       })
       .catch(() => setIsLoading(false));
   }, []);
+
+  // Device detection and responsive height calculation
+  useEffect(() => {
+    const updateDeviceType = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      setIsMobile(width < 768); // Mobile/tablet breakpoint
+      setWindowHeight(height);
+    };
+
+    // Initial check
+    updateDeviceType();
+
+    // Listen for window resize
+    window.addEventListener('resize', updateDeviceType);
+
+    return () => {
+      window.removeEventListener('resize', updateDeviceType);
+    };
+  }, []);
+
+  // Calculate responsive chart height
+  const chartHeight = useMemo(() => {
+    if (isMobile) {
+      // On mobile/tablet, use viewport-based height for responsiveness
+      return Math.max(windowHeight - 200, 400); // Subtract header/navigation space, minimum 400px
+    } else {
+      // On PC/laptop, use fixed height for optimal layout
+      return 1100;
+    }
+  }, [isMobile, windowHeight]);
 
   // Process URL parameters after keyMapping is loaded
   useEffect(() => {
@@ -1233,7 +1271,18 @@ export const OHLCChartDemo: React.FC = () => {
           {selectedCompany}
         </h2>
       )}
-      <div className="mb-4 flex flex-col items-center p-2 md:p-4">
+      {!showControls && (
+        <div className="flex justify-center p-2">
+          <button
+            onClick={() => setShowControls(true)}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded"
+          >
+            Show Controls
+          </button>
+        </div>
+      )}
+      {showControls && (
+        <div className="mb-4 flex flex-col items-center p-2 md:p-4">
         {/* Mobile-first responsive controls */}
         <div className="flex flex-col md:flex-row md:flex-wrap items-center justify-center w-full max-w-4xl gap-2 md:gap-4 mx-auto">
           <div className="w-full md:w-64 relative">
@@ -1409,7 +1458,17 @@ export const OHLCChartDemo: React.FC = () => {
             </button>
           )}
         </div>
+        {/* Hide Controls Button */}
+        <div className="flex justify-center mt-2">
+          <button
+            onClick={() => setShowControls(false)}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded"
+          >
+            Hide Controls
+          </button>
+        </div>
       </div>
+      )}
 
       {/* Display content based on loading and view state */}
       {(() => {
@@ -1445,7 +1504,7 @@ export const OHLCChartDemo: React.FC = () => {
                 candles={optimizedCandles}
                 vixData={vixData}
                 title={`${selectedCompany || 'Select a company'} - ${selectedTimeframe} Chart`}
-                height={1100}
+                height={chartHeight}
                 showVolume={true}
                 showEMA={showEMA}
                 showRSI={showRSI}

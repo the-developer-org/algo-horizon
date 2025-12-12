@@ -5,6 +5,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { createChart } from 'lightweight-charts';
 import { Candle } from './types/candle';
 import { calculateSwingPointsFromCandles, parseTimestampToUnix } from '../utils/swingPointCalculator';
+import { he } from 'date-fns/locale';
 
 // Performance optimization constants
 const MAX_VISIBLE_CANDLES = 2000; // Limit visible data points for ultra-fast performance
@@ -637,7 +638,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Mobile detection and responsive values
     const [isMobile, setIsMobile] = useState(false);
-    const [containerDimensions, setContainerDimensions] = useState({ width: maxWidth, height: chartHeight });
+    const [containerDimensions, setContainerDimensions] = useState({ width: maxWidth, height: height });
 
     // Detect mobile and update dimensions
     useEffect(() => {
@@ -647,14 +648,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             
             // Update container dimensions based on screen size
             const newWidth = window.innerWidth;
-            const newHeight = mobile ? window.innerHeight * 0.75 : window.innerHeight * 0.91;
-            setContainerDimensions({ width: newWidth, height: newHeight });
+            setContainerDimensions({ width: newWidth, height: height });
         };
 
         checkMobile();
         window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
-    }, []);
+    }, [height]);
 
   
 
@@ -734,7 +734,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Create chart with enhanced navigation and zoom configuration optimized for mobile
         const chart = createChart(UnderstchartContainerRef.current, {
             width: containerDimensions.width,
-            height: containerDimensions.height * 0.9, // Leave space for UI elements
+             height: isMobile ? containerDimensions.height - 0 : containerDimensions.height - 120, // Different heights for mobile vs desktop
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
@@ -812,6 +812,15 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         
         // Store candlestick series reference for later use
         chartRef.current.candlestickSeries = candlestickSeries;
+
+        // Configure main price scale to ensure X-axis visibility
+        chart.priceScale('right').applyOptions({
+            scaleMargins: {
+                top: 0.1,
+                bottom: 0.2, // Reserve space for X-axis
+            },
+            borderVisible: true,
+        });
 
         // Initialize a dedicated swing points series during chart creation
         swingPointsSeriesRef.current = chart.addLineSeries({
@@ -952,7 +961,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         const handleResize = () => {
             if (UnderstchartContainerRef.current && chartRef.current) {
                 const containerWidth = UnderstchartContainerRef.current.clientWidth;
-                const containerHeight = UnderstchartContainerRef.current.clientHeight * 0.9; // Reduce height by 10%
+                const containerHeight = UnderstchartContainerRef.current.clientHeight; // Reduce height by 10%
                 chartRef.current.applyOptions({
                     width: containerWidth,
                     height: containerHeight,
@@ -1160,7 +1169,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     
                     // Ensure EMA series scales with the main chart
                     ema8SeriesRef.current.applyOptions({
-                        lastValueVisible: true,
+                        lastValueVisible: false,
                         priceLineVisible: false,
                     });
                 }
@@ -1189,7 +1198,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     
                     // Ensure EMA series scales with the main chart
                     ema30SeriesRef.current.applyOptions({
-                        lastValueVisible: true,
+                        lastValueVisible: false,
                         priceLineVisible: false,
                     });
                 }
@@ -1218,7 +1227,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     
                     // Ensure EMA series scales with the main chart
                     ema200SeriesRef.current.applyOptions({
-                        lastValueVisible: true,
+                        lastValueVisible: false,
                         priceLineVisible: false,
                     });
                 }
@@ -1702,14 +1711,25 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         color: color,
                         lineWidth: 2,
                         lineStyle: 1, // Solid line (we create dotted effect with data points)
-                        title: `${label} - ₹${swingPoint.price.toFixed(2)}`,
+                        title: '',
                         priceLineVisible: false,
                         lastValueVisible: false,
                         crosshairMarkerVisible: false,
+                        priceFormat: {
+                            type: 'price',
+                            precision: 2,
+                            minMove: 0.01,
+                        },
                     });
                     
                     // Set the dotted line data
                     dottedLineSeries.setData(dottedLineData);
+                    
+                    // Explicitly ensure no values are shown on Y-axis
+                    dottedLineSeries.applyOptions({
+                        lastValueVisible: false,
+                        priceLineVisible: false,
+                    });
                     
                     // Store the line series for cleanup
                     trendLinesRef.current.push(dottedLineSeries);
@@ -1816,170 +1836,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     });
                 }
 
-                // Add entry, target, and SL markers and lines from props or analysisList
-                // NOTE: URL parameter lines are now handled by the separate effect above
-                // First check for direct props (from URL parameters) - DISABLED to avoid duplication
-                /*
-                if (entryTime && entryPrice) {
-                    //console.log('🎯 OHLCChart: Drawing entry marker and lines from URL props:', { entryTime, entryPrice, targetPrice, stopLossPrice });
-                    //console.log('🎯 Chart exists:', !!chart);
-                    const entryTimestamp = parseTimestampToUnix(entryTime);
-                    //console.log('🎯 Entry timestamp parsed:', entryTimestamp);
-                    
-                    // Add entry marker
-                    allMarkers.push({
-                        time: entryTimestamp,
-                        position: 'aboveBar',
-                        color: '#2563eb', // Blue for entry
-                        shape: 'flag',
-                        text: 'E',
-                        size: 10,
-                    });
-                    
-                    // Add circle marker for entry
-                    allMarkers.push({
-                        time: entryTimestamp,
-                        position: 'aboveBar',
-                        color: '#2563eb',
-                        shape: 'circle',
-                        text: '',
-                        size: 0.5,
-                    });
-                    
-                    // Find entry candle index for line calculations
-                    // Instead of exact match, find the closest candle to the entry time
-                    let entryCandleIndex = -1;
-                    let minTimeDiff = Infinity;
-                    
-                    candles.forEach((candle, index) => {
-                        const candleTime = parseTimestampToUnix(candle.timestamp);
-                        const timeDiff = Math.abs(candleTime - entryTimestamp);
-                        if (timeDiff < minTimeDiff) {
-                            minTimeDiff = timeDiff;
-                            entryCandleIndex = index;
-                        }
-                    });
-                    
-                    //console.log('🎯 Closest entry candle index found:', entryCandleIndex, 'with time diff:', minTimeDiff, 'seconds');
-                    
-                    if (entryCandleIndex >= 0) {
-                        //console.log('🎯 Drawing target and SL lines from closest candle at index:', entryCandleIndex);
-                        // Target line (light green) - draw across visible range
-                        if (targetPrice && typeof targetPrice === 'number') {
-                            // Get the visible time range or use the full data range
-                            const timeScale = chart.timeScale();
-                            const visibleRange = timeScale.getVisibleRange();
-                            
-                            let startTime, endTime;
-                            if (visibleRange) {
-                                startTime = visibleRange.from;
-                                endTime = visibleRange.to;
-                            } else {
-                                // Fallback to data range
-                                startTime = parseTimestampToUnix(candles[0].timestamp);
-                                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
-                            }
-                            
-                            const targetLineData = [
-                                { time: startTime, value: targetPrice },
-                                { time: endTime, value: targetPrice }
-                            ];
-                            
-                            //console.log('🎯 Creating target line from', startTime, 'to', endTime, 'at price', targetPrice);
-                            
-                            const targetLineSeries = chart.addLineSeries({
-                                color: '#90EE90', // Light green
-                                lineWidth: 2,
-                                lineStyle: 0,
-                                title: `Target: ₹${targetPrice.toFixed(2)}`,
-                                priceLineVisible: false,
-                                lastValueVisible: false,
-                                crosshairMarkerVisible: false,
-                            });
-                            
-                            targetLineSeries.setData(targetLineData);
-                            trendLinesRef.current.push(targetLineSeries);
-                            //console.log('🎯 Target line created and added to trendLinesRef');
-                        }
-                        
-                        // Entry line (blue) - draw across visible range
-                        if (entryPrice && typeof entryPrice === 'number') {
-                            // Get the visible time range or use the full data range
-                            const timeScale = chart.timeScale();
-                            const visibleRange = timeScale.getVisibleRange();
-                            
-                            let startTime, endTime;
-                            if (visibleRange) {
-                                startTime = visibleRange.from;
-                                endTime = visibleRange.to;
-                            } else {
-                                // Fallback to data range
-                                startTime = parseTimestampToUnix(candles[0].timestamp);
-                                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
-                            }
-                            
-                            const entryLineData = [
-                                { time: startTime, value: entryPrice },
-                                { time: endTime, value: entryPrice }
-                            ];
-                            
-                            //console.log('🎯 Creating entry line from', startTime, 'to', endTime, 'at price', entryPrice);
-                            
-                            const entryLineSeries = chart.addLineSeries({
-                                color: '#2563eb', // Blue
-                                lineWidth: 2,
-                                lineStyle: 0,
-                                title: `Entry: ₹${entryPrice.toFixed(2)}`,
-                                priceLineVisible: false,
-                                lastValueVisible: false,
-                                crosshairMarkerVisible: false,
-                            });
-                            
-                            entryLineSeries.setData(entryLineData);
-                            trendLinesRef.current.push(entryLineSeries);
-                            //console.log('🎯 Entry line created and added to trendLinesRef');
-                        }
-                        
-                        // Stop Loss line (light red) - draw across visible range
-                        if (stopLossPrice && typeof stopLossPrice === 'number') {
-                            // Get the visible time range or use the full data range
-                            const timeScale = chart.timeScale();
-                            const visibleRange = timeScale.getVisibleRange();
-                            
-                            let startTime, endTime;
-                            if (visibleRange) {
-                                startTime = visibleRange.from;
-                                endTime = visibleRange.to;
-                            } else {
-                                // Fallback to data range
-                                startTime = parseTimestampToUnix(candles[0].timestamp);
-                                endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
-                            }
-                            
-                            const stopLossLineData = [
-                                { time: startTime, value: stopLossPrice },
-                                { time: endTime, value: stopLossPrice }
-                            ];
-                            
-                            //console.log('🎯 Creating stop loss line from', startTime, 'to', endTime, 'at price', stopLossPrice);
-                            
-                            const stopLossLineSeries = chart.addLineSeries({
-                                color: '#FFB6C1', // Light red
-                                lineWidth: 2,
-                                lineStyle: 0,
-                                title: `SL: ₹${stopLossPrice.toFixed(2)}`,
-                                priceLineVisible: false,
-                                lastValueVisible: false,
-                                crosshairMarkerVisible: false,
-                            });
-                            
-                            stopLossLineSeries.setData(stopLossLineData);
-                            trendLinesRef.current.push(stopLossLineSeries);
-                            //console.log('🎯 Stop loss line created and added to trendLinesRef');
-                        }
-                    }
-                }
-                */
+        
                 
                 // Then check analysisList for additional entries
                 if (propAnalysisList && propAnalysisList.length > 0) {
@@ -2084,7 +1941,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 candlestickSeries.setMarkers(dedupedMarkers);
                 
             } catch (err) {
-                //console.error('Swing points calculation error:', err);
                 toast.error('Error calculating swing points', { duration: 4000 });
             }
         } else if (!showSwingPoints) {
@@ -2579,7 +2435,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     };
 
     return (
-        <div className="relative w-full bg-white z-1 md:top-12 top-8 md:h-[85vh] h-[70vh] md:pb-10 pb-5">
+    <div className="relative w-full bg-white z-1" style={{ height: height + 'px' }}>
             <LoadingOverlay />
             <Toaster position="top-right" />
             {/* Error messages for indicators */}
@@ -2590,88 +2446,22 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     {vixError && <div>{vixError}</div>}
                 </div>
             )}
-            {/* Stats section */}
-            <div className="absolute md:-top-20 -top-16 left-4 z-[203] bg-white/96 p-2 md:p-5 rounded-lg font-semibold text-sm md:text-base text-gray-800 shadow-lg border-2 border-gray-400 md:min-w-[400px] md:w-[420px] min-w-[280px] w-[300px] flex flex-col gap-1">
-                <span className="font-bold text-sm md:text-base text-gray-800">Stats</span>
-                {(() => {
-                    const gapInfo = getPrevCloseToTodayOpenGap(ohlcInfo ? { ...ohlcInfo, timestamp: (candles.find(c => c.close === ohlcInfo.close && c.open === ohlcInfo.open && c.high === ohlcInfo.high && c.low === ohlcInfo.low && c.volume === ohlcInfo.volume)?.timestamp) || candles[candles.length - 1].timestamp } : candles[candles.length - 1]);
-                    if (!gapInfo) return <span className="text-xs md:text-sm text-gray-500">No gap data</span>;
-                    const sign = gapInfo.gap > 0 ? '+' : '';
-                    return (
-                        <span className={`text-sm md:text-base font-semibold ${gapInfo.gap > 0 ? 'text-green-600' : 'text-red-700'}`}>
-                            Gap Up / Down: <b>{sign}{gapInfo.gap.toFixed(2)}</b>
-                        </span>
-                    );
-                })()}
-            </div>
+         
             {/* Floating OHLC info at top left (inside chart area) */}
-            {ohlcInfo && (
-                <div className={`absolute top-1 left-4 z-[200] bg-white/92 p-2 md:p-5 rounded-lg font-bold text-base md:text-lg shadow-lg border-2 border-gray-400 tracking-wide min-w-[320px] md:min-w-[400px] text-left flex flex-wrap md:flex-nowrap gap-4 ${ohlcInfo.close >= ohlcInfo.open ? 'text-green-600' : 'text-red-700'}`}>
-                    <span>O <b>{ohlcInfo.open.toLocaleString()}</b></span>
-                    <span>H <b>{ohlcInfo.high.toLocaleString()}</b></span>
-                    <span>L <b>{ohlcInfo.low.toLocaleString()}</b></span>
-                    <span>C <b>{ohlcInfo.close.toLocaleString()}</b></span>
-                    <span>V <b>{(() => {
-                        if (!ohlcInfo.volume) return 'N/A';
-                        return `${(ohlcInfo.volume / 1000).toFixed(1)}K`;
-                    })()}</b></span>
-                    {showRSI && ohlcInfo.rsi !== undefined && ohlcInfo.rsi !== null && !isNaN(ohlcInfo.rsi) && (
-                        <span>RSI <b>{ohlcInfo.rsi.toFixed(2)}</b></span>
-                    )}
-                    <span>
-                        {(() => {
-                            const change = ohlcInfo.close - ohlcInfo.prevClose;
-                            const percent = ohlcInfo.prevClose ? (change / ohlcInfo.prevClose) * 100 : 0;
-                            const sign = change > 0 ? '+' : '';
-                            return `${sign}${change.toFixed(2)} (${sign}${percent.toFixed(2)}%)`;
-                        })()}
-                    </span>
-                    {(typeof vixValue === 'number' && !isNaN(vixValue)) ? (
-                        <span className="text-yellow-400 font-bold">VIX <b>{vixValue.toFixed(2)}</b></span>
-                    ) : null}
-                     {/* Average Volume Information */}
-            {avgVolume > 0 && (
-                <div style={{
-                    position: 'absolute',
-                    top: 55, // Position it closer to the OHLC info
-                    left: -3,
-                    zIndex: 200,
-                    background: 'rgba(255,255,255,0.92)',
-                    padding: '8px 20px',
-                    borderRadius: 10,
-                    fontWeight: 600,
-                    fontSize: 15,
-                    color: '#333',
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.10)',
-                    border: '2px solid #bdbdbd',
-                    minWidth: 250,
-                }}>
-                    <span>
-                        Avg Volume: <b>{avgVolume >= 1000000 
-                            ? `${(avgVolume / 1000000).toFixed(2)}M` 
-                            : `${(avgVolume / 1000).toFixed(1)}K`}
-                        </b>
-                    </span>
-                    {ohlcInfo?.volume && (
-                        <div className="mt-1 text-sm">
-                            {ohlcInfo.volume > avgVolume
-                                ? <span className="text-green-600">Volume is <b>{(ohlcInfo.volume / avgVolume).toFixed(1)}x</b> average</span>
-                                : <span className="text-red-700">Volume is <b>{(ohlcInfo.volume / avgVolume).toFixed(1)}x</b> average</span>
-                            }
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Floating Candle Analysis info at top right (inside chart area) */}
+           
             {candleAnalysis && (
                 <div className={`absolute top-1 md:-right-[400px] -right-[280px] z-[200] bg-white/95 p-3 md:p-4 rounded-lg font-semibold text-sm md:text-base text-gray-800 shadow-xl border-4 min-w-[280px] max-w-[350px] ${candleAnalysis.finalProfitLoss >= 0 ? 'border-green-600' : 'border-red-700'}`}>
                     <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-gray-200">
-                        <span className="font-bold text-base md:text-lg">📊 Candle Analysis</span>
-                        <button
-                            onClick={() => setCandleAnalysis(null)}
-                            className="bg-none border-none text-lg cursor-pointer text-gray-500 px-1 hover:text-gray-700"
-                        >×</button>
+                        <div className="flex items-center gap-2">
+                            <span className="font-bold text-base md:text-lg">📊 Analysis</span>
+                            <button
+                                onClick={() => setCandleAnalysis(null)}
+                                className="bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold transition-colors"
+                                title="Close"
+                            >
+                                ✕
+                            </button>
+                        </div>
                     </div>
                     
                     <div style={{ lineHeight: 1.4 }}>
@@ -2736,15 +2526,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     </div>
                 </div>
             )}
-                </div>
-            )}
-            
-           
             
             <div ref={UnderstchartContainerRef} style={{ 
                 width: '100%', 
-                height: '100%', // Reduce height to leave space for x-axis
-                paddingBottom: '10px' // Additional padding for x-axis visibility
+                height: `${height - 40}px`,  // Reserve 40px for X-axis at bottom
+                paddingBottom: '40px' // Space for X-axis
             }} />
             
             {/* Navigation hints */}
