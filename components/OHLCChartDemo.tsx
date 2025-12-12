@@ -1275,199 +1275,364 @@ export const OHLCChartDemo: React.FC = () => {
         <div className="flex justify-center p-2">
           <button
             onClick={() => setShowControls(true)}
-            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded"
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded shadow-sm"
           >
             Show Controls
           </button>
         </div>
       )}
       {showControls && (
-        <div className="mb-4 flex flex-col items-center p-2 md:p-4">
-        {/* Mobile-first responsive controls */}
-        <div className="flex flex-col md:flex-row md:flex-wrap items-center justify-center w-full max-w-4xl gap-2 md:gap-4 mx-auto">
-          <div className="w-full md:w-64 relative">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={e => {
-                setSearchTerm(e.target.value);
-                setSelectedCompany('');
-                setSelectedInstrumentKey('');
-                // Don't reset isFirstLoad to preserve the current view when changing search term
-              }}
-              placeholder="Search for a company..."
-              className="p-3 border border-gray-300 rounded-md w-full text-base md:text-sm"
-            />
-            {/* Only show suggestions if not selected */}
-            {suggestions.length > 0 && !selectedCompany && (
-              <ul className="absolute z-50 w-full mt-1 border border-gray-300 rounded-md max-h-60 overflow-auto bg-white shadow-lg">
-                {suggestions.map((name) => (
-                  <button
-                    key={name}
-                    onClick={() => handleSelectCompany(name)}
-                    className="p-3 cursor-pointer hover:bg-gray-100 w-full text-left text-base md:text-sm"
-                  >
-                    {name}
-                  </button>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Primary action buttons - responsive grid */}
-          <div className="flex flex-wrap gap-2 justify-center w-full md:w-auto">
-            <button
-              onClick={handleFetchData}
-              data-testid="fetch-button"
-              className="bg-blue-500 text-white px-4 py-3 md:px-4 md:py-2 rounded-md text-base md:text-sm font-medium min-w-[120px] md:min-w-0"
-            >
-              Load Data
-            </button>
-
-            {/* Home button */}
-            <a
-              href="/"
-              className="px-4 py-3 md:px-4 md:py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors text-base md:text-sm font-medium min-w-[100px] md:min-w-0 text-center"
-            >
-              Home
-            </a>
-          </div>
-
-          {/* Secondary controls - responsive layout */}
-          <div className="flex flex-col md:flex-row items-center gap-2 w-full md:w-auto">
-            {/* View Mode Toggle - Only visible if both data sources are available */}
-            {(strykeEntryDates.length > 0 || strykeConfig.entryPrice) && (algoEntryDates.length > 0 || algoConfig.entryPrice) && (
-              <div className="flex bg-gray-200 rounded-lg p-1 gap-1 w-full md:w-auto justify-center">
-                <button
-                  onClick={() => setViewMode('stryke')}
-                  className={`px-3 py-2 md:px-3 md:py-1.5 rounded-md text-sm font-medium transition-all flex-1 md:flex-none ${
-                    viewMode === 'stryke'
-                      ? 'bg-white text-orange-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  Stryke
-                </button>
-                <button
-                  onClick={() => setViewMode('algo')}
-                  className={`px-3 py-2 md:px-3 md:py-1.5 rounded-md text-sm font-medium transition-all flex-1 md:flex-none ${
-                    viewMode === 'algo'
-                      ? 'bg-white text-teal-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  Algo
-                </button>
-              </div>
-            )}
-
-            {/* Entry Dates Indicator */}
-            {strykeEntryDates && strykeEntryDates.length > 0 && (
-              <div className="px-3 py-2 rounded-md bg-orange-100 border border-orange-300 text-orange-800 text-sm font-medium flex items-center gap-1 w-full md:w-auto justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span className="text-center">
-                  {strykeEntryDates.length} Stryke Points
-                </span>
-              </div>
-            )}
-
-            {/* Progressive Loading Indicator */}
-            {isProgressiveLoading && progressiveLoadingProgress.total > 0 && (
-              <div className="px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium flex flex-col items-center gap-2 w-full md:w-auto">
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-blue-600"></div>
-                  <span>Loading batches: {progressiveLoadingProgress.loaded}/{progressiveLoadingProgress.total}</span>
+        <>
+          {/* Mobile Controls Version */}
+          {isMobile ? (
+            <div className="mb-1 flex flex-col p-1.5 bg-gray-50 rounded mx-2">
+              {/* Mobile Search Section */}
+              <div className="mb-1.5">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={e => {
+                      setSearchTerm(e.target.value);
+                      setSelectedCompany('');
+                      setSelectedInstrumentKey('');
+                    }}
+                    placeholder="Search company..."
+                    className="w-full p-1.5 border border-gray-300 rounded text-xs font-medium bg-white shadow-sm"
+                  />
+                  {suggestions.length > 0 && !selectedCompany && (
+                    <ul className="absolute z-50 w-full mt-1 border border-gray-200 rounded max-h-28 overflow-auto bg-white shadow-lg">
+                      {suggestions.map((name) => (
+                        <button
+                          key={name}
+                          onClick={() => handleSelectCompany(name)}
+                          className="w-full p-1.5 text-left text-xs hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-                {progressiveLoadingProgress.loaded > 0 && (
-                  <div className="w-full bg-blue-200 rounded-full h-1.5">
-                    <div 
-                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                      style={{ width: `${(progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100}%` }}
-                    ></div>
+              </div>
+
+              {/* Mobile Primary Actions */}
+              <div className="flex gap-1 mb-1.5">
+                <button
+                  onClick={handleFetchData}
+                  data-testid="fetch-button"
+                  className="flex-1 bg-blue-500 text-white py-1.5 px-2 rounded text-xs font-semibold shadow-md active:scale-95 transition-transform"
+                >
+                  Load
+                </button>
+                <a
+                  href="/"
+                  className="flex-1 bg-gray-200 text-gray-800 py-1.5 px-2 rounded text-xs font-semibold text-center shadow-md active:scale-95 transition-transform"
+                >
+                  Home
+                </a>
+              </div>
+
+              {/* Mobile View Mode Toggle */}
+              {(strykeEntryDates.length > 0 || strykeConfig.entryPrice) && (algoEntryDates.length > 0 || algoConfig.entryPrice) && (
+                <div className="flex bg-white rounded p-0.5 mb-1.5 shadow-sm">
+                  <button
+                    onClick={() => setViewMode('stryke')}
+                    className={`flex-1 py-1 px-1.5 rounded text-xs font-semibold transition-all ${
+                      viewMode === 'stryke'
+                        ? 'bg-orange-500 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Stryke
+                  </button>
+                  <button
+                    onClick={() => setViewMode('algo')}
+                    className={`flex-1 py-1 px-1.5 rounded text-xs font-semibold transition-all ${
+                      viewMode === 'algo'
+                        ? 'bg-teal-500 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Algo
+                  </button>
+                </div>
+              )}
+
+              {/* Mobile Entry Dates Indicator */}
+              {strykeEntryDates && strykeEntryDates.length > 0 && (
+                <div className="bg-orange-50 border border-orange-200 rounded p-1 mb-1.5">
+                  <div className="flex items-center justify-center gap-0.5 text-orange-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="text-[10px] font-semibold">
+                      {strykeEntryDates.length} Stryke Points Available
+                    </span>
                   </div>
+                </div>
+              )}
+
+              {/* Mobile Progressive Loading Indicator */}
+              {isProgressiveLoading && progressiveLoadingProgress.total > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded p-1 mb-1.5">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="flex items-center gap-1 text-blue-700">
+                      <div className="animate-spin rounded-full h-2.5 w-2.5 border-t-2 border-b-2 border-blue-600"></div>
+                      <span className="text-[10px] font-semibold">
+                        {progressiveLoadingProgress.loaded}/{progressiveLoadingProgress.total}
+                      </span>
+                    </div>
+                    {progressiveLoadingProgress.loaded > 0 && (
+                      <div className="w-full bg-blue-200 rounded-full h-1">
+                        <div 
+                          className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                          style={{ width: `${(progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100}%` }}
+                        ></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile Timeframe Selector */}
+              {candles.length > 0 && (
+                <div className="mb-1.5">
+                  <div className="grid grid-cols-4 gap-0.5 bg-white rounded p-0.5 shadow-sm">
+                    {(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'] as Timeframe[]).map((tf) => {
+                      const isSelected = selectedTimeframe === tf;
+                      return (
+                        <button
+                          key={tf}
+                          onClick={() => handleTimeframeChange(tf)}
+                          disabled={isLoading}
+                          className={`py-0.5 px-0.5 rounded text-[10px] font-semibold transition-all ${
+                            isSelected
+                              ? 'bg-blue-500 text-white shadow-md'
+                              : isLoading
+                              ? 'bg-gray-100 text-gray-400'
+                              : 'bg-gray-50 text-gray-700 hover:bg-gray-100 active:scale-95'
+                          }`}
+                        >
+                          {tf}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile Action Buttons */}
+              <div className="flex flex-col gap-1">
+                {/* Load More Data */}
+                {candles.length > 0 && hasMoreCandles && (
+                  <button
+                    onClick={() => loadMoreHistoricalData()}
+                    disabled={loadingOlderData}
+                    className={`py-1.5 px-2 rounded text-xs font-semibold transition-all ${
+                      loadingOlderData
+                        ? 'bg-gray-200 text-gray-500'
+                        : 'bg-green-500 text-white shadow-md active:scale-95'
+                    }`}
+                  >
+                    {loadingOlderData ? 'Loading...' : 'More'}
+                  </button>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Timeframe selector - responsive */}
-          {candles.length > 0 && (
-            <div className="flex bg-white bg-opacity-90 border border-gray-300 rounded-lg overflow-hidden shadow-sm flex-wrap w-full md:w-auto justify-center">
-              {(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'] as Timeframe[]).map((tf) => {
-                const isSelected = selectedTimeframe === tf;
-                const baseClasses = 'px-3 py-2 md:px-3 md:py-1 text-sm font-medium transition-colors flex-1 md:flex-none text-center';
-                
-                let stateClasses: string;
-                if (isSelected) {
-                  stateClasses = 'bg-blue-500 text-white';
-                } else if (isLoading) {
-                  stateClasses = 'bg-gray-200 text-gray-400 cursor-not-allowed';
-                } else {
-                  stateClasses = 'bg-white text-gray-700 hover:bg-gray-100';
-                }
-                
-                return (
+              {/* Mobile Hide Controls */}
+              <div className="flex justify-center mt-1.5 pt-1.5 border-t border-gray-200">
+                <button
+                  onClick={() => setShowControls(false)}
+                  className="bg-gray-200 text-gray-700 py-1 px-3 rounded text-xs font-semibold active:scale-95 transition-transform"
+                >
+                  Hide
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Desktop Controls Version */
+            <div className="mb-4 flex flex-col items-center p-4 bg-white border border-gray-200 rounded-lg shadow-sm mx-4">
+              {/* Desktop Layout - Horizontal */}
+              <div className="flex flex-row flex-wrap items-center justify-center w-full max-w-6xl gap-4 mx-auto">
+                {/* Desktop Search */}
+                <div className="w-64 relative">
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={e => {
+                      setSearchTerm(e.target.value);
+                      setSelectedCompany('');
+                      setSelectedInstrumentKey('');
+                    }}
+                    placeholder="Search for a company..."
+                    className="p-3 border border-gray-300 rounded-md w-full text-sm bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {suggestions.length > 0 && !selectedCompany && (
+                    <ul className="absolute z-50 w-full mt-1 border border-gray-300 rounded-md max-h-60 overflow-auto bg-white shadow-lg">
+                      {suggestions.map((name) => (
+                        <button
+                          key={name}
+                          onClick={() => handleSelectCompany(name)}
+                          className="p-3 cursor-pointer hover:bg-gray-100 w-full text-left text-sm"
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Desktop Primary Actions */}
+                <div className="flex gap-2">
                   <button
-                    key={tf}
-                    onClick={() => handleTimeframeChange(tf)}
-                    disabled={isLoading} // Disable during loading
-                    className={`${baseClasses} ${stateClasses}`}
-                    title={isLoading ? 'Loading...' : `View ${tf} timeframe`}
+                    onClick={handleFetchData}
+                    data-testid="fetch-button"
+                    className="bg-blue-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm"
                   >
-                    {tf}
+                    Load Data
                   </button>
-                );
-              })}
+                  <a
+                    href="/"
+                    className="px-4 py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors text-sm font-medium text-center shadow-sm"
+                  >
+                    Home
+                  </a>
+                </div>
+
+                {/* Desktop View Mode Toggle */}
+                {(strykeEntryDates.length > 0 || strykeConfig.entryPrice) && (algoEntryDates.length > 0 || algoConfig.entryPrice) && (
+                  <div className="flex bg-gray-100 rounded-lg p-1 gap-1">
+                    <button
+                      onClick={() => setViewMode('stryke')}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                        viewMode === 'stryke'
+                          ? 'bg-white text-orange-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Stryke
+                    </button>
+                    <button
+                      onClick={() => setViewMode('algo')}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                        viewMode === 'algo'
+                          ? 'bg-white text-teal-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Algo
+                    </button>
+                  </div>
+                )}
+
+                {/* Desktop Entry Dates Indicator */}
+                {strykeEntryDates && strykeEntryDates.length > 0 && (
+                  <div className="px-3 py-2 rounded-md bg-orange-100 border border-orange-300 text-orange-800 text-sm font-medium flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span>{strykeEntryDates.length} Stryke Points</span>
+                  </div>
+                )}
+
+                {/* Desktop Progressive Loading Indicator */}
+                {isProgressiveLoading && progressiveLoadingProgress.total > 0 && (
+                  <div className="px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-blue-600"></div>
+                      <span>Loading: {progressiveLoadingProgress.loaded}/{progressiveLoadingProgress.total}</span>
+                    </div>
+                    {progressiveLoadingProgress.loaded > 0 && (
+                      <div className="w-full bg-blue-200 rounded-full h-1.5">
+                        <div 
+                          className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${(progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100}%` }}
+                        ></div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Desktop Timeframe Selector */}
+                {candles.length > 0 && (
+                  <div className="flex bg-white bg-opacity-90 border border-gray-300 rounded-lg overflow-hidden shadow-sm">
+                    {(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'] as Timeframe[]).map((tf) => {
+                      const isSelected = selectedTimeframe === tf;
+                      let classes = 'px-3 py-1 text-sm font-medium transition-colors text-center';
+                      
+                      if (isSelected) {
+                        classes += ' bg-blue-500 text-white';
+                      } else if (isLoading) {
+                        classes += ' bg-gray-200 text-gray-400 cursor-not-allowed';
+                      } else {
+                        classes += ' bg-white text-gray-700 hover:bg-gray-100';
+                      }
+                      
+                      return (
+                        <button
+                          key={tf}
+                          onClick={() => handleTimeframeChange(tf)}
+                          disabled={isLoading}
+                          className={classes}
+                          title={isLoading ? 'Loading...' : `View ${tf} timeframe`}
+                        >
+                          {tf}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Desktop EMA Toggle */}
+                {candles.length > 0 && (
+                  <button
+                    onClick={() => setEmaCalculation(!emaCalculation)}
+                    disabled={isCalculatingEMA}
+                    className={`px-4 py-2 rounded-md transition-colors flex items-center gap-2 text-sm font-medium ${
+                      emaCalculation
+                        ? 'bg-orange-500 text-white hover:bg-orange-600'
+                        : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                    } ${isCalculatingEMA ? 'cursor-not-allowed opacity-50' : ''} shadow-sm`}
+                    title={emaCalculation ? 'Disable EMA calculations' : 'Enable EMA calculations'}
+                  >
+                    {isCalculatingEMA && (
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                    )}
+                    EMA {emaCalculation ? 'ON' : 'OFF'}
+                  </button>
+                )}
+                
+                {/* Desktop Load More Data */}
+                {candles.length > 0 && hasMoreCandles && (
+                  <button
+                    onClick={() => loadMoreHistoricalData()}
+                    disabled={loadingOlderData}
+                    className={`px-4 py-2 rounded-md text-sm font-medium shadow-sm ${
+                      loadingOlderData
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                  >
+                    {loadingOlderData ? 'Loading...' : 'Load More History'}
+                  </button>
+                )}
+              </div>
+
+              {/* Desktop Hide Controls */}
+              <div className="flex justify-center mt-3 pt-3 border-t border-gray-200 w-full">
+                <button
+                  onClick={() => setShowControls(false)}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded-md text-sm font-medium transition-colors shadow-sm"
+                >
+                  Hide Controls
+                </button>
+              </div>
             </div>
           )}
-
-          {/* EMA Calculation Toggle */}
-          {candles.length > 0 && (
-            <button
-              onClick={() => setEmaCalculation(!emaCalculation)}
-              disabled={isCalculatingEMA}
-              className={`px-4 py-3 md:px-4 md:py-2 rounded-md transition-colors flex items-center gap-2 text-base md:text-sm font-medium min-w-[120px] md:min-w-0 justify-center ${
-                emaCalculation
-                  ? 'bg-orange-500 text-white hover:bg-orange-600'
-                  : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-              } ${isCalculatingEMA ? 'cursor-not-allowed opacity-50' : ''}`}
-              title={emaCalculation ? 'Disable EMA calculations' : 'Enable EMA calculations'}
-            >
-              {isCalculatingEMA && (
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-              )}
-              EMA {emaCalculation ? 'ON' : 'OFF'}
-            </button>
-          )}
-          
-          {/* Load More Historical Data button */}
-          {candles.length > 0 && hasMoreCandles && (
-            <button
-              onClick={() => loadMoreHistoricalData()}
-              disabled={loadingOlderData}
-              className={`px-4 py-3 md:px-4 md:py-2 rounded-md text-base md:text-sm font-medium min-w-[160px] md:min-w-0 ${
-                loadingOlderData
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
-            >
-              {loadingOlderData ? 'Loading...' : 'Load More History'}
-            </button>
-          )}
-        </div>
-        {/* Hide Controls Button */}
-        <div className="flex justify-center mt-2">
-          <button
-            onClick={() => setShowControls(false)}
-            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded"
-          >
-            Hide Controls
-          </button>
-        </div>
-      </div>
+        </>
       )}
 
       {/* Display content based on loading and view state */}
@@ -1483,7 +1648,7 @@ export const OHLCChartDemo: React.FC = () => {
 
         // Show chart
         return (
-          <div className="mt-auto">
+          <div>
             {candles.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 bg-gray-50 border border-gray-200 rounded-lg m-4">
                 <div className="text-center space-y-3">
@@ -1531,7 +1696,146 @@ export const OHLCChartDemo: React.FC = () => {
                 hasMoreNewerData={false} // We typically only load historical data
                 isLoadingMoreData={loadingOlderData}
               />
-            )}
+                )}
+              
+              {/* OHLC Stats and Information Panel */}
+              {optimizedCandles?.length > 0 && (() => {
+                const lastCandle = optimizedCandles[optimizedCandles.length - 1];
+                const prevCandle = optimizedCandles.length > 1 ? optimizedCandles[optimizedCandles.length - 2] : null;
+                const change = prevCandle ? lastCandle.close - prevCandle.close : 0;
+                const changePercent = prevCandle ? ((change / prevCandle.close) * 100) : 0;
+                const isUp = change > 0;
+                const isDown = change < 0;
+                
+                return (
+                  <div className="bg-white border border-gray-200 rounded-lg m-4 p-4 shadow-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {/* Open */}
+                      <div className="text-center">
+                        <div className="text-sm text-gray-500 font-medium">Open</div>
+                        <div className="text-lg font-semibold text-gray-900">
+                          ₹{lastCandle.open.toFixed(2)}
+                        </div>
+                      </div>
+                      
+                      {/* High */}
+                      <div className="text-center">
+                        <div className="text-sm text-gray-500 font-medium">High</div>
+                        <div className="text-lg font-semibold text-green-600">
+                          ₹{lastCandle.high.toFixed(2)}
+                        </div>
+                      </div>
+                      
+                      {/* Low */}
+                      <div className="text-center">
+                        <div className="text-sm text-gray-500 font-medium">Low</div>
+                        <div className="text-lg font-semibold text-red-600">
+                          ₹{lastCandle.low.toFixed(2)}
+                        </div>
+                      </div>
+                      
+                      {/* Close */}
+                      <div className="text-center">
+                        <div className="text-sm text-gray-500 font-medium">Close</div>
+                        <div className={`text-lg font-semibold ${
+                          isUp ? 'text-green-600' : isDown ? 'text-red-600' : 'text-gray-900'
+                        }`}>
+                          ₹{lastCandle.close.toFixed(2)}
+                        </div>
+                      </div>
+                      
+                      {/* Change */}
+                      <div className="text-center">
+                        <div className="text-sm text-gray-500 font-medium">Change</div>
+                        <div className={`text-lg font-semibold ${
+                          isUp ? 'text-green-600' : isDown ? 'text-red-600' : 'text-gray-900'
+                        }`}>
+                          {isUp ? '+' : ''}₹{change.toFixed(2)}
+                          <div className="text-sm">
+                            ({isUp ? '+' : ''}{changePercent.toFixed(2)}%)
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Volume */}
+                      <div className="text-center">
+                        <div className="text-sm text-gray-500 font-medium">Volume</div>
+                        <div className="text-lg font-semibold text-gray-900">
+                          {lastCandle.volume.toLocaleString()}
+                        </div>
+                        {avgVolume > 0 && (
+                          <div className="text-xs text-gray-500">
+                            Avg: {Math.round(avgVolume).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Additional Stats Row */}
+                    <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* Day Range */}
+                      <div className="text-center">
+                        <div className="text-sm text-gray-500 font-medium">Day Range</div>
+                        <div className="text-sm text-gray-900">
+                          ₹{lastCandle.low.toFixed(2)} - ₹{lastCandle.high.toFixed(2)}
+                        </div>
+                      </div>
+                      
+                      {/* Volume vs Avg */}
+                      {avgVolume > 0 && (
+                        <div className="text-center">
+                          <div className="text-sm text-gray-500 font-medium">Volume vs Avg</div>
+                          <div className={`text-sm font-semibold ${
+                            lastCandle.volume > avgVolume ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {((lastCandle.volume / avgVolume) * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* RSI if available */}
+                      {lastCandle.rsi && (
+                        <div className="text-center">
+                          <div className="text-sm text-gray-500 font-medium">RSI</div>
+                          <div className={`text-sm font-semibold ${
+                            lastCandle.rsi > 70 ? 'text-red-600' : 
+                            lastCandle.rsi < 30 ? 'text-green-600' : 'text-gray-900'
+                          }`}>
+                            {lastCandle.rsi.toFixed(2)}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Up/Down Indicator */}
+                      <div className="text-center">
+                        <div className="text-sm text-gray-500 font-medium">Trend</div>
+                        <div className="flex items-center justify-center">
+                          {isUp ? (
+                            <div className="flex items-center text-green-600">
+                              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L6.707 7.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-sm font-semibold">UP</span>
+                            </div>
+                          ) : isDown ? (
+                            <div className="flex items-center text-red-600">
+                              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M14.707 12.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 14.586V3a1 1 0 112 0v11.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-sm font-semibold">DOWN</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center text-gray-600">
+                              <span className="text-sm font-semibold">FLAT</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            
             
             {/* Progressive loading indicator in chart area */}
             {isProgressiveLoading && candles.length > 0 && (

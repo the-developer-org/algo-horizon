@@ -734,7 +734,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Create chart with enhanced navigation and zoom configuration optimized for mobile
         const chart = createChart(UnderstchartContainerRef.current, {
             width: containerDimensions.width,
-             height: isMobile ? containerDimensions.height - 0 : containerDimensions.height - 120, // Different heights for mobile vs desktop
+             height: isMobile ? containerDimensions.height + 90 : containerDimensions.height - 120, // Different heights for mobile vs desktop
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
@@ -752,7 +752,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 lockVisibleTimeRangeOnResize: false,
                 borderVisible: true,
                 visible: true,
-                rightOffset: isMobile ? 20 : 50,
+                rightOffset: isMobile ? 2 : 3,
                 minBarSpacing: isMobile ? 1 : 0.5,
                 borderColor: '#333333',
                 // Enhanced scroll and zoom behavior for mobile
@@ -816,8 +816,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Configure main price scale to ensure X-axis visibility
         chart.priceScale('right').applyOptions({
             scaleMargins: {
-                top: 0.1,
-                bottom: 0.2, // Reserve space for X-axis
+                top: 0.005,
+                bottom: 0.01, // Minimal space for X-axis
             },
             borderVisible: true,
         });
@@ -843,7 +843,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             chartRef.current.volumeSeries = volumeSeries;
             // @ts-ignore
             chart.priceScale('volume').applyOptions({
-                scaleMargins: { top: 0.75, bottom: 0 },
+                scaleMargins: { top: 0.65, bottom: 0 },
                 autoScale: true // Re-enable auto-scaling
             });
         }
@@ -947,9 +947,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     const analysis = analyzeCandleClick(candles, clickedIndex, calculatedSwingPointsRef.current);
                     if (analysis) {
                         setCandleAnalysis(analysis);
-                        toast.success(`Analysis complete! Click lasted ${analysis.candlesAnalyzed} candles with ${analysis.finalProfitLossPercent.toFixed(2)}% ${analysis.finalProfitLoss >= 0 ? 'profit' : 'loss'}`, {
-                            duration: 5000
-                        });
                     }
                 } else {
                     toast.error('Cannot analyze the last candle or invalid selection');
@@ -2438,6 +2435,112 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     <div className="relative w-full bg-white z-1" style={{ height: height + 'px' }}>
             <LoadingOverlay />
             <Toaster position="top-right" />
+            
+            {/* Combined Stats and OHLC Info */}
+            {ohlcInfo && (
+                isMobile ? (
+                    // Mobile Compact Version
+                    <div className={`absolute top-1 left-1 z-[200] bg-white/95 p-1.5 rounded shadow-md border border-gray-300 min-w-[200px] max-w-[240px] ${ohlcInfo.close >= ohlcInfo.open ? 'text-green-600' : 'text-red-700'}`}>
+                        
+                        {/* Ultra Compact OHLC Row */}
+                        <div className="flex justify-between gap-1 font-bold text-[10px] leading-tight">
+                            <span>O: {ohlcInfo.open.toFixed(0)}</span>
+                            <span>H: {ohlcInfo.high.toFixed(0)}</span>
+                            <span>L: {ohlcInfo.low.toFixed(0)}</span>
+                            <span>C: {ohlcInfo.close.toFixed(0)}</span>
+                            <span>V: {ohlcInfo.volume ? (ohlcInfo.volume / 1000).toFixed(0) + 'K' : 'N/A'}</span>
+                               <span className={`font-semibold ${ohlcInfo.close >= ohlcInfo.prevClose ? 'text-green-600' : 'text-red-600'}`}>
+                                {(() => {
+                                    const change = ohlcInfo.close - ohlcInfo.prevClose;
+                                    const percent = ohlcInfo.prevClose ? (change / ohlcInfo.prevClose) * 100 : 0;
+                                    const sign = change > 0 ? '+' : '';
+                                    return `${sign}${percent.toFixed(1)}%`;
+                                })()}
+                            </span>
+                        </div>
+                    </div>
+                ) : (
+                    // Desktop Version
+                    <div className={`absolute top-1 left-4 z-[200] bg-white/95 p-3 md:p-4 rounded-lg shadow-lg border-2 border-gray-400 min-w-[200px] max-w-[280px] ${ohlcInfo.close >= ohlcInfo.open ? 'text-green-600' : 'text-red-700'}`}>
+                        
+                        {/* OHLC Data Column */}
+                        <div className="flex flex-col gap-1 text-xs md:text-sm">
+                            <div className="flex justify-between font-bold">
+                                <span>Open:</span>
+                                <span>{ohlcInfo.open.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between font-bold">
+                                <span>High:</span>
+                                <span>{ohlcInfo.high.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between font-bold">
+                                <span>Low:</span>
+                                <span>{ohlcInfo.low.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between font-bold">
+                                <span>Close:</span>
+                                <span>{ohlcInfo.close.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between font-bold">
+                                <span>Volume:</span>
+                                <span>{ohlcInfo.volume ? ohlcInfo.volume.toLocaleString() : 'N/A'}</span>
+                            </div>
+                            <div className={`flex justify-between font-semibold border-t border-gray-200 pt-1 mt-1 ${ohlcInfo.close >= ohlcInfo.prevClose ? 'text-green-600' : 'text-red-600'}`}>
+                                <span className="text-xs md:text-sm">Change:</span>
+                                <span>
+                                    {(() => {
+                                        const change = ohlcInfo.close - ohlcInfo.prevClose;
+                                        const percent = ohlcInfo.prevClose ? (change / ohlcInfo.prevClose) * 100 : 0;
+                                        const sign = change > 0 ? '+' : '';
+                                        return `${sign}${change.toFixed(2)} (${sign}${percent.toFixed(2)}%)`;
+                                    })()}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Additional Stats Column */}
+                        <div className="flex flex-col gap-1 text-xs text-gray-700 border-t border-gray-200 pt-2 mt-2">
+                            <div className="flex justify-between font-bold">
+                                <span>Gap:</span>
+                                <span>
+                                    {(() => {
+                                        const gapInfo = getPrevCloseToTodayOpenGap(ohlcInfo ? { ...ohlcInfo, timestamp: (candles.find(c => c.close === ohlcInfo.close && c.open === ohlcInfo.open && c.high === ohlcInfo.high && c.low === ohlcInfo.low && c.volume === ohlcInfo.volume)?.timestamp) || candles[candles.length - 1].timestamp } : candles[candles.length - 1]);
+                                        if (!gapInfo) return <span className="text-gray-500">No data</span>;
+                                        const sign = gapInfo.gap > 0 ? '+' : '';
+                                        return (
+                                            <span className={`font-semibold ${gapInfo.gap > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {sign}{gapInfo.gap.toFixed(2)}
+                                            </span>
+                                        );
+                                    })()}
+                                </span>
+                            </div>
+
+                            {avgVolume > 0 && (
+                                <>
+                                    <div className="flex justify-between font-bold">
+                                        <span>Avg Vol:</span>
+                                        <span className="text-gray-600">
+                                            {avgVolume >= 1000000 
+                                                ? `${(avgVolume / 1000000).toFixed(2)}M` 
+                                                : `${(avgVolume / 1000).toFixed(1)}K`}
+                                        </span>
+                                    </div>
+                                    {ohlcInfo?.volume && (
+                                        <div className="flex justify-between font-bold">
+                                            <span>Vol Ratio:</span>
+                                            <span className={ohlcInfo.volume > avgVolume ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
+                                                {(ohlcInfo.volume / avgVolume).toFixed(1)}x
+                                            </span>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )
+            )}
+            
             {/* Error messages for indicators */}
             {(emaError || rsiError || vixError) && (
                 <div className="absolute top-1 right-4 z-[202] bg-red-50 text-red-700 p-2 md:p-5 rounded-lg font-semibold text-sm md:text-base border-2 border-red-700 md:min-w-[400px] md:w-[420px] min-w-[280px] w-[300px]">
@@ -2449,7 +2552,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
          
             {/* Floating OHLC info at top left (inside chart area) */}
            
-            {candleAnalysis && (
+            {candleAnalysis && !isMobile && (
                 <div className={`absolute top-1 md:-right-[400px] -right-[280px] z-[200] bg-white/95 p-3 md:p-4 rounded-lg font-semibold text-sm md:text-base text-gray-800 shadow-xl border-4 min-w-[280px] max-w-[350px] ${candleAnalysis.finalProfitLoss >= 0 ? 'border-green-600' : 'border-red-700'}`}>
                     <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-gray-200">
                         <div className="flex items-center gap-2">
@@ -2529,8 +2632,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             
             <div ref={UnderstchartContainerRef} style={{ 
                 width: '100%', 
-                height: `${height - 40}px`,  // Reserve 40px for X-axis at bottom
-                paddingBottom: '40px' // Space for X-axis
+                height: `${height - 5}px`
             }} />
             
             {/* Navigation hints */}
