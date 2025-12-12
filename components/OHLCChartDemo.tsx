@@ -330,7 +330,7 @@ export const OHLCChartDemo: React.FC = () => {
   const chartHeight = useMemo(() => {
     if (isMobile) {
       // On mobile/tablet, use viewport-based height for responsiveness
-      return Math.max(windowHeight); // Use full viewport height, minimum 400px
+      return windowHeight;
     } else {
       // On PC/laptop, use fixed height for optimal layout
       return 1100;
@@ -1264,10 +1264,10 @@ export const OHLCChartDemo: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col h-screen">
       <Toaster position="top-right" />
       {selectedCompany && (
-        <h2 className="text-xl md:text-2xl font-bold text-center mb-2 px-4">
+        <h2 className="text-xl md:text-2xl font-bold text-center mb-1 px-4">
           {selectedCompany}
         </h2>
       )}
@@ -1648,7 +1648,7 @@ export const OHLCChartDemo: React.FC = () => {
 
         // Show chart
         return (
-          <div>
+          <div className="flex-1">
             {candles.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 bg-gray-50 border border-gray-200 rounded-lg m-4">
                 <div className="text-center space-y-3">
