@@ -548,7 +548,7 @@ interface OHLCChartProps {
     candles: Candle[];
     vixData?: { timestamp: string; value: number }[];
     title?: string;
-    height?: number;
+    height?: number | string;
     width?: number;
     showVolume?: boolean;
     showEMA?: boolean;
@@ -583,7 +583,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     candles,
     vixData,
     title = "OHLC Chart",
-    height = chartHeight, // Use the updated chartHeight
+    height: heightProp = chartHeight, // Use the updated chartHeight
     width,
     showVolume = true,
     showEMA = true,
@@ -606,6 +606,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     hasMoreNewerData = false,
     isLoadingMoreData = false
 }) => {
+    const height = typeof heightProp === 'string' ? parseFloat(heightProp) || chartHeight : heightProp;
+
     const UnderstchartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
     const [ohlcInfo, setOhlcInfo] = useState<any>(null);
@@ -645,7 +647,18 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         const checkMobile = () => {
             const mobile = window.innerWidth < 768;
             setIsMobile(mobile);
-            
+
+            // Log screen dimensions for debugging
+            console.log('📱 Screen dimensions:', {
+                innerWidth: window.innerWidth,
+                innerHeight: window.innerHeight,
+                visualViewport: window.visualViewport ? {
+                    width: window.visualViewport.width,
+                    height: window.visualViewport.height
+                } : null,
+                isMobile: mobile
+            });
+
             // Update container dimensions based on screen size
             const newWidth = window.innerWidth;
             setContainerDimensions({ width: newWidth, height: height });
@@ -734,7 +747,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Create chart with enhanced navigation and zoom configuration optimized for mobile
         const chart = createChart(UnderstchartContainerRef.current, {
             width: isMobile ? containerDimensions.width + 10 : containerDimensions.width,
-             height: isMobile ? containerDimensions.height  + 500 : containerDimensions.height - 120, // Different heights for mobile vs desktop
+             height: containerDimensions.height, // Use full container height for both mobile and desktop
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
@@ -752,7 +765,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 lockVisibleTimeRangeOnResize: false,
                 borderVisible: true,
                 visible: true,
-                rightOffset: isMobile ? 2 : 3,
+                rightOffset: isMobile ? 1 : 3, // Reduced right offset for mobile to bring y-axis closer to edge
                 minBarSpacing: isMobile ? 1 : 0.5,
                 borderColor: '#333333',
                 // Enhanced scroll and zoom behavior for mobile
@@ -817,7 +830,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         chart.priceScale('right').applyOptions({
             scaleMargins: {
                 top: 0.005,
-                bottom: 0.01, // Minimal space for X-axis
+                bottom: isMobile ? 0.002 : 0.01, // Minimal space for X-axis, even tighter on mobile
             },
             borderVisible: true,
         });
@@ -843,7 +856,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             chartRef.current.volumeSeries = volumeSeries;
             // @ts-ignore
             chart.priceScale('volume').applyOptions({
-                scaleMargins: { top: 0.65, bottom: 0 },
+                scaleMargins: { top: isMobile ? 0.6 : 0.65, bottom: 0 },
                 autoScale: true // Re-enable auto-scaling
             });
         }
@@ -959,6 +972,14 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             if (UnderstchartContainerRef.current && chartRef.current) {
                 const containerWidth = UnderstchartContainerRef.current.clientWidth;
                 const containerHeight = UnderstchartContainerRef.current.clientHeight; // Reduce height by 10%
+                console.log('📏 Container dimensions on resize:', {
+                    clientWidth: containerWidth,
+                    clientHeight: containerHeight,
+                    offsetWidth: UnderstchartContainerRef.current.offsetWidth,
+                    offsetHeight: UnderstchartContainerRef.current.offsetHeight,
+                    scrollWidth: UnderstchartContainerRef.current.scrollWidth,
+                    scrollHeight: UnderstchartContainerRef.current.scrollHeight
+                });
                 chartRef.current.applyOptions({
                     width: containerWidth,
                     height: containerHeight,
@@ -1275,7 +1296,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 if (!rsiData.length) throw new Error('Insufficient RSI data');
                 rsiSeriesRef.current.setData(rsiData);
                 chart.priceScale(rsiPaneId).applyOptions({
-                    scaleMargins: { top: 0.1, bottom: 0.1 },
+                    scaleMargins: { top: 0.1, bottom: isMobile ? 0.05 : 0.1 },
                     borderColor: '#9C27B0',
                     borderVisible: true,
                     visible: true,
@@ -1336,7 +1357,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     vixSeriesRef.current.setData(formattedVix);
                     // @ts-ignore
                     chart.priceScale('vix').applyOptions({
-                        scaleMargins: { top: 0.1, bottom: 0.1 },
+                        scaleMargins: { top: 0.1, bottom: isMobile ? 0.05 : 0.1 },
                         borderColor: '#FFD600',
                         borderVisible: true,
                         entireTextOnly: false,
@@ -2432,7 +2453,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     };
 
     return (
-    <div className="relative w-full bg-white z-1" style={{ height: height + 'px' }}>
+    <div className="relative w-full bg-white z-1" style={{ height: '100%' }}>
             <LoadingOverlay />
             <Toaster position="top-right" />
             
@@ -2632,26 +2653,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             
             <div ref={UnderstchartContainerRef} style={{ 
                 width: '100%', 
-                height: `${height - 5}px`
+                height: '100%'
             }} />
             
-            {/* Navigation hints */}
-            <div style={{
-                position: 'absolute',
-                bottom: 5,
-                right: 16,
-                zIndex: 200,
-                background: 'rgba(0, 0, 0, 0.7)',
-                color: 'white',
-                padding: '4px 12px',
-                borderRadius: '4px',
-                fontSize: '11px',
-                pointerEvents: 'none'
-            }}>
-                <div>🖱️ Scroll: Pan • Wheel: Zoom • Home/End: Navigate edges • Ctrl+F: Fit • Ctrl+R: Reset</div>
-                {hasMoreOlderData && <div>📈 Scroll left for more historical data</div>}
-                {hasMoreNewerData && <div>📈 Scroll right for newer data</div>}
-            </div>
+            {/* Navigation hints removed as requested */}
         </div>
     );
 }

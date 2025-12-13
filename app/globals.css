@@ -1,6 +1,32 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Custom responsive utilities to prevent hydration mismatches */
+@layer utilities {
+  .mobile-only {
+    display: none;
+  }
+  
+  .desktop-only {
+    display: block;
+  }
+  
+  @media (max-width: 767px) {
+    .mobile-only {
+      display: block;
+    }
+    
+    .desktop-only {
+      display: none;
+    }
+  }
+  
+  /* Ensure smooth transitions for responsive elements */
+  .responsive-transition {
+    transition: all 0.2s ease-in-out;
+  }
+}
  
 @layer base {
   :root {

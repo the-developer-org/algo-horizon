@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
+import { useIsMobile } from '../hooks/use-mobile';
 import { OHLCChart } from './OHLCChart';
 import { Candle } from './types/candle';
 import { calculateIndicators } from './utils/indicators';
@@ -99,11 +100,66 @@ export const OHLCChartDemo: React.FC = () => {
   const [progressiveAbortController, setProgressiveAbortController] = useState<AbortController | null>(null);
 
   // Device detection for responsive design
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
   const [windowHeight, setWindowHeight] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   // Controls visibility state
   const [showControls, setShowControls] = useState(false);
+
+  // Chart container dimensions for dynamic height calculation
+  const [chartContainerDimensions, setChartContainerDimensions] = useState<{width: number, height: number} | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  // Calculate available chart height by measuring all elements above the chart
+  const availableChartHeight = useMemo(() => {
+    if (!mounted || typeof window === 'undefined') return isMobile ? 750 : 1100;
+    
+    const viewportHeight = window.innerHeight;
+    let usedHeight = 0;
+    
+    // Account for browser UI (address bar, etc.) on mobile
+    if (isMobile && window.visualViewport) {
+      usedHeight += (window.innerHeight - window.visualViewport.height);
+    }
+    
+    // Add some padding for safe areas
+    usedHeight += 16; // 1rem padding
+    
+    // If we have measured container dimensions, use them
+    if (chartContainerDimensions && chartContainerDimensions.height > 0) {
+      return chartContainerDimensions.height;
+    }
+    
+    // Otherwise calculate based on viewport minus estimated UI elements
+    // Title height (approx 2rem + margins)
+    if (selectedCompany) {
+      usedHeight += 48; // ~3rem
+    }
+    
+    // Controls height (when visible)
+    if (showControls) {
+      if (isMobile) {
+        usedHeight += 280; // Estimated mobile controls height
+      } else {
+        usedHeight += 120; // Estimated desktop controls height
+      }
+    } else {
+      usedHeight += 48; // Show controls button height
+    }
+    
+    const calculatedHeight = Math.max(viewportHeight - usedHeight, 350);
+    console.log('📏 Calculated available chart height:', {
+      viewportHeight,
+      usedHeight,
+      calculatedHeight,
+      isMobile,
+      showControls,
+      selectedCompany
+    });
+    
+    return calculatedHeight;
+  }, [mounted, isMobile, selectedCompany, showControls, chartContainerDimensions]);
 
   // Next.js routing hooks for URL parameters
   const searchParams = useSearchParams();
@@ -306,36 +362,62 @@ export const OHLCChartDemo: React.FC = () => {
       .catch(() => setIsLoading(false));
   }, []);
 
-  // Device detection and responsive height calculation
+  // Window height detection and mounted state for SSR
   useEffect(() => {
-    const updateDeviceType = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      setIsMobile(width < 768); // Mobile/tablet breakpoint
-      setWindowHeight(height);
+    // Mark component as mounted to prevent hydration mismatches
+    setMounted(true);
+    
+    const updateWindowHeight = () => {
+      if (typeof window !== 'undefined') {
+        setWindowHeight(window.innerHeight);
+      }
     };
 
     // Initial check
-    updateDeviceType();
+    updateWindowHeight();
 
     // Listen for window resize
-    window.addEventListener('resize', updateDeviceType);
+    window.addEventListener('resize', updateWindowHeight);
 
     return () => {
-      window.removeEventListener('resize', updateDeviceType);
+      window.removeEventListener('resize', updateWindowHeight);
     };
   }, []);
 
   // Calculate responsive chart height
   const chartHeight = useMemo(() => {
+    if (!mounted) {
+      return 800; // SSR fallback
+    }
     if (isMobile) {
-      // On mobile/tablet, use viewport-based height for responsiveness
-      return windowHeight;
+      // Prefer window.innerHeight for mobile browsers, fallback to visualViewport if available and valid
+      if (typeof window !== 'undefined') {
+        const vh = (window.innerHeight && window.innerHeight > 0)
+          ? window.innerHeight
+          : (window.visualViewport && window.visualViewport.height > 0)
+            ? window.visualViewport.height
+            : windowHeight;
+        const calculatedHeight = Math.max(vh * 0.7, 350);
+        console.log('📏 Chart height calculation (mobile):', {
+          windowInnerHeight: window.innerHeight,
+          visualViewportHeight: window.visualViewport?.height,
+          windowHeight: windowHeight,
+          vh: vh,
+          calculatedHeight: calculatedHeight,
+          percentage: '70%'
+        });
+        return calculatedHeight;
+      }
+      return Math.max(windowHeight * 0.7, 350);
     } else {
-      // On PC/laptop, use fixed height for optimal layout
+      console.log('📏 Chart height calculation (desktop):', {
+        windowInnerHeight: window.innerHeight,
+        calculatedHeight: 1100,
+        percentage: 'fixed 1100px'
+      });
       return 1100;
     }
-  }, [isMobile, windowHeight]);
+  }, [isMobile, windowHeight, mounted]);
 
   // Process URL parameters after keyMapping is loaded
   useEffect(() => {
@@ -533,16 +615,36 @@ export const OHLCChartDemo: React.FC = () => {
     }
   }, [emaCalculation, applyEMAToCandles]); // Don't include candles to avoid infinite loop
 
-  // Cleanup progressive loading on component unmount only
-  useEffect(() => {
-    return () => {
-      // Only cleanup on component unmount
-      if (progressiveAbortController) {
-        //console.log('🧹 Cleaning up progressive loading on component unmount');
-        progressiveAbortController.abort();
+  // Update chart container dimensions when mounted or resized
+  useLayoutEffect(() => {
+    const updateChartContainerDimensions = () => {
+      if (chartContainerRef.current && mounted) {
+        const rect = chartContainerRef.current.getBoundingClientRect();
+        const newHeight = rect.height;
+        const newWidth = rect.width;
+        
+        // Only update if dimensions have actually changed and are valid
+        setChartContainerDimensions(prev => {
+          if (!prev || prev?.height !== newHeight || prev.width !== newWidth) {
+            console.log('📏 Updated chart container dimensions:', { width: newWidth, height: newHeight });
+            return { width: newWidth, height: newHeight };
+          }
+          return prev;
+        });
       }
     };
-  }, []); // Empty dependency array - only run on mount/unmount
+
+    // Initial measurement - delay slightly to ensure DOM is ready
+    const timeoutId = setTimeout(updateChartContainerDimensions, 0);
+
+    // Update on window resize
+    window.addEventListener('resize', updateChartContainerDimensions);
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', updateChartContainerDimensions);
+    };
+  }, [mounted]);
 
   // Use ref to track previous instrument key
   const prevInstrumentKeyRef = useRef<string>('');
@@ -1255,7 +1357,8 @@ export const OHLCChartDemo: React.FC = () => {
     return newIndex < currentIndex;
   };
 
-  if (isLoading) {
+  // Show loading during SSR hydration or when actually loading
+  if (isLoading || !mounted) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
@@ -1264,15 +1367,58 @@ export const OHLCChartDemo: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div 
+      className="flex flex-col h-screen min-h-[100dvh] min-h-screen"
+      ref={(el) => {
+        if (el && isMobile && mounted) {
+          console.log('🏠 Main container dimensions:', {
+            clientWidth: el.clientWidth,
+            clientHeight: el.clientHeight,
+            offsetWidth: el.offsetWidth,
+            offsetHeight: el.offsetHeight,
+            scrollWidth: el.scrollWidth,
+            scrollHeight: el.scrollHeight,
+            computedStyle: window.getComputedStyle(el)
+          });
+        }
+      }}
+    >
       <Toaster position="top-right" />
       {selectedCompany && (
-        <h2 className="text-xl md:text-2xl font-bold text-center mb-1 px-4">
+        <h2 
+          className="text-xl md:text-2xl font-bold text-center mb-1 px-4"
+          ref={(el) => {
+            if (el && isMobile && mounted) {
+              console.log('📝 Title dimensions:', {
+                clientWidth: el.clientWidth,
+                clientHeight: el.clientHeight,
+                offsetWidth: el.offsetWidth,
+                offsetHeight: el.offsetHeight,
+                scrollWidth: el.scrollWidth,
+                scrollHeight: el.scrollHeight
+              });
+            }
+          }}
+        >
           {selectedCompany}
         </h2>
       )}
       {!showControls && (
-        <div className="flex justify-center p-2">
+        <div 
+          className="flex justify-center p-2"
+          ref={(el) => {
+            if (el && isMobile && mounted) {
+              console.log('🔘 Show controls button dimensions:', {
+                clientWidth: el.clientWidth,
+                clientHeight: el.clientHeight,
+                offsetWidth: el.offsetWidth,
+                offsetHeight: el.offsetHeight,
+                scrollWidth: el.scrollWidth,
+                scrollHeight: el.scrollHeight
+              });
+            }
+          }}
+        > 
           <button
             onClick={() => setShowControls(true)}
             className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded shadow-sm"
@@ -1284,8 +1430,21 @@ export const OHLCChartDemo: React.FC = () => {
       {showControls && (
         <>
           {/* Mobile Controls Version */}
-          {isMobile ? (
-            <div className="mb-1 flex flex-col p-1.5 bg-gray-50 rounded mx-2">
+          <div 
+            className={`mb-0.5 flex flex-col p-1.5 bg-gray-50 rounded mx-2 mobile-only ${!mounted || !isMobile ? 'hidden' : ''}`}
+            ref={(el) => {
+              if (el && isMobile && mounted) {
+                console.log('🎛️ Mobile controls dimensions:', {
+                  clientWidth: el.clientWidth,
+                  clientHeight: el.clientHeight,
+                  offsetWidth: el.offsetWidth,
+                  offsetHeight: el.offsetHeight,
+                  scrollWidth: el.scrollWidth,
+                  scrollHeight: el.scrollHeight
+                });
+              }
+            }}
+          >
               {/* Mobile Search Section */}
               <div className="mb-1.5">
                 <div className="relative">
@@ -1451,9 +1610,24 @@ export const OHLCChartDemo: React.FC = () => {
                 </button>
               </div>
             </div>
-          ) : (
-            /* Desktop Controls Version */
-            <div className="mb-4 flex flex-col items-center p-4 bg-white border border-gray-200 rounded-lg shadow-sm mx-4">
+        
+          
+          {/* Desktop Controls Version */}
+          <div 
+            className={`mb-2 flex flex-col items-center p-4 bg-white border border-gray-200 rounded-lg shadow-sm mx-4 desktop-only responsive-transition ${!mounted || isMobile ? 'hidden' : ''}`}
+            ref={(el) => {
+              if (el && !isMobile && mounted) {
+                console.log('🖥️ Desktop controls dimensions:', {
+                  clientWidth: el.clientWidth,
+                  clientHeight: el.clientHeight,
+                  offsetWidth: el.offsetWidth,
+                  offsetHeight: el.offsetHeight,
+                  scrollWidth: el.scrollWidth,
+                  scrollHeight: el.scrollHeight
+                });
+              }
+            }}
+          >
               {/* Desktop Layout - Horizontal */}
               <div className="flex flex-row flex-wrap items-center justify-center w-full max-w-6xl gap-4 mx-auto">
                 {/* Desktop Search */}
@@ -1631,9 +1805,8 @@ export const OHLCChartDemo: React.FC = () => {
                 </button>
               </div>
             </div>
-          )}
-        </>
-      )}
+        </>)
+      }
 
       {/* Display content based on loading and view state */}
       {(() => {
@@ -1648,7 +1821,23 @@ export const OHLCChartDemo: React.FC = () => {
 
         // Show chart
         return (
-          <div className="flex-1">
+          <div 
+            className="flex-1 min-h-[350px]"
+            ref={(el) => {
+              chartContainerRef.current = el;
+              if (el && isMobile) {
+                console.log('📊 Chart flex container dimensions:', {
+                  clientWidth: el.clientWidth,
+                  clientHeight: el.clientHeight,
+                  offsetWidth: el.offsetWidth,
+                  offsetHeight: el.offsetHeight,
+                  scrollWidth: el.scrollWidth,
+                  scrollHeight: el.scrollHeight,
+                  computedStyle: window.getComputedStyle(el)
+                });
+              }
+            }}
+          >
             {candles.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 bg-gray-50 border border-gray-200 rounded-lg m-4">
                 <div className="text-center space-y-3">
@@ -1665,11 +1854,13 @@ export const OHLCChartDemo: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <OHLCChart
+              <>
+                {isMobile && console.log('📊 Passing height to OHLCChart:', availableChartHeight)}
+                <OHLCChart
                 candles={optimizedCandles}
                 vixData={vixData}
                 title={`${selectedCompany || 'Select a company'} - ${selectedTimeframe} Chart`}
-                height={chartHeight}
+                height={typeof availableChartHeight === 'number' ? availableChartHeight : Number.parseInt(availableChartHeight as string, 10) || 800}
                 showVolume={true}
                 showEMA={showEMA}
                 showRSI={showRSI}
@@ -1696,7 +1887,8 @@ export const OHLCChartDemo: React.FC = () => {
                 hasMoreNewerData={false} // We typically only load historical data
                 isLoadingMoreData={loadingOlderData}
               />
-                )}
+              </>
+            )}
            
             
             
