@@ -36,6 +36,7 @@
     "react-icons": "^5.4.0",
     "react-redux": "^9.2.0",
     "react-rnd": "^10.5.2",
+    "redux-persist": "^6.0.0",
     "shadcn-ui": "^0.9.4",
     "sockjs-client": "^1.6.1",
     "stompjs": "^2.3.3",
