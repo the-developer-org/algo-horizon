@@ -27,6 +27,7 @@ export default function DeepDivePage() {
   const [showStryke, setShowStryke] = useState(true);
   const [showAlgo, setShowAlgo] = useState(true);
   const [showFibo, setShowFibo] = useState(true);
+  const [showRealTime, setShowRealTime] = useState(true);
   
   // Search state for company name
   const [companySearch, setCompanySearch] = useState('');
@@ -268,6 +269,7 @@ export default function DeepDivePage() {
     let allAlgoAnalysis: AnalysisResponse[] = [];
     let allStrykeAnalysis: AnalysisResponse[] = [];
     let allFiboAnalysis: AnalysisResponse[] = [];
+    let allRealTimeAnalysis: AnalysisResponse[] = [];
     let completedAlphabets: string[] = [];
     let consecutiveFailures = 0;
     const maxConsecutiveFailures = 5;
@@ -292,12 +294,14 @@ export default function DeepDivePage() {
               const algoAnalysis: AnalysisResponse[] = data.swingStatsList["ALGO"] || [];
               const strykeAnalysis: AnalysisResponse[] = data.swingStatsList["STRYKE"] || [];
               const fiboAnalysis: AnalysisResponse[] = data.swingStatsList["FIBO"] || [];
+              const realTimeAnalysis: AnalysisResponse[] = data.swingStatsList["REAL-TIME"] || [];
               
               allAlgoAnalysis = [...allAlgoAnalysis, ...algoAnalysis];
               allStrykeAnalysis = [...allStrykeAnalysis, ...strykeAnalysis];
               allFiboAnalysis = [...allFiboAnalysis, ...fiboAnalysis];
+              allRealTimeAnalysis = [...allRealTimeAnalysis, ...realTimeAnalysis];
 
-              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis];
+              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis, ...realTimeAnalysis];
               setDeepDiveData(allStrykes);
 
               consecutiveFailures = 0;
@@ -337,6 +341,7 @@ export default function DeepDivePage() {
         strykeAnalysisList: allStrykeAnalysis,
         algoAnalysisList: allAlgoAnalysis,
         fiboAnalysisList: allFiboAnalysis,
+        realTimeAnalysisList: allRealTimeAnalysis,
         keyMapping: {}
       }));
 
@@ -411,10 +416,11 @@ export default function DeepDivePage() {
       if (item.label === 'STRYKE' && !showStryke) return false;
       if (item.label === 'ALGO' && !showAlgo) return false;
       if (item.label === 'FIBO' && !showFibo) return false;
+      if (item.label === 'REAL-TIME' && !showRealTime) return false;
       
       return true;
     });
-  }, [deepDiveMode, deepDiveData, filterLabelCombo, selectedMonth, filterSupportNotTouched, filterHHBreak, showStryke, showAlgo, showFibo]);
+  }, [deepDiveMode, deepDiveData, filterLabelCombo, selectedMonth, filterSupportNotTouched, filterHHBreak, showStryke, showAlgo, showFibo, showRealTime]);
 
   // Group deep dive entries by UUID (each UUID can have max 3 entries: ALGO, STRYKE, FIBO)
   const groupedByUUID = React.useMemo(() => {
@@ -442,8 +448,8 @@ export default function DeepDivePage() {
       }
     });
     
-    // Sort entries within each group: STRYKE, ALGO, FIBO
-    const analysisOrder = { 'STRYKE': 1, 'ALGO': 2, 'FIBO': 3 };
+    // Sort entries within each group: STRYKE, ALGO, FIBO, REAL-TIME
+    const analysisOrder = { 'STRYKE': 1, 'ALGO': 2, 'FIBO': 3, 'REAL-TIME': 4 };
     groups.forEach(group => {
       group.entries.sort((a, b) => {
         const orderA = analysisOrder[a.label as keyof typeof analysisOrder] || 999;
@@ -781,6 +787,17 @@ export default function DeepDivePage() {
               title="Toggle FIBO entries"
             >
               {showFibo ? '✓ FIBO' : 'FIBO'}
+            </button>
+            <button
+              onClick={() => setShowRealTime(!showRealTime)}
+              className={`px-3 py-1 rounded-md text-white transition-colors ${
+                showRealTime 
+                  ? 'bg-orange-600 hover:bg-orange-700' 
+                  : 'bg-gray-400 hover:bg-gray-500'
+              }`}
+              title="Toggle REAL-TIME entries"
+            >
+              {showRealTime ? '✓ REAL-TIME' : 'REAL-TIME'}
             </button>
           </div>
 

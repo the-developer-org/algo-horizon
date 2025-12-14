@@ -5,6 +5,7 @@ export interface AnalysisState {
   strykeAnalysisList: AnalysisResponse[];
   algoAnalysisList: AnalysisResponse[];
   fiboAnalysisList: AnalysisResponse[];
+  realTimeAnalysisList: AnalysisResponse[];
   strykeMetrics: metricsData | null;
   algoMetrics: metricsData | null;
   fiboMetrics: metricsData | null;
@@ -17,6 +18,7 @@ const initialState: AnalysisState = {
   strykeAnalysisList: [],
   algoAnalysisList: [],
   fiboAnalysisList: [],
+  realTimeAnalysisList: [],
   strykeMetrics: null,
   algoMetrics: null,
   fiboMetrics: null,
@@ -36,11 +38,13 @@ const analysisSlice = createSlice({
       strykeAnalysisList: AnalysisResponse[];
       algoAnalysisList: AnalysisResponse[];
       fiboAnalysisList: AnalysisResponse[];
+      realTimeAnalysisList: AnalysisResponse[];
       keyMapping: { [companyName: string]: string };
     }>) => {
       state.strykeAnalysisList = action.payload.strykeAnalysisList;
       state.algoAnalysisList = action.payload.algoAnalysisList;
       state.fiboAnalysisList = action.payload.fiboAnalysisList;
+      state.realTimeAnalysisList = action.payload.realTimeAnalysisList;
       state.keyMapping = action.payload.keyMapping;
       state.lastFetchedAt = Date.now();
       state.isLoading = false;

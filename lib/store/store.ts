@@ -6,7 +6,7 @@ import analysisReducer from './analysisSlice';
 const persistConfig = {
   key: 'analysis-cache',
   storage,
-  whitelist: ['strykeAnalysisList', 'algoAnalysisList', 'fiboAnalysisList', 'strykeMetrics', 'algoMetrics', 'fiboMetrics', 'keyMapping', 'lastFetchedAt']
+  whitelist: ['strykeAnalysisList', 'algoAnalysisList', 'fiboAnalysisList', 'realTimeAnalysisList', 'strykeMetrics', 'algoMetrics', 'fiboMetrics', 'keyMapping', 'lastFetchedAt']
 };
 
 const persistedReducer = persistReducer(persistConfig, analysisReducer);

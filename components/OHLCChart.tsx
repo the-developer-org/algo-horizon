@@ -562,6 +562,7 @@ interface OHLCChartProps {
     entryDates?: string[]; // Entry dates to highlight on chart
     strykeDates?: string[]; // Stryke entry dates to highlight with different style
     algoDates?: string[]; // Algo entry dates to highlight with different style
+    realTimeDates?: string[]; // Real-Time entry dates to highlight with different style
     zoneStartDates?: string[]; // Dates to use for calculating zone start times
     entryPrice?: number; // Entry price for plotting target/SL lines
     targetPrice?: number; // Target price for plotting target line
@@ -597,6 +598,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     entryDates = [], // Entry dates to highlight
     strykeDates = [], // Stryke entry dates to highlight
     algoDates = [], // Algo entry dates to highlight
+    realTimeDates = [], // Real-Time entry dates to highlight
     zoneStartDates = [], // Dates to use for calculating zone start times
     entryPrice, // Entry price for plotting target/SL lines
     targetPrice, // Target price for plotting target line
@@ -733,6 +735,20 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
         return indices;
     }, [algoDates, candles, detectedTimeframe]);
+
+    // Map real-time dates to candle indices
+    const realTimeCandleIndices = useMemo(() => {
+        const indices = mapEntryDatesToCandles(realTimeDates, candles, detectedTimeframe);
+        if (indices.size > 0) {
+            //console.log(`🎯 Real-Time date mapping for ${detectedTimeframe} timeframe:`, realTimeDates.length, 'dates →', indices.size, 'markers');
+            //console.log('Real-Time dates:', realTimeDates);
+            //console.log('Real-Time indices:', Array.from(indices));
+        } else if (realTimeDates.length > 0) {
+            //console.log(`❌ No real-time markers created for ${detectedTimeframe} timeframe:`, realTimeDates.length, 'dates provided');
+            //console.log('Real-Time dates:', realTimeDates);
+        }
+        return indices;
+    }, [realTimeDates, candles, detectedTimeframe]);
 
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
@@ -1765,7 +1781,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 });
                 
                 // Add entry date markers and dotted lines only if we have Stryke entry dates
-                if (entryCandleIndices && entryCandleIndices.size > 0 && (strykeCandleIndices.size === 0 && algoCandleIndices.size === 0)) {
+                if (entryCandleIndices && entryCandleIndices.size > 0 && (strykeCandleIndices.size === 0 && algoCandleIndices.size === 0 && realTimeCandleIndices.size === 0)) {
                     entryCandleIndices.forEach((entryIndex) => {
                         if (entryIndex < candles.length) {
                             const entryCandle = candles[entryIndex];
@@ -1846,6 +1862,36 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 time: entryTime,
                                 position: 'aboveBar',
                                 color: '#4ecdc4', // Teal color for the circle
+                                shape: 'circle',
+                                text: '', // No text for the circle
+                                size: 0.5,
+                            });
+                        }
+                    });
+                }
+
+                // Add real-time date markers
+                if (realTimeCandleIndices && realTimeCandleIndices.size > 0) {
+                    realTimeCandleIndices.forEach((entryIndex) => {
+                        if (entryIndex < candles.length) {
+                            const entryCandle = candles[entryIndex];
+                            const entryTime = parseTimestampToUnix(entryCandle.timestamp);
+                            
+                            // Add real-time marker with orange color and style
+                            allMarkers.push({
+                                time: entryTime,
+                                position: 'aboveBar',
+                                color: '#ff6b35', // Orange color for real-time points
+                                shape: 'flag',
+                                text: 'R',
+                                size: 10,
+                            });
+                            
+                            // Add circle marker for real-time
+                            allMarkers.push({
+                                time: entryTime,
+                                position: 'aboveBar',
+                                color: '#ff8c42', // Lighter orange color for the circle
                                 shape: 'circle',
                                 text: '', // No text for the circle
                                 size: 0.5,
@@ -1993,7 +2039,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 trendLinesRef.current = [];
             }
         };
-    }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices, strykeCandleIndices, algoCandleIndices, entryPrice, targetPrice, stopLossPrice]); // Added entryCandleIndices, strykeCandleIndices, algoCandleIndices, entryPrice, targetPrice, stopLossPrice
+    }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices, strykeCandleIndices, algoCandleIndices, realTimeCandleIndices, entryPrice, targetPrice, stopLossPrice]); // Added entryCandleIndices, strykeCandleIndices, algoCandleIndices, realTimeCandleIndices, entryPrice, targetPrice, stopLossPrice
 
     // Crosshair move handler effect - updates when chart changes
     useEffect(() => {

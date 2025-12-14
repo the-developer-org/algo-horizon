@@ -66,6 +66,7 @@ export const OHLCChartDemo: React.FC = () => {
   // Entry dates state
   const [strykeEntryDates, setStrykeEntryDates] = useState<string[]>([]);
   const [algoEntryDates, setAlgoEntryDates] = useState<string[]>([]);
+  const [realTimeEntryDates, setRealTimeEntryDates] = useState<string[]>([]);
 
   // View mode state
   const [viewMode, setViewMode] = useState<'stryke' | 'algo'>('stryke');
@@ -176,7 +177,7 @@ export const OHLCChartDemo: React.FC = () => {
   }, [keyMapping]);
 
   // Function to update URL parameters
-  const updateUrlParams = useCallback((instrumentKey: string, timeframe: Timeframe, date?: string, time?: string, strykeDate?: string, algoDate?: string) => {
+  const updateUrlParams = useCallback((instrumentKey: string, timeframe: Timeframe, date?: string, time?: string, strykeDate?: string, algoDate?: string, realTimeDate?: string) => {
     const params = new URLSearchParams();
     if (instrumentKey) {
       params.set('instrumentKey', instrumentKey);
@@ -195,6 +196,9 @@ export const OHLCChartDemo: React.FC = () => {
     }
     if (algoDate) {
       params.set('algoDate', algoDate);
+    }
+    if (realTimeDate) {
+      params.set('realTimeDate', realTimeDate);
     }
     
     const newUrl = `${window.location.pathname}?${params.toString()}`;
@@ -429,6 +433,7 @@ export const OHLCChartDemo: React.FC = () => {
     const timeParam = searchParams.get('time');
     const strykeDateParam = searchParams.get('strykeDate');
     const algoDateParam = searchParams.get('algoDate');
+    const realTimeDateParam = searchParams.get('realTimeDate');
     const entryPriceParam = searchParams.get('entryPrice');
     const targetPriceParam = searchParams.get('targetPrice');
     const stopLossPriceParam = searchParams.get('stopLossPrice');
@@ -476,6 +481,7 @@ export const OHLCChartDemo: React.FC = () => {
       // Parse and set stryke and algo dates
       let hasStrykeData = false;
       let hasAlgoData = false;
+      let hasRealTimeData = false;
 
       if (strykeDateParam) {
         try {
@@ -501,6 +507,19 @@ export const OHLCChartDemo: React.FC = () => {
         }
       } else {
         setAlgoEntryDates([]);
+      }
+
+      if (realTimeDateParam) {
+        try {
+          const realTimeDates = realTimeDateParam.split(',').map(date => date.trim()).filter(date => date);
+          setRealTimeEntryDates(realTimeDates);
+          if (realTimeDates.length > 0) hasRealTimeData = true;
+        } catch (error) {
+          console.warn('Invalid realTimeDate parameter:', realTimeDateParam);
+          setRealTimeEntryDates([]);
+        }
+      } else {
+        setRealTimeEntryDates([]);
       }
       
       // Parse risk-reward parameters (Legacy/Global)
@@ -724,7 +743,8 @@ export const OHLCChartDemo: React.FC = () => {
     if (instrumentKey) {
       const strykeDateStr = strykeEntryDates.length > 0 ? strykeEntryDates.join(',') : undefined;
       const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
-      updateUrlParams(instrumentKey, selectedTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
+      const realTimeDateStr = realTimeEntryDates.length > 0 ? realTimeEntryDates.join(',') : undefined;
+      updateUrlParams(instrumentKey, selectedTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr, realTimeDateStr);
     }
 
     // Fetch entry dates when a new company is selected
@@ -1285,7 +1305,8 @@ export const OHLCChartDemo: React.FC = () => {
     if (selectedInstrumentKey) {
       const strykeDateStr = strykeEntryDates.length > 0 ? strykeEntryDates.join(',') : undefined;
       const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
-      updateUrlParams(selectedInstrumentKey, newTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
+      const realTimeDateStr = realTimeEntryDates.length > 0 ? realTimeEntryDates.join(',') : undefined;
+      updateUrlParams(selectedInstrumentKey, newTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr, realTimeDateStr);
     }
     
     // Check if we need to fetch new data for the timeframe
@@ -1312,7 +1333,8 @@ export const OHLCChartDemo: React.FC = () => {
           // Also revert URL parameters
           const strykeDateStr = strykeEntryDates.length > 0 ? strykeEntryDates.join(',') : undefined;
           const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
-          updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
+          const realTimeDateStr = realTimeEntryDates.length > 0 ? realTimeEntryDates.join(',') : undefined;
+          updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr, realTimeDateStr);
         });
     } else if (rawCandles.length) {
       // Use existing data and process it for the new timeframe
@@ -1334,7 +1356,8 @@ export const OHLCChartDemo: React.FC = () => {
         setSelectedTimeframe(previousTimeframe);
         const strykeDateStr = strykeEntryDates.length > 0 ? strykeEntryDates.join(',') : undefined;
         const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
-        updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
+        const realTimeDateStr = realTimeEntryDates.length > 0 ? realTimeEntryDates.join(',') : undefined;
+        updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr, realTimeDateStr);
       }
     } else {
       // No data available
@@ -1342,7 +1365,8 @@ export const OHLCChartDemo: React.FC = () => {
       setSelectedTimeframe(previousTimeframe);
       const strykeDateStr = strykeEntryDates.length > 0 ? strykeEntryDates.join(',') : undefined;
       const algoDateStr = algoEntryDates.length > 0 ? algoEntryDates.join(',') : undefined;
-      updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr);
+      const realTimeDateStr = realTimeEntryDates.length > 0 ? realTimeEntryDates.join(',') : undefined;
+      updateUrlParams(selectedInstrumentKey, previousTimeframe, maxDate, maxTime, strykeDateStr, algoDateStr, realTimeDateStr);
     }
   }, [selectedTimeframe, selectedInstrumentKey, rawCandles, updateUrlParams, fetchCandles, applyEMAToCandles, maxDate, maxTime]);
 
@@ -1873,6 +1897,7 @@ export const OHLCChartDemo: React.FC = () => {
                 entryDates={[]} // Legacy entry dates - empty when using new stryke/algo dates
                 strykeDates={strykeEntryDates} // Stryke entry dates
                 algoDates={algoEntryDates} // Algo entry dates
+                realTimeDates={realTimeEntryDates} // Real-Time entry dates
                 
                 // Pass active config based on view mode
                 entryPrice={viewMode === 'stryke' ? (strykeConfig.entryPrice || entryPrice) : (algoConfig.entryPrice || entryPrice)}
