@@ -851,6 +851,18 @@ export default function DeepDivePage() {
               const algoBreakCount = algoEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
               return ` | ALGO: ${algoPassingCount}/${algoEntries.length} | HH BREAK: ${algoBreakCount}`;
             })()}
+            {showRealTime && (() => {
+              const realTimeEntries = deepDiveList.filter(item => item.label === 'REAL-TIME');
+              const realTimePassingCount = realTimeEntries.filter(item => {
+                const dd = item.analysisDeepDive;
+                const isOneOne = deepDiveMode === 'RR_1_1';
+                const prelude = isOneOne ? dd?.prelude1 : dd?.prelude2;
+                const passing = isOneOne ? dd?.passing1 : dd?.passing2;
+                return prelude && passing;
+              }).length;
+              const realTimeBreakCount = realTimeEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
+              return ` | REAL-TIME: ${realTimePassingCount}/${realTimeEntries.length} | HH BREAK: ${realTimeBreakCount}`;
+            })()}
             {showFibo && (() => {
               const fiboEntries = deepDiveList.filter(item => item.label === 'FIBO');
               const fiboPassingCount = fiboEntries.filter(item => {

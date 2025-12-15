@@ -21,6 +21,8 @@ const nextConfig = {
   env: {
     BUILD_TIME: new Date().toISOString(),
   },
+  // Explicitly set the workspace root to resolve lockfile warning
+  outputFileTracingRoot: path.resolve(__dirname),
 }
 
 module.exports = nextConfig;
