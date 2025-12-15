@@ -695,6 +695,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     }, [candles]);
 
     // Map entry dates to candle indices
+        const handleLoadMoreData = async () => {
+            if (onLoadMoreData && !isLoadingMoreData) {
+                await onLoadMoreData('older');
+            }
+        };
     const entryCandleIndices = useMemo(() => {
         const indices = mapEntryDatesToCandles(entryDates, candles, detectedTimeframe);
         if (indices.size > 0) {

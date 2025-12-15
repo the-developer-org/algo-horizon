@@ -306,7 +306,7 @@ export const OHLCChartDemo: React.FC = () => {
         from.setDate(from.getDate() - 90);
         break;
       case '4h':
-        from.setDate(from.getDate() - 90);
+        from.setDate(from.getDate() - 20);
         break;
       case '1d':
         from.setDate(from.getDate() - 500);
@@ -1804,7 +1804,7 @@ export const OHLCChartDemo: React.FC = () => {
                 )}
                 
                 {/* Desktop Load More Data */}
-                {candles.length > 0 && hasMoreCandles && (
+                {candles.length > 0 && (
                   <button
                     onClick={() => loadMoreHistoricalData()}
                     disabled={loadingOlderData}
