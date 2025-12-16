@@ -1,3 +1,6 @@
+import axios from "axios";
+import { SwingPointsApiResponse } from "./types/OHLCChartTypes";
+
 // Helper function for 4-point analysis
 function analyzeFourPoints(fourth: string, third: string, second: string, first: string) {
   // Strong Bullish Patterns (4 points)
@@ -167,6 +170,25 @@ function analyzeSwingPointTrend(lastSwingPoints :any[]) {
   
   return 'neutral';
 }
+
+async function fetchSwingPointsForStock(swingStatsRequest: any) {
+    try {
+
+      let baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+        const response : SwingPointsApiResponse = await axios.post(`${baseUrl}/api/historical-data/get-swing-stats`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(swingStatsRequest),
+        });
+        console.log("Swing Points API Response:", response.swingPoints);
+        return response.swingPoints;
+    } catch (error) {
+        console.error("Error fetching swing points:", error);
+        return [];
+    }
+}
   
 
 export {
@@ -174,5 +196,6 @@ export {
     analyzeThreePoints,
     analyzeTwoPoints,
     analyzeSinglePoint,
-    analyzeSwingPointTrend
+    analyzeSwingPointTrend,
+    fetchSwingPointsForStock
 }

@@ -4,8 +4,8 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { createChart } from 'lightweight-charts';
 import { Candle } from './types/candle';
-import { calculateSwingPointsFromCandles, parseTimestampToUnix } from '../utils/swingPointCalculator';
-import {analyzeSwingPointTrend } from './OHLCChartUtils';
+import { parseTimestampToUnix } from '../utils/swingPointCalculator';
+import {analyzeSwingPointTrend, fetchSwingPointsForStock } from './OHLCChartUtils';
 import { CandleAnalysis, OHLCChartProps } from './types/OHLCChartTypes';
 
 // Performance optimization constants
@@ -278,6 +278,9 @@ const chartHeight = maxHeight * 0.91; // Increase chart height to 91% of the vie
 
 export const OHLCChart: React.FC<OHLCChartProps> = ({
     candles,
+    instrumentKey,
+    timeframe,
+    companyName,
     title = "OHLC Chart",
     height: heightProp = chartHeight, // Use the updated chartHeight
     width,
@@ -1179,7 +1182,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         const chart = chartRef.current;
         
         // Clean up any existing trend lines from previous renders
-        if (trendLinesRef.current && trendLinesRef.current.length && chart) {
+        if (trendLinesRef?.current && trendLinesRef?.current.length && chart) {
             trendLinesRef.current.forEach(line => {
                 if (line && chart) {
                     try {
@@ -1211,7 +1214,19 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Calculate swing points directly from OHLC data and display dotted lines
         if (showSwingPoints && candles.length >= 11) { // Need at least 11 candles for lookback of 5
             try {
-                const calculatedSwingPoints = calculateSwingPointsFromCandles(candles, 5);
+
+                debugger
+                const candleSize = candles.length;
+                const swingStatsRequest = {
+                    "instrumentKey" : instrumentKey,
+                    "fromDate" : candles[0].timestamp.split('T')[0],
+                    "toDate" : candles[candleSize - 1].timestamp.split('T')[0],
+                    "timeframe" : timeframe,
+                    "companyName" : companyName,
+
+
+                }
+                let calculatedSwingPoints = await fetchSwingPointsForStock(swingStatsRequest);
                 
                 // Store swing points for use in click analysis
                 calculatedSwingPointsRef.current = calculatedSwingPoints;
@@ -1550,7 +1565,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 trendLinesRef.current = [];
             }
         };
-    }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices, strykeCandleIndices, algoCandleIndices, realTimeCandleIndices, entryPrice, targetPrice, stopLossPrice]); // Added entryCandleIndices, strykeCandleIndices, algoCandleIndices, realTimeCandleIndices, entryPrice, targetPrice, stopLossPrice
+    }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices, strykeCandleIndices, algoCandleIndices, realTimeCandleIndices, entryPrice, targetPrice, stopLossPrice]);
 
     // Crosshair move handler effect - updates when chart changes
 

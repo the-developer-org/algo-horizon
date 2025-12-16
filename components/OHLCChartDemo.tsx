@@ -1786,6 +1786,9 @@ export const OHLCChartDemo: React.FC = () => {
                 {isMobile && console.log('📊 Passing height to OHLCChart:', availableChartHeight)}
                 <OHLCChart
                 candles={optimizedCandles}
+                instrumentKey={selectedInstrumentKey || ''}
+                companyName={selectedCompany || ''}
+                timeframe={selectedTimeframe}
                 title={`${selectedCompany || 'Select a company'} - ${selectedTimeframe} Chart`}
                 height={typeof availableChartHeight === 'number' ? availableChartHeight : Number.parseInt(availableChartHeight as string, 10) || 800}
                 showVolume={true}

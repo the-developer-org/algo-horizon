@@ -20,6 +20,9 @@ export interface CandleAnalysis {
 
 export interface OHLCChartProps {
     candles: Candle[];
+    instrumentKey?: string;
+    companyName?: string;
+    timeframe?: string;
     title?: string;
     height?: number | string;
     width?: number;
@@ -53,4 +56,23 @@ export interface FetchCandlesOptions {
     resetState?: boolean;
     showLoadingToast?: boolean;
     loadingMessage?: string;
+}
+
+export interface SwingStatsRequest{
+    instrumentKey : string;
+    fromDate : string;
+    toDate : string;
+    timeframe : string;
+    companyName : string;
+}
+
+export interface SwingPoints {
+    timeStamp: string;
+    price: number;
+    label: 'HH' | 'HL' | 'LH' | 'LL';
+}
+
+export interface SwingPointsApiResponse  {
+    swingPoints: SwingPoints[];
+    statusText: string;
 }
