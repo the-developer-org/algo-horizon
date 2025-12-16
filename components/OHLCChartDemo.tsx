@@ -9,9 +9,7 @@ import { Candle } from './types/candle';
 import { calculateIndicators } from './utils/indicators';
 import { Timeframe, processTimeframeData } from './utils/timeframeUtils';
 import { fetchPaginatedUpstoxData, UpstoxPaginationParams } from './utils/upstoxApi';
-import { EntryDatesApiResponse } from './types/entry-dates';
-import axios from 'axios';
-import { set } from 'date-fns';
+
 
 // Performance optimization constants
 const MAX_CANDLES_FOR_CHART = 10000; // Limit for ultra-fast performance
@@ -33,7 +31,6 @@ export const OHLCChartDemo: React.FC = () => {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [rawCandles, setRawCandles] = useState<Candle[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1d');
-  const [vixData, setVixData] = useState<{ timestamp: string; value: number }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,11 +42,11 @@ export const OHLCChartDemo: React.FC = () => {
   const [resistance, setResistance] = useState<{ value: number } | null>(null);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [shouldAutoLoad, setShouldAutoLoad] = useState(false);
+  const [showSwingPoints, setShowSwingPoints] = useState(false);
   const [avgVolume, setAvgVolume] = useState<number>(0);
   // Chart indicator toggles
   const [showRSI] = useState(false);
-  const [showVIX] = useState(false);
-  const [showSwingPoints] = useState(true);
+  
   // EMA calculation toggle - separate from display toggle
   const [emaCalculation, setEmaCalculation] = useState(false);
   const [isCalculatingEMA, setIsCalculatingEMA] = useState(false);
@@ -111,6 +108,24 @@ export const OHLCChartDemo: React.FC = () => {
   // Chart container dimensions for dynamic height calculation
   const [chartContainerDimensions, setChartContainerDimensions] = useState<{width: number, height: number} | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
+
+ // Fetch KeyMapping from Redis on mount
+  useEffect(() => {
+    setIsLoading(true);
+    fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        const mapping = JSON.parse(data.result);
+        setKeyMapping(mapping);
+        setIsLoading(false);
+      })
+      .catch(() => setIsLoading(false));
+  }, []);
 
   // Calculate available chart height by measuring all elements above the chart
   const availableChartHeight = useMemo(() => {
@@ -262,25 +277,6 @@ export const OHLCChartDemo: React.FC = () => {
     return ranges;
   };
 
-  /**
-   * Get approximate candles per trading day for a timeframe
-   */
-  const getCandlesPerTradingDay = (timeframe: Timeframe): number => {
-    // Approximate trading hours: 6.25 hours (9:15 AM to 3:30 PM IST)
-    const tradingMinutes = 375;
-    
-    switch (timeframe) {
-      case '1m': return tradingMinutes; // 375 candles per day
-      case '5m': return Math.floor(tradingMinutes / 5); // 75 candles per day
-      case '15m': return Math.floor(tradingMinutes / 15); // 25 candles per day
-      case '30m': return Math.floor(tradingMinutes / 30); // 12.5 ≈ 12 candles per day
-      case '1h': return Math.floor(tradingMinutes / 60); // 6.25 ≈ 6 candles per day
-      case '4h': return 2; // 2 candles per day (morning and afternoon sessions)
-      case '1d': return 1; // 1 candle per day
-      case '1w': return 0.2; // 1 candle per week (5 trading days)
-      default: return 1;
-    }
-  };
 
   /**
    * Legacy function for backward compatibility - calculate date range for single batch
@@ -348,23 +344,7 @@ export const OHLCChartDemo: React.FC = () => {
     return calculateEMAForCandles(candlesToProcess);
   }, [calculateEMAForCandles]);
 
-  // Fetch KeyMapping from Redis on mount
-  useEffect(() => {
-    setIsLoading(true);
-    fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-      },
-    })
-      .then(res => res.json())
-      .then(data => {
-        const mapping = JSON.parse(data.result);
-        setKeyMapping(mapping);
-        setIsLoading(false);
-      })
-      .catch(() => setIsLoading(false));
-  }, []);
+
 
   // Window height detection and mounted state for SSR
   useEffect(() => {
@@ -388,40 +368,6 @@ export const OHLCChartDemo: React.FC = () => {
     };
   }, []);
 
-  // Calculate responsive chart height
-  const chartHeight = useMemo(() => {
-    if (!mounted) {
-      return 800; // SSR fallback
-    }
-    if (isMobile) {
-      // Prefer window.innerHeight for mobile browsers, fallback to visualViewport if available and valid
-      if (typeof window !== 'undefined') {
-        const vh = (window.innerHeight && window.innerHeight > 0)
-          ? window.innerHeight
-          : (window.visualViewport && window.visualViewport.height > 0)
-            ? window.visualViewport.height
-            : windowHeight;
-        const calculatedHeight = Math.max(vh * 0.7, 350);
-        console.log('📏 Chart height calculation (mobile):', {
-          windowInnerHeight: window.innerHeight,
-          visualViewportHeight: window.visualViewport?.height,
-          windowHeight: windowHeight,
-          vh: vh,
-          calculatedHeight: calculatedHeight,
-          percentage: '70%'
-        });
-        return calculatedHeight;
-      }
-      return Math.max(windowHeight * 0.7, 350);
-    } else {
-      console.log('📏 Chart height calculation (desktop):', {
-        windowInnerHeight: window.innerHeight,
-        calculatedHeight: 1100,
-        percentage: 'fixed 1100px'
-      });
-      return 1100;
-    }
-  }, [isMobile, windowHeight, mounted]);
 
   // Process URL parameters after keyMapping is loaded
   useEffect(() => {
@@ -687,51 +633,6 @@ export const OHLCChartDemo: React.FC = () => {
     prevInstrumentKeyRef.current = currentKey;
   }, [selectedInstrumentKey]); // Only depend on instrumentKey, not abortController
 
-  // Handle selection from suggestions
-  // Function to fetch entry dates for the selected instrument
-  // const fetchEntryDates = useCallback(async (instrumentKey: string, companyName: string) => {
-  //   if (!instrumentKey?.includes('NSE')) {
-  //     console.warn('Invalid instrument key for entry dates fetch:', instrumentKey);
-  //     return;
-  //   }
-
-  //   try {
-  //     // Replace - with | for the API call
-  //     const apiInstrumentKey = instrumentKey.replace(/-/g, '|');
-      
-  //     //console.log('🗓️ Fetching entry dates for:', apiInstrumentKey);
-      
-  //    const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-
-
-  //     const response = await axios.get(`${backEndBaseUrl}/api/stryke/get-entry-dates/${apiInstrumentKey}/${companyName}`, {
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //     });
-
-
-  //     if (response.status < 200 || response.status >= 300) {
-  //       throw new Error(`Failed to fetch entry dates: ${response.status}`);
-  //     }
-
-  //     const data: EntryDatesApiResponse = response.data;
-      
-  //     if (data.entryDates && Array.isArray(data.entryDates)) {
-        
-  //       setStrykeEntryDates(data.entryDates);
-  //       //console.log('✅ Entry dates fetched successfully:', data.entryDates.length, 'dates');
-  //     } else {
-  //       console.warn('No entry dates found in response');
-  //       setStrykeEntryDates([]);
-  //     }
-  //   } catch (error) {
-  //     console.error('Error fetching entry dates:', error);
-  //     setStrykeEntryDates([]);
-  //     // Don't show toast error as this is not critical for main functionality
-  //   }
-  // }, []);
-
   const handleSelectCompany = useCallback((companyName: string) => {
     setSelectedCompany(companyName);
     const instrumentKey = keyMapping[companyName];
@@ -834,11 +735,10 @@ export const OHLCChartDemo: React.FC = () => {
 
   // Progressive loading function for initial data loads
   const fetchCandlesProgressively = useCallback(async (): Promise<void> => {
-    //console.log(`🚀 Starting progressive loading for ${selectedTimeframe}`);
+ 
     
     // Prevent multiple concurrent progressive loading operations
     if (isProgressiveLoading) {
-      //console.log('⚠️ Progressive loading already in progress, skipping');
       return;
     }
     
@@ -850,17 +750,14 @@ export const OHLCChartDemo: React.FC = () => {
     
     // Cancel any existing progressive loading
     if (progressiveAbortController) {
-      //console.log('🛑 Cancelling existing progressive loading before starting new one');
       progressiveAbortController.abort();
     }
 
     const abortController = new AbortController();
-    //console.log('🚀 Created new abort controller for progressive loading');
     setProgressiveAbortController(abortController);
 
     // Check if already aborted (edge case)
     if (abortController.signal.aborted) {
-      //console.log('🛑 Progressive loading aborted before starting (edge case)');
       return;
     }
 
@@ -871,27 +768,21 @@ export const OHLCChartDemo: React.FC = () => {
     setOldestCandleTime(undefined);
     setNewestCandleTime(undefined);
     setIsProgressiveLoading(true);
-    
-    // Fetch entry dates
-   // fetchEntryDates(selectedInstrumentKey, selectedCompany);
+  
 
     try {
       const lastTradingDay = getLastTradingDay(new Date());
-      //console.log(`📅 Using last trading day: ${lastTradingDay.toISOString()}`);
       
       const dateRanges = calculateProgressiveDateRanges(selectedTimeframe, lastTradingDay);
       
       setProgressiveLoadingProgress({ loaded: 0, total: dateRanges.length });
       
-      //console.log(`📅 Progressive loading: ${dateRanges.length} batches planned for ${selectedTimeframe}`);
-
       let allCandles: Candle[] = [];
       let batchCount = 0;
 
       for (const range of dateRanges) {
         // Check if aborted
         if (abortController.signal.aborted) {
-          //console.log('🛑 Progressive loading aborted during batch processing');
           return;
         }
 
@@ -904,14 +795,11 @@ export const OHLCChartDemo: React.FC = () => {
             limit: PROGRESSIVE_BATCH_CONFIG[selectedTimeframe].batchSize
           };
 
-          //console.log(`📦 Loading batch ${batchCount + 1}/${dateRanges.length}`, range.from.toISOString(), range.to.toISOString());
-
           const result = await fetchPaginatedUpstoxData(params, shouldFetchIntraDay);
           setShouldFetchIntraDay(false);
 
           // Check if aborted after API call
           if (abortController.signal.aborted) {
-            //console.log('🛑 Progressive loading aborted after API call, before processing');
             return;
           }
 
@@ -968,10 +856,7 @@ export const OHLCChartDemo: React.FC = () => {
               setAvgVolume(avgVol);
             }
 
-            //console.log(`✅ Batch ${batchCount}/${dateRanges.length} loaded: ${sortedCandles.length} candles, total: ${allCandles.length}`);
-          } else {
-            //console.log(`⚠️ Batch ${batchCount + 1} returned no data`);
-          }
+          } 
 
           // Small delay between batches to prevent overwhelming the API
           if (batchCount < dateRanges.length) {
@@ -983,7 +868,6 @@ export const OHLCChartDemo: React.FC = () => {
           
           // Check if error is due to abort
           if (abortController.signal.aborted) {
-            //console.log('🛑 Progressive loading aborted during batch processing');
             return;
           }
           
@@ -992,7 +876,6 @@ export const OHLCChartDemo: React.FC = () => {
             batchError.message.includes('aborted') ||
             batchError.message.includes('cancelled')
           )) {
-            //console.log('🛑 Batch loading cancelled');
             return;
           }
           
@@ -1006,7 +889,6 @@ export const OHLCChartDemo: React.FC = () => {
       setOldestCandleTime(allCandles[0]?.timestamp);
       setNewestCandleTime(allCandles[allCandles.length - 1]?.timestamp);
       
-      //console.log(`🎉 Progressive loading completed: ${allCandles.length} total candles loaded`);
       toast.success(`Progressive loading complete: ${allCandles.length} candles loaded`);
 
     } catch (error) {
@@ -1018,7 +900,6 @@ export const OHLCChartDemo: React.FC = () => {
         error.message.includes('cancelled') ||
         abortController.signal.aborted
       )) {
-        //console.log('🛑 Progressive loading was cancelled');
         toast.error('Data loading cancelled');
       } else {
         console.error('❌ Unexpected progressive loading error:', error);
@@ -1031,13 +912,8 @@ export const OHLCChartDemo: React.FC = () => {
       
       // Only clear abort controller if it's the current one we created
       if (progressiveAbortController === abortController) {
-        //console.log('🧹 Cleaning up abort controller from progressive loading completion');
         setProgressiveAbortController(null);
-      } else {
-        //console.log('⚠️ Abort controller has changed, not clearing it');
-      }
-      
-      setVixData([]); // Clear any VIX data
+      } 
     }
   }, [
     selectedCompany,
@@ -1261,11 +1137,7 @@ export const OHLCChartDemo: React.FC = () => {
       } else {
         setIsLoading(false);
       }
-      
-      // Clear VIX data for initial loads
-      if (mode === 'initial') {
-        setVixData([]);
-      }
+    
     }
   }, [
     selectedCompany, 
@@ -1500,7 +1372,7 @@ export const OHLCChartDemo: React.FC = () => {
               </div>
 
               {/* Mobile Primary Actions */}
-              <div className="flex gap-1 mb-1.5">
+              <div className="flex gap-1 mb-1.5 items-center">
                 <button
                   onClick={handleFetchData}
                   data-testid="fetch-button"
@@ -1514,6 +1386,22 @@ export const OHLCChartDemo: React.FC = () => {
                 >
                   Home
                 </a>
+                {/* Swings Slider Switch (Mobile) */}
+                <label className="flex items-center cursor-pointer select-none ml-2">
+                  <span className="mr-1 text-xs text-gray-700">Swings</span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={showSwingPoints}
+                      onChange={() => setShowSwingPoints(!showSwingPoints)}
+                      className="sr-only peer"
+                      aria-label="Toggle Swing Point Calculation"
+                    />
+                    <div className="w-7 h-4 bg-gray-300 rounded-full peer-checked:bg-orange-500 transition-colors"></div>
+                    <div className="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform peer-checked:translate-x-3"></div>
+                  </div>
+                  <span className="ml-1 text-xs text-gray-700">{showSwingPoints ? 'ON' : 'OFF'}</span>
+                </label>
               </div>
 
               {/* Mobile View Mode Toggle */}
@@ -1697,6 +1585,22 @@ export const OHLCChartDemo: React.FC = () => {
                   >
                     Home
                   </a>
+                  {/* Slider Switch */}
+                  <label className="flex items-center cursor-pointer select-none ml-2">
+                    <span className="mr-2 text-sm text-gray-700">Swings</span>
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={showSwingPoints}
+                        onChange={() => setShowSwingPoints(!showSwingPoints)}
+                        className="sr-only peer"
+                        aria-label="Toggle Swing Point Calculation"
+                      />
+                      <div className="w-10 h-5 bg-gray-300 rounded-full peer-checked:bg-orange-500 transition-colors"></div>
+                      <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
+                    </div>
+                    <span className="ml-2 text-sm text-gray-700">{showSwingPoints ? 'ON' : 'OFF'}</span>
+                  </label>
                 </div>
 
                 {/* Desktop View Mode Toggle */}
@@ -1882,13 +1786,11 @@ export const OHLCChartDemo: React.FC = () => {
                 {isMobile && console.log('📊 Passing height to OHLCChart:', availableChartHeight)}
                 <OHLCChart
                 candles={optimizedCandles}
-                vixData={vixData}
                 title={`${selectedCompany || 'Select a company'} - ${selectedTimeframe} Chart`}
                 height={typeof availableChartHeight === 'number' ? availableChartHeight : Number.parseInt(availableChartHeight as string, 10) || 800}
                 showVolume={true}
                 showEMA={showEMA}
                 showRSI={showRSI}
-                showVIX={showVIX}
                 showSwingPoints={showSwingPoints}
                 analysisList={analysisList}
                 supportLevel={support?.value}

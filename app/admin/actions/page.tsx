@@ -22,9 +22,6 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import toast, { Toaster } from 'react-hot-toast';
-import { fetchKeyMapping } from "@/utils/apiUtils";
-import { fetchUpstoxCombinedData, fetchUpstoxHistoricalData } from "@/components/utils/upstoxApi";
-import { calculateSwingPointsFromCandles, parseTimestampToUnix } from "@/utils/swingPointCalculator";
 import axios from 'axios';
 import { calculateAllSwingPoints, calculateDateRangeDynamic, createProcessedCompanyObject, fetchAllTimeframeData } from '@/utils/swingsCalculation';
 

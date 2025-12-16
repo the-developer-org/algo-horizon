@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Candle } from '../../../components/types/candle';
-import { calculateSwingPointsFromCandles } from '@/utils';
 import { calculateAllSwingPoints, createProcessedCompanyObject, fetchAllTimeframeData } from '@/utils/swingsCalculation';
 
 // Interface for swing point data

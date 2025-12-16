@@ -1,73 +1,15 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { createChart } from 'lightweight-charts';
 import { Candle } from './types/candle';
 import { calculateSwingPointsFromCandles, parseTimestampToUnix } from '../utils/swingPointCalculator';
-import { he } from 'date-fns/locale';
+import {analyzeSwingPointTrend } from './OHLCChartUtils';
+import { CandleAnalysis, OHLCChartProps } from './types/OHLCChartTypes';
 
 // Performance optimization constants
 const MAX_VISIBLE_CANDLES = 2000; // Limit visible data points for ultra-fast performance
-const PERFORMANCE_SAMPLE_THRESHOLD = 5000; // Start sampling when data exceeds this
-const CHART_UPDATE_DEBOUNCE = 16; // ~60fps for smooth updates
-
-// Interface for candle click analysis results
-interface CandleAnalysis {
-    clickedCandle: Candle;
-    clickedIndex: number;
-    trendReversalIndex: number;
-    trendReversalCandle: Candle;
-    maxProfitPrice: number;
-    maxLossPrice: number;
-    maxProfitPercent: number;
-    maxLossPercent: number;
-    finalProfitLoss: number;
-    finalProfitLossPercent: number;
-    candlesAnalyzed: number;
-    trendDirection: 'bullish' | 'bearish' | 'sideways' | 'neutral' | 'consolidated';
-    startDate: string;
-    endDate: string;
-    swingPointLabel: string;
-}
-
-// Data sampling for performance optimization
-const sampleData = (data: any[], maxPoints: number): any[] => {
-  if (data.length <= maxPoints) return data;
-  
-  const step = Math.ceil(data.length / maxPoints);
-  const sampled = [];
-  
-  // Always include first and last points
-  sampled.push(data[0]);
-  
-  for (let i = step; i < data.length - 1; i += step) {
-    sampled.push(data[i]);
-  }
-  
-  sampled.push(data[data.length - 1]);
-  return sampled;
-};
-
-// Memoized data processing for ultra-fast performance
-const processChartData = (candles: Candle[]) => {
-  const formattedData = candles.map(candle => {
-    return {
-      time: parseTimestampToUnix(candle.timestamp),
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    };
-  }).filter((item, index, self) => 
-    // Remove duplicates and invalid entries
-    item.time && !isNaN(item.time) && 
-    index === self.findIndex(t => t.time === item.time)
-  ).sort((a, b) => a.time - b.time); // Ensure ascending order
-
-  // Apply performance sampling for large datasets
-  return sampleData(formattedData, MAX_VISIBLE_CANDLES);
-};
 
 
 // Function to analyze profit/loss from clicked candle using existing calculated swing points
@@ -167,181 +109,10 @@ const analyzeCandleClick = (candles: Candle[], clickedIndex: number, calculatedS
     const lastSwingPoints = relevantSwingPoints.slice(-numPointsToAnalyze);
 
     return analyzeSwingPointTrend(lastSwingPoints)
-
-    // Default fallback
-    return 'bullish';
   };
   
-  function analyzeSwingPointTrend(lastSwingPoints :any[]) {
-  if (!lastSwingPoints || lastSwingPoints.length === 0) {
-    return 'neutral';
-  }
 
-  // 4 Swing Points Analysis - Most Comprehensive
-  if (lastSwingPoints.length === 4) {
-    const [fourth, third, second, first] = lastSwingPoints.map(sp => sp.label);
-    
-    return analyzeFourPoints(fourth, third, second, first);
-  }
-  
-  // 3 Swing Points Analysis
-  else if (lastSwingPoints.length === 3) {
-    const [third, second, first] = lastSwingPoints.map(sp => sp.label);
-    return analyzeThreePoints(third, second, first);
-  }
-  
-  // 2 Swing Points Analysis
-  else if (lastSwingPoints.length === 2) {
-    const [second, first] = lastSwingPoints.map(sp => sp.label);
-    return analyzeTwoPoints(second, first);
-  }
-  
-  // Single Swing Point Analysis
-  else if (lastSwingPoints.length === 1) {
-    const singlePoint = lastSwingPoints[0].label;
-    return analyzeSinglePoint(singlePoint);
-  }
-  
-  return 'neutral';
-}
 
-// Helper function for 4-point analysis
-function analyzeFourPoints(fourth: string, third: string, second: string, first: string) {
-  // Strong Bullish Patterns (4 points)
-  // Pattern: Uptrend establishment and continuation
-  if (fourth === 'LL' && third === 'HL' && second === 'HH' && first === 'HL') {
-    return 'bullish'; // Classic uptrend: LL->HL->HH->HL (pullback in uptrend)
-  }
-  if (fourth === 'LL' && third === 'LH' && second === 'HL' && first === 'HH') {
-    return 'bullish'; // Recovery: LL->LH->HL->HH (reversal from downtrend)
-  }
-  if (fourth === 'LH' && third === 'LL' && second === 'HL' && first === 'HH') {
-    return 'bullish'; // V-shaped recovery: LH->LL->HL->HH
-  }
-  if (fourth === 'HL' && third === 'HH' && second === 'HL' && first === 'HH') {
-    return 'bullish'; // Strong uptrend: HL->HH->HL->HH (healthy pullbacks)
-  }
-  
-  // Strong Bearish Patterns (4 points)
-  // Pattern: Downtrend establishment and continuation
-  if (fourth === 'HH' && third === 'LH' && second === 'LL' && first === 'LH') {
-    return 'bearish'; // Classic downtrend: HH->LH->LL->LH (pullback in downtrend)
-  }
-  if (fourth === 'HH' && third === 'HL' && second === 'LH' && first === 'LL') {
-    return 'bearish'; // Breakdown: HH->HL->LH->LL (reversal from uptrend)
-  }
-  if (fourth === 'HL' && third === 'HH' && second === 'LH' && first === 'LL') {
-    return 'bearish'; // Inverted V breakdown: HL->HH->LH->LL
-  }
-  if (fourth === 'LH' && third === 'LL' && second === 'LH' && first === 'LL') {
-    return 'bearish'; // Strong downtrend: LH->LL->LH->LL (weak rallies)
-  }
-  
-  // Additional 4-point patterns for completeness
-  if (fourth === 'HH' && third === 'HL' && second === 'HH' && first === 'HL') {
-    return 'bullish'; // Continued uptrend with healthy pullbacks
-  }
-  if (fourth === 'LL' && third === 'LH' && second === 'LL' && first === 'LH') {
-    return 'bearish'; // Continued downtrend with weak rallies
-  }
-  
-  // Fall back to 3-point analysis if no 4-point pattern matches
-  return analyzeThreePoints(third, second, first);
-}
-
-// Helper function for 3-point analysis
-function analyzeThreePoints(third: string, second: string, first: string) {
-  // Strong Bullish 3-point patterns
-  if (third === 'LL' && second === 'HL' && first === 'HH') {
-    return 'bullish'; // Clear uptrend: LL->HL->HH
-  }
-  if (third === 'LH' && second === 'HL' && first === 'HH') {
-    return 'bullish'; // Reversal to uptrend: LH->HL->HH
-  }
-  if (third === 'HL' && second === 'HH' && first === 'HL') {
-    return 'bullish'; // Uptrend with pullback: HL->HH->HL
-  }
-  if (third === 'LL' && second === 'LH' && first === 'HL') {
-    return 'bullish'; // Early reversal signs: LL->LH->HL
-  }
-  
-  // Strong Bearish 3-point patterns
-  if (third === 'HH' && second === 'LH' && first === 'LL') {
-    return 'bearish'; // Clear downtrend: HH->LH->LL
-  }
-  if (third === 'HL' && second === 'LH' && first === 'LL') {
-    return 'bearish'; // Reversal to downtrend: HL->LH->LL
-  }
-  if (third === 'LH' && second === 'LL' && first === 'LH') {
-    return 'bearish'; // Downtrend with pullback: LH->LL->LH
-  }
-  if (third === 'HH' && second === 'HL' && first === 'LH') {
-    return 'bearish'; // Early breakdown signs: HH->HL->LH
-  }
-  
-  // Consolidation/Mixed patterns (neutral bias but lean toward recent action)
-  if (third === 'HH' && second === 'HL' && first === 'HH') {
-    return 'bullish'; // Consolidation in uptrend, likely to continue up
-  }
-  if (third === 'LL' && second === 'LH' && first === 'LL') {
-    return 'bearish'; // Consolidation in downtrend, likely to continue down
-  }
-  if (third === 'HL' && second === 'LH' && first === 'HL') {
-    return 'neutral'; // True consolidation - mixed signals
-  }
-  if (third === 'LH' && second === 'HL' && first === 'LH') {
-    return 'neutral'; // True consolidation - mixed signals
-  }
-  
-  // Fall back to 2-point analysis
-  return analyzeTwoPoints(second, first);
-}
-
-// Helper function for 2-point analysis
-function analyzeTwoPoints(second: string, first: string) {
-  // Bullish 2-point combinations
-  if (first === 'HH') {
-    if (second === 'HL') return 'bullish';  // HL->HH: Perfect uptrend sequence
-    if (second === 'HH') return 'neutral';  // HH->HH: Sideways at highs (could go either way)
-    if (second === 'LH') return 'bullish';  // LH->HH: Strong reversal upward
-    if (second === 'LL') return 'bullish';  // LL->HH: Very strong reversal upward
-  }
-  
-  if (first === 'HL') {
-    if (second === 'HH') return 'bullish';  // HH->HL: Healthy pullback in uptrend
-    if (second === 'HL') return 'neutral';  // HL->HL: Sideways at support (consolidation)
-    if (second === 'LH') return 'neutral';  // LH->HL: Potential trend change (wait for confirmation)
-    if (second === 'LL') return 'bullish';  // LL->HL: Recovery from lows
-  }
-  
-  // Bearish 2-point combinations
-  if (first === 'LH') {
-    if (second === 'LL') return 'bearish';  // LL->LH: Perfect downtrend sequence
-    if (second === 'LH') return 'neutral';  // LH->LH: Sideways at lows (could go either way)
-    if (second === 'HL') return 'bearish';  // HL->LH: Strong reversal downward
-    if (second === 'HH') return 'bearish';  // HH->LH: Very strong reversal downward
-  }
-  
-  if (first === 'LL') {
-    if (second === 'LH') return 'bearish';  // LH->LL: Healthy pullback in downtrend
-    if (second === 'LL') return 'neutral';  // LL->LL: Sideways at lows (consolidation)
-    if (second === 'HL') return 'neutral';  // HL->LL: Potential trend change (wait for confirmation)
-    if (second === 'HH') return 'bearish';  // HH->LL: Breakdown from highs
-  }
-  
-  return 'neutral';
-}
-
-// Helper function for single point analysis
-function analyzeSinglePoint(singlePoint: string) {
-  // Single point analysis - limited information, lean based on point type
-  if (singlePoint === 'HH') return 'bullish';    // New high is bullish
-  if (singlePoint === 'HL') return 'bullish';    // Higher low is bullish
-  if (singlePoint === 'LH') return 'bearish';    // Lower high is bearish
-  if (singlePoint === 'LL') return 'bearish';    // New low is bearish
-  return 'neutral';
-}
-  
   const trendDirection = determineTrendFromSwingPoints(calculatedSwingPoints, clickedIndex);
   
   const candlesAnalyzed = endIndex - clickedIndex + 1;
@@ -365,23 +136,6 @@ function analyzeSinglePoint(singlePoint: string) {
   };
 };
 
-// Memoized volume data processing
-const processVolumeData = (candles: Candle[]) => {
-  const volumeData = candles.map(candle => {
-    return {
-      time: parseTimestampToUnix(candle.timestamp),
-      value: candle.volume,
-      color: candle.close >= candle.open ? '#4caf50' : '#ef5350',
-    };
-  }).filter((item, index, self) => 
-    item.time && !isNaN(item.time) && 
-    index === self.findIndex(t => t.time === item.time)
-  ).sort((a, b) => a.time - b.time);
-
-  // Apply performance sampling for large datasets
-  return sampleData(volumeData, MAX_VISIBLE_CANDLES);
-};
-
 // Function to map entry dates to the correct candles based on timeframe
 const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timeframe: string): Set<number> => {
   const entryCandleIndices = new Set<number>();
@@ -389,23 +143,6 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
   if (!entryDates || entryDates.length === 0 || !candles || candles.length === 0) {
     return entryCandleIndices;
   }
-  
-  // Helper function to get timeframe duration in milliseconds
-  const getTimeframeDuration = (tf: string): number => {
-    switch (tf) {
-      case '1m': return 60 * 1000;
-      case '5m': return 5 * 60 * 1000;
-      case '15m': return 15 * 60 * 1000;
-      case '30m': return 30 * 60 * 1000;
-      case '1h': return 60 * 60 * 1000;
-      case '4h': return 4 * 60 * 60 * 1000;
-      case '1d': return 24 * 60 * 60 * 1000;
-      case '1w': return 7 * 24 * 60 * 60 * 1000;
-      default: return 60 * 60 * 1000; // Default to 1 hour
-    }
-  };
-  
-  const timeframeDuration = getTimeframeDuration(timeframe);
   
   entryDates.forEach(entryDateStr => {
     try {
@@ -445,7 +182,6 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
       }
       
       if (isNaN(entryTime.getTime())) {
-        ////console.warn('Invalid entry date format:', entryDateStr);
         return;
       }
       
@@ -472,18 +208,11 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
       
       const timeTolerance = getTimeTolerance(timeframe);
       
-      // Check if entry date is within acceptable range of available data
-      // Silently filter out dates outside the range instead of showing warnings
-      ////console.log(`🔍 Checking date range for ${entryDateStr}: entry=${new Date(entryTimestamp).toISOString()} vs first=${new Date(firstCandleTime).toISOString()} to last=${new Date(lastCandleTime).toISOString()}`);
       if (entryTimestamp < firstCandleTime - timeTolerance) {
-        ////console.log(`❌ Entry date ${entryDateStr} is too old - filtering out`);
-        // Entry date is too old - silently skip
         return;
       }
       
       if (entryTimestamp > lastCandleTime + timeTolerance) {
-        ////console.log(`❌ Entry date ${entryDateStr} is too new - filtering out`);
-        // Entry date is too new - silently skip
         return;
       }
       
@@ -531,48 +260,15 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
       
       if (bestCandleIndex >= 0) {
         entryCandleIndices.add(bestCandleIndex);
-        //////console.log(`📍 Entry at ${entryDateStr} mapped to candle ${bestCandleIndex} (${candles[bestCandleIndex].timestamp}) for ${timeframe} timeframe`);
-      } else {
-        ////console.warn(`⚠️ Could not map entry date ${entryDateStr} to any candle for ${timeframe} timeframe - entry may be outside available data range`);
       }
       
     } catch (error) {
-      ////console.error('Error processing entry date:', entryDateStr, error);
-    }
+      console.error('Error parsing entry date:', entryDateStr, error);}
   });
   
   return entryCandleIndices;
 };
 
-interface OHLCChartProps {
-    candles: Candle[];
-    vixData?: { timestamp: string; value: number }[];
-    title?: string;
-    height?: number | string;
-    width?: number;
-    showVolume?: boolean;
-    showEMA?: boolean;
-    showRSI?: boolean;
-    showVIX?: boolean;
-    showSwingPoints?: boolean;
-    analysisList?: { timestamp: string; swingLabel?: string; entryTime?: string; entryCandleClose?: number; target?: number; stopLoss?: number; }[]; // Updated to include entry/target/SL data
-    supportLevel?: number; // Support level from backend
-    resistanceLevel?: number; // Resistance level from backend
-    avgVolume?: number; // Average volume for the stock
-    entryDates?: string[]; // Entry dates to highlight on chart
-    strykeDates?: string[]; // Stryke entry dates to highlight with different style
-    algoDates?: string[]; // Algo entry dates to highlight with different style
-    realTimeDates?: string[]; // Real-Time entry dates to highlight with different style
-    zoneStartDates?: string[]; // Dates to use for calculating zone start times
-    entryPrice?: number; // Entry price for plotting target/SL lines
-    targetPrice?: number; // Target price for plotting target line
-    stopLossPrice?: number; // Stop loss price for plotting SL line
-    // Add callback for loading more data when user scrolls to edges
-    onLoadMoreData?: (direction: 'older' | 'newer') => Promise<void>;
-    hasMoreOlderData?: boolean;
-    hasMoreNewerData?: boolean;
-    isLoadingMoreData?: boolean;
-}
 
 const maxWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
 const maxHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
@@ -582,15 +278,13 @@ const chartHeight = maxHeight * 0.91; // Increase chart height to 91% of the vie
 
 export const OHLCChart: React.FC<OHLCChartProps> = ({
     candles,
-    vixData,
     title = "OHLC Chart",
     height: heightProp = chartHeight, // Use the updated chartHeight
     width,
     showVolume = true,
     showEMA = true,
     showRSI = true,
-    showVIX = true,
-    showSwingPoints = true,
+    showSwingPoints,
     analysisList, // Destructure analysisList
     supportLevel, // Use backend-provided support level
     resistanceLevel, // Use backend-provided resistance level
@@ -613,16 +307,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const UnderstchartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
     const [ohlcInfo, setOhlcInfo] = useState<any>(null);
-    const [vixValue, setVixValue] = useState<number | null>(null);
     const [emaError, setEmaError] = useState<string | null>(null);
     const [rsiError, setRsiError] = useState<string | null>(null);
-    const [vixError, setVixError] = useState<string | null>(null);
     const [candleAnalysis, setCandleAnalysis] = useState<CandleAnalysis | null>(null);
     const ema8SeriesRef = useRef<any>(null);
     const ema30SeriesRef = useRef<any>(null);
     const ema200SeriesRef = useRef<any>(null);
     const rsiSeriesRef = useRef<any>(null);
-    const vixSeriesRef = useRef<any>(null);
     const swingPointsSeriesRef = useRef<any>(null);
     const volumeSeriesRef = useRef<any>(null);
     const avgVolumeLineRef = useRef<any>(null);
@@ -695,70 +386,29 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     }, [candles]);
 
     // Map entry dates to candle indices
-        const handleLoadMoreData = async () => {
-            if (onLoadMoreData && !isLoadingMoreData) {
-                await onLoadMoreData('older');
-            }
-        };
     const entryCandleIndices = useMemo(() => {
         const indices = mapEntryDatesToCandles(entryDates, candles, detectedTimeframe);
-        if (indices.size > 0) {
-            //////console.log(`🎯 Entry date mapping for ${detectedTimeframe} timeframe:`, entryDates.length, indices.size);
-        }
         return indices;
     }, [entryDates, candles, detectedTimeframe]);
 
     // Map stryke dates to candle indices
     const strykeCandleIndices = useMemo(() => {
-        if (candles.length > 0) {
-            const firstCandle = new Date(candles[0].timestamp);
-            const lastCandle = new Date(candles[candles.length - 1].timestamp);
-            ////console.log(`📊 Data range: ${firstCandle.toISOString().split('T')[0]} to ${lastCandle.toISOString().split('T')[0]} (${candles.length} candles)`);
-        }
-        const indices = mapEntryDatesToCandles(strykeDates, candles, detectedTimeframe);
-        if (indices.size > 0) {
-            ////console.log(`🎯 Stryke date mapping for ${detectedTimeframe} timeframe:`, strykeDates.length, 'dates →', indices.size, 'markers');
-            ////console.log('Stryke dates:', strykeDates);
-            ////console.log('Stryke indices:', Array.from(indices));
-        } else if (strykeDates.length > 0) {
-            ////console.log(`❌ No stryke markers created for ${detectedTimeframe} timeframe:`, strykeDates.length, 'dates provided');
-            //console.log('Stryke dates:', strykeDates);
-        }
-        return indices;
+        return mapEntryDatesToCandles(strykeDates, candles, detectedTimeframe);;
     }, [strykeDates, candles, detectedTimeframe]);
 
     // Map algo dates to candle indices
     const algoCandleIndices = useMemo(() => {
-        const indices = mapEntryDatesToCandles(algoDates, candles, detectedTimeframe);
-        if (indices.size > 0) {
-            //console.log(`🎯 Algo date mapping for ${detectedTimeframe} timeframe:`, algoDates.length, 'dates →', indices.size, 'markers');
-            //console.log('Algo dates:', algoDates);
-            //console.log('Algo indices:', Array.from(indices));
-        } else if (algoDates.length > 0) {
-            //console.log(`❌ No algo markers created for ${detectedTimeframe} timeframe:`, algoDates.length, 'dates provided');
-            //console.log('Algo dates:', algoDates);
-        }
-        return indices;
+        return mapEntryDatesToCandles(algoDates, candles, detectedTimeframe);;
     }, [algoDates, candles, detectedTimeframe]);
 
     // Map real-time dates to candle indices
     const realTimeCandleIndices = useMemo(() => {
-        const indices = mapEntryDatesToCandles(realTimeDates, candles, detectedTimeframe);
-        if (indices.size > 0) {
-            //console.log(`🎯 Real-Time date mapping for ${detectedTimeframe} timeframe:`, realTimeDates.length, 'dates →', indices.size, 'markers');
-            //console.log('Real-Time dates:', realTimeDates);
-            //console.log('Real-Time indices:', Array.from(indices));
-        } else if (realTimeDates.length > 0) {
-            //console.log(`❌ No real-time markers created for ${detectedTimeframe} timeframe:`, realTimeDates.length, 'dates provided');
-            //console.log('Real-Time dates:', realTimeDates);
-        }
-        return indices;
+        return mapEntryDatesToCandles(realTimeDates, candles, detectedTimeframe);
     }, [realTimeDates, candles, detectedTimeframe]);
 
 
     // Chart initialization effect - only runs when data changes, not indicator toggles
     useEffect(() => {
-       //////console.log('🔄 Chart initialization effect triggered', { candlesLength: candles.length, height, width, showVolume });
         if (!UnderstchartContainerRef.current || !candles.length) return;
 
         // Performance optimization: reduce data points on mobile
@@ -1273,11 +923,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
                 // Enhanced error checking with detailed logging
                 if (!ema8Data.length && !ema30Data.length && !ema200Data.length) {
-                    //console.error('❌ EMA Error Details:');
-                    //console.error(`- Total candles: ${candles.length}`);
-                    //console.error(`- Candles with EMA8: ${candlesWithEma8.length}`);
-                    //console.error(`- Candles with EMA30: ${candlesWithEma30.length}`);
-                    //console.error(`- Candles with EMA200: ${candlesWithEma200.length}`);
                     throw new Error('Insufficient EMA data - EMA arrays are empty');
                 }
             } catch (err) {
@@ -1337,74 +982,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
     }, [showRSI]); // Removed candles dependency since RSI is pre-calculated
 
-    // Separate effect for VIX indicator management
-    useEffect(() => {
-        if (!chartRef.current) return;
-
-        const chart = chartRef.current;
-        setVixError(null);
-        let formattedVix: { time: number; value: number }[] = [];
-
-        if (showVIX) {
-            if (!vixData || vixData.length === 0) {
-                setVixError('Insufficient VIX data available');
-                if (vixSeriesRef.current) {
-                    chart.removeSeries(vixSeriesRef.current);
-                    vixSeriesRef.current = null;
-                }
-            } else {
-                try {
-                    // Build a map for fast lookup
-                    const vixMap = new Map<number, number>();
-                    vixData.forEach(v => {
-                        const t = parseTimestampToUnix(v.timestamp);
-                        vixMap.set(t, v.value);
-                    });
-                    let lastVix = 0;
-                    formattedVix = candles.map(candle => {
-                        const t = parseTimestampToUnix(candle.timestamp);
-                        if (vixMap.has(t)) {
-                            lastVix = vixMap.get(t)!;
-                        }
-                        return { time: t, value: typeof lastVix === 'number' && !isNaN(lastVix) ? lastVix : undefined };
-                    }).filter(item => typeof item.value === 'number' && !isNaN(item.value))
-                     .sort((a, b) => a.time - b.time) as { time: number; value: number }[]; // Ensure ascending time order
-                    if (!formattedVix.length) throw new Error('Insufficient VIX data');
-                    vixSeriesRef.current = chart.addLineSeries({
-                        color: '#FFD600', // bright yellow
-                        lineWidth: 2,
-                        priceScaleId: 'vix', // separate scale for VIX
-                    });
-                    vixSeriesRef.current.setData(formattedVix);
-                    // @ts-ignore
-                    chart.priceScale('vix').applyOptions({
-                        scaleMargins: { top: 0.1, bottom: isMobile ? 0.05 : 0.1 },
-                        borderColor: '#FFD600',
-                        borderVisible: true,
-                        entireTextOnly: false,
-                        visible: true,
-                        autoScale: true,
-                    });
-
-                    // Set initial VIX value
-                    if (formattedVix.length > 0) {
-                        setVixValue(formattedVix[formattedVix.length - 1].value);
-                    }
-                } catch (err) {
-                    //console.error('VIX calculation error:', err);
-                    setVixError('Insufficient VIX data available');
-                    if (vixSeriesRef.current) {
-                        chart.removeSeries(vixSeriesRef.current);
-                        vixSeriesRef.current = null;
-                    }
-                }
-            }
-        } else if (vixSeriesRef.current) {
-            chart.removeSeries(vixSeriesRef.current);
-            vixSeriesRef.current = null;
-            setVixValue(null);
-        }
-    }, [showVIX, vixData]); // Removed candles dependency
 
     // Separate effect for entry/target/SL lines from URL parameters
     useEffect(() => {
@@ -1417,42 +994,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Clean up any existing entry lines
         const existingEntryLines: any[] = [];
         // Note: We can't easily identify which lines are entry lines, so we'll skip cleanup for now
-        // and let the swing points effect handle the main cleanup
-
-        // // Add target and SL lines if they exist
-        // if (targetPrice && typeof targetPrice === 'number') {
-        //     const timeScale = chart.timeScale();
-        //     const visibleRange = timeScale.getVisibleRange();
-            
-        //     let startTime, endTime;
-        //     if (visibleRange) {
-        //         startTime = visibleRange.from;
-        //         endTime = visibleRange.to;
-        //     } else if (candles.length > 0) {
-        //         startTime = parseTimestampToUnix(candles[0].timestamp);
-        //         endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
-        //     } else {
-        //         return;
-        //     }
-
-        //     const targetLineSeries = chart.addLineSeries({
-        //         color: '#10b981', // Emerald green to match profit zone
-        //         lineWidth: 3,
-        //         lineStyle: 0,
-        //         title: `Target: ₹${targetPrice.toFixed(2)}`,
-        //         priceLineVisible: false,
-        //         lastValueVisible: false,
-        //         crosshairMarkerVisible: false,
-        //     });
-
-        //     targetLineSeries.setData([
-        //         { time: startTime, value: targetPrice },
-        //         { time: endTime, value: targetPrice }
-        //     ]);
-
-        //     // Store for cleanup
-        //     entryLinesRef.current.push(targetLineSeries);
-        // }
+    
 
         // Add entry line if entryPrice exists
         if (entryPrice && typeof entryPrice === 'number') {
@@ -1488,40 +1030,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             // Store for cleanup
             entryLinesRef.current.push(entryLineSeries);
         }
-
-        // if (stopLossPrice && typeof stopLossPrice === 'number') {
-        //     const timeScale = chart.timeScale();
-        //     const visibleRange = timeScale.getVisibleRange();
-            
-        //     let startTime, endTime;
-        //     if (visibleRange) {
-        //         startTime = visibleRange.from;
-        //         endTime = visibleRange.to;
-        //     } else if (candles.length > 0) {
-        //         startTime = parseTimestampToUnix(candles[0].timestamp);
-        //         endTime = parseTimestampToUnix(candles[candles.length - 1].timestamp);
-        //     } else {
-        //         return;
-        //     }
-
-        //     const stopLossLineSeries = chart.addLineSeries({
-        //         color: '#ef4444', // Bright red to match loss zone
-        //         lineWidth: 3,
-        //         lineStyle: 0,
-        //         title: `SL: ₹${stopLossPrice.toFixed(2)}`,
-        //         priceLineVisible: false,
-        //         lastValueVisible: false,
-        //         crosshairMarkerVisible: false,
-        //     });
-
-        //     stopLossLineSeries.setData([
-        //         { time: startTime, value: stopLossPrice },
-        //         { time: endTime, value: stopLossPrice }
-        //     ]);
-
-        //     // Store for cleanup
-        //     entryLinesRef.current.push(stopLossLineSeries);
-        // }
 
         // Add profit zone (green area between entry and target)
         if (entryPrice && targetPrice && typeof entryPrice === 'number' && typeof targetPrice === 'number') {
@@ -2020,9 +1528,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             if (chartRef.current?.candlestickSeries) {
                 chartRef.current.candlestickSeries.setMarkers([]);
             }
-        } else {
-            ////console.log('❌ Insufficient candles for swing point calculation (need at least 11)');
-        }
+        } 
         
         // Return cleanup function
         return () => {
@@ -2047,66 +1553,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices, strykeCandleIndices, algoCandleIndices, realTimeCandleIndices, entryPrice, targetPrice, stopLossPrice]); // Added entryCandleIndices, strykeCandleIndices, algoCandleIndices, realTimeCandleIndices, entryPrice, targetPrice, stopLossPrice
 
     // Crosshair move handler effect - updates when chart changes
-    useEffect(() => {
-        if (!chartRef.current) return;
-
-        const chart = chartRef.current;
-
-        // Update the OHLC info and VIX on crosshair move
-        const crosshairHandler = (param: any) => {
-            if (param?.time) {
-                // Find the candle for the hovered time
-                const hovered = candles.find((c: Candle) => parseTimestampToUnix(c.timestamp) === param.time);
-                if (hovered) {
-                    // Find previous candle for change calculation
-                    const idx = candles.findIndex((c: Candle) => parseTimestampToUnix(c.timestamp) === param.time);
-                    const prevClose = idx > 0 ? candles[idx - 1].close : hovered.open;
-                    setOhlcInfo({
-                        open: hovered.open,
-                        high: hovered.high,
-                        low: hovered.low,
-                        close: hovered.close,
-                        prevClose,
-                        volume: hovered.volume,
-                        rsi: hovered.rsi,
-                    });
-                }
-
-                // Find the VIX value for the hovered time
-                if (showVIX && vixData && vixData.length > 0) {
-                    const vixMap = new Map<number, number>();
-                    vixData.forEach(v => {
-                        const t = parseTimestampToUnix(v.timestamp);
-                        vixMap.set(t, v.value);
-                    });
-                    let lastVix = 0;
-                    const formattedVix = candles.map(candle => {
-                        const t = parseTimestampToUnix(candle.timestamp);
-                        if (vixMap.has(t)) {
-                            lastVix = vixMap.get(t)!;
-                        }
-                        return { time: t, value: typeof lastVix === 'number' && !isNaN(lastVix) ? lastVix : undefined };
-                    }).filter(item => typeof item.value === 'number' && !isNaN(item.value)) as { time: number; value: number }[];
-
-                    const hoveredVix = formattedVix.find(v => v.time === param.time);
-                    setVixValue(hoveredVix ? hoveredVix.value : null);
-                }
-            }
-        };
-
-        chart.subscribeCrosshairMove(crosshairHandler);
-
-        return () => {
-            chart.unsubscribeCrosshairMove(crosshairHandler);
-        };
-    }, [showVIX, vixData]); // Removed candles dependency to prevent excessive re-subscriptions
 
     // Error toast effect
     useEffect(() => {
         if (emaError) toast.error(emaError, { duration: 1000 });
         if (rsiError) toast.error(rsiError, { duration: 1000 });
-        if (vixError) toast.error(vixError, { duration: 1000 });
-    }, [emaError, rsiError, vixError]);
+    }, [emaError, rsiError]);
 
     if (!candles.length) {
         return (
@@ -2149,41 +1601,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 return '#000000'; // Default color
         }
     };
-    
-    // Calculate Average True Range (ATR) for volatility measurement
-    const calculateATR = (candles: Candle[], period: number = 14): number => {
-        if (!candles || candles.length < period + 1) {
-            return 0;
-        }
-        
-        // Calculate True Range for each candle
-        const trueRanges: number[] = [];
-        
-        for (let i = 1; i < candles.length; i++) {
-            const high = candles[i].high;
-            const low = candles[i].low;
-            const prevClose = candles[i-1].close;
-            
-            // True Range is the greatest of:
-            // 1. Current High - Current Low
-            // 2. |Current High - Previous Close|
-            // 3. |Current Low - Previous Close|
-            const tr1 = high - low;
-            const tr2 = Math.abs(high - prevClose);
-            const tr3 = Math.abs(low - prevClose);
-            
-            const trueRange = Math.max(tr1, tr2, tr3);
-            trueRanges.push(trueRange);
-        }
-        
-        // Calculate simple average of the true ranges for the specified period
-        const recentTrueRanges = trueRanges.slice(-period);
-        if (!recentTrueRanges.length) return 0;
-        
-        const atr = recentTrueRanges.reduce((sum, tr) => sum + tr, 0) / recentTrueRanges.length;
-        return atr;
-    };
-
+  
     // Draw backend-provided SR as "static" lines (used when viewing latest)
     useEffect(() => {
         if (!chartRef.current?.candlestickSeries) return;
@@ -2614,11 +2032,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             )}
             
             {/* Error messages for indicators */}
-            {(emaError || rsiError || vixError) && (
+            {(emaError || rsiError) && (
                 <div className="absolute top-1 right-4 z-[202] bg-red-50 text-red-700 p-2 md:p-5 rounded-lg font-semibold text-sm md:text-base border-2 border-red-700 md:min-w-[400px] md:w-[420px] min-w-[280px] w-[300px]">
                     {emaError && <div>{emaError}</div>}
                     {rsiError && <div>{rsiError}</div>}
-                    {vixError && <div>{vixError}</div>}
                 </div>
             )}
          
