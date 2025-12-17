@@ -5,8 +5,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { createChart } from 'lightweight-charts';
 import { Candle } from './types/candle';
 import { parseTimestampToUnix } from '../utils/swingPointCalculator';
-import {analyzeSwingPointTrend, fetchSwingPointsForStock } from './OHLCChartUtils';
-import { CandleAnalysis, OHLCChartProps } from './types/OHLCChartTypes';
+import { analyzeSwingPointTrend, fetchSwingPointsForStock } from './OHLCChartUtils';
+import { CandleAnalysis, OHLCChartProps, SwingPoints, SwingStatsRequest } from './types/OHLCChartTypes';
 
 // Performance optimization constants
 const MAX_VISIBLE_CANDLES = 2000; // Limit visible data points for ultra-fast performance
@@ -14,259 +14,260 @@ const MAX_VISIBLE_CANDLES = 2000; // Limit visible data points for ultra-fast pe
 
 // Function to analyze profit/loss from clicked candle using existing calculated swing points
 const analyzeCandleClick = (candles: Candle[], clickedIndex: number, calculatedSwingPoints: any[]): CandleAnalysis | null => {
-  if (clickedIndex < 0 || clickedIndex >= candles.length - 1) return null;
-  
-  const clickedCandle = candles[clickedIndex];
-  const entryPrice = clickedCandle.close; // Use close price as entry point
-  
-  // Use the existing calculated swing points to find the next relevant swing point
-  let endIndex = candles.length - 1;
-  let swingPointLabel = 'end of data';
-  
-  if (calculatedSwingPoints && calculatedSwingPoints.length > 0) {
-    // Find the most recent swing point before or at the clicked candle
-    const previousSwingPoint = calculatedSwingPoints
-      .filter(sp => sp.index <= clickedIndex)
-      .sort((a, b) => b.index - a.index)[0]; // Get the most recent swing point
-    
-    if (previousSwingPoint) {
-      const previousLabel = previousSwingPoint.label;
-      
-      // If clicked after LL or HL, look for next HH or LH
-      if (previousLabel === 'LL' || previousLabel === 'HL') {
-        const nextRelevantSwingPoint = calculatedSwingPoints.find(sp => 
-          sp.index > clickedIndex && (sp.label === 'HH' || sp.label === 'LH')
-        );
-        
-        if (nextRelevantSwingPoint) {
-          endIndex = nextRelevantSwingPoint.index;
-          swingPointLabel = nextRelevantSwingPoint.label;
+    if (clickedIndex < 0 || clickedIndex >= candles.length - 1) return null;
+
+    const clickedCandle = candles[clickedIndex];
+    const entryPrice = clickedCandle.close; // Use close price as entry point
+
+    // Use the existing calculated swing points to find the next relevant swing point
+    let endIndex = candles.length - 1;
+    let swingPointLabel = 'end of data';
+
+    if (calculatedSwingPoints && calculatedSwingPoints.length > 0) {
+        // Find the most recent swing point before or at the clicked candle
+        const previousSwingPoint = calculatedSwingPoints
+            .filter(sp => sp.index <= clickedIndex)
+            .sort((a, b) => b.index - a.index)[0]; // Get the most recent swing point
+
+        if (previousSwingPoint) {
+            const previousLabel = previousSwingPoint.label;
+
+            // If clicked after LL or HL, look for next HH or LH
+            if (previousLabel === 'LL' || previousLabel === 'HL') {
+                const nextRelevantSwingPoint = calculatedSwingPoints.find(sp =>
+                    sp.index > clickedIndex && (sp.label === 'HH' || sp.label === 'LH')
+                );
+
+                if (nextRelevantSwingPoint) {
+                    endIndex = nextRelevantSwingPoint.index;
+                    swingPointLabel = nextRelevantSwingPoint.label;
+                }
+            }
+            // If clicked after HH or LH, look for next LL or HL
+            else if (previousLabel === 'HH' || previousLabel === 'LH') {
+                const nextRelevantSwingPoint = calculatedSwingPoints.find(sp =>
+                    sp.index > clickedIndex && (sp.label === 'LL' || sp.label === 'HL')
+                );
+
+                if (nextRelevantSwingPoint) {
+                    endIndex = nextRelevantSwingPoint.index;
+                    swingPointLabel = nextRelevantSwingPoint.label;
+                }
+            }
+        } else {
+            // If no previous swing point, just use the next swing point after clicked candle
+            const nextSwingPoint = calculatedSwingPoints.find(sp => sp.index > clickedIndex);
+            if (nextSwingPoint) {
+                endIndex = nextSwingPoint.index;
+                swingPointLabel = nextSwingPoint.label;
+            }
         }
-      }
-      // If clicked after HH or LH, look for next LL or HL
-      else if (previousLabel === 'HH' || previousLabel === 'LH') {
-        const nextRelevantSwingPoint = calculatedSwingPoints.find(sp => 
-          sp.index > clickedIndex && (sp.label === 'LL' || sp.label === 'HL')
-        );
-        
-        if (nextRelevantSwingPoint) {
-          endIndex = nextRelevantSwingPoint.index;
-          swingPointLabel = nextRelevantSwingPoint.label;
+    }
+
+    const reversalCandle = candles[endIndex];
+    const finalPrice = reversalCandle.close;
+
+    // Calculate profit/loss using close prices
+    const profitLoss = finalPrice - entryPrice;
+    const profitLossPercent = ((profitLoss / entryPrice) * 100);
+
+    let maxProfitPrice = entryPrice;
+    let maxLossPrice = entryPrice;
+
+    // Analyze each candle from entry through reversal (including reversal candle)
+    for (let i = clickedIndex + 1; i <= endIndex; i++) {
+        const currentCandle = candles[i];
+
+        // Track maximum profit using close prices
+        if (currentCandle.close > maxProfitPrice) {
+            maxProfitPrice = currentCandle.close;
         }
-      }
-    } else {
-      // If no previous swing point, just use the next swing point after clicked candle
-      const nextSwingPoint = calculatedSwingPoints.find(sp => sp.index > clickedIndex);
-      if (nextSwingPoint) {
-        endIndex = nextSwingPoint.index;
-        swingPointLabel = nextSwingPoint.label;
-      }
-    }
-  }
-  
-  const reversalCandle = candles[endIndex];
-  const finalPrice = reversalCandle.close;
-  
-  // Calculate profit/loss using close prices
-  const profitLoss = finalPrice - entryPrice;
-  const profitLossPercent = ((profitLoss / entryPrice) * 100);
-  
-  let maxProfitPrice = entryPrice;
-  let maxLossPrice = entryPrice;
-  
-  // Analyze each candle from entry through reversal (including reversal candle)
-  for (let i = clickedIndex + 1; i <= endIndex; i++) {
-    const currentCandle = candles[i];
-    
-    // Track maximum profit using close prices
-    if (currentCandle.close > maxProfitPrice) {
-      maxProfitPrice = currentCandle.close;
-    }
-    
-    // Track maximum loss using close prices
-    if (currentCandle.close < maxLossPrice) {
-      maxLossPrice = currentCandle.close;
-    }
-  }
-  
-  // Calculate max profit and loss percentages
-  const maxProfitPercent = ((maxProfitPrice - entryPrice) / entryPrice) * 100;
-  const maxLossPercent = ((maxLossPrice - entryPrice) / entryPrice) * 100;
-  
-  // Determine trend direction based on last 4 swing points (with fallback to available data)
-  const determineTrendFromSwingPoints = (calculatedSwingPoints: any[], clickedIndex: number): 'bullish' | 'bearish' | 'sideways' | 'neutral' | 'consolidated' => {
-    if (!calculatedSwingPoints || calculatedSwingPoints.length === 0) return 'bullish'; // Default
-    
-    // Get swing points up to the clicked candle
-    const relevantSwingPoints = calculatedSwingPoints
-      .filter(sp => sp.index <= clickedIndex)
-      .sort((a, b) => a.index - b.index); // Sort by index (chronological order)
-    
-    if (relevantSwingPoints.length === 0) return 'bullish'; // Default if no data
-    
-    // Get the last 4 swing points (or as many as available)
-    const numPointsToAnalyze = Math.min(4, relevantSwingPoints.length);
-    const lastSwingPoints = relevantSwingPoints.slice(-numPointsToAnalyze);
 
-    return analyzeSwingPointTrend(lastSwingPoints)
-  };
-  
+        // Track maximum loss using close prices
+        if (currentCandle.close < maxLossPrice) {
+            maxLossPrice = currentCandle.close;
+        }
+    }
+
+    // Calculate max profit and loss percentages
+    const maxProfitPercent = ((maxProfitPrice - entryPrice) / entryPrice) * 100;
+    const maxLossPercent = ((maxLossPrice - entryPrice) / entryPrice) * 100;
+
+    // Determine trend direction based on last 4 swing points (with fallback to available data)
+    const determineTrendFromSwingPoints = (calculatedSwingPoints: any[], clickedIndex: number): 'bullish' | 'bearish' | 'sideways' | 'neutral' | 'consolidated' => {
+        if (!calculatedSwingPoints || calculatedSwingPoints.length === 0) return 'bullish'; // Default
+
+        // Get swing points up to the clicked candle
+        const relevantSwingPoints = calculatedSwingPoints
+            .filter(sp => sp.index <= clickedIndex)
+            .sort((a, b) => a.index - b.index); // Sort by index (chronological order)
+
+        if (relevantSwingPoints.length === 0) return 'bullish'; // Default if no data
+
+        // Get the last 4 swing points (or as many as available)
+        const numPointsToAnalyze = Math.min(4, relevantSwingPoints.length);
+        const lastSwingPoints = relevantSwingPoints.slice(-numPointsToAnalyze);
+
+        return analyzeSwingPointTrend(lastSwingPoints)
+    };
 
 
-  const trendDirection = determineTrendFromSwingPoints(calculatedSwingPoints, clickedIndex);
-  
-  const candlesAnalyzed = endIndex - clickedIndex + 1;
-  
-  return {
-    clickedCandle,
-    clickedIndex,
-    trendReversalIndex: endIndex,
-    trendReversalCandle: reversalCandle,
-    maxProfitPrice,
-    maxLossPrice,
-    maxProfitPercent,
-    maxLossPercent,
-    finalProfitLoss: profitLoss,
-    finalProfitLossPercent: profitLossPercent,
-    candlesAnalyzed,
-    trendDirection: trendDirection,
-    startDate: new Date(clickedCandle.timestamp).toLocaleDateString(),
-    endDate: new Date(reversalCandle.timestamp).toLocaleDateString(),
-    swingPointLabel
-  };
+
+    const trendDirection = determineTrendFromSwingPoints(calculatedSwingPoints, clickedIndex);
+
+    const candlesAnalyzed = endIndex - clickedIndex + 1;
+
+    return {
+        clickedCandle,
+        clickedIndex,
+        trendReversalIndex: endIndex,
+        trendReversalCandle: reversalCandle,
+        maxProfitPrice,
+        maxLossPrice,
+        maxProfitPercent,
+        maxLossPercent,
+        finalProfitLoss: profitLoss,
+        finalProfitLossPercent: profitLossPercent,
+        candlesAnalyzed,
+        trendDirection: trendDirection,
+        startDate: new Date(clickedCandle.timestamp).toLocaleDateString(),
+        endDate: new Date(reversalCandle.timestamp).toLocaleDateString(),
+        swingPointLabel
+    };
 };
 
 // Function to map entry dates to the correct candles based on timeframe
 const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timeframe: string): Set<number> => {
-  const entryCandleIndices = new Set<number>();
-  
-  if (!entryDates || entryDates.length === 0 || !candles || candles.length === 0) {
+    const entryCandleIndices = new Set<number>();
+
+    if (!entryDates || entryDates.length === 0 || !candles || candles.length === 0) {
+        return entryCandleIndices;
+    }
+
+    entryDates.forEach(entryDateStr => {
+        try {
+            // Parse entry date - handle various formats including MM-DD-YYYY
+            let entryTime: Date;
+
+            // First Ptry standard YYYY-MM-DD format
+            entryTime = new Date(entryDateStr);
+
+            // If that fails and it looks like MM-DD-YYYY format, try swapping
+            if (isNaN(entryTime.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(entryDateStr)) {
+                const parts = entryDateStr.split('-');
+                const year = parseInt(parts[0]);
+                const month = parseInt(parts[1]);
+                const day = parseInt(parts[2]);
+
+                // If month > 12, it's likely MM-DD-YYYY format, so swap month and day
+                if (month > 12 && day <= 12) {
+                    ////console.log(`🔄 Detected MM-DD-YYYY format, converting ${entryDateStr} to ${year}-${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`);
+                    entryTime = new Date(`${year}-${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`);
+                }
+            }
+
+            // Handle other formats
+            if (isNaN(entryTime.getTime())) {
+                if (entryDateStr.includes('T')) {
+                    // ISO format: "2024-09-06T09:33:00"
+                    entryTime = new Date(entryDateStr);
+                } else if (entryDateStr.includes(' ')) {
+                    // Format: "2024-09-06 09:33:00"
+                    entryTime = new Date(entryDateStr.replace(' ', 'T'));
+                } else {
+                    // Assume it's just time: "09:33:00" - use current date
+                    const today = new Date().toISOString().split('T')[0];
+                    entryTime = new Date(`${today}T${entryDateStr}`);
+                }
+            }
+
+            if (isNaN(entryTime.getTime())) {
+                return;
+            }
+
+            const entryTimestamp = entryTime.getTime();
+
+            // Get the time range of available candles
+            const firstCandleTime = new Date(candles[0].timestamp).getTime();
+            const lastCandleTime = new Date(candles[candles.length - 1].timestamp).getTime();
+
+            // Define acceptable time tolerance based on timeframe
+            const getTimeTolerance = (tf: string): number => {
+                switch (tf) {
+                    case '1m': return 2 * 60 * 1000; // 2 minutes
+                    case '5m': return 10 * 60 * 1000; // 10 minutes
+                    case '15m': return 30 * 60 * 1000; // 30 minutes
+                    case '30m': return 60 * 60 * 1000; // 1 hour
+                    case '1h': return 2 * 60 * 60 * 1000; // 2 hours
+                    case '4h': return 8 * 60 * 60 * 1000; // 8 hours
+                    case '1d': return 2 * 24 * 60 * 60 * 1000; // 2 days
+                    case '1w': return 7 * 24 * 60 * 60 * 1000; // 1 week
+                    default: return 60 * 60 * 1000; // Default to 1 hour
+                }
+            };
+
+            const timeTolerance = getTimeTolerance(timeframe);
+
+            if (entryTimestamp < firstCandleTime - timeTolerance) {
+                return;
+            }
+
+            if (entryTimestamp > lastCandleTime + timeTolerance) {
+                return;
+            }
+
+            // Find the candle that should contain this entry
+            let bestCandleIndex = -1;
+            let smallestTimeDiff = Infinity;
+
+            for (let i = 0; i < candles.length; i++) {
+                const candleTime = new Date(candles[i].timestamp).getTime();
+
+                if (timeframe === '1d') {
+                    // For daily candles, check if same day
+                    const candleDate = new Date(candleTime).toDateString();
+                    const entryDate = entryTime.toDateString();
+                    if (candleDate === entryDate) {
+                        bestCandleIndex = i;
+                        break;
+                    }
+                } else {
+                    // For intraday timeframes, find the candle that the entry time falls into
+                    // The logic: if entry is at 9:33 and we have 5m candles at 9:30, 9:35, 9:40
+                    // then 9:33 should map to the 9:35 candle (next boundary after entry)
+
+                    // Check if entry time is between this candle and the next one
+                    if (i < candles.length - 1) {
+                        const nextCandleTime = new Date(candles[i + 1].timestamp).getTime();
+
+                        // If entry falls between current and next candle, it belongs to the next candle
+                        if (entryTimestamp > candleTime && entryTimestamp <= nextCandleTime) {
+                            bestCandleIndex = i + 1;
+                            break;
+                        }
+                    }
+
+                    // Alternative: find the closest candle after the entry time (but only within tolerance)
+                    if (candleTime >= entryTimestamp) {
+                        const timeDiff = candleTime - entryTimestamp;
+                        if (timeDiff < smallestTimeDiff && timeDiff <= timeTolerance) {
+                            smallestTimeDiff = timeDiff;
+                            bestCandleIndex = i;
+                        }
+                    }
+                }
+            }
+
+            if (bestCandleIndex >= 0) {
+                entryCandleIndices.add(bestCandleIndex);
+            }
+
+        } catch (error) {
+            console.error('Error parsing entry date:', entryDateStr, error);
+        }
+    });
+
     return entryCandleIndices;
-  }
-  
-  entryDates.forEach(entryDateStr => {
-    try {
-      // Parse entry date - handle various formats including MM-DD-YYYY
-      let entryTime: Date;
-      
-      // First Ptry standard YYYY-MM-DD format
-      entryTime = new Date(entryDateStr);
-      
-      // If that fails and it looks like MM-DD-YYYY format, try swapping
-      if (isNaN(entryTime.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(entryDateStr)) {
-        const parts = entryDateStr.split('-');
-        const year = parseInt(parts[0]);
-        const month = parseInt(parts[1]);
-        const day = parseInt(parts[2]);
-        
-        // If month > 12, it's likely MM-DD-YYYY format, so swap month and day
-        if (month > 12 && day <= 12) {
-          ////console.log(`🔄 Detected MM-DD-YYYY format, converting ${entryDateStr} to ${year}-${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`);
-          entryTime = new Date(`${year}-${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`);
-        }
-      }
-      
-      // Handle other formats
-      if (isNaN(entryTime.getTime())) {
-        if (entryDateStr.includes('T')) {
-          // ISO format: "2024-09-06T09:33:00"
-          entryTime = new Date(entryDateStr);
-        } else if (entryDateStr.includes(' ')) {
-          // Format: "2024-09-06 09:33:00"
-          entryTime = new Date(entryDateStr.replace(' ', 'T'));
-        } else {
-          // Assume it's just time: "09:33:00" - use current date
-          const today = new Date().toISOString().split('T')[0];
-          entryTime = new Date(`${today}T${entryDateStr}`);
-        }
-      }
-      
-      if (isNaN(entryTime.getTime())) {
-        return;
-      }
-      
-      const entryTimestamp = entryTime.getTime();
-      
-      // Get the time range of available candles
-      const firstCandleTime = new Date(candles[0].timestamp).getTime();
-      const lastCandleTime = new Date(candles[candles.length - 1].timestamp).getTime();
-      
-      // Define acceptable time tolerance based on timeframe
-      const getTimeTolerance = (tf: string): number => {
-        switch (tf) {
-          case '1m': return 2 * 60 * 1000; // 2 minutes
-          case '5m': return 10 * 60 * 1000; // 10 minutes
-          case '15m': return 30 * 60 * 1000; // 30 minutes
-          case '30m': return 60 * 60 * 1000; // 1 hour
-          case '1h': return 2 * 60 * 60 * 1000; // 2 hours
-          case '4h': return 8 * 60 * 60 * 1000; // 8 hours
-          case '1d': return 2 * 24 * 60 * 60 * 1000; // 2 days
-          case '1w': return 7 * 24 * 60 * 60 * 1000; // 1 week
-          default: return 60 * 60 * 1000; // Default to 1 hour
-        }
-      };
-      
-      const timeTolerance = getTimeTolerance(timeframe);
-      
-      if (entryTimestamp < firstCandleTime - timeTolerance) {
-        return;
-      }
-      
-      if (entryTimestamp > lastCandleTime + timeTolerance) {
-        return;
-      }
-      
-      // Find the candle that should contain this entry
-      let bestCandleIndex = -1;
-      let smallestTimeDiff = Infinity;
-      
-      for (let i = 0; i < candles.length; i++) {
-        const candleTime = new Date(candles[i].timestamp).getTime();
-        
-        if (timeframe === '1d') {
-          // For daily candles, check if same day
-          const candleDate = new Date(candleTime).toDateString();
-          const entryDate = entryTime.toDateString();
-          if (candleDate === entryDate) {
-            bestCandleIndex = i;
-            break;
-          }
-        } else {
-          // For intraday timeframes, find the candle that the entry time falls into
-          // The logic: if entry is at 9:33 and we have 5m candles at 9:30, 9:35, 9:40
-          // then 9:33 should map to the 9:35 candle (next boundary after entry)
-          
-          // Check if entry time is between this candle and the next one
-          if (i < candles.length - 1) {
-            const nextCandleTime = new Date(candles[i + 1].timestamp).getTime();
-            
-            // If entry falls between current and next candle, it belongs to the next candle
-            if (entryTimestamp > candleTime && entryTimestamp <= nextCandleTime) {
-              bestCandleIndex = i + 1;
-              break;
-            }
-          }
-          
-          // Alternative: find the closest candle after the entry time (but only within tolerance)
-          if (candleTime >= entryTimestamp) {
-            const timeDiff = candleTime - entryTimestamp;
-            if (timeDiff < smallestTimeDiff && timeDiff <= timeTolerance) {
-              smallestTimeDiff = timeDiff;
-              bestCandleIndex = i;
-            }
-          }
-        }
-      }
-      
-      if (bestCandleIndex >= 0) {
-        entryCandleIndices.add(bestCandleIndex);
-      }
-      
-    } catch (error) {
-      console.error('Error parsing entry date:', entryDateStr, error);}
-  });
-  
-  return entryCandleIndices;
 };
 
 
@@ -327,7 +328,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const dynamicSupportLineRef = useRef<any>(null);
     const dynamicResistanceLineRef = useRef<any>(null);
     const trendLinesRef = useRef<any[]>([]);
-    
+    const [calculatedSwingPoints, setCalculatedSwingPoints] = useState<any[]>([]);
+
+
     // Store calculated swing points for reuse in click analysis
     const calculatedSwingPointsRef = useRef<any[]>([]);
 
@@ -365,19 +368,19 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         return () => window.removeEventListener('resize', checkMobile);
     }, [height]);
 
-  
+
 
     // Detect timeframe from candle intervals
     const detectedTimeframe = useMemo(() => {
         if (candles.length < 2) return '1d'; // Default timeframe
-        
+
         const first = new Date(candles[0].timestamp).getTime();
         const second = new Date(candles[1].timestamp).getTime();
         const intervalMs = second - first;
-        
+
         // Convert to minutes for easier comparison
         const intervalMinutes = intervalMs / (1000 * 60);
-        
+
         if (intervalMinutes <= 1) return '1m';
         if (intervalMinutes <= 5) return '5m';
         if (intervalMinutes <= 15) return '15m';
@@ -421,7 +424,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Create chart with enhanced navigation and zoom configuration optimized for mobile
         const chart = createChart(UnderstchartContainerRef.current, {
             width: isMobile ? containerDimensions.width + 10 : containerDimensions.width,
-             height: containerDimensions.height, // Use full container height for both mobile and desktop
+            height: containerDimensions.height, // Use full container height for both mobile and desktop
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
@@ -496,7 +499,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             wickUpColor: '#1e7e34',  // Darker green for wicks
             wickDownColor: '#c62828', // Darker red for wicks
         });
-        
+
         // Store candlestick series reference for later use
         chartRef.current.candlestickSeries = candlestickSeries;
 
@@ -545,16 +548,16 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 low: candle.low,
                 close: candle.close,
             };
-        }).filter((item, index, self) => 
+        }).filter((item, index, self) =>
             // Remove duplicates and invalid entries
-            item.time && !isNaN(item.time) && 
+            item.time && !isNaN(item.time) &&
             index === self.findIndex(t => t.time === item.time)
         ).sort((a, b) => a.time - b.time); // Ensure ascending order
 
         // Set candlestick data with enhanced boundary handling
         // @ts-ignore: TypeScript types are too strict, but this works at runtime
         candlestickSeries.setData(formattedData);
-        
+
         // Configure better viewport management for limited data
         if (formattedData.length > 0) {
             // Add padding to prevent empty space issues
@@ -562,11 +565,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 from: formattedData[0].time,
                 to: formattedData[formattedData.length - 1].time
             };
-            
+
             // Fit content to show all data at normal zoom level
             chart.timeScale().fitContent();
-            
-           //////console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
+
+            //////console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
         }
 
         // Set volume data if enabled
@@ -578,12 +581,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     value: candle.volume,
                     color: candle.close >= candle.open ? '#4caf50' : '#ef5350',
                 };
-            }).filter((item, index, self) => 
+            }).filter((item, index, self) =>
                 // Remove duplicates and invalid entries
-                item.time && !isNaN(item.time) && 
+                item.time && !isNaN(item.time) &&
                 index === self.findIndex(t => t.time === item.time)
             ).sort((a, b) => a.time - b.time); // Ensure ascending order
-            
+
             // @ts-ignore: TypeScript types are too strict, but this works at runtime
             volumeSeries.setData(volumeData);
         }
@@ -658,7 +661,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     width: containerWidth,
                     height: containerHeight,
                 });
-                
+
                 // Auto-fit the data to the viewport after resize
                 setTimeout(() => {
                     if (chartRef.current && formattedData.length > 0) {
@@ -692,9 +695,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Add keyboard shortcuts for better navigation
         const handleKeyDown = (event: KeyboardEvent) => {
             if (!chartRef.current) return;
-            
+
             const timeScale = chartRef.current.timeScale();
-            
+
             switch (event.key) {
                 case 'Home':
                     // Go to the beginning of data
@@ -746,12 +749,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     // @ts-ignore
                     volumeSeriesRef.current.removePriceLine(avgVolumeLineRef.current);
                 }
-            } catch {}
+            } catch { }
             chart.remove();
             volumeSeriesRef.current = null;
             avgVolumeLineRef.current = null;
         };
-    }, [candles, height, width, showVolume, entryCandleIndices, strykeDates, algoDates]); // Added entryCandleIndices, strykeDates, algoDates to dependencies
+    }, [candles]); // Added entryCandleIndices, strykeDates, algoDates to dependencies
 
     // Manage Avg Volume reference line on the volume histogram
     useEffect(() => {
@@ -765,7 +768,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             try {
                 // @ts-ignore
                 series.removePriceLine(avgVolumeLineRef.current);
-            } catch {}
+            } catch { }
             avgVolumeLineRef.current = null;
         }
 
@@ -789,7 +792,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
     // Separate effect for EMA indicator management (EMA 8, EMA 30, and EMA 200)
     useEffect(() => {
-       //////console.log('📊 EMA effect triggered', { showEMA, candlesLength: candles.length });
+        //////console.log('📊 EMA effect triggered', { showEMA, candlesLength: candles.length });
         if (!chartRef.current) return;
 
         const chart = chartRef.current;
@@ -799,39 +802,39 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         const removeEmaSeries = () => {
             try {
                 if (ema8SeriesRef.current) { chart.removeSeries(ema8SeriesRef.current); ema8SeriesRef.current = null; }
-            } catch {}
+            } catch { }
             try {
                 if (ema30SeriesRef.current) { chart.removeSeries(ema30SeriesRef.current); ema30SeriesRef.current = null; }
-            } catch {}
+            } catch { }
             try {
                 if (ema200SeriesRef.current) { chart.removeSeries(ema200SeriesRef.current); ema200SeriesRef.current = null; }
-            } catch {}
+            } catch { }
         };
 
         if (showEMA) {
             try {
                 removeEmaSeries();
-                
+
                 // Check raw EMA values in candles
                 const candlesWithEma8 = candles.filter(c => typeof c.ema8 === 'number' && !isNaN(c.ema8));
                 const candlesWithEma30 = candles.filter(c => typeof c.ema30 === 'number' && !isNaN(c.ema30));
                 const candlesWithEma200 = candles.filter(c => typeof c.ema === 'number' && !isNaN(c.ema));
-                
+
                 // Debug logging for EMA data analysis
-               //////console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length}) EMA200(${candlesWithEma200.length})`);
-                
+                //////console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length}) EMA200(${candlesWithEma200.length})`);
+
                 // Debug timestamp ordering - check if data might be in reverse order
                 if (candles.length >= 2) {
                     const first = candles[0];
                     const last = candles[candles.length - 1];
                     const firstTime = parseTimestampToUnix(first.timestamp);
                     const lastTime = parseTimestampToUnix(last.timestamp);
-                   //////console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
+                    //////console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
                     if (firstTime > lastTime) {
                         //console.warn('⚠️ Data appears to be in reverse chronological order!');
                     }
                 }
-                
+
                 // EMA 8
                 ema8SeriesRef.current = chart.addLineSeries({
                     color: '#03A9F4',
@@ -839,7 +842,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     priceScaleId: '',
                     title: 'EMA 8',
                 });
-               //////console.log(`🎯 Creating EMA8 chart data...`);
+                //////console.log(`🎯 Creating EMA8 chart data...`);
                 const ema8Data = candles
                     .map((c: Candle, idx: number) => {
                         const chartPoint = {
@@ -857,8 +860,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 // Set EMA8 data with enhanced error handling
                 if (ema8Data.length > 0) {
                     ema8SeriesRef.current.setData(ema8Data);
-                   //////console.log('✅ EMA8 data set successfully');
-                    
+                    //////console.log('✅ EMA8 data set successfully');
+
                     // Ensure EMA series scales with the main chart
                     ema8SeriesRef.current.applyOptions({
                         lastValueVisible: false,
@@ -886,8 +889,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 // Set EMA30 data with enhanced error handling
                 if (ema30Data.length > 0) {
                     ema30SeriesRef.current.setData(ema30Data);
-                   //////console.log('✅ EMA30 data set successfully');
-                    
+                    //////console.log('✅ EMA30 data set successfully');
+
                     // Ensure EMA series scales with the main chart
                     ema30SeriesRef.current.applyOptions({
                         lastValueVisible: false,
@@ -915,8 +918,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 // Set EMA200 data with enhanced error handling
                 if (ema200Data.length > 0) {
                     ema200SeriesRef.current.setData(ema200Data);
-                   //////console.log('✅ EMA200 data set successfully');
-                    
+                    //////console.log('✅ EMA200 data set successfully');
+
                     // Ensure EMA series scales with the main chart
                     ema200SeriesRef.current.applyOptions({
                         lastValueVisible: false,
@@ -997,13 +1000,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Clean up any existing entry lines
         const existingEntryLines: any[] = [];
         // Note: We can't easily identify which lines are entry lines, so we'll skip cleanup for now
-    
+
 
         // Add entry line if entryPrice exists
         if (entryPrice && typeof entryPrice === 'number') {
             const timeScale = chart.timeScale();
             const visibleRange = timeScale.getVisibleRange();
-            
+
             let startTime, endTime;
             if (visibleRange) {
                 startTime = visibleRange.from;
@@ -1037,7 +1040,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Add profit zone (green area between entry and target)
         if (entryPrice && targetPrice && typeof entryPrice === 'number' && typeof targetPrice === 'number') {
             let startTime, endTime;
-            
+
             // Always calculate algo start time first, regardless of visible range
             let algoStartTime = null;
             if (candles.length > 0) {
@@ -1049,16 +1052,16 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     // Fallback to first candle date if no algo date provided
                     algoStartDate = new Date(candles[0].timestamp).toISOString().split('T')[0];
                 }
-                
+
                 // Find the candle that matches the algo start date and use its timestamp
-                const algoStartCandle = candles.find(candle => 
+                const algoStartCandle = candles.find(candle =>
                     candle.timestamp.startsWith(algoStartDate)
                 );
                 if (algoStartCandle) {
-                    algoStartTime = parseTimestampToUnix(algoStartCandle.timestamp); 
+                    algoStartTime = parseTimestampToUnix(algoStartCandle.timestamp);
                 }
             }
-            
+
             // Use algo start time if available, otherwise fallback to visible range or data range
             if (algoStartTime) {
                 startTime = algoStartTime;
@@ -1092,7 +1095,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             ];
 
             profitZoneSeries.setData(areaData);
-            
+
             // Store for cleanup - add profit zone first for proper layering
             entryLinesRef.current.unshift(profitZoneSeries);
         }
@@ -1100,7 +1103,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Add loss zone (red area between entry and stop loss)
         if (entryPrice && stopLossPrice && typeof entryPrice === 'number' && typeof stopLossPrice === 'number') {
             let startTime, endTime;
-            
+
             // Always calculate algo start time first, regardless of visible range
             let algoStartTime = null;
             if (candles.length > 0) {
@@ -1112,16 +1115,16 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     // Fallback to first candle date if no algo date provided
                     algoStartDate = new Date(candles[0].timestamp).toISOString().split('T')[0];
                 }
-                
+
                 // Find the candle that matches the algo start date and use its timestamp
-                const algoStartCandle = candles.find(candle => 
+                const algoStartCandle = candles.find(candle =>
                     candle.timestamp.startsWith(algoStartDate)
                 );
                 if (algoStartCandle) {
                     algoStartTime = parseTimestampToUnix(algoStartCandle.timestamp);
                 }
             }
-            
+
             // Use algo start time if available, otherwise fallback to visible range or data range
             if (algoStartTime) {
                 startTime = algoStartTime;
@@ -1176,13 +1179,21 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             }
         };
     }, []);
+
+    async function fetchSwingPoints(
+        swingStatsRequest: SwingStatsRequest
+
+    ) {
+        return fetchSwingPointsForStock(swingStatsRequest);
+    }
+
     useEffect(() => {
         if (!chartRef.current) return;
 
         const chart = chartRef.current;
-        
+
         // Clean up any existing trend lines from previous renders
-        if (trendLinesRef?.current && trendLinesRef?.current.length && chart) {
+        if (trendLinesRef.current && trendLinesRef.current.length && chart) {
             trendLinesRef.current.forEach(line => {
                 if (line && chart) {
                     try {
@@ -1195,8 +1206,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             });
             trendLinesRef.current = [];
         }
-        
-        
+
+
         // Ensure the candlestick series is initialized
         const candlestickSeries = chart.candlestickSeries || chart.addCandlestickSeries({
             upColor: '#1e7e34',
@@ -1205,7 +1216,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             wickUpColor: '#1e7e34',
             wickDownColor: '#c62828',
         });
-        
+
         // Store reference
         if (!chart.candlestickSeries) {
             chart.candlestickSeries = candlestickSeries;
@@ -1214,51 +1225,69 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Calculate swing points directly from OHLC data and display dotted lines
         if (showSwingPoints && candles.length >= 11) { // Need at least 11 candles for lookback of 5
             try {
-
-                debugger
                 const candleSize = candles.length;
-                const swingStatsRequest = {
-                    "instrumentKey" : instrumentKey,
-                    "fromDate" : candles[0].timestamp.split('T')[0],
-                    "toDate" : candles[candleSize - 1].timestamp.split('T')[0],
-                    "timeframe" : timeframe,
-                    "companyName" : companyName,
-
-
+                const swingStatsRequest: SwingStatsRequest = {
+                    "instrumentKey": instrumentKey ?? '',
+                    "fromDate": candles[0].timestamp.split('T')[0],
+                    "toDate": candles[candleSize - 1].timestamp.split('T')[0],
+                    "timeFrame": timeframe ?? '',
+                    "companyName": companyName ?? '',
                 }
-                let calculatedSwingPoints = await fetchSwingPointsForStock(swingStatsRequest);
-                
-                // Store swing points for use in click analysis
-                calculatedSwingPointsRef.current = calculatedSwingPoints;
-            
-                ////console.log(`✅ Calculated ${calculatedSwingPoints.length} swing points directly from OHLC data`);
-                
-                // Collect all markers for swing points
-                const allMarkers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
-                
-                // Create small dotted lines for each swing point
-                calculatedSwingPoints.forEach((swingPoint) => {
+
+                const run = async () => {
+
+                    const swingPoints = await fetchSwingPoints(
+                        swingStatsRequest
+                    );
+
+                    setCalculatedSwingPoints(swingPoints);
+                    calculatedSwingPointsRef.current = swingPoints;
+                    return swingPoints;
+                }
+
+                run().then((swingPoints) => {
+                    // Now render after we have the data
+                    if (!chartRef.current?.candlestickSeries || !swingPoints) return;
+
+                    // Create a single lookup map: timestamp (in seconds) -> candle index
+                    const timestampToIndexMap = new Map<number, number>();
+                    candles.forEach((candle, index) => {
+                        const unixTimestamp = Math.floor(new Date(candle.timestamp).getTime() / 1000); // Convert to seconds
+                        timestampToIndexMap.set(unixTimestamp, index);
+                    });
+
+                    // Collect all markers for swing points
+                    const allMarkers: { time: number; position: string; color: string; shape: string; text: string; size: number }[] = [];
+
+                    // Create small dotted lines for each swing point
+                    swingPoints.forEach((swingPoint: SwingPoints) => {
                     const label = swingPoint.label;
                     const color = getSwingPointColor(label);
+
+                    // Look up the candle index using the timestamp map
+                    const currentCandleIndex = timestampToIndexMap.get(swingPoint.timeStamp);
                     
-                    // Find the index of this swing point in the candles array
-                    const currentCandleIndex = swingPoint.index;
-                    
+                    // Skip if no matching candle found
+                    if (currentCandleIndex === undefined) {
+                        console.warn(`No matching candle found for swing point at timestamp ${swingPoint.timeStamp}`);
+                        return;
+                    }
+
                     // Create dotted line data (3 points on each side = 6 total points)
                     const dottedLineData: { time: number; value: number }[] = [];
                     const lineExtent = 3; // 3 points on each side
-                    
+
                     // Calculate offset for visual separation from candles
                     const priceRange = Math.max(...candles.map(c => c.high)) - Math.min(...candles.map(c => c.low));
                     const offset = priceRange * 0.002; // 0.2% of price range for gap
-                    
+
                     // Add offset based on swing point type (above/below candles)
                     const isHigh = label === 'HH' || label === 'LH';
                     const adjustedPrice = isHigh ? swingPoint.price + offset : swingPoint.price - offset;
-                    
-                    for (let i = Math.max(0, currentCandleIndex - lineExtent); 
-                         i <= Math.min(candles.length - 1, currentCandleIndex + lineExtent);
-                         i++) {
+
+                    for (let i = Math.max(0, currentCandleIndex - lineExtent);
+                        i <= Math.min(candles.length - 1, currentCandleIndex + lineExtent);
+                        i++) {
                         // Create dotted effect by only adding every 2nd point
                         if ((i - (currentCandleIndex - lineExtent)) % 2 === 0) {
                             dottedLineData.push({
@@ -1267,7 +1296,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             });
                         }
                     }
-                    
+
                     // Create a line series for this swing point's dotted line
                     const dottedLineSeries = chart.addLineSeries({
                         color: color,
@@ -1283,39 +1312,39 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             minMove: 0.01,
                         },
                     });
-                    
+
                     // Set the dotted line data
                     dottedLineSeries.setData(dottedLineData);
-                    
+
                     // Explicitly ensure no values are shown on Y-axis
                     dottedLineSeries.applyOptions({
                         lastValueVisible: false,
                         priceLineVisible: false,
                     });
-                    
+
                     // Store the line series for cleanup
                     trendLinesRef.current.push(dottedLineSeries);
-                    
+
                     // Add marker with label to the collection
-                    // Use 'flag' and larger size so text labels render clearly on the chart
+                    // Use the matched candle's timestamp for accurate positioning
                     allMarkers.push({
-                        time: swingPoint.time,
+                        time: parseTimestampToUnix(candles[currentCandleIndex].timestamp),
                         position: (label === 'HH' || label === 'LH') ? 'aboveBar' : 'belowBar',
                         color: color,
                         shape: 'flag',
                         text: label,
-                        size: 4,
+                        size: 1,
                     });
                 });
-                
+
                 // Add entry date markers and dotted lines only if we have Stryke entry dates
                 if (entryCandleIndices && entryCandleIndices.size > 0 && (strykeCandleIndices.size === 0 && algoCandleIndices.size === 0 && realTimeCandleIndices.size === 0)) {
                     entryCandleIndices.forEach((entryIndex) => {
                         if (entryIndex < candles.length) {
                             const entryCandle = candles[entryIndex];
                             const entryTime = parseTimestampToUnix(entryCandle.timestamp);
-                            
-                             // Add stryke marker with different color and style
+
+                            // Add stryke marker with different color and style
                             allMarkers.push({
                                 time: entryTime,
                                 position: 'aboveBar',
@@ -1324,7 +1353,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 text: 'Stryke',
                                 size: 10,
                             });
-                            
+
                             // Add circle marker for stryke
                             allMarkers.push({
                                 time: entryTime,
@@ -1344,7 +1373,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         if (entryIndex < candles.length) {
                             const entryCandle = candles[entryIndex];
                             const entryTime = parseTimestampToUnix(entryCandle.timestamp);
-                            
+
                             // Add stryke marker with different color and style
                             allMarkers.push({
                                 time: entryTime,
@@ -1354,7 +1383,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 text: 'S',
                                 size: 10,
                             });
-                            
+
                             // Add circle marker for stryke
                             allMarkers.push({
                                 time: entryTime,
@@ -1374,7 +1403,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         if (entryIndex < candles.length) {
                             const entryCandle = candles[entryIndex];
                             const entryTime = parseTimestampToUnix(entryCandle.timestamp);
-                            
+
                             // Add algo marker with different color and style
                             allMarkers.push({
                                 time: entryTime,
@@ -1384,7 +1413,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 text: 'A',
                                 size: 10,
                             });
-                            
+
                             // Add circle marker for algo
                             allMarkers.push({
                                 time: entryTime,
@@ -1404,7 +1433,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         if (entryIndex < candles.length) {
                             const entryCandle = candles[entryIndex];
                             const entryTime = parseTimestampToUnix(entryCandle.timestamp);
-                            
+
                             // Add real-time marker with orange color and style
                             allMarkers.push({
                                 time: entryTime,
@@ -1414,7 +1443,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 text: 'R',
                                 size: 10,
                             });
-                            
+
                             // Add circle marker for real-time
                             allMarkers.push({
                                 time: entryTime,
@@ -1428,14 +1457,14 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     });
                 }
 
-        
-                
+
+
                 // Then check analysisList for additional entries
                 if (propAnalysisList && propAnalysisList.length > 0) {
                     propAnalysisList.forEach((analysis) => {
                         if (analysis.entryTime && analysis.entryCandleClose) {
                             const entryTime = parseTimestampToUnix(analysis.entryTime);
-                            
+
                             // Add entry marker
                             allMarkers.push({
                                 time: entryTime,
@@ -1445,7 +1474,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 text: 'E',
                                 size: 10,
                             });
-                            
+
                             // Add circle marker for entry
                             allMarkers.push({
                                 time: entryTime,
@@ -1455,24 +1484,24 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 text: '',
                                 size: 0.5,
                             });
-                            
+
                             // Find entry candle index for line calculations
                             const entryCandleIndex = candles.findIndex(c => parseTimestampToUnix(c.timestamp) === entryTime);
-                            
+
                             if (entryCandleIndex >= 0) {
                                 const entryPrice = analysis.entryCandleClose;
-                                
+
                                 // Target line (light green)
                                 if (analysis.target && typeof analysis.target === 'number') {
                                     const targetPrice = analysis.target;
                                     const endIndex = Math.min(entryCandleIndex + 20, candles.length - 1); // 20 candles ahead or end of data
                                     const endTime = parseTimestampToUnix(candles[endIndex].timestamp);
-                                    
+
                                     const targetLineData = [
                                         { time: entryTime, value: entryPrice },
                                         { time: endTime, value: targetPrice }
                                     ];
-                                    
+
                                     const targetLineSeries = chart.addLineSeries({
                                         color: '#90EE90', // Light green
                                         lineWidth: 2,
@@ -1482,22 +1511,22 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                         lastValueVisible: false,
                                         crosshairMarkerVisible: false,
                                     });
-                                    
+
                                     targetLineSeries.setData(targetLineData);
                                     trendLinesRef.current.push(targetLineSeries);
                                 }
-                                
+
                                 // Stop Loss line (light red)
                                 if (analysis.stopLoss && typeof analysis.stopLoss === 'number') {
                                     const stopLossPrice = analysis.stopLoss;
                                     const endIndex = Math.min(entryCandleIndex + 20, candles.length - 1); // 20 candles ahead or end of data
                                     const endTime = parseTimestampToUnix(candles[endIndex].timestamp);
-                                    
+
                                     const stopLossLineData = [
                                         { time: entryTime, value: entryPrice },
                                         { time: endTime, value: stopLossPrice }
                                     ];
-                                    
+
                                     const stopLossLineSeries = chart.addLineSeries({
                                         color: '#FFB6C1', // Light red
                                         lineWidth: 2,
@@ -1507,7 +1536,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                         lastValueVisible: false,
                                         crosshairMarkerVisible: false,
                                     });
-                                    
+
                                     stopLossLineSeries.setData(stopLossLineData);
                                     trendLinesRef.current.push(stopLossLineSeries);
                                 }
@@ -1515,36 +1544,41 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         }
                     });
                 }
-                
-                // Ensure markers are ordered and unique by time before setting them
-                allMarkers.sort((a, b) => a.time - b.time);
-                // Deduplicate markers with same time and position (keep first)
-                const dedupedMarkers: typeof allMarkers = [];
-                const seen = new Set<string>();
-                for (const m of allMarkers) {
-                    const key = `${m.time}|${m.position}|${m.text}`;
-                    if (!seen.has(key)) {
-                        seen.add(key);
-                        dedupedMarkers.push(m);
-                    }
-                }
 
-                // Set all markers at once
-                candlestickSeries.setMarkers(dedupedMarkers);
-                
+                    // Ensure markers are ordered and unique by time before setting them
+                    allMarkers.sort((a, b) => a.time - b.time);
+                    // Deduplicate markers with same time and position (keep first)
+                    const dedupedMarkers: typeof allMarkers = [];
+                    const seen = new Set<string>();
+                    for (const m of allMarkers) {
+                        const key = `${m.time}|${m.position}|${m.text}`;
+                        if (!seen.has(key)) {
+                            seen.add(key);
+                            dedupedMarkers.push(m);
+                        }
+                    }
+
+                    // Set all markers at once
+                    if (chartRef.current?.candlestickSeries) {
+                        chartRef.current.candlestickSeries.setMarkers(dedupedMarkers);
+                    }
+                }).catch((err) => {
+                    toast.error('Error calculating swing points', { duration: 4000 });
+                    console.error(err);
+                });
             } catch (err) {
                 toast.error('Error calculating swing points', { duration: 4000 });
             }
         } else if (!showSwingPoints) {
             // Clear swing points when disabled
             calculatedSwingPointsRef.current = [];
-            
+
             // Clear markers
             if (chartRef.current?.candlestickSeries) {
                 chartRef.current.candlestickSeries.setMarkers([]);
             }
-        } 
-        
+        }
+
         // Return cleanup function
         return () => {
             // Clean up trend lines when component unmounts or dependencies change
@@ -1565,7 +1599,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 trendLinesRef.current = [];
             }
         };
-    }, [showSwingPoints, propAnalysisList, candles, entryCandleIndices, strykeCandleIndices, algoCandleIndices, realTimeCandleIndices, entryPrice, targetPrice, stopLossPrice]);
+    },[showSwingPoints, candles, instrumentKey, timeframe]); // Added entryCandleIndices, strykeCandleIndices, algoCandleIndices, realTimeCandleIndices, entryPrice, targetPrice, stopLossPrice
 
     // Crosshair move handler effect - updates when chart changes
 
@@ -1616,7 +1650,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 return '#000000'; // Default color
         }
     };
-  
+
     // Draw backend-provided SR as "static" lines (used when viewing latest)
     useEffect(() => {
         if (!chartRef.current?.candlestickSeries) return;
@@ -1625,11 +1659,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
         // Clean up existing static lines first
         if (staticSupportLineRef.current) {
-            try { series.removePriceLine(staticSupportLineRef.current); } catch {}
+            try { series.removePriceLine(staticSupportLineRef.current); } catch { }
             staticSupportLineRef.current = null;
         }
         if (staticResistanceLineRef.current) {
-            try { series.removePriceLine(staticResistanceLineRef.current); } catch {}
+            try { series.removePriceLine(staticResistanceLineRef.current); } catch { }
             staticResistanceLineRef.current = null;
         }
 
@@ -1742,11 +1776,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         // Helper to remove dynamic lines
         const clearDynamic = () => {
             if (dynamicSupportLineRef.current) {
-                try { series.removePriceLine(dynamicSupportLineRef.current); } catch {}
+                try { series.removePriceLine(dynamicSupportLineRef.current); } catch { }
                 dynamicSupportLineRef.current = null;
             }
             if (dynamicResistanceLineRef.current) {
-                try { series.removePriceLine(dynamicResistanceLineRef.current); } catch {}
+                try { series.removePriceLine(dynamicResistanceLineRef.current); } catch { }
                 dynamicResistanceLineRef.current = null;
             }
         };
@@ -1779,11 +1813,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
         const hideStatic = () => {
             if (staticSupportLineRef.current) {
-                try { series.removePriceLine(staticSupportLineRef.current); } catch {}
+                try { series.removePriceLine(staticSupportLineRef.current); } catch { }
                 staticSupportLineRef.current = null;
             }
             if (staticResistanceLineRef.current) {
-                try { series.removePriceLine(staticResistanceLineRef.current); } catch {}
+                try { series.removePriceLine(staticResistanceLineRef.current); } catch { }
                 staticResistanceLineRef.current = null;
             }
         };
@@ -1842,7 +1876,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         chart.timeScale().subscribeVisibleTimeRangeChange(handleRange);
 
         return () => {
-            try { chart.timeScale().unsubscribeVisibleTimeRangeChange(handleRange); } catch {}
+            try { chart.timeScale().unsubscribeVisibleTimeRangeChange(handleRange); } catch { }
             clearDynamic();
         };
     }, [candles, propAnalysisList, supportLevel, resistanceLevel]);
@@ -1854,24 +1888,24 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         const chart = chartRef.current;
         let isLoadingOlder = false;
         let isLoadingNewer = false;
-        
+
         const handleVisibleTimeRangeChange = async (newRange: { from: number; to: number } | null) => {
             if (!newRange || !candles.length) return;
-            
+
             const dataRange = {
                 from: parseTimestampToUnix(candles[0].timestamp),
                 to: parseTimestampToUnix(candles[candles.length - 1].timestamp)
             };
-            
+
             // Calculate thresholds for loading more data (when user is within 10% of edges)
             const dataSpan = dataRange.to - dataRange.from;
             const threshold = dataSpan * 0.1; // 10% threshold
-            
+
             // Check if user scrolled close to the left edge (older data)
             if (hasMoreOlderData && !isLoadingOlder && (newRange.from <= dataRange.from + threshold)) {
                 isLoadingOlder = true;
-               //////console.log('📥 Loading older data due to scroll position');
-                
+                //////console.log('📥 Loading older data due to scroll position');
+
                 try {
                     await onLoadMoreData('older');
                     // Add a small delay to prevent rapid loading
@@ -1881,12 +1915,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     isLoadingOlder = false;
                 }
             }
-            
+
             // Check if user scrolled close to the right edge (newer data)
             if (hasMoreNewerData && !isLoadingNewer && (newRange.to >= dataRange.to - threshold)) {
                 isLoadingNewer = true;
-               //////console.log('📥 Loading newer data due to scroll position');
-                
+                //////console.log('📥 Loading newer data due to scroll position');
+
                 try {
                     await onLoadMoreData('newer');
                     // Add a small delay to prevent rapid loading
@@ -1914,9 +1948,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     // Loading indicator overlay
     const LoadingOverlay = () => {
         if (!isLoadingMoreData) return null;
-        
+
         return (
-            <div 
+            <div
                 style={{
                     position: 'absolute',
                     top: 10,
@@ -1937,16 +1971,16 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     };
 
     return (
-    <div className="relative w-full bg-white z-1" style={{ height: '100%' }}>
+        <div className="relative w-full bg-white z-1" style={{ height: '100%' }}>
             <LoadingOverlay />
             <Toaster position="top-right" />
-            
+
             {/* Combined Stats and OHLC Info */}
             {ohlcInfo && (
                 isMobile ? (
                     // Mobile Compact Version
                     <div className={`absolute top-1 left-1 z-[200] bg-white/95 p-1.5 rounded shadow-md border border-gray-300 min-w-[200px] max-w-[240px] ${ohlcInfo.close >= ohlcInfo.open ? 'text-green-600' : 'text-red-700'}`}>
-                        
+
                         {/* Ultra Compact OHLC Row */}
                         <div className="flex justify-between gap-1 font-bold text-[10px] leading-tight">
                             <span>O: {ohlcInfo.open.toFixed(0)}</span>
@@ -1954,7 +1988,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             <span>L: {ohlcInfo.low.toFixed(0)}</span>
                             <span>C: {ohlcInfo.close.toFixed(0)}</span>
                             <span>V: {ohlcInfo.volume ? (ohlcInfo.volume / 1000).toFixed(0) + 'K' : 'N/A'}</span>
-                               <span className={`font-semibold ${ohlcInfo.close >= ohlcInfo.prevClose ? 'text-green-600' : 'text-red-600'}`}>
+                            <span className={`font-semibold ${ohlcInfo.close >= ohlcInfo.prevClose ? 'text-green-600' : 'text-red-600'}`}>
                                 {(() => {
                                     const change = ohlcInfo.close - ohlcInfo.prevClose;
                                     const percent = ohlcInfo.prevClose ? (change / ohlcInfo.prevClose) * 100 : 0;
@@ -1967,7 +2001,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 ) : (
                     // Desktop Version
                     <div className={`absolute top-1 left-4 z-[200] bg-white/95 p-3 md:p-4 rounded-lg shadow-lg border-2 border-gray-400 min-w-[200px] max-w-[280px] ${ohlcInfo.close >= ohlcInfo.open ? 'text-green-600' : 'text-red-700'}`}>
-                        
+
                         {/* OHLC Data Column */}
                         <div className="flex flex-col gap-1 text-xs md:text-sm">
                             <div className="flex justify-between font-bold">
@@ -2026,8 +2060,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                     <div className="flex justify-between font-bold">
                                         <span>Avg Vol:</span>
                                         <span className="text-gray-600">
-                                            {avgVolume >= 1000000 
-                                                ? `${(avgVolume / 1000000).toFixed(2)}M` 
+                                            {avgVolume >= 1000000
+                                                ? `${(avgVolume / 1000000).toFixed(2)}M`
                                                 : `${(avgVolume / 1000).toFixed(1)}K`}
                                         </span>
                                     </div>
@@ -2045,7 +2079,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     </div>
                 )
             )}
-            
+
             {/* Error messages for indicators */}
             {(emaError || rsiError) && (
                 <div className="absolute top-1 right-4 z-[202] bg-red-50 text-red-700 p-2 md:p-5 rounded-lg font-semibold text-sm md:text-base border-2 border-red-700 md:min-w-[400px] md:w-[420px] min-w-[280px] w-[300px]">
@@ -2053,9 +2087,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     {rsiError && <div>{rsiError}</div>}
                 </div>
             )}
-         
+
             {/* Floating OHLC info at top left (inside chart area) */}
-           
+
             {candleAnalysis && !isMobile && (
                 <div className={`absolute top-1 md:-right-[400px] -right-[280px] z-[200] bg-white/95 p-3 md:p-4 rounded-lg font-semibold text-sm md:text-base text-gray-800 shadow-xl border-4 min-w-[280px] max-w-[350px] ${candleAnalysis.finalProfitLoss >= 0 ? 'border-green-600' : 'border-red-700'}`}>
                     <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-gray-200">
@@ -2070,15 +2104,15 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             </button>
                         </div>
                     </div>
-                    
+
                     <div style={{ lineHeight: 1.4 }}>
                         <div style={{ marginBottom: 6 }}>
-                            <span style={{ color: '#666' }}>Trend:</span> 
+                            <span style={{ color: '#666' }}>Trend:</span>
                             <span className={`font-bold ${candleAnalysis.trendDirection === 'bullish' ? 'text-green-600' : 'text-red-700'}`}>
                                 {candleAnalysis.trendDirection === 'bullish' ? '📈 Bullish' : '📉 Bearish'}
                             </span>
                         </div>
-                        
+
                         <div className="mb-1.5">
                             <span className="text-gray-600">Duration:</span>
                             <b> {candleAnalysis.candlesAnalyzed} candles</b>
@@ -2112,8 +2146,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         </div>
 
                         <div className="mt-2.5 pt-2 border-t border-gray-200 font-bold text-sm md:text-base">
-                            <span className="text-gray-600">Final Result:</span> 
-                            <span style={{ 
+                            <span className="text-gray-600">Final Result:</span>
+                            <span style={{
                                 color: candleAnalysis.finalProfitLoss >= 0 ? '#1e7e34' : '#c62828'
                             }}>
                                 {candleAnalysis.finalProfitLoss >= 0 ? '+' : ''}
@@ -2121,10 +2155,10 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                 {candleAnalysis.finalProfitLoss >= 0 ? ' 💰' : ' 📉'}
                             </span>
                         </div>
-                        
-                        <div style={{ 
-                            marginTop: 8, 
-                            fontSize: 12, 
+
+                        <div style={{
+                            marginTop: 8,
+                            fontSize: 12,
                             color: '#888',
                             fontStyle: 'italic'
                         }}>
@@ -2133,12 +2167,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     </div>
                 </div>
             )}
-            
-            <div ref={UnderstchartContainerRef} style={{ 
-                width: '100%', 
+
+            <div ref={UnderstchartContainerRef} style={{
+                width: '100%',
                 height: '100%'
             }} />
-            
+
             {/* Navigation hints removed as requested */}
         </div>
     );

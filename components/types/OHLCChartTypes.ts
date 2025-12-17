@@ -62,14 +62,15 @@ export interface SwingStatsRequest{
     instrumentKey : string;
     fromDate : string;
     toDate : string;
-    timeframe : string;
+    timeFrame : string;
     companyName : string;
 }
 
 export interface SwingPoints {
-    timeStamp: string;
+    timeStamp: number;
     price: number;
     label: 'HH' | 'HL' | 'LH' | 'LL';
+    index : number;
 }
 
 export interface SwingPointsApiResponse  {
