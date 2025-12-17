@@ -112,19 +112,23 @@ function calculateIncrementalEMA(existingCandles: Candle[], newCandles: Candle[]
 }
 
 /**
- * Calculates EMA and RSI indicators for the given candles
+ * Calculates EMA and/or RSI indicators for the given candles
  * Now uses TradingView-compatible EMA calculation with proper incremental support
  * @param candles - Array of candles
  * @param emaPeriod - Period for EMA calculation (default: 200)
  * @param rsiPeriod - Period for RSI calculation (default: 14)
  * @param preserveExistingEMA - Whether to preserve existing EMA values (for incremental calculation)
- * @returns Array of candles with EMA and RSI values added
+ * @param calculateEMA - Whether to calculate EMA indicators (default: true)
+ * @param calculateRSI - Whether to calculate RSI indicator (default: true)
+ * @returns Array of candles with EMA and/or RSI values added
  */
 export function calculateIndicators(
     candles: Candle[], 
     emaPeriod: number = 200, 
     rsiPeriod: number = 14,
-    preserveExistingEMA: boolean = false
+    preserveExistingEMA: boolean = false,
+    calculateEMA: boolean = true,
+    calculateRSI: boolean = true
 ): Candle[] {
     ////console.log(`🚀 calculateIndicators CALLED with ${candles.length} candles`);
     ////console.log(`🔍 First candle: ${candles[0]?.timestamp}, Close: ${candles[0]?.close}`);
@@ -188,7 +192,7 @@ export function calculateIndicators(
             ////console.log(`  Last (newest): ${reversedCandles[reversedCandles.length - 1]?.timestamp}`);
             
             // Calculate EMA on reversed (chronological) data
-            const reversedResult = calculateIndicatorsInChronologicalOrder(reversedCandles, emaPeriod, rsiPeriod, preserveExistingEMA);
+            const reversedResult = calculateIndicatorsInChronologicalOrder(reversedCandles, emaPeriod, rsiPeriod, preserveExistingEMA, calculateEMA, calculateRSI);
             
             // Reverse the result back to match original order
             ////console.log(`🔄 Reversing results back to original order...`);
@@ -197,7 +201,7 @@ export function calculateIndicators(
     }
     
     // If timestamps are already in ascending order, proceed normally
-    return calculateIndicatorsInChronologicalOrder(candles, emaPeriod, rsiPeriod, preserveExistingEMA);
+    return calculateIndicatorsInChronologicalOrder(candles, emaPeriod, rsiPeriod, preserveExistingEMA, calculateEMA, calculateRSI);
 }
 
 /**
@@ -207,11 +211,13 @@ function calculateIndicatorsInChronologicalOrder(
     candles: Candle[], 
     emaPeriod: number = 200, 
     rsiPeriod: number = 14,
-    preserveExistingEMA: boolean = false
+    preserveExistingEMA: boolean = false,
+    calculateEMA: boolean = true,
+    calculateRSI: boolean = true
 ): Candle[] {
 
     // If preserving existing EMA, find split point where EMA calculation should start
-    if (preserveExistingEMA) {
+    if (preserveExistingEMA && calculateEMA) {
         const lastEMAIndex = candles.findLastIndex(c => c.ema8 !== null && c.ema8 !== undefined);
         if (lastEMAIndex >= 0 && lastEMAIndex < candles.length - 1) {
             // Split candles into existing (with EMA) and new (without EMA)
@@ -224,63 +230,84 @@ function calculateIndicatorsInChronologicalOrder(
             let result = calculateIncrementalEMA(existingCandles, newCandles, 8);
             result = calculateIncrementalEMA(existingCandles, newCandles, 30);
             
-            // Add RSI for all candles (RSI calculation is fast and needs full dataset)
-            const closes = result.map(c => c.close);
-            const rsiValues = RSI.calculate({ period: rsiPeriod, values: closes });
+            // Add RSI for all candles only if calculateRSI is true
+            if (calculateRSI) {
+                const closes = result.map(c => c.close);
+                const rsiValues = RSI.calculate({ period: rsiPeriod, values: closes });
+                
+                return result.map((candle, i) => ({
+                    ...candle,
+                    rsi: rsiValues[i - (result.length - rsiValues.length)] ?? null,
+                }));
+            }
             
-            return result.map((candle, i) => ({
-                ...candle,
-                rsi: rsiValues[i - (result.length - rsiValues.length)] ?? null,
-            }));
+            return result;
         }
     }
 
     // Full calculation for new datasets
     const closes = candles.map(c => c.close);
 
-    // Use TradingView-compatible calculation for ALL EMAs to ensure consistency
-    // This also handles array padding correctly (returns array of size N with nulls)
-    
-    // For larger periods (like 200), use the technicalindicators library which might match 
-    // external charts better due to internal precision or initialization differences.
-    // For smaller periods (8, 30), stick to our custom implementation as verified correct.
-    let emaValues: (number | null)[];
-    if (emaPeriod > 50) {
-        const calculated = EMA.calculate({ period: emaPeriod, values: closes });
-        // Pad with nulls to match closes length
-        const paddingCount = closes.length - calculated.length;
-        const padding = new Array(paddingCount).fill(null);
-        emaValues = [...padding, ...calculated];
-    } else {
-        emaValues = calculateTradingViewEMA(closes, emaPeriod);
-    }
+    // Calculate EMA values only if calculateEMA is true
+    let emaValues: (number | null)[] | null = null;
+    let ema8Values: (number | null)[] | null = null;
+    let ema30Values: (number | null)[] | null = null;
 
-    const ema8Values = calculateTradingViewEMA(closes, 8);
-    const ema30Values = calculateTradingViewEMA(closes, 30);
+    if (calculateEMA) {
+        // Use TradingView-compatible calculation for ALL EMAs to ensure consistency
+        // This also handles array padding correctly (returns array of size N with nulls)
+        
+        // For larger periods (like 200), use the technicalindicators library which might match 
+        // external charts better due to internal precision or initialization differences.
+        // For smaller periods (8, 30), stick to our custom implementation as verified correct.
+        if (emaPeriod > 50) {
+            const calculated = EMA.calculate({ period: emaPeriod, values: closes });
+            // Pad with nulls to match closes length
+            const paddingCount = closes.length - calculated.length;
+            const padding = new Array(paddingCount).fill(null);
+            emaValues = [...padding, ...calculated];
+        } else {
+            emaValues = calculateTradingViewEMA(closes, emaPeriod);
+        }
+
+        ema8Values = calculateTradingViewEMA(closes, 8);
+        ema30Values = calculateTradingViewEMA(closes, 30);
+    }
     
-    // Continue using technicalindicators for RSI
-    const rsiValues = RSI.calculate({ period: rsiPeriod, values: closes });
+    // Calculate RSI values only if calculateRSI is true
+    let rsiValues: number[] | null = null;
+    if (calculateRSI) {
+        rsiValues = RSI.calculate({ period: rsiPeriod, values: closes });
+    }
     
     const result = candles.map((candle, i) => {
-        // EMA8: values start at index 7 (period-1), EMA30: values start at index 29 (period-1)
-        // Convert null values to undefined for compatibility with Candle type
-        const ema8Raw = ema8Values[i];
-        const ema30Raw = ema30Values[i];
-        const emaRaw = emaValues[i];
-        
-        // Be more permissive - pass through any valid number we get, regardless of index
-        const ema8Value = (ema8Raw !== null && ema8Raw !== undefined && typeof ema8Raw === 'number' && !Number.isNaN(ema8Raw)) ? ema8Raw : undefined;
-        const ema30Value = (ema30Raw !== null && ema30Raw !== undefined && typeof ema30Raw === 'number' && !Number.isNaN(ema30Raw)) ? ema30Raw : undefined;
-        const emaValue = (emaRaw !== null && emaRaw !== undefined && typeof emaRaw === 'number' && !Number.isNaN(emaRaw)) ? emaRaw : undefined;
-        
-        return {
+        // Build the candle object with only the requested indicators
+        const updatedCandle: any = {
             ...candle, // Preserve ALL original candle properties
-            ema: emaValue,
-            // Pass through any valid EMA values we calculated
-            ema8: ema8Value,
-            ema30: ema30Value,
-            rsi: rsiValues[i - (candles.length - rsiValues.length)] ?? undefined,
         };
+        
+        // Add EMA values only if calculateEMA is true
+        if (calculateEMA && emaValues && ema8Values && ema30Values) {
+            const ema8Raw = ema8Values[i];
+            const ema30Raw = ema30Values[i];
+            const emaRaw = emaValues[i];
+            
+            // Be more permissive - pass through any valid number we get, regardless of index
+            const ema8Value = (ema8Raw !== null && ema8Raw !== undefined && typeof ema8Raw === 'number' && !Number.isNaN(ema8Raw)) ? ema8Raw : undefined;
+            const ema30Value = (ema30Raw !== null && ema30Raw !== undefined && typeof ema30Raw === 'number' && !Number.isNaN(ema30Raw)) ? ema30Raw : undefined;
+            const emaValue = (emaRaw !== null && emaRaw !== undefined && typeof emaRaw === 'number' && !Number.isNaN(emaRaw)) ? emaRaw : undefined;
+            
+            updatedCandle.ema = emaValue;
+            updatedCandle.ema8 = ema8Value;
+            updatedCandle.ema30 = ema30Value;
+        }
+        
+        // Add RSI value only if calculateRSI is true
+        if (calculateRSI && rsiValues) {
+            updatedCandle.rsi = rsiValues[i - (candles.length - rsiValues.length)] ?? undefined;
+        }
+        
+        return updatedCandle;
     });
 
     return result;

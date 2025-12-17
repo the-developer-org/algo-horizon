@@ -6,7 +6,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { useIsMobile } from '../hooks/use-mobile';
 import { OHLCChart } from './OHLCChart';
 import { Candle } from './types/candle';
-import { calculateIndicators } from './utils/indicators';
+import { calculateIndicators, calculateRSI } from './utils/indicators';
 import { Timeframe, processTimeframeData } from './utils/timeframeUtils';
 import { fetchPaginatedUpstoxData, UpstoxPaginationParams } from './utils/upstoxApi';
 
@@ -45,7 +45,7 @@ export const OHLCChartDemo: React.FC = () => {
   const [showSwingPoints, setShowSwingPoints] = useState(false);
   const [avgVolume, setAvgVolume] = useState<number>(0);
   // Chart indicator toggles
-  const [showRSI] = useState(false);
+  const [showRSI, setShowRSI] = useState(false);
   
   // EMA calculation toggle - separate from display toggle
   const [emaCalculation, setEmaCalculation] = useState(false);
@@ -579,6 +579,39 @@ export const OHLCChartDemo: React.FC = () => {
       setIsCalculatingEMA(false);
     }
   }, [emaCalculation, applyEMAToCandles]); // Don't include candles to avoid infinite loop
+
+  // Lazy RSI calculation - only calculate when toggle is ON and data is missing
+  useEffect(() => {
+    if (candles.length === 0) return;
+
+    // Check if RSI is toggled ON
+    if (showRSI) {
+      // Check if candles already have RSI values
+      const hasRSI = candles.some(c => c.rsi !== undefined && c.rsi !== null);
+      
+      if (!hasRSI) {
+        // RSI is enabled but missing - calculate it
+        //console.log(`🔄 RSI toggle enabled and data missing - calculating RSI for ${candles.length} candles`);
+        
+        try {
+          const candlesWithRSI = calculateRSI(candles, 14);
+          setCandles(candlesWithRSI);
+          
+          toast.success('RSI indicator calculated', {
+            duration: 1500
+          });
+          
+          //console.log(`✅ RSI calculation completed`);
+        } catch (error) {
+          console.error('Error calculating RSI:', error);
+          toast.error('Failed to calculate RSI');
+        }
+      } else {
+        // RSI data already exists, just show it
+        //console.log(`✅ RSI data already available, displaying`);
+      }
+    }
+  }, [showRSI]); // Only trigger when showRSI toggle changes
 
   // Update chart container dimensions when mounted or resized
   useLayoutEffect(() => {
@@ -1402,6 +1435,23 @@ export const OHLCChartDemo: React.FC = () => {
                   </div>
                   <span className="ml-1 text-xs text-gray-700">{showSwingPoints ? 'ON' : 'OFF'}</span>
                 </label>
+
+                {/* RSI Slider Switch (Mobile) */}
+                <label className="flex items-center cursor-pointer select-none ml-2">
+                  <span className="mr-1 text-xs text-gray-700">RSI</span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={showRSI}
+                      onChange={() => setShowRSI(!showRSI)}
+                      className="sr-only peer"
+                      aria-label="Toggle RSI Indicator"
+                    />
+                    <div className="w-7 h-4 bg-gray-300 rounded-full peer-checked:bg-blue-500 transition-colors"></div>
+                    <div className="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform peer-checked:translate-x-3"></div>
+                  </div>
+                  <span className="ml-1 text-xs text-gray-700">{showRSI ? 'ON' : 'OFF'}</span>
+                </label>
               </div>
 
               {/* Mobile View Mode Toggle */}
@@ -1600,6 +1650,23 @@ export const OHLCChartDemo: React.FC = () => {
                       <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
                     </div>
                     <span className="ml-2 text-sm text-gray-700">{showSwingPoints ? 'ON' : 'OFF'}</span>
+                  </label>
+
+                  {/* RSI Slider Switch (Desktop) */}
+                  <label className="flex items-center cursor-pointer select-none ml-2">
+                    <span className="mr-2 text-sm text-gray-700">RSI</span>
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={showRSI}
+                        onChange={() => setShowRSI(!showRSI)}
+                        className="sr-only peer"
+                        aria-label="Toggle RSI Indicator"
+                      />
+                      <div className="w-10 h-5 bg-gray-300 rounded-full peer-checked:bg-blue-500 transition-colors"></div>
+                      <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
+                    </div>
+                    <span className="ml-2 text-sm text-gray-700">{showRSI ? 'ON' : 'OFF'}</span>
                   </label>
                 </div>
 

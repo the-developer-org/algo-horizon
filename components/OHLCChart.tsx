@@ -965,18 +965,26 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     })
                     .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
-                if (!rsiData.length) throw new Error('Insufficient RSI data');
-                rsiSeriesRef.current.setData(rsiData);
-                chart.priceScale(rsiPaneId).applyOptions({
-                    scaleMargins: { top: 0.1, bottom: isMobile ? 0.05 : 0.1 },
-                    borderColor: '#9C27B0',
-                    borderVisible: true,
-                    visible: true,
-                    autoScale: true,
-                });
+                
+                // Only set data if we have RSI values, otherwise just clear the error
+                if (rsiData.length > 0) {
+                    rsiSeriesRef.current.setData(rsiData);
+                    chart.priceScale(rsiPaneId).applyOptions({
+                        scaleMargins: { top: 0.1, bottom: isMobile ? 0.05 : 0.1 },
+                        borderColor: '#9C27B0',
+                        borderVisible: true,
+                        visible: true,
+                        autoScale: true,
+                    });
+                    setRsiError(null); // Clear any previous errors
+                } else {
+                    // No valid RSI data yet - this is normal during initial calculation
+                    // The OHLC box will show RSI values as they become available
+                    setRsiError(null);
+                }
             } catch (err) {
                 //console.error('RSI calculation error:', err);
-                setRsiError('Insufficient RSI data available');
+                setRsiError('Failed to render RSI chart');
                 if (rsiSeriesRef.current) {
                     chart.removeSeries(rsiSeriesRef.current);
                     rsiSeriesRef.current = null;
@@ -985,6 +993,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         } else if (rsiSeriesRef.current) {
             chart.removeSeries(rsiSeriesRef.current);
             rsiSeriesRef.current = null;
+            setRsiError(null); // Clear error when RSI is disabled
         }
     }, [showRSI]); // Removed candles dependency since RSI is pre-calculated
 
@@ -1982,7 +1991,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     <div className={`absolute top-1 left-1 z-[200] bg-white/95 p-1.5 rounded shadow-md border border-gray-300 min-w-[200px] max-w-[240px] ${ohlcInfo.close >= ohlcInfo.open ? 'text-green-600' : 'text-red-700'}`}>
 
                         {/* Ultra Compact OHLC Row */}
-                        <div className="flex justify-between gap-1 font-bold text-[10px] leading-tight">
+                        <div className="flex justify-between gap-1 font-bold text-[10px] leading-tight flex-wrap">
                             <span>O: {ohlcInfo.open.toFixed(0)}</span>
                             <span>H: {ohlcInfo.high.toFixed(0)}</span>
                             <span>L: {ohlcInfo.low.toFixed(0)}</span>
@@ -1996,6 +2005,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                     return `${sign}${percent.toFixed(1)}%`;
                                 })()}
                             </span>
+                            {ohlcInfo.rsi !== undefined && ohlcInfo.rsi !== null && showRSI && (
+                                <span className={`font-semibold ${ohlcInfo.rsi > 70 ? 'text-red-600' : ohlcInfo.rsi < 30 ? 'text-green-600' : 'text-gray-600'}`}>
+                                    RSI: {ohlcInfo.rsi.toFixed(1)}
+                                </span>
+                            )}
                         </div>
                     </div>
                 ) : (
@@ -2035,6 +2049,12 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                                     })()}
                                 </span>
                             </div>
+                            {ohlcInfo.rsi !== undefined && ohlcInfo.rsi !== null && showRSI && (
+                                <div className={`flex justify-between font-bold border-t border-gray-200 pt-1 mt-1 ${ohlcInfo.rsi > 70 ? 'text-red-600' : ohlcInfo.rsi < 30 ? 'text-green-600' : 'text-gray-600'}`}>
+                                    <span className="text-xs md:text-sm">RSI (14):</span>
+                                    <span className="font-semibold">{ohlcInfo.rsi.toFixed(2)}</span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Additional Stats Column */}
