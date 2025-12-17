@@ -1420,6 +1420,7 @@ export const OHLCChartDemo: React.FC = () => {
                   Home
                 </a>
                 {/* Swings Slider Switch (Mobile) */}
+                {candles.length > 0 && (
                 <label className="flex items-center cursor-pointer select-none ml-2">
                   <span className="mr-1 text-xs text-gray-700">Swings</span>
                   <div className="relative">
@@ -1435,8 +1436,10 @@ export const OHLCChartDemo: React.FC = () => {
                   </div>
                   <span className="ml-1 text-xs text-gray-700">{showSwingPoints ? 'ON' : 'OFF'}</span>
                 </label>
+                )}
 
                 {/* RSI Slider Switch (Mobile) */}
+                {candles.length > 0 && (
                 <label className="flex items-center cursor-pointer select-none ml-2">
                   <span className="mr-1 text-xs text-gray-700">RSI</span>
                   <div className="relative">
@@ -1452,6 +1455,7 @@ export const OHLCChartDemo: React.FC = () => {
                   </div>
                   <span className="ml-1 text-xs text-gray-700">{showRSI ? 'ON' : 'OFF'}</span>
                 </label>
+                )}
               </div>
 
               {/* Mobile View Mode Toggle */}
@@ -1636,6 +1640,7 @@ export const OHLCChartDemo: React.FC = () => {
                     Home
                   </a>
                   {/* Slider Switch */}
+                  {candles.length > 0 && (
                   <label className="flex items-center cursor-pointer select-none ml-2">
                     <span className="mr-2 text-sm text-gray-700">Swings</span>
                     <div className="relative">
@@ -1651,8 +1656,10 @@ export const OHLCChartDemo: React.FC = () => {
                     </div>
                     <span className="ml-2 text-sm text-gray-700">{showSwingPoints ? 'ON' : 'OFF'}</span>
                   </label>
+                  )}
 
                   {/* RSI Slider Switch (Desktop) */}
+                  {candles.length > 0 && (
                   <label className="flex items-center cursor-pointer select-none ml-2">
                     <span className="mr-2 text-sm text-gray-700">RSI</span>
                     <div className="relative">
@@ -1668,6 +1675,7 @@ export const OHLCChartDemo: React.FC = () => {
                     </div>
                     <span className="ml-2 text-sm text-gray-700">{showRSI ? 'ON' : 'OFF'}</span>
                   </label>
+                  )}
                 </div>
 
                 {/* Desktop View Mode Toggle */}
