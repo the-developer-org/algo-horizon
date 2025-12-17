@@ -507,7 +507,7 @@ const height = typeof heightProp === 'string' ? Number.parseFloat(heightProp) ||
         chart.priceScale('right').applyOptions({
             scaleMargins: {
                 top: 0.005,
-                bottom: isMobile ? 0.25 : 0.3, // Reserve space for volume and RSI
+                bottom: showRSI ? (isMobile ? 0.25 : 0.15) : 0.08, // More space when RSI is on, minimal when off
             },
             borderVisible: true,
         });
@@ -533,7 +533,10 @@ const height = typeof heightProp === 'string' ? Number.parseFloat(heightProp) ||
             chartRef.current.volumeSeries = volumeSeries;
             // @ts-ignore
             chart.priceScale('volume').applyOptions({
-                scaleMargins: { top: isMobile ? 0.62 : 0.68, bottom: isMobile ? 0.18 : 0.22 },
+                scaleMargins: { 
+                    top: showRSI ? (isMobile ? 0.62 : 0.68) : (isMobile ? 0.75 : 0.80), // Adjust based on RSI visibility
+                    bottom: showRSI ? (isMobile ? 0.15 : 0.15) : 0 // Reduced bottom margin for RSI on to minimize gap
+                },
                 autoScale: true // Re-enable auto-scaling
             });
         }
