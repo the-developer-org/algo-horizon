@@ -153,11 +153,11 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
             entryTime = new Date(entryDateStr);
 
             // If that fails and it looks like MM-DD-YYYY format, try swapping
-            if (isNaN(entryTime.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(entryDateStr)) {
+            if (Number.isNaN(entryTime.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(entryDateStr)) {
                 const parts = entryDateStr.split('-');
-                const year = parseInt(parts[0]);
-                const month = parseInt(parts[1]);
-                const day = parseInt(parts[2]);
+                const year = Number.parseInt(parts[0], 10);
+                const month = Number.parseInt(parts[1], 10);
+                const day = Number.parseInt(parts[2], 10);
 
                 // If month > 12, it's likely MM-DD-YYYY format, so swap month and day
                 if (month > 12 && day <= 12) {
@@ -181,7 +181,7 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
                 }
             }
 
-            if (isNaN(entryTime.getTime())) {
+            if (Number.isNaN(entryTime.getTime())) {
                 return;
             }
 
@@ -189,7 +189,7 @@ const mapEntryDatesToCandles = (entryDates: string[], candles: Candle[], timefra
 
             // Get the time range of available candles
             const firstCandleTime = new Date(candles[0].timestamp).getTime();
-            const lastCandleTime = new Date(candles[candles.length - 1].timestamp).getTime();
+            const lastCandleTime = new Date(candles.at(-1)!.timestamp).getTime();
 
             // Define acceptable time tolerance based on timeframe
             const getTimeTolerance = (tf: string): number => {
@@ -306,10 +306,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     hasMoreNewerData = false,
     isLoadingMoreData = false
 }) => {
-    const height = typeof heightProp === 'string' ? parseFloat(heightProp) || chartHeight : heightProp;
+const height = typeof heightProp === 'string' ? Number.parseFloat(heightProp) || chartHeight : heightProp;
 
     const UnderstchartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
+    const rsiChartRef = useRef<any>(null);
     const [ohlcInfo, setOhlcInfo] = useState<any>(null);
     const [emaError, setEmaError] = useState<string | null>(null);
     const [rsiError, setRsiError] = useState<string | null>(null);
@@ -328,7 +329,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
     const dynamicSupportLineRef = useRef<any>(null);
     const dynamicResistanceLineRef = useRef<any>(null);
     const trendLinesRef = useRef<any[]>([]);
-    const [calculatedSwingPoints, setCalculatedSwingPoints] = useState<any[]>([]);
 
 
     // Store calculated swing points for reuse in click analysis
@@ -507,7 +507,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         chart.priceScale('right').applyOptions({
             scaleMargins: {
                 top: 0.005,
-                bottom: isMobile ? 0.002 : 0.01, // Minimal space for X-axis, even tighter on mobile
+                bottom: isMobile ? 0.25 : 0.3, // Reserve space for volume and RSI
             },
             borderVisible: true,
         });
@@ -519,7 +519,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             priceScaleId: '',
         });
 
-        // Add volume series on a separate scale at the bottom
+        // Add volume series on a separate scale below main chart
         let volumeSeries = null;
         if (showVolume) {
             // @ts-ignore
@@ -533,8 +533,29 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             chartRef.current.volumeSeries = volumeSeries;
             // @ts-ignore
             chart.priceScale('volume').applyOptions({
-                scaleMargins: { top: isMobile ? 0.6 : 0.65, bottom: 0 },
+                scaleMargins: { top: isMobile ? 0.62 : 0.68, bottom: isMobile ? 0.18 : 0.22 },
                 autoScale: true // Re-enable auto-scaling
+            });
+        }
+
+        // Add RSI series on a separate scale below volume
+        let rsiSeries = null;
+        if (showRSI) {
+            rsiSeries = chart.addLineSeries({
+                color: '#9C27B0',
+                lineWidth: 2,
+                priceScaleId: 'rsi',
+            });
+            rsiSeriesRef.current = rsiSeries;
+            // @ts-ignore
+            chartRef.current.rsiSeries = rsiSeries;
+            // @ts-ignore
+            chart.priceScale('rsi').applyOptions({
+                scaleMargins: { top: isMobile ? 0.75 : 0.78, bottom: 0 },
+                borderColor: '#9C27B0',
+                borderVisible: true,
+                visible: true,
+                autoScale: true,
             });
         }
 
@@ -550,7 +571,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             };
         }).filter((item, index, self) =>
             // Remove duplicates and invalid entries
-            item.time && !isNaN(item.time) &&
+            item.time && !Number.isNaN(item.time) &&
             index === self.findIndex(t => t.time === item.time)
         ).sort((a, b) => a.time - b.time); // Ensure ascending order
 
@@ -560,16 +581,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
         // Configure better viewport management for limited data
         if (formattedData.length > 0) {
-            // Add padding to prevent empty space issues
-            const dataRange = {
-                from: formattedData[0].time,
-                to: formattedData[formattedData.length - 1].time
-            };
-
             // Fit content to show all data at normal zoom level
             chart.timeScale().fitContent();
-
-            //////console.log(`📊 Chart data range: ${formattedData.length} candles from ${new Date(dataRange.from * 1000).toISOString()} to ${new Date(dataRange.to * 1000).toISOString()}`);
         }
 
         // Set volume data if enabled
@@ -583,7 +596,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 };
             }).filter((item, index, self) =>
                 // Remove duplicates and invalid entries
-                item.time && !isNaN(item.time) &&
+                item.time && !Number.isNaN(item.time) &&
                 index === self.findIndex(t => t.time === item.time)
             ).sort((a, b) => a.time - b.time); // Ensure ascending order
 
@@ -593,13 +606,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
         // Show the last candle's info by default
         if (candles.length > 0) {
-            const last = candles[candles.length - 1];
+            const last = candles.at(-1)!;
             setOhlcInfo({
                 open: last.open,
                 high: last.high,
                 low: last.low,
                 close: last.close,
-                prevClose: candles.length > 1 ? candles[candles.length - 2].close : last.open,
+                prevClose: candles.length > 1 ? candles.at(-2)!.close : last.open,
                 volume: last.volume,
                 rsi: last.rsi,
             });
@@ -607,7 +620,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
         // Update the OHLC info on crosshair move
         chart.subscribeCrosshairMove(param => {
-            if (param && param.time) {
+            if (param?.time) {
                 // Find the candle for the hovered time
                 const hovered = candles.find((c: Candle) => parseTimestampToUnix(c.timestamp) === param.time);
                 if (hovered) {
@@ -629,7 +642,7 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
         // Handle candle click for profit/loss analysis
         chart.subscribeClick(param => {
-            if (param && param.time) {
+            if (param?.time) {
                 // Find the clicked candle index
                 const clickedIndex = candles.findIndex((c: Candle) => parseTimestampToUnix(c.timestamp) === param.time);
                 if (clickedIndex !== -1 && clickedIndex < candles.length - 1) {
@@ -681,8 +694,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                             chartRef.current.timeScale().fitContent();
                         }
                     }, 200);
-                } catch (error) {
-                    //console.warn('Failed to auto-fit chart content:', error);
+                } catch {
+                    // Ignore fit content errors
                 }
             }
         };
@@ -738,11 +751,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown);
+        globalThis.addEventListener('keydown', handleKeyDown);
 
         return () => {
-            window.removeEventListener('resize', handleResize);
-            window.removeEventListener('keydown', handleKeyDown);
+            globalThis.removeEventListener('resize', handleResize);
+            globalThis.removeEventListener('keydown', handleKeyDown);
             try {
                 // Clean up avg volume line if present
                 if (avgVolumeLineRef.current && volumeSeriesRef.current) {
@@ -785,8 +798,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 axisLabelVisible: true,
                 title: 'Avg Volume',
             });
-        } catch (e) {
-            // noop
+        } catch {
+            // Ignore error
         }
     }, [avgVolume, showVolume, candles]);
 
@@ -816,22 +829,20 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                 removeEmaSeries();
 
                 // Check raw EMA values in candles
-                const candlesWithEma8 = candles.filter(c => typeof c.ema8 === 'number' && !isNaN(c.ema8));
-                const candlesWithEma30 = candles.filter(c => typeof c.ema30 === 'number' && !isNaN(c.ema30));
-                const candlesWithEma200 = candles.filter(c => typeof c.ema === 'number' && !isNaN(c.ema));
-
                 // Debug logging for EMA data analysis
-                //////console.log(`🔍 EMA Analysis: ${candles.length} candles, EMA8(${candlesWithEma8.length}) EMA30(${candlesWithEma30.length}) EMA200(${candlesWithEma200.length})`);
+                // Check raw EMA values in candles - these filter statements verify data existence
+                candles.filter(c => typeof c.ema8 === 'number' && !Number.isNaN(c.ema8));
+                candles.filter(c => typeof c.ema30 === 'number' && !Number.isNaN(c.ema30));
+                candles.filter(c => typeof c.ema === 'number' && !Number.isNaN(c.ema));
 
                 // Debug timestamp ordering - check if data might be in reverse order
                 if (candles.length >= 2) {
                     const first = candles[0];
-                    const last = candles[candles.length - 1];
+                    const last = candles.at(-1)!;
                     const firstTime = parseTimestampToUnix(first.timestamp);
                     const lastTime = parseTimestampToUnix(last.timestamp);
-                    //////console.log(`🕐 Time order: ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
                     if (firstTime > lastTime) {
-                        //console.warn('⚠️ Data appears to be in reverse chronological order!');
+                        // Data is in reverse order, this is expected for some backends
                     }
                 }
 
@@ -842,17 +853,13 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     priceScaleId: '',
                     title: 'EMA 8',
                 });
-                //////console.log(`🎯 Creating EMA8 chart data...`);
                 const ema8Data = candles
-                    .map((c: Candle, idx: number) => {
-                        const chartPoint = {
-                            time: parseTimestampToUnix(c.timestamp),
-                            value: typeof c.ema8 === 'number' && !isNaN(c.ema8) ? c.ema8 : null,
-                        };
-                        return chartPoint;
-                    })
+                    .map((c: Candle, idx: number) => ({
+                        time: parseTimestampToUnix(c.timestamp),
+                        value: typeof c.ema8 === 'number' && !Number.isNaN(c.ema8) ? c.ema8 : null,
+                    }))
                     .filter((item: any) => {
-                        const isValid = typeof item.value === 'number' && !isNaN(item.value);
+                        const isValid = typeof item.value === 'number' && !Number.isNaN(item.value);
                         return isValid;
                     })
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
@@ -877,13 +884,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     title: 'EMA 30',
                 });
                 const ema30Data = candles
-                    .map((c: Candle) => {
-                        return {
-                            time: parseTimestampToUnix(c.timestamp),
-                            value: typeof c.ema30 === 'number' && !isNaN(c.ema30) ? c.ema30 : null,
-                        };
-                    })
-                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
+                    .map((c: Candle) => ({
+                        time: parseTimestampToUnix(c.timestamp),
+                        value: typeof c.ema30 === 'number' && !Number.isNaN(c.ema30) ? c.ema30 : null,
+                    }))
+                    .filter((item: any) => typeof item.value === 'number' && !Number.isNaN(item.value))
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
 
                 // Set EMA30 data with enhanced error handling
@@ -906,13 +911,11 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     title: 'EMA 200',
                 });
                 const ema200Data = candles
-                    .map((c: Candle) => {
-                        return {
-                            time: parseTimestampToUnix(c.timestamp),
-                            value: typeof c.ema === 'number' && !isNaN(c.ema) ? c.ema : null,
-                        };
-                    })
-                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
+                    .map((c: Candle) => ({
+                        time: parseTimestampToUnix(c.timestamp),
+                        value: typeof c.ema === 'number' && !Number.isNaN(c.ema) ? c.ema : null,
+                    }))
+                    .filter((item: any) => typeof item.value === 'number' && !Number.isNaN(item.value))
                     .sort((a, b) => a.time - b.time); // Ensure ascending time order
 
                 // Set EMA200 data with enhanced error handling
@@ -932,7 +935,8 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                     throw new Error('Insufficient EMA data - EMA arrays are empty');
                 }
             } catch (err) {
-                //console.error('EMA calculation error:', err);
+                // Handle and log error
+                console.error('EMA error:', err);
                 setEmaError('Insufficient EMA data available');
                 removeEmaSeries();
             }
@@ -941,61 +945,65 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
         }
     }, [showEMA, candles]); // Added candles dependency to ensure EMA updates when data changes
 
-    // Separate effect for RSI indicator management
+    // Separate effect for RSI indicator management - adds RSI to main chart
     useEffect(() => {
-        if (!chartRef.current) return;
+        if (!chartRef.current || !showRSI) return;
 
         const chart = chartRef.current;
-        setRsiError(null);
+        const rsiSeries = chartRef.current.rsiSeries;
+        
+        if (!rsiSeries) return;
 
-        if (showRSI) {
-            try {
-                const rsiPaneId = 'rsi';
-                rsiSeriesRef.current = chart.addLineSeries({
-                    color: '#9C27B0',
-                    lineWidth: 2,
-                    priceScaleId: rsiPaneId,
-                });
-                const rsiData = candles
-                    .map((c: Candle) => {
-                        return {
-                            time: parseTimestampToUnix(c.timestamp),
-                            value: typeof c.rsi === 'number' && !isNaN(c.rsi) ? c.rsi : null,
-                        };
-                    })
-                    .filter((item: any) => typeof item.value === 'number' && !isNaN(item.value))
-                    .sort((a, b) => a.time - b.time); // Ensure ascending time order
-                
-                // Only set data if we have RSI values, otherwise just clear the error
-                if (rsiData.length > 0) {
-                    rsiSeriesRef.current.setData(rsiData);
-                    chart.priceScale(rsiPaneId).applyOptions({
-                        scaleMargins: { top: 0.1, bottom: isMobile ? 0.05 : 0.1 },
-                        borderColor: '#9C27B0',
-                        borderVisible: true,
-                        visible: true,
-                        autoScale: true,
-                    });
-                    setRsiError(null); // Clear any previous errors
-                } else {
-                    // No valid RSI data yet - this is normal during initial calculation
-                    // The OHLC box will show RSI values as they become available
-                    setRsiError(null);
-                }
-            } catch (err) {
-                //console.error('RSI calculation error:', err);
-                setRsiError('Failed to render RSI chart');
-                if (rsiSeriesRef.current) {
-                    chart.removeSeries(rsiSeriesRef.current);
-                    rsiSeriesRef.current = null;
-                }
+        try {
+            const rsiData = candles
+                .map((c: Candle) => ({
+                    time: parseTimestampToUnix(c.timestamp) as any,
+                    value: typeof c.rsi === 'number' && !Number.isNaN(c.rsi) ? c.rsi : null,
+                }))
+                .filter((item: any) => typeof item.value === 'number' && !Number.isNaN(item.value))
+                .sort((a, b) => (a.time as number) - (b.time as number));
+
+            if (rsiData.length === 0) {
+                setRsiError(null);
+                return;
             }
-        } else if (rsiSeriesRef.current) {
-            chart.removeSeries(rsiSeriesRef.current);
-            rsiSeriesRef.current = null;
-            setRsiError(null); // Clear error when RSI is disabled
+
+            // @ts-ignore: Type compatibility with lightweight-charts
+            rsiSeries.setData(rsiData as any);
+
+            // Add overbought/oversold reference lines as separate series
+            const rsiOverboughtSeries = chart.addLineSeries({
+                color: '#FF6B6B',
+                lineWidth: 1,
+                lineStyle: 2,
+                priceScaleId: 'rsi',
+            });
+            const rsiOverboughtData = rsiData.map((d, idx) => ({
+                ...d,
+                value: 70,
+            }));
+            // @ts-ignore
+            rsiOverboughtSeries.setData(rsiOverboughtData as any);
+
+            const rsiOversoldSeries = chart.addLineSeries({
+                color: '#51CF66',
+                lineWidth: 1,
+                lineStyle: 2,
+                priceScaleId: 'rsi',
+            });
+            const rsiOversoldData = rsiData.map((d, idx) => ({
+                ...d,
+                value: 30,
+            }));
+            // @ts-ignore
+            rsiOversoldSeries.setData(rsiOversoldData as any);
+
+            setRsiError(null);
+        } catch (err) {
+            console.error('RSI calculation error:', err);
+            setRsiError('Failed to render RSI indicator');
         }
-    }, [showRSI]); // Removed candles dependency since RSI is pre-calculated
+    }, [showRSI, candles]);
 
 
     // Separate effect for entry/target/SL lines from URL parameters
@@ -1249,7 +1257,6 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
                         swingStatsRequest
                     );
 
-                    setCalculatedSwingPoints(swingPoints);
                     calculatedSwingPointsRef.current = swingPoints;
                     return swingPoints;
                 }
@@ -2190,7 +2197,9 @@ export const OHLCChart: React.FC<OHLCChartProps> = ({
 
             <div ref={UnderstchartContainerRef} style={{
                 width: '100%',
-                height: '100%'
+                flex: 1,
+                minHeight: 0,
+                overflow: 'hidden'
             }} />
 
             {/* Navigation hints removed as requested */}
