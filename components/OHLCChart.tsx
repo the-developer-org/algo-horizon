@@ -315,6 +315,7 @@ const height = typeof heightProp === 'string' ? Number.parseFloat(heightProp) ||
     const [emaError, setEmaError] = useState<string | null>(null);
     const [rsiError, setRsiError] = useState<string | null>(null);
     const [candleAnalysis, setCandleAnalysis] = useState<CandleAnalysis | null>(null);
+    const [showAnalysis, setShowAnalysis] = useState<boolean>(true);
     const ema8SeriesRef = useRef<any>(null);
     const ema30SeriesRef = useRef<any>(null);
     const ema200SeriesRef = useRef<any>(null);
@@ -1994,6 +1995,21 @@ const height = typeof heightProp === 'string' ? Number.parseFloat(heightProp) ||
             <LoadingOverlay />
             <Toaster position="top-right" />
 
+            {/* Analysis Toggle Button */}
+            {candleAnalysis && (
+                <button
+                    onClick={() => setShowAnalysis(!showAnalysis)}
+                    className={`absolute top-4 right-4 z-[201] px-3 py-2 rounded-lg font-semibold text-sm transition-all ${
+                        showAnalysis
+                            ? 'bg-blue-600 text-white shadow-lg hover:bg-blue-700'
+                            : 'bg-gray-400 text-white shadow-md hover:bg-gray-500'
+                    }`}
+                    title={showAnalysis ? 'Hide Analysis' : 'Show Analysis'}
+                >
+                    📊 {showAnalysis ? 'Hide' : 'Show'}
+                </button>
+            )}
+
             {/* Combined Stats and OHLC Info */}
             {ohlcInfo && (
                 isMobile ? (
@@ -2120,13 +2136,13 @@ const height = typeof heightProp === 'string' ? Number.parseFloat(heightProp) ||
 
             {/* Floating OHLC info at top left (inside chart area) */}
 
-            {candleAnalysis && !isMobile && (
-                <div className={`absolute top-1 md:-right-[400px] -right-[280px] z-[200] bg-white/95 p-3 md:p-4 rounded-lg font-semibold text-sm md:text-base text-gray-800 shadow-xl border-4 min-w-[280px] max-w-[350px] ${candleAnalysis.finalProfitLoss >= 0 ? 'border-green-600' : 'border-red-700'}`}>
+            {candleAnalysis && !isMobile && showAnalysis && (
+                <div className={`absolute top-20 right-4 z-[200] bg-white/95 p-3 md:p-4 rounded-lg font-semibold text-sm md:text-base text-gray-800 shadow-xl border-4 min-w-[280px] max-w-[350px] ${candleAnalysis.finalProfitLoss >= 0 ? 'border-green-600' : 'border-red-700'}`}>
                     <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-gray-200">
                         <div className="flex items-center gap-2">
                             <span className="font-bold text-base md:text-lg">📊 Analysis</span>
                             <button
-                                onClick={() => setCandleAnalysis(null)}
+                                onClick={() => setShowAnalysis(false)}
                                 className="bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold transition-colors"
                                 title="Close"
                             >

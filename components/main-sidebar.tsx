@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, SquareChevronLeft } from "lucide-react";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, SquareChevronLeft, Shield } from "lucide-react";
 import UpstoxIcon from "@/components/icons/UpstoxIcon";
 import {
   Sidebar,
@@ -25,6 +25,7 @@ const primaryItems = [
    { title: "Deep Dive", url: "/deep-dive", icon: Target },
    { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
   { title: "Paper Trading", url: "/paper-trading", icon: DollarSign },
+  { title: "Stock Buffers", url: "/stock-buffers", icon: Shield },
   { title: "Upstox", url: "/upstox", icon: UpstoxIcon },
   { title: "Tick Data", url: "/tick-data", icon: TrendingUp },
   { title: "Boom Days & Watch Lists", url: "/boom-days", icon: Calendar },
@@ -48,41 +49,59 @@ interface MainSidebarProps extends Readonly<React.ComponentProps<typeof Sidebar>
 export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibility, ...props }: MainSidebarProps) {
   const router = useRouter();
   const [internalIsVisible, setInternalIsVisible] = React.useState(isVisible);
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
+  const [isPermanentlyCollapsed, setIsPermanentlyCollapsed] = React.useState(false);
   const autoHideTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const secondTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const lastInteractionRef = React.useRef<number>(Date.now());
 
-  // Auto-hide functionality
-  const resetAutoHideTimer = React.useCallback(() => {
+  // Auto-collapse functionality
+  const resetAutoCollapseTimer = React.useCallback(() => {
     lastInteractionRef.current = Date.now();
     
-    // Clear existing timer
+    // Clear existing timers
     if (autoHideTimerRef.current) {
       clearTimeout(autoHideTimerRef.current);
     }
+    if (secondTimerRef.current) {
+      clearTimeout(secondTimerRef.current);
+    }
     
-    // Set new timer for 3 seconds
+    // Reset collapsed states
+    setIsCollapsed(false);
+    setIsPermanentlyCollapsed(false);
+    
+    // Set first timer for 5 seconds - collapse to icon-only
     autoHideTimerRef.current = setTimeout(() => {
-      // Only auto-hide if sidebar is currently visible and it's been 3 seconds since last interaction
-      if (internalIsVisible && Date.now() - lastInteractionRef.current >= 3000) {
-        setInternalIsVisible(false);
-        onToggleVisibility?.();
+      if (internalIsVisible && Date.now() - lastInteractionRef.current >= 5000) {
+        setIsCollapsed(true);
+        
+        // Set second timer for another 5 seconds - make it permanent
+        secondTimerRef.current = setTimeout(() => {
+          if (Date.now() - lastInteractionRef.current >= 10000) {
+            setIsPermanentlyCollapsed(true);
+          }
+        }, 5000);
       }
-    }, 3000);
-  }, [internalIsVisible, onToggleVisibility]);
+    }, 5000);
+  }, [internalIsVisible]);
 
   // Handle user interactions
   const handleInteraction = React.useCallback(() => {
-    resetAutoHideTimer();
-  }, [resetAutoHideTimer]);
+    resetAutoCollapseTimer();
+  }, [resetAutoCollapseTimer]);
 
-  // Effect to manage auto-hide timer
+  // Effect to manage auto-collapse timer
   React.useEffect(() => {
-    if (internalIsVisible) {
-      resetAutoHideTimer();
+    if (internalIsVisible && !isPermanentlyCollapsed) {
+      resetAutoCollapseTimer();
     } else {
-      // Clear timer when sidebar is hidden
+      // Clear timers when sidebar is hidden or permanently collapsed
       if (autoHideTimerRef.current) {
         clearTimeout(autoHideTimerRef.current);
+      }
+      if (secondTimerRef.current) {
+        clearTimeout(secondTimerRef.current);
       }
     }
 
@@ -91,8 +110,11 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
       if (autoHideTimerRef.current) {
         clearTimeout(autoHideTimerRef.current);
       }
+      if (secondTimerRef.current) {
+        clearTimeout(secondTimerRef.current);
+      }
     };
-  }, [internalIsVisible, resetAutoHideTimer]);
+  }, [internalIsVisible, isPermanentlyCollapsed, resetAutoCollapseTimer]);
 
   // Sync with external visibility control
   React.useEffect(() => {
@@ -107,9 +129,9 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
     
     // Reset timer when manually toggling
     if (newVisibility) {
-      resetAutoHideTimer();
+      resetAutoCollapseTimer();
     }
-  }, [internalIsVisible, onToggleVisibility, resetAutoHideTimer]);
+  }, [internalIsVisible, onToggleVisibility, resetAutoCollapseTimer]);
 
   if (!internalIsVisible) {
     return (
@@ -125,10 +147,98 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
     );
   }
 
+  // Collapsed state - show only icons
+  if (isCollapsed) {
+    return (
+      <Sidebar 
+        variant="inset" 
+        className="bg-slate-500 w-16 transition-all duration-300"
+        onMouseEnter={handleInteraction}
+        onMouseMove={handleInteraction}
+        onClick={handleInteraction}
+        {...props}
+      >
+        <SidebarHeader className="bg-slate-500">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <div className="flex items-center justify-center w-full p-2" />
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent className="bg-slate-900 text-white">
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {primaryItems.map(item => {
+                  const isBoomDays = item.title.includes('Boom Days') || item.url === '/boom-days';
+                  if (isBoomDays) {
+                    return (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton asChild size="lg">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleInteraction();
+                              onShowInsights?.();
+                              router.push('/');
+                            }}
+                            title={item.title}
+                          >
+                            <item.icon />
+                          </button>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  }
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild size="lg">
+                        <a 
+                          href={item.url}
+                          onClick={handleInteraction}
+                          title={item.title}
+                        >
+                          <item.icon />
+                        </a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarSeparator />
+
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {utilityItems.map(item => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild size="lg">
+                      <a 
+                        href={item.url}
+                        onClick={handleInteraction}
+                        title={item.title}
+                      >
+                        <item.icon />
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter className="bg-slate-500" />
+      </Sidebar>
+    );
+  }
+
   return (
     <Sidebar 
       variant="inset" 
-      className="bg-slate-500 w-80"
+      className="bg-slate-500 w-80 transition-all duration-300"
       onMouseEnter={handleInteraction}
       onMouseMove={handleInteraction}
       onClick={handleInteraction}
@@ -138,10 +248,7 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center w-full p-3">
-              <button onClick={handleToggleVisibility} className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <TrendingUp className="size-4 text-white" />
-              </button>
-              <a href="/" className="flex flex-1 items-center text-left text-sm leading-tight ml-2">
+              <a href="/" className="flex flex-1 items-center text-left text-sm leading-tight">
                 <span className="font-semibold whitespace-nowrap text-white">Algo Horizon X Upstox</span>
               </a>
             </div>
