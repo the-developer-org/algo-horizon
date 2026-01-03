@@ -407,9 +407,74 @@ export default function StockBuffersPage() {
             </div>
           )}
 
-          {/* Summary */}
-          <div className="text-sm text-gray-600">
-            Showing {filteredBuffers.length} of {stockBuffers.length} stock buffers
+          {/* Summary Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-gray-600 font-medium">Total Buffers</p>
+              <p className="text-2xl font-bold text-blue-600">{stockBuffers.length}</p>
+            </div>
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-xs text-gray-600 font-medium">RSI Qualified</p>
+              <div className="space-y-2">
+                <div className="flex gap-4 items-center">
+                  <div>
+                    <p className="text-xs text-gray-500">Day RSI</p>
+                    <p className="text-xl font-bold text-green-600">
+                      {stockBuffers.filter(b => b.didDayRSIQualify).length}
+                    </p>
+                  </div>
+                  <div className="border-l border-green-300"></div>
+                  <div>
+                    <p className="text-xs text-gray-500">Hour RSI</p>
+                    <p className="text-xl font-bold text-green-600">
+                      {stockBuffers.filter(b => b.didHourRSIQualify).length}
+                    </p>
+                  </div>
+                </div>
+                <div className="border-t border-green-300 pt-2">
+                  <p className="text-xs text-gray-500">Total</p>
+                  <p className="text-lg font-bold text-green-600">
+                    {stockBuffers.filter(b => b.didDayRSIQualify || b.didHourRSIQualify).length}/{stockBuffers.length}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+              <p className="text-xs text-gray-600 font-medium">Swing Crossing</p>
+              <p className="text-2xl font-bold text-orange-600">
+                {stockBuffers.filter(b => b.swingDates && b.swingDates.length > 0).length}/{stockBuffers.length}
+              </p>
+            </div>
+            <div className="p-3 bg-pink-50 border border-pink-200 rounded-lg">
+              <p className="text-xs text-gray-600 font-medium">Buffer Hits</p>
+              <div className="space-y-2">
+                <div className="flex gap-4 items-center">
+                  <div>
+                    <p className="text-xs text-gray-500">1H Timeframe</p>
+                    <p className="text-xl font-bold text-pink-600">
+                      {stockBuffers.filter(b => b.bufferHitsList?.some(hit => hit.timeFrame === '1h')).length}
+                    </p>
+                  </div>
+                  <div className="border-l border-pink-300"></div>
+                  <div>
+                    <p className="text-xs text-gray-500">15M Timeframe</p>
+                    <p className="text-xl font-bold text-pink-600">
+                      {stockBuffers.filter(b => b.bufferHitsList?.some(hit => hit.timeFrame === '15m')).length}
+                    </p>
+                  </div>
+                </div>
+                <div className="border-t border-pink-300 pt-2">
+                  <p className="text-xs text-gray-500">Stocks w/ Hits</p>
+                  <p className="text-lg font-bold text-pink-600">
+                    {stockBuffers.filter(b => b.bufferHitsList && b.bufferHitsList.length > 0).length}/{stockBuffers.length}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+              <p className="text-xs text-gray-600 font-medium">Showing Filtered</p>
+              <p className="text-2xl font-bold text-purple-600">{filteredBuffers.length}</p>
+            </div>
           </div>
         </div>
       </Card>
