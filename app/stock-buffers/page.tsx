@@ -435,6 +435,7 @@ export default function StockBuffersPage() {
                   <p className="text-xs text-gray-500">Total</p>
                   <p className="text-lg font-bold text-green-600">
                     {stockBuffers.filter(b => b.didDayRSIQualify || b.didHourRSIQualify).length}/{stockBuffers.length}
+                    {stockBuffers.length > 0 && ` (${((stockBuffers.filter(b => b.didDayRSIQualify || b.didHourRSIQualify).length / stockBuffers.length) * 100).toFixed(1)}%)`}
                   </p>
                 </div>
               </div>
@@ -443,6 +444,7 @@ export default function StockBuffersPage() {
               <p className="text-xs text-gray-600 font-medium">Swing Crossing</p>
               <p className="text-2xl font-bold text-orange-600">
                 {stockBuffers.filter(b => b.swingDates && b.swingDates.length > 0).length}/{stockBuffers.length}
+                {stockBuffers.length > 0 && ` (${((stockBuffers.filter(b => b.swingDates && b.swingDates.length > 0).length / stockBuffers.length) * 100).toFixed(1)}%)`}
               </p>
             </div>
             <div className="p-3 bg-pink-50 border border-pink-200 rounded-lg">
@@ -467,6 +469,7 @@ export default function StockBuffersPage() {
                   <p className="text-xs text-gray-500">Stocks w/ Hits</p>
                   <p className="text-lg font-bold text-pink-600">
                     {stockBuffers.filter(b => b.bufferHitsList && b.bufferHitsList.length > 0).length}/{stockBuffers.length}
+                    {stockBuffers.length > 0 && ` (${((stockBuffers.filter(b => b.bufferHitsList && b.bufferHitsList.length > 0).length / stockBuffers.length) * 100).toFixed(1)}%)`}
                   </p>
                 </div>
               </div>
