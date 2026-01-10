@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+import { EMACROSS } from '@/types/analysis';
 
 interface BufferHits {
   date?: string;
@@ -15,20 +16,59 @@ interface BufferHits {
 interface SwingDates {
   swingStart?: string;
   swingEnd?: string;
+  label?: string;
+  price?: number;
+  date?: string;
+  [key: string]: any;
+}
+
+interface Candle {
+  timestamp?: string;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  volume?: number;
   [key: string]: any;
 }
 
 interface LightSwingDTO {
   swingStart?: string;
   swingEnd?: string;
+  label?: string;
   [key: string]: any;
+}
+
+interface SwingAnalysis {
+  previousSwing?: LightSwingDTO;
+  currentSwing?: LightSwingDTO;
+  COCCandle?: Candle;
+  minSwingProfits?: number;
+  maxSwingProfits?: number;
+  absoluteProfits?: number;
+  daysTakenForAbsoluteProfits?: number;
+  daysTakenForMaxSwingProfits?: number;
+  maxProfitCandle?: Candle;
+  algoEntryCandle?: Candle;
+  supportTouchCandle?: Candle;
+  resistanceTouchCandle?: Candle;
+  absoluteProfitCandle?: Candle;
+  daysTakenForSupportTouch?: number;
+  daysTakenForResistanceTouch?: number;
+  algoSupport?: number;
+  algoResistance?: number;
+  emacross?: EMACROSS;
+  entryCandleRsi?: number;
 }
 
 interface StockBuffer {
   id: string;
   companyName: string;
+  etRatio: number;
   instrumentKey: string;
   backTestStartSwing: LightSwingDTO;
+  backTestPrevSwing: LightSwingDTO;
+  algoSwingAnalysis?: SwingAnalysis;
   didHourRSIQualify: boolean;
   dayLevelRSICandleTime: string;
   dayLevelRSI: number;
@@ -64,6 +104,10 @@ export default function StockBuffersPage() {
   const [filterRSIQualified, setFilterRSIQualified] = useState(false);
   const [filterSwingDates, setFilterSwingDates] = useState(false);
   const [filterBufferHits, setFilterBufferHits] = useState(false);
+  const [maxDayRSI, setMaxDayRSI] = useState<string>('');
+  const [maxHourRSI, setMaxHourRSI] = useState<string>('');
+  const [selectedSwingTransition, setSelectedSwingTransition] = useState<string>('');
+  const [selectedEtRatioFilter, setSelectedEtRatioFilter] = useState<string>('');
 
   // Fetch data for all alphabets
   const fetchAllStockBuffers = async () => {
@@ -113,7 +157,7 @@ export default function StockBuffersPage() {
               setStockBuffers(allBuffers);
               
               // Update filtered list
-              applyFilters(allBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy);
+              applyFilters(allBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, selectedEtRatioFilter);
 
               setLoadingProgress(prev => ({
                 ...prev,
@@ -162,7 +206,7 @@ export default function StockBuffersPage() {
   };
 
   // Apply filters and sorting
-  const applyFilters = (data: StockBuffer[], search: string, rsiFilter: boolean, swingFilter: boolean, bufferFilter: boolean, sort: string) => {
+  const applyFilters = (data: StockBuffer[], search: string, rsiFilter: boolean, swingFilter: boolean, bufferFilter: boolean, sort: string, maxDay?: number, maxHour?: number, swingTransition?: string, etRatioFilter?: string) => {
     let filtered = [...data];
 
     // Search filter
@@ -180,6 +224,27 @@ export default function StockBuffersPage() {
       );
     }
 
+    // Max Day RSI and Hour RSI filter (only consider if value > 0)
+    const hasDayRSIFilter = maxDay !== undefined && maxDay > 0;
+    const hasHourRSIFilter = maxHour !== undefined && maxHour > 0;
+
+    if (hasDayRSIFilter || hasHourRSIFilter) {
+      filtered = filtered.filter(item => {
+        // If both filters are provided, both must pass (AND logic)
+        // If only one is provided, that one must pass
+        if (hasDayRSIFilter && hasHourRSIFilter) {
+          // Both provided: keep if both pass
+          return item.dayLevelRSI <= maxDay && item.hourLevelRSI <= maxHour;
+        } else if (hasDayRSIFilter) {
+          // Only Day RSI provided
+          return item.dayLevelRSI <= maxDay;
+        } else {
+          // Only Hour RSI provided
+          return maxHour !== undefined && item.hourLevelRSI <= maxHour;
+        }
+      });
+    }
+
     // Swing Dates filter
     if (swingFilter) {
       filtered = filtered.filter(item =>
@@ -192,6 +257,27 @@ export default function StockBuffersPage() {
       filtered = filtered.filter(item =>
         item.bufferHitsList && item.bufferHitsList.length > 0
       );
+    }
+
+    // Swing Transition filter
+    if (swingTransition && swingTransition.trim()) {
+      filtered = filtered.filter(item => {
+        const prevLabel = item.backTestPrevSwing?.label || '';
+        const currLabel = item.backTestStartSwing?.label || '';
+        const transition = `${prevLabel}-${currLabel}`;
+        return transition === swingTransition;
+      });
+    }
+
+    // ET Ratio filter
+    if (etRatioFilter && etRatioFilter.trim()) {
+      if (etRatioFilter === '<1x') {
+        filtered = filtered.filter(item => item.etRatio < 1);
+      } else {
+        const minRatio = parseInt(etRatioFilter.replace('x', ''));
+        const maxRatio = minRatio + 1;
+        filtered = filtered.filter(item => item.etRatio >= minRatio && item.etRatio < maxRatio);
+      }
     }
 
     // Sort
@@ -216,34 +302,47 @@ export default function StockBuffersPage() {
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const search = e.target.value;
     setSearchTerm(search);
-    applyFilters(stockBuffers, search, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy);
+    applyFilters(stockBuffers, search, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, selectedEtRatioFilter);
   };
 
   // Handle RSI filter change
   const handleRSIFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setFilterRSIQualified(checked);
-    applyFilters(stockBuffers, searchTerm, checked, filterSwingDates, filterBufferHits, sortBy);
+    applyFilters(stockBuffers, searchTerm, checked, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, selectedEtRatioFilter);
   };
 
   // Handle Swing Dates filter change
   const handleSwingDatesFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setFilterSwingDates(checked);
-    applyFilters(stockBuffers, searchTerm, filterRSIQualified, checked, filterBufferHits, sortBy);
+    applyFilters(stockBuffers, searchTerm, filterRSIQualified, checked, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, selectedEtRatioFilter);
   };
 
   // Handle Buffer Hits filter change
   const handleBufferHitsFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setFilterBufferHits(checked);
-    applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, checked, sortBy);
+    applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, checked, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, selectedEtRatioFilter);
   };
 
   // Handle sort change
   const handleSortChange = (newSort: 'name' | 'dayRsi' | 'hourRsi' | 'bufferHits') => {
     setSortBy(newSort);
-    applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, newSort);
+    applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, newSort, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, selectedEtRatioFilter);
+  };
+
+  // Get unique swing transitions from data
+  const getUniqueSwingTransitions = () => {
+    const transitions = new Set<string>();
+    stockBuffers.forEach(buffer => {
+      const prevLabel = buffer.backTestPrevSwing?.label || '';
+      const currLabel = buffer.backTestStartSwing?.label || '';
+      if (prevLabel && currLabel) {
+        transitions.add(`${prevLabel}-${currLabel}`);
+      }
+    });
+    return Array.from(transitions).sort();
   };
 
   // Export to Excel
@@ -296,6 +395,55 @@ export default function StockBuffersPage() {
                 onChange={handleSearchChange}
                 className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            <div className="min-w-40">
+              <label className="block text-sm font-medium mb-2">Max Day RSI</label>
+              <input
+                type="number"
+                placeholder="e.g., 45"
+                value={maxDayRSI}
+                onChange={(e) => setMaxDayRSI(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="min-w-40">
+              <label className="block text-sm font-medium mb-2">Max Hour RSI</label>
+              <input
+                type="number"
+                placeholder="e.g., 70"
+                value={maxHourRSI}
+                onChange={(e) => setMaxHourRSI(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <Button
+              onClick={() => applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, selectedEtRatioFilter)}
+              className="text-sm"
+            >
+              Apply RSI Filter
+            </Button>
+
+            <div className="min-w-40">
+              <label className="block text-sm font-medium mb-2">Swing Transition</label>
+              <select
+                value={selectedSwingTransition}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedSwingTransition(val);
+                  applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, val, selectedEtRatioFilter);
+                }}
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Transitions</option>
+                {getUniqueSwingTransitions().map((transition) => (
+                  <option key={transition} value={transition}>
+                    {transition}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex flex-wrap items-center gap-4">
@@ -408,10 +556,10 @@ export default function StockBuffersPage() {
           )}
 
           {/* Summary Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-xs text-gray-600 font-medium">Total Buffers</p>
-              <p className="text-2xl font-bold text-blue-600">{stockBuffers.length}</p>
+              <p className="text-2xl font-bold text-blue-600">{filteredBuffers.length}</p>
             </div>
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-xs text-gray-600 font-medium">RSI Qualified</p>
@@ -420,22 +568,22 @@ export default function StockBuffersPage() {
                   <div>
                     <p className="text-xs text-gray-500">Day RSI</p>
                     <p className="text-xl font-bold text-green-600">
-                      {stockBuffers.filter(b => b.didDayRSIQualify).length}
+                      {filteredBuffers.filter(b => b.didDayRSIQualify).length}
                     </p>
                   </div>
                   <div className="border-l border-green-300"></div>
                   <div>
                     <p className="text-xs text-gray-500">Hour RSI</p>
                     <p className="text-xl font-bold text-green-600">
-                      {stockBuffers.filter(b => b.didHourRSIQualify).length}
+                      {filteredBuffers.filter(b => b.didHourRSIQualify).length}
                     </p>
                   </div>
                 </div>
                 <div className="border-t border-green-300 pt-2">
                   <p className="text-xs text-gray-500">Total</p>
                   <p className="text-lg font-bold text-green-600">
-                    {stockBuffers.filter(b => b.didDayRSIQualify || b.didHourRSIQualify).length}/{stockBuffers.length}
-                    {stockBuffers.length > 0 && ` (${((stockBuffers.filter(b => b.didDayRSIQualify || b.didHourRSIQualify).length / stockBuffers.length) * 100).toFixed(1)}%)`}
+                    {filteredBuffers.filter(b => b.didDayRSIQualify || b.didHourRSIQualify).length}/{filteredBuffers.length}
+                    {filteredBuffers.length > 0 && ` (${((filteredBuffers.filter(b => b.didDayRSIQualify || b.didHourRSIQualify).length / filteredBuffers.length) * 100).toFixed(1)}%)`}
                   </p>
                 </div>
               </div>
@@ -443,8 +591,8 @@ export default function StockBuffersPage() {
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
               <p className="text-xs text-gray-600 font-medium">Swing Crossing</p>
               <p className="text-2xl font-bold text-orange-600">
-                {stockBuffers.filter(b => b.swingDates && b.swingDates.length > 0).length}/{stockBuffers.length}
-                {stockBuffers.length > 0 && ` (${((stockBuffers.filter(b => b.swingDates && b.swingDates.length > 0).length / stockBuffers.length) * 100).toFixed(1)}%)`}
+                {filteredBuffers.filter(b => b.swingDates && b.swingDates.length > 0).length}/{filteredBuffers.length}
+                {filteredBuffers.length > 0 && ` (${((filteredBuffers.filter(b => b.swingDates && b.swingDates.length > 0).length / filteredBuffers.length) * 100).toFixed(1)}%)`}
               </p>
             </div>
             <div className="p-3 bg-pink-50 border border-pink-200 rounded-lg">
@@ -454,29 +602,172 @@ export default function StockBuffersPage() {
                   <div>
                     <p className="text-xs text-gray-500">1H Timeframe</p>
                     <p className="text-xl font-bold text-pink-600">
-                      {stockBuffers.filter(b => b.bufferHitsList?.some(hit => hit.timeFrame === '1h')).length}
+                      {filteredBuffers.filter(b => b.bufferHitsList?.some(hit => hit.timeFrame === '1h')).length}
                     </p>
                   </div>
                   <div className="border-l border-pink-300"></div>
                   <div>
                     <p className="text-xs text-gray-500">15M Timeframe</p>
                     <p className="text-xl font-bold text-pink-600">
-                      {stockBuffers.filter(b => b.bufferHitsList?.some(hit => hit.timeFrame === '15m')).length}
+                      {filteredBuffers.filter(b => b.bufferHitsList?.some(hit => hit.timeFrame === '15m')).length}
                     </p>
                   </div>
                 </div>
                 <div className="border-t border-pink-300 pt-2">
                   <p className="text-xs text-gray-500">Stocks w/ Hits</p>
                   <p className="text-lg font-bold text-pink-600">
-                    {stockBuffers.filter(b => b.bufferHitsList && b.bufferHitsList.length > 0).length}/{stockBuffers.length}
-                    {stockBuffers.length > 0 && ` (${((stockBuffers.filter(b => b.bufferHitsList && b.bufferHitsList.length > 0).length / stockBuffers.length) * 100).toFixed(1)}%)`}
+                    {filteredBuffers.filter(b => b.bufferHitsList && b.bufferHitsList.length > 0).length}/{filteredBuffers.length}
+                    {filteredBuffers.length > 0 && ` (${((filteredBuffers.filter(b => b.bufferHitsList && b.bufferHitsList.length > 0).length / filteredBuffers.length) * 100).toFixed(1)}%)`}
                   </p>
                 </div>
               </div>
             </div>
             <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <p className="text-xs text-gray-600 font-medium">Showing Filtered</p>
-              <p className="text-2xl font-bold text-purple-600">{filteredBuffers.length}</p>
+              <p className="text-xs text-gray-600 font-medium">Total Stocks</p>
+              <p className="text-2xl font-bold text-purple-600">{stockBuffers.length}</p>
+            </div>
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+              <p className="text-xs text-gray-600 font-medium">ET Ratio Distribution</p>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                <div className="space-y-1">
+                  <Button
+                    variant={selectedEtRatioFilter === '' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    All ({stockBuffers.length})
+                  </Button>
+                  <Button
+                    variant={selectedEtRatioFilter === '<1x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('<1x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '<1x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    &lt;1x ({stockBuffers.filter(b => b.etRatio < 1).length})
+                  </Button>
+                </div>
+                <div className="space-y-1">
+                  <Button
+                    variant={selectedEtRatioFilter === '1x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('1x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '1x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    1x ({stockBuffers.filter(b => b.etRatio >= 1 && b.etRatio < 2).length})
+                  </Button>
+                  <Button
+                    variant={selectedEtRatioFilter === '2x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('2x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '2x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    2x ({stockBuffers.filter(b => b.etRatio >= 2 && b.etRatio < 3).length})
+                  </Button>
+                  <Button
+                    variant={selectedEtRatioFilter === '3x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('3x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '3x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    3x ({stockBuffers.filter(b => b.etRatio >= 3 && b.etRatio < 4).length})
+                  </Button>
+                  <Button
+                    variant={selectedEtRatioFilter === '4x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('4x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '4x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    4x ({stockBuffers.filter(b => b.etRatio >= 4 && b.etRatio < 5).length})
+                  </Button>
+                  <Button
+                    variant={selectedEtRatioFilter === '5x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('5x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '5x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    5x ({stockBuffers.filter(b => b.etRatio >= 5 && b.etRatio < 6).length})
+                  </Button>
+                </div>
+                <div className="space-y-1">
+                  <Button
+                    variant={selectedEtRatioFilter === '6x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('6x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '6x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    6x ({stockBuffers.filter(b => b.etRatio >= 6 && b.etRatio < 7).length})
+                  </Button>
+                  <Button
+                    variant={selectedEtRatioFilter === '7x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('7x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '7x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    7x ({stockBuffers.filter(b => b.etRatio >= 7 && b.etRatio < 8).length})
+                  </Button>
+                  <Button
+                    variant={selectedEtRatioFilter === '8x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('8x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '8x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    8x ({stockBuffers.filter(b => b.etRatio >= 8 && b.etRatio < 9).length})
+                  </Button>
+                  <Button
+                    variant={selectedEtRatioFilter === '9x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('9x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '9x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    9x ({stockBuffers.filter(b => b.etRatio >= 9 && b.etRatio < 10).length})
+                  </Button>
+                  <Button
+                    variant={selectedEtRatioFilter === '10x' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedEtRatioFilter('10x');
+                      applyFilters(stockBuffers, searchTerm, filterRSIQualified, filterSwingDates, filterBufferHits, sortBy, maxDayRSI ? parseFloat(maxDayRSI) : undefined, maxHourRSI ? parseFloat(maxHourRSI) : undefined, selectedSwingTransition, '10x');
+                    }}
+                    className="w-full text-xs"
+                  >
+                    10x+ ({stockBuffers.filter(b => b.etRatio >= 10).length})
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -491,30 +782,14 @@ export default function StockBuffersPage() {
             </p>
           </div>
         ) : (
-          filteredBuffers.map((buffer) => (
-            <div key={buffer.instrumentKey} className="w-full bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
+          filteredBuffers.map((buffer, index) => (
+            <div key={`${buffer.instrumentKey}-${index}`} className="w-full bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
               {/* Header */}
               <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-4 text-white">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex-1">
                     <h3 className="text-lg font-bold">{buffer.companyName}</h3>
                     <p className="text-sm text-blue-100 mt-1">{buffer.instrumentKey}</p>
-                    {buffer.backTestStartSwing && (
-                      <div className="flex gap-4 mt-2 text-xs text-blue-100">
-                        <span>
-                          <strong>Test Start:</strong> {buffer.backTestStartSwing.date 
-                            ? new Date(buffer.backTestStartSwing.date).toLocaleDateString('en-GB')
-                            : 'N/A'
-                          }
-                        </span>
-                        <span>
-                          <strong>Low Price:</strong> {buffer.backTestStartSwing.price 
-                            ? buffer.backTestStartSwing.price.toFixed(2)
-                            : 'N/A'
-                          }
-                        </span>
-                      </div>
-                    )}
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-right">
@@ -545,7 +820,6 @@ export default function StockBuffersPage() {
                 {/* Status Message - Centered Both Horizontally and Vertically */}
                 {(!buffer.didDayRSIQualify && !buffer.didHourRSIQualify) ? (
                   <div className="flex items-center justify-center py-3">
-                    <p className="text-sm text-red-200 font-semibold">⚠️ Stock failed in RSI</p>
                   </div>
                 ) : (!buffer.swingDates || buffer.swingDates.length === 0) ? (
                   <div className="flex items-center justify-center py-3">
@@ -557,7 +831,95 @@ export default function StockBuffersPage() {
                   </div>
                 ) : null}
               </div>
-
+                {/* Swing Analysis Table */}
+                {buffer.algoSwingAnalysis && (
+                  <div className="p-4 border-t border-gray-200">
+                    <div className="mb-3">
+                      <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                        Swing Analysis - {buffer?.etRatio.toFixed(2) ?? 0}
+                      </h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse border border-gray-300">
+                        <thead className="bg-gray-100">
+                          <tr>
+                            <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Entry Date</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Entry Price</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Target</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right font-semibold">SL</th>
+                            <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Swing Label</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Support (days)</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Resistance (days)</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Max Profit %</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Absolute Profit %</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="hover:bg-gray-50 transition-colors">
+                            <td className="border border-gray-300 px-4 py-2 text-gray-700">
+                              {buffer.algoSwingAnalysis.algoEntryCandle?.timestamp
+                                ? new Date(buffer.algoSwingAnalysis.algoEntryCandle.timestamp).toLocaleDateString('en-GB')
+                                : 'N/A'
+                              }
+                            </td>
+                            <td className="border border-gray-300 px-4 py-2 text-right font-mono text-gray-700">
+                              {buffer.algoSwingAnalysis.algoEntryCandle?.close ? buffer.algoSwingAnalysis.algoEntryCandle.close.toFixed(2) : 'N/A'}
+                            </td>
+                            <td className="border border-gray-300 px-4 py-2 text-right font-mono text-gray-700">
+                              {(() => {
+                                const entryPrice = buffer.algoSwingAnalysis.algoEntryCandle?.close;
+                                const target = buffer.algoSwingAnalysis.algoResistance;
+                                if (entryPrice && target) {
+                                  const pct = ((target - entryPrice) / entryPrice * 100);
+                                  return <span className="text-green-600">{target.toFixed(2)} ({pct.toFixed(2)}%)</span>;
+                                }
+                                return 'N/A';
+                              })()}
+                            </td>
+                            <td className="border border-gray-300 px-4 py-2 text-right font-mono text-gray-700">
+                              {(() => {
+                                const entryPrice = buffer.algoSwingAnalysis.algoEntryCandle?.close;
+                                const sl = buffer.algoSwingAnalysis.algoSupport;
+                                if (entryPrice && sl) {
+                                  const pct = ((sl - entryPrice) / entryPrice * 100);
+                                  return <span className="text-red-600">{sl.toFixed(2)} ({pct.toFixed(2)}%)</span>;
+                                }
+                                return 'N/A';
+                              })()}
+                            </td>
+                            <td className="border border-gray-300 px-4 py-2 text-center text-gray-700 font-semibold">
+                              {buffer.backTestPrevSwing?.label || 'N/A'} → {buffer.backTestStartSwing?.label || 'N/A'}
+                            </td>
+                            <td className="border border-gray-300 px-4 py-2 text-right font-mono text-gray-700">
+                              {buffer.algoSwingAnalysis.daysTakenForSupportTouch ?? 0}
+                            </td>
+                            <td className="border border-gray-300 px-4 py-2 text-right font-mono text-gray-700">
+                              {buffer.algoSwingAnalysis.daysTakenForResistanceTouch ?? 0}
+                            </td>
+                            <td className="border border-gray-300 px-4 py-2 text-right font-mono font-semibold">
+                              <span className={buffer.algoSwingAnalysis.maxSwingProfits && buffer.algoSwingAnalysis.maxSwingProfits > 0 ? 'text-green-600' : 'text-red-600'}>
+                              {buffer.algoSwingAnalysis.maxProfitCandle?.close}  ({buffer.algoSwingAnalysis.maxSwingProfits ? buffer.algoSwingAnalysis.maxSwingProfits.toFixed(2) : '0.00'}%)
+                              </span>
+                            </td>
+                            <td className="border border-gray-300 px-4 py-2 text-right font-mono font-semibold">
+                              <span className={buffer.algoSwingAnalysis.absoluteProfits && buffer.algoSwingAnalysis.absoluteProfits > 0 ? 'text-green-600' : 'text-red-600'}>
+                                {(() => {
+                                  const entryPrice = buffer.algoSwingAnalysis.algoEntryCandle?.close;
+                                  const pct = buffer.algoSwingAnalysis.absoluteProfits;
+                                  if (entryPrice && pct !== undefined) {
+                                    const price = entryPrice * (1 + pct / 100);
+                                    return `${price.toFixed(2)} (${pct.toFixed(2)}%)`;
+                                  }
+                                  return 'N/A';
+                                })()}
+                              </span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               {/* Buffer Hits Table */}
               {buffer.bufferHitsList && buffer.bufferHitsList.length > 0 && buffer.swingDates && buffer.swingDates.length > 0 && (
                 <div className="p-4">
