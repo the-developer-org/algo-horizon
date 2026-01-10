@@ -77,6 +77,7 @@ interface StockBuffer {
   didDayRSIQualify: boolean;
   swingDates: SwingDates[];
   bufferHitsList: BufferHits[];
+  etRatioCrossed: boolean;
 }
 
 interface LoadingProgress {
@@ -623,8 +624,13 @@ export default function StockBuffersPage() {
               </div>
             </div>
             <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <p className="text-xs text-gray-600 font-medium">Total Stocks</p>
-              <p className="text-2xl font-bold text-purple-600">{stockBuffers.length}</p>
+              <p className="text-xs text-gray-600 font-medium">
+                ET Ratio Crossed {selectedEtRatioFilter ? `(${selectedEtRatioFilter})` : '(All)'}
+              </p>
+              <p className="text-2xl font-bold text-purple-600">
+                {filteredBuffers.filter(b => b.etRatioCrossed).length}/{filteredBuffers.length}
+                {filteredBuffers.length > 0 && ` (${((filteredBuffers.filter(b => b.etRatioCrossed).length / filteredBuffers.length) * 100).toFixed(1)}%)`}
+              </p>
             </div>
             <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
               <p className="text-xs text-gray-600 font-medium">ET Ratio Distribution</p>
@@ -788,7 +794,12 @@ export default function StockBuffersPage() {
               <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-4 text-white">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold">{buffer.companyName}</h3>
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                      <span className="inline-block bg-blue-500 text-white text-xs px-2 py-1 rounded font-semibold">
+                        {index + 1}
+                      </span>
+                      {buffer.companyName}
+                    </h3>
                     <p className="text-sm text-blue-100 mt-1">{buffer.instrumentKey}</p>
                   </div>
                   <div className="flex items-center gap-6">
