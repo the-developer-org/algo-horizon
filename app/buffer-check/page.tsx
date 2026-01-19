@@ -110,7 +110,7 @@ export default function BufferCheckPage() {
   const [deadlineTime, setDeadlineTime] = useState('');
   const [isLoadingPrediction, setIsLoadingPrediction] = useState(false);
   const [predictionResponse, setPredictionResponse] = useState<LivePredictionResponse | null>(null);
-  
+
   // Company search state
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -153,7 +153,7 @@ export default function BufferCheckPage() {
 
   const handleFetchBufferHits = async () => {
     setIsLoadingPrediction(true);
-    
+
     try {
       // Prepare the request body
       const requestBody = {
@@ -176,7 +176,7 @@ export default function BufferCheckPage() {
       };
 
       console.log('Sending request to live-prediction API:', requestBody);
-      
+
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
       const context = "/api/prediction/live-prediction";
 
@@ -197,8 +197,17 @@ export default function BufferCheckPage() {
 
       const data = await response.json();
       console.log('Live prediction response:', data);
+
+      // Handle empty or invalid response data
+      if (!data || !data.liveStockBuffer || Object.keys(data).length === 0) {
+        console.warn('Received empty or invalid response data');
+        setPredictionResponse(null);
+        // Optionally show a user message that no data was found
+        return;
+      }
+
       setPredictionResponse(data);
-      
+
     } catch (error) {
       console.error('Error fetching live prediction:', error);
       // Show user-friendly error message
@@ -230,7 +239,7 @@ export default function BufferCheckPage() {
     setSelectedCompany(companyName);
     setSearchTerm(companyName);
     setSuggestions([]);
-    
+
     // Set basic company info immediately when selected
     setCompanyInfo({
       name: companyName,
@@ -326,7 +335,7 @@ export default function BufferCheckPage() {
             />
           </div>
 
-        
+
 
           <div className="mt-4">
             <Label htmlFor="deadline">Deadline Date</Label>
@@ -369,8 +378,8 @@ export default function BufferCheckPage() {
           {/* Fetch Buffer Data Button */}
           {selectedCompany && companyInfo?.lastLowFormedAt && companyInfo?.deadline && companyInfo?.deadlineTime && (
             <div className="mt-6">
-              <Button 
-                onClick={handleFetchBufferHits} 
+              <Button
+                onClick={handleFetchBufferHits}
                 className="w-full bg-blue-600 hover:bg-blue-700"
                 disabled={isLoadingPrediction}
               >
@@ -378,7 +387,7 @@ export default function BufferCheckPage() {
               </Button>
             </div>
           )}
-    
+
         </div>
       )}
 
@@ -386,9 +395,27 @@ export default function BufferCheckPage() {
       {predictionResponse && (
         <div className="p-4 border rounded mt-8">
           <h2 className="text-2xl font-bold mb-6">Buffer Analysis Results</h2>
-          
-          {/* Stock Information */}
-          <div className="bg-blue-50 p-4 rounded mb-6">
+
+          {/* Stock Support Break Warning */}
+          {predictionResponse.liveStockBuffer.stockDipped && (
+            <div className="bg-red-100 border-l-4 border-red-500 p-4 rounded mb-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-red-800">
+                    ⚠️ <strong>ALERT:</strong> The stock broke the support level!
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+
+          {!predictionResponse.liveStockBuffer.stockDipped && <> <div className="bg-blue-50 p-4 rounded mb-6">
             <h3 className="text-lg font-semibold mb-3">Stock Information</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><strong>Company:</strong> {predictionResponse.liveStockBuffer.companyName}</div>
@@ -396,113 +423,116 @@ export default function BufferCheckPage() {
             </div>
           </div>
 
-          {/* Current Swing */}
-          <div className="bg-green-50 p-4 rounded mb-6">
-            <h3 className="text-lg font-semibold mb-3">Stryke Swing</h3>
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div><strong>Date:</strong> {formatDateArray(predictionResponse.liveStockBuffer.currentSwing.date)}</div>
-              <div><strong>Price:</strong> ₹{predictionResponse.liveStockBuffer.currentSwing.price.toFixed(2)}</div>
-              <div><strong>Label:</strong> <span className="px-2 py-1 bg-blue-100 rounded">{predictionResponse.liveStockBuffer.currentSwing.label}</span></div>
+
+            <div className="bg-green-50 p-4 rounded mb-6">
+              <h3 className="text-lg font-semibold mb-3">Stryke Swing</h3>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div><strong>Date:</strong> {formatDateArray(predictionResponse.liveStockBuffer.currentSwing.date)}</div>
+                <div><strong>Price:</strong> ₹{predictionResponse.liveStockBuffer.currentSwing.price.toFixed(2)}</div>
+                <div><strong>Label:</strong> <span className="px-2 py-1 bg-blue-100 rounded">{predictionResponse.liveStockBuffer.currentSwing.label}</span></div>
+              </div>
             </div>
-          </div>
 
-          {/* Hourly Buffers */}
-          <div className="space-y-6">
-            <h3 className="text-xl font-semibold">Hourly Buffer Analysis</h3>
-            
-            {predictionResponse.liveStockBuffer.hourlyBuffers.map((buffer, bufferIndex) => (
-              <div key={`buffer-${bufferIndex}-${buffer.hourLevelRsi}`} className="border border-gray-300 rounded p-4">
-                <h4 className="text-lg font-semibold mb-4">Buffer #{bufferIndex + 1}</h4>
-                
-                {/* Buffer Overview */}
-                <div className="bg-yellow-50 p-4 rounded mb-4">
-                  <h5 className="font-semibold mb-2">Buffer Overview</h5>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><strong>Hour Level RSI:</strong> {buffer.hourLevelRsi.toFixed(2)}</div>
-                    <div><strong>Farthest Swing Date:</strong> {formatDateArray(buffer.farthestSwingDate)}</div>
+
+            <div className="space-y-6">
+              <h3 className="text-xl font-semibold">Hourly Buffer Analysis</h3>
+
+              {predictionResponse.liveStockBuffer.hourlyBuffers.map((buffer, bufferIndex) => (
+                <div key={`buffer-${bufferIndex}-${buffer.hourLevelRsi}`} className="border border-gray-300 rounded p-4">
+                  <h4 className="text-lg font-semibold mb-4">Buffer #{bufferIndex + 1}</h4>
+
+                  {/* Buffer Overview */}
+                  <div className="bg-yellow-50 p-4 rounded mb-4">
+                    <h5 className="font-semibold mb-2">Buffer Overview</h5>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div><strong>Hour Level RSI:</strong> {buffer.hourLevelRsi.toFixed(2)}</div>
+                      <div><strong>Farthest Swing Date:</strong> {formatDateArray(buffer.farthestSwingDate)}</div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Buffer Start Candle */}
-                <div className="bg-gray-50 p-4 rounded mb-4">
-                  <h5 className="font-semibold mb-2">Buffer Start Candle</h5>
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div><strong>Timestamp:</strong> {new Date(buffer.bufferStartCandle.timestamp).toLocaleString()}</div>
-                    <div><strong>Open:</strong> ₹{buffer.bufferStartCandle.open}</div>
-                    <div><strong>High:</strong> ₹{buffer.bufferStartCandle.high}</div>
-                    <div><strong>Low:</strong> ₹{buffer.bufferStartCandle.low}</div>
-                    <div><strong>Close:</strong> ₹{buffer.bufferStartCandle.close}</div>
-                    <div><strong>Volume:</strong> {buffer.bufferStartCandle.volume.toLocaleString()}</div>
+                  {/* Buffer Start Candle */}
+                  <div className="bg-gray-50 p-4 rounded mb-4">
+                    <h5 className="font-semibold mb-2">Buffer Start Candle</h5>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div><strong>Timestamp:</strong> {new Date(buffer.bufferStartCandle.timestamp).toLocaleString()}</div>
+                      <div><strong>Open:</strong> ₹{buffer.bufferStartCandle.open}</div>
+                      <div><strong>High:</strong> ₹{buffer.bufferStartCandle.high}</div>
+                      <div><strong>Low:</strong> ₹{buffer.bufferStartCandle.low}</div>
+                      <div><strong>Close:</strong> ₹{buffer.bufferStartCandle.close}</div>
+                      <div><strong>Volume:</strong> {buffer.bufferStartCandle.volume.toLocaleString()}</div>
+                    </div>
                   </div>
-                </div>
 
-                {/* COC Candle */}
-                <div className="bg-purple-50 p-4 rounded mb-4">
-                  <h5 className="font-semibold mb-2">COC Candle</h5>
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div><strong>Timestamp:</strong> {new Date(buffer.cocCandle.timestamp).toLocaleString()}</div>
-                    <div><strong>High:</strong> ₹{buffer.cocCandle.high}</div>
-                    <div><strong>Volume:</strong> {buffer.cocCandle.volume}</div>
+                  {/* COC Candle */}
+                  <div className="bg-purple-50 p-4 rounded mb-4">
+                    <h5 className="font-semibold mb-2">COC Candle</h5>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div><strong>Timestamp:</strong> {new Date(buffer.cocCandle.timestamp).toLocaleString()}</div>
+                      <div><strong>High:</strong> ₹{buffer.cocCandle.high}</div>
+                      <div><strong>Volume:</strong> {buffer.cocCandle.volume}</div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Swing Dates */}
-                <div className="bg-indigo-50 p-4 rounded mb-4">
-                  <h5 className="font-semibold mb-2">Swing Dates ({buffer.swingDates.length} swings)</h5>
-                  <div className="space-y-2">
-                    {buffer.swingDates.map((swing, swingIndex) => (
-                      <div key={`swing-${swingIndex}-${swing.swingStart.join('')}`} className="text-sm flex justify-between">
-                        <span><strong>Swing {swingIndex + 1}:</strong></span>
-                        <span>{formatDateArray(swing.swingStart)} → {formatDateArray(swing.swingEnd)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Buffer Hits List */}
-                <div className="bg-red-50 p-4 rounded">
-                  <h5 className="font-semibold mb-3">Buffer Hits ({buffer.bufferHitsList.length} hits)</h5>
-                  <div className="space-y-4">
-                    {buffer.bufferHitsList.map((hit, hitIndex) => (
-                      <div key={`hit-${hitIndex}-${hit.bufferPercentage}-${hit.currentSwing.timeStamp}`} className="border border-red-200 p-3 rounded">
-                        <div className="grid grid-cols-2 gap-4 text-sm mb-3">
-                          <div><strong>Time Frame:</strong> {hit.timeFrame}</div>
-                          <div><strong>Buffer %:</strong> {(hit.bufferPercentage * 100).toFixed(1)}%</div>
-                          <div><strong>Swing Period:</strong> {formatDateArray(hit.swingDates.swingStart)} → {formatDateArray(hit.swingDates.swingEnd)}</div>
+                  {/* Swing Dates */}
+                  <div className="bg-indigo-50 p-4 rounded mb-4">
+                    <h5 className="font-semibold mb-2">Swing Dates ({buffer.swingDates.length} swings)</h5>
+                    <div className="space-y-2">
+                      {buffer.swingDates.map((swing, swingIndex) => (
+                        <div key={`swing-${swingIndex}-${swing.swingStart.join('')}`} className="text-sm flex justify-between">
+                          <span><strong>Swing {swingIndex + 1}:</strong></span>
+                          <span>{formatDateArray(swing.swingStart)} → {formatDateArray(swing.swingEnd)}</span>
                         </div>
-                        
-                        <div className="grid grid-cols-2 gap-4 mt-3">
-                          <div className="bg-white p-2 rounded">
-                            <h6 className="font-medium mb-1">Current Swing</h6>
-                            <div className="text-xs">
-                              <div>Date: {formatDateTimeArray(hit.currentSwing.timeStampLocal)}</div>
-                              <div>Price: ₹{hit.currentSwing.price}</div>
-                              <div>Label: {hit.currentSwing.label} | Type: {hit.currentSwing.type}</div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Buffer Hits List */}
+                  <div className="bg-red-50 p-4 rounded">
+                    <h5 className="font-semibold mb-3">Buffer Hits ({buffer.bufferHitsList.length} hits)</h5>
+                    <div className="space-y-4">
+                      {buffer.bufferHitsList.map((hit, hitIndex) => (
+                        <div key={`hit-${hitIndex}-${hit.bufferPercentage}-${hit.currentSwing.timeStamp}`} className="border border-red-200 p-3 rounded">
+                          <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                            <div><strong>Time Frame:</strong> {hit.timeFrame}</div>
+                            <div><strong>Buffer %:</strong> {(hit.bufferPercentage * 100).toFixed(1)}%</div>
+                            <div><strong>Swing Period:</strong> {formatDateArray(hit.swingDates.swingStart)} → {formatDateArray(hit.swingDates.swingEnd)}</div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 mt-3">
+                            <div className="bg-white p-2 rounded">
+                              <h6 className="font-medium mb-1">Current Swing</h6>
+                              <div className="text-xs">
+                                <div>Date: {formatDateTimeArray(hit.currentSwing.timeStampLocal)}</div>
+                                <div>Price: ₹{hit.currentSwing.price}</div>
+                                <div>Label: {hit.currentSwing.label} | Type: {hit.currentSwing.type}</div>
+                              </div>
+                            </div>
+
+                            <div className="bg-white p-2 rounded">
+                              <h6 className="font-medium mb-1">Next Swing</h6>
+                              <div className="text-xs">
+                                <div>Date: {formatDateTimeArray(hit.nextSwing.timeStampLocal)}</div>
+                                <div>Price: ₹{hit.nextSwing.price}</div>
+                                <div>Label: {hit.nextSwing.label} | Type: {hit.nextSwing.type}</div>
+                              </div>
                             </div>
                           </div>
-                          
-                          <div className="bg-white p-2 rounded">
-                            <h6 className="font-medium mb-1">Next Swing</h6>
-                            <div className="text-xs">
-                              <div>Date: {formatDateTimeArray(hit.nextSwing.timeStampLocal)}</div>
-                              <div>Price: ₹{hit.nextSwing.price}</div>
-                              <div>Label: {hit.nextSwing.label} | Type: {hit.nextSwing.type}</div>
-                            </div>
-                          </div>
-                        </div>
 
-                        {/* <div className="grid grid-cols-3 gap-4 mt-3 text-xs">
+                          {/* <div className="grid grid-cols-3 gap-4 mt-3 text-xs">
                           <div><strong>Hourly RSI:</strong> {hit.hourlyRsi}</div>
                           <div><strong>Daily RSI:</strong> {hit.dailyRsi}</div>
                           <div><strong>15min RSI:</strong> {hit.mintue15Rsi}</div>
                         </div> */}
-                      </div>
-                    ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
+          }
+
         </div>
       )}
     </div>
