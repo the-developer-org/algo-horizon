@@ -33,10 +33,14 @@ interface Candle {
 }
 
 interface LightSwingDTO {
-  swingStart?: string;
-  swingEnd?: string;
+  timeStampLocal?: Date;
+  date?: Date;
+  timeStamp?: number;
+  price?: number;
   label?: string;
-  [key: string]: any;
+  type?: string;
+  index?: number;
+
 }
 
 interface SwingAnalysis {
@@ -801,6 +805,9 @@ export default function StockBuffersPage() {
                       {buffer.companyName}
                     </h3>
                     <p className="text-sm text-blue-100 mt-1">{buffer.instrumentKey}</p>
+                    <p className="text-sm text-blue-100 mt-1">
+                      Swing: {buffer.backTestStartSwing?.label} at {buffer.backTestStartSwing?.date ? new Date(buffer.backTestStartSwing.date).toLocaleDateString('en-GB') : 'N/A'} - Price: {buffer.backTestStartSwing?.price?.toFixed(2) || 'N/A'}
+                    </p>
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-right">
@@ -858,7 +865,6 @@ export default function StockBuffersPage() {
                             <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Entry Price</th>
                             <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Target</th>
                             <th className="border border-gray-300 px-4 py-2 text-right font-semibold">SL</th>
-                            <th className="border border-gray-300 px-4 py-2 text-center font-semibold">Swing Label</th>
                             <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Support (days)</th>
                             <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Resistance (days)</th>
                             <th className="border border-gray-300 px-4 py-2 text-right font-semibold">Max Profit %</th>
@@ -897,9 +903,6 @@ export default function StockBuffersPage() {
                                 }
                                 return 'N/A';
                               })()}
-                            </td>
-                            <td className="border border-gray-300 px-4 py-2 text-center text-gray-700 font-semibold">
-                              {buffer.backTestPrevSwing?.label || 'N/A'} → {buffer.backTestStartSwing?.label || 'N/A'}
                             </td>
                             <td className="border border-gray-300 px-4 py-2 text-right font-mono text-gray-700">
                               {buffer.algoSwingAnalysis.daysTakenForSupportTouch ?? 0}

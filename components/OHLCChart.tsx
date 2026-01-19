@@ -418,14 +418,22 @@ const height = typeof heightProp === 'string' ? Number.parseFloat(heightProp) ||
     useEffect(() => {
         if (!UnderstchartContainerRef.current || !candles.length) return;
 
+        const container = UnderstchartContainerRef.current;
+
         // Performance optimization: reduce data points on mobile
         const maxVisibleCandles = isMobile ? 500 : MAX_VISIBLE_CANDLES;
         const processedCandles = candles.length > maxVisibleCandles ? candles.slice(-maxVisibleCandles) : candles;
 
+        // Parse height prop
+        const h = typeof heightProp === 'string' ? parseInt(heightProp, 10) : (heightProp || containerDimensions.height);
+
+        // Get actual container width for responsive design
+        const containerWidth = isMobile ? container.clientWidth + 10 : container.clientWidth - 100;
+
         // Create chart with enhanced navigation and zoom configuration optimized for mobile
-        const chart = createChart(UnderstchartContainerRef.current, {
-            width: isMobile ? containerDimensions.width + 10 : containerDimensions.width,
-            height: containerDimensions.height, // Use full container height for both mobile and desktop
+        const chart = createChart(container, {
+            width: containerWidth, // Use actual container width
+            height: h, // Use parsed height prop or container height
             layout: {
                 background: { color: '#ffffff' },
                 textColor: '#333',
@@ -664,15 +672,16 @@ const height = typeof heightProp === 'string' ? Number.parseFloat(heightProp) ||
         // Handle resize and auto-fit chart
         const handleResize = () => {
             if (UnderstchartContainerRef.current && chartRef.current) {
-                const containerWidth = UnderstchartContainerRef.current.clientWidth;
-                const containerHeight = UnderstchartContainerRef.current.clientHeight; // Reduce height by 10%
+                const container = UnderstchartContainerRef.current;
+                const containerWidth = isMobile ? container.clientWidth + 10 : container.clientWidth - 100;
+                const containerHeight = container.clientHeight; // Reduce height by 10%
                 console.log('📏 Container dimensions on resize:', {
                     clientWidth: containerWidth,
                     clientHeight: containerHeight,
-                    offsetWidth: UnderstchartContainerRef.current.offsetWidth,
-                    offsetHeight: UnderstchartContainerRef.current.offsetHeight,
-                    scrollWidth: UnderstchartContainerRef.current.scrollWidth,
-                    scrollHeight: UnderstchartContainerRef.current.scrollHeight
+                    offsetWidth: container.offsetWidth,
+                    offsetHeight: container.offsetHeight,
+                    scrollWidth: container.scrollWidth,
+                    scrollHeight: container.scrollHeight
                 });
                 chartRef.current.applyOptions({
                     width: containerWidth,
@@ -772,6 +781,26 @@ const height = typeof heightProp === 'string' ? Number.parseFloat(heightProp) ||
             avgVolumeLineRef.current = null;
         };
     }, [candles]); // Added entryCandleIndices, strykeDates, algoDates to dependencies
+
+    // Resize chart when height prop changes
+    useEffect(() => {
+        if (chartRef.current && heightProp !== undefined) {
+            const h = typeof heightProp === 'string' ? parseInt(heightProp, 10) : heightProp;
+            if (h && h > 0) {
+                const container = UnderstchartContainerRef.current;
+                if (container) {
+                    const w = isMobile ? container.clientWidth + 10 : container.clientWidth - 100;
+                    chartRef.current.applyOptions({ width: w, height: h });
+                    // Fit content after resize
+                    setTimeout(() => {
+                        if (chartRef.current) {
+                            chartRef.current.timeScale().fitContent();
+                        }
+                    }, 100);
+                }
+            }
+        }
+    }, [heightProp, isMobile]);
 
     // Manage Avg Volume reference line on the volume histogram
     useEffect(() => {

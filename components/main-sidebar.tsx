@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, SquareChevronLeft, Shield } from "lucide-react";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, SquareChevronLeft, Shield, CheckCircle } from "lucide-react";
 import UpstoxIcon from "@/components/icons/UpstoxIcon";
 import {
   Sidebar,
@@ -26,6 +26,7 @@ const primaryItems = [
    { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
   { title: "Paper Trading", url: "/paper-trading", icon: DollarSign },
   { title: "Stock Buffers", url: "/stock-buffers", icon: Shield },
+  { title: "Buffer Check", url: "/buffer-check", icon: CheckCircle },
   { title: "Upstox", url: "/upstox", icon: UpstoxIcon },
   { title: "Tick Data", url: "/tick-data", icon: TrendingUp },
   { title: "Boom Days & Watch Lists", url: "/boom-days", icon: Calendar },
