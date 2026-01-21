@@ -27,6 +27,7 @@ interface LivePredictionResponse {
     nextSwingFormed: boolean;
     stockDipped: boolean;
     bufferActive: boolean;
+    etRatio: number;
     currentSwing: {
       timeStampLocal: number[];
       date: number[];
@@ -85,6 +86,8 @@ interface LivePredictionResponse {
         mintue15Rsi: number;
       }[];
       entryPrice: number;
+      resistanceLevel: number;
+      stopLoss: number;
       etRatio: number;
       bufferActive: boolean;
       cocCandle: {
@@ -110,6 +113,7 @@ export default function BufferCheckPage() {
   const [deadlineTime, setDeadlineTime] = useState('');
   const [isLoadingPrediction, setIsLoadingPrediction] = useState(false);
   const [predictionResponse, setPredictionResponse] = useState<LivePredictionResponse | null>(null);
+  const [noDataFound, setNoDataFound] = useState(false);
 
   // Company search state
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>({});
@@ -153,6 +157,7 @@ export default function BufferCheckPage() {
 
   const handleFetchBufferHits = async () => {
     setIsLoadingPrediction(true);
+    setNoDataFound(false);
 
     try {
       // Prepare the request body
@@ -202,11 +207,12 @@ export default function BufferCheckPage() {
       if (!data || !data.liveStockBuffer || Object.keys(data).length === 0) {
         console.warn('Received empty or invalid response data');
         setPredictionResponse(null);
-        // Optionally show a user message that no data was found
+        setNoDataFound(true);
         return;
       }
 
       setPredictionResponse(data);
+      setNoDataFound(false);
 
     } catch (error) {
       console.error('Error fetching live prediction:', error);
@@ -239,6 +245,11 @@ export default function BufferCheckPage() {
     setSelectedCompany(companyName);
     setSearchTerm(companyName);
     setSuggestions([]);
+    setPredictionResponse(null); 
+    setNoDataFound(false);
+    setLastLowDate('');
+    setDeadlineDate('');
+    setDeadlineTime('');
 
     // Set basic company info immediately when selected
     setCompanyInfo({
@@ -283,6 +294,7 @@ export default function BufferCheckPage() {
                 setSearchTerm(e.target.value);
                 setSelectedCompany('');
                 setCompanyInfo(null);
+
               }}
             />
             {suggestions.length > 0 && !selectedCompany && (
@@ -325,6 +337,7 @@ export default function BufferCheckPage() {
               onChange={(e) => {
                 const newDate = e.target.value;
                 setLastLowDate(newDate);
+                setPredictionResponse(null); // Clear previous results when date changes
                 // Auto-save when date changes
                 if (companyInfo && newDate) {
                   console.log('Auto-saving last low for', companyInfo.name, 'at', newDate);
@@ -346,6 +359,7 @@ export default function BufferCheckPage() {
               onChange={(e) => {
                 const newDate = e.target.value;
                 setDeadlineDate(newDate);
+                setPredictionResponse(null); // Clear previous results when date changes
                 // Auto-save when date changes
                 if (companyInfo && newDate) {
                   console.log('Auto-saving deadline date for', companyInfo.name, 'at', newDate);
@@ -358,21 +372,30 @@ export default function BufferCheckPage() {
 
           <div className="mt-4">
             <Label htmlFor="deadlineTime">Deadline Time</Label>
-            <Input
+            <select
               id="deadlineTime"
-              type="time"
               value={deadlineTime}
               onChange={(e) => {
                 const newTime = e.target.value;
                 setDeadlineTime(newTime);
+                setPredictionResponse(null); // Clear previous results when time changes
                 // Auto-save when time changes
                 if (companyInfo && newTime) {
                   console.log('Auto-saving deadline time for', companyInfo.name, 'at', newTime);
                   setCompanyInfo({ ...companyInfo, deadlineTime: newTime });
                 }
               }}
-              placeholder="HH:MM"
-            />
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">Select time...</option>
+              <option value="09:15">9:15 AM</option>
+              <option value="10:15">10:15 AM</option>
+              <option value="11:15">11:15 AM</option>
+              <option value="12:15">12:15 PM</option>
+              <option value="13:15">1:15 PM</option>
+              <option value="14:15">2:15 PM</option>
+              <option value="15:15">3:15 PM</option>
+            </select>
           </div>
 
           {/* Fetch Buffer Data Button */}
@@ -391,10 +414,46 @@ export default function BufferCheckPage() {
         </div>
       )}
 
+      {/* No Data Found Message */}
+      {noDataFound && (
+        <div className="p-4 border rounded mt-8">
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <div className="text-gray-400 mb-2">
+                <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">Low candle not found</h3>
+              <p className="text-gray-500">No buffer analysis data available for the selected parameters.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Prediction Results */}
       {predictionResponse && (
         <div className="p-4 border rounded mt-8">
-          <h2 className="text-2xl font-bold mb-6">Buffer Analysis Results</h2>
+          <div className="flex items-center justify-center gap-6 mb-6">
+            <h2 className="text-2xl font-bold">Buffer Analysis Results</h2>
+            
+            {/* 1:2 Qualification Status - Only show when etRatio > 0 */}
+            {predictionResponse.liveStockBuffer.etRatio > 0 && (
+              <div className="">
+                {predictionResponse.liveStockBuffer.etRatio >= 1.95 ? (
+                  <div className="bg-green-100 border border-green-400 px-4 py-2 rounded-lg">
+                    <span className="text-green-800 font-bold text-lg">1:2 PASS</span>
+                    <div className="text-green-600 text-sm">Ratio: {predictionResponse.liveStockBuffer.etRatio.toFixed(2)}</div>
+                  </div>
+                ) : (
+                  <div className="bg-red-100 border border-red-400 px-4 py-2 rounded-lg">
+                    <span className="text-red-800 font-bold text-lg">1:2 FAIL</span>
+                    <div className="text-red-600 text-sm">Ratio: {predictionResponse.liveStockBuffer.etRatio.toFixed(2)}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Stock Support Break Warning */}
           {predictionResponse.liveStockBuffer.stockDipped && (
@@ -437,9 +496,30 @@ export default function BufferCheckPage() {
             <div className="space-y-6">
               <h3 className="text-xl font-semibold">Hourly Buffer Analysis</h3>
 
-              {predictionResponse.liveStockBuffer.hourlyBuffers.map((buffer, bufferIndex) => (
+              {predictionResponse.liveStockBuffer.hourlyBuffers.filter(buffer => buffer.bufferActive).map((buffer, bufferIndex) => (
                 <div key={`buffer-${bufferIndex}-${buffer.hourLevelRsi}`} className="border border-gray-300 rounded p-4">
-                  <h4 className="text-lg font-semibold mb-4">Buffer #{bufferIndex + 1}</h4>
+                  <h4 className="text-lg font-semibold mb-4">Active Buffer #{bufferIndex + 1}</h4>
+
+                  {/* COC Candle */}
+                  <div className="bg-purple-50 p-4 rounded mb-4">
+                    <h5 className="font-semibold mb-2">COC Candle</h5>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div><strong>Timestamp:</strong> {new Date(buffer.cocCandle.timestamp).toLocaleString()}</div>
+                      <div><strong>High:</strong> ₹{buffer.cocCandle.high}</div>
+                      <div><strong>Volume:</strong> {buffer.cocCandle.volume}</div>
+                    </div>
+                  </div>
+
+                  {/* Trading Information */}
+                  <div className="bg-green-50 p-4 rounded mb-4">
+                    <h5 className="font-semibold mb-2">Trading Levels</h5>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div><strong>Entry Price:</strong> <span className="text-green-700 font-medium">₹{buffer.entryPrice?.toFixed(2) || 'N/A'}</span></div>
+                      <div><strong>Resistance Level:</strong> <span className="text-red-600 font-medium">₹{buffer.resistanceLevel?.toFixed(2) || 'N/A'}</span></div>
+                      <div><strong>Stop Loss:</strong> <span className="text-red-700 font-medium">₹{buffer.stopLoss?.toFixed(2) || 'N/A'}</span></div>
+                      <div><strong>ET Ratio:</strong> <span className="text-blue-600 font-medium">{buffer.etRatio?.toFixed(2) || 'N/A'}</span></div>
+                    </div>
+                  </div>
 
                   {/* Buffer Overview */}
                   <div className="bg-yellow-50 p-4 rounded mb-4">
@@ -460,16 +540,6 @@ export default function BufferCheckPage() {
                       <div><strong>Low:</strong> ₹{buffer.bufferStartCandle.low}</div>
                       <div><strong>Close:</strong> ₹{buffer.bufferStartCandle.close}</div>
                       <div><strong>Volume:</strong> {buffer.bufferStartCandle.volume.toLocaleString()}</div>
-                    </div>
-                  </div>
-
-                  {/* COC Candle */}
-                  <div className="bg-purple-50 p-4 rounded mb-4">
-                    <h5 className="font-semibold mb-2">COC Candle</h5>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div><strong>Timestamp:</strong> {new Date(buffer.cocCandle.timestamp).toLocaleString()}</div>
-                      <div><strong>High:</strong> ₹{buffer.cocCandle.high}</div>
-                      <div><strong>Volume:</strong> {buffer.cocCandle.volume}</div>
                     </div>
                   </div>
 
@@ -494,7 +564,7 @@ export default function BufferCheckPage() {
                         <div key={`hit-${hitIndex}-${hit.bufferPercentage}-${hit.currentSwing.timeStamp}`} className="border border-red-200 p-3 rounded">
                           <div className="grid grid-cols-2 gap-4 text-sm mb-3">
                             <div><strong>Time Frame:</strong> {hit.timeFrame}</div>
-                            <div><strong>Buffer %:</strong> {(hit.bufferPercentage * 100).toFixed(1)}%</div>
+                            <div><strong>Buffer Perc:</strong> {(hit.bufferPercentage * 100).toFixed(1)}%</div>
                             <div><strong>Swing Period:</strong> {formatDateArray(hit.swingDates.swingStart)} → {formatDateArray(hit.swingDates.swingEnd)}</div>
                           </div>
 
