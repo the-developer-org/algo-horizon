@@ -73,7 +73,6 @@ function StrikeAnalysisContent() {
   const [stopLoss, setStopLoss] = useState<string>('0.00');
   const [target, setTarget] = useState<string>('0.00');
   const [strykeList, setStrykeList] = useState<AnalysisResponse[]>([]);
-  const [analysisResult, setAnalysisResult] = useState<Stryke | null>(null);
   const [selectedStryke, setSelectedStryke] = useState<AnalysisResponse | null>(null);
   const [strykeAnalysisList, setStrykeAnalysisList] = useState<AnalysisResponse[]>(reduxStrykeAnalysisList);
   const [algoAnalysisList, setAlgoAnalysisList] = useState<AnalysisResponse[]>(reduxAlgoAnalysisList);
@@ -1570,112 +1569,6 @@ function StrikeAnalysisContent() {
                         )}
                       </Button>
                     </form>
-                  </Card>
-                </div>
-
-                {/* Results Section */}
-                <div className="w-full md:w-1/2">
-                  <Card className="p-4 shadow-lg h-full">
-                    <h2 className="text-xl font-bold mb-4">Stryke Analysis Results</h2>
-
-                    {!analysisResult ? (
-                      <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <p className="text-center">Fill in a company and run a stryke analysis to see the results here</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center pb-1 border-b">
-                          <span className="font-medium">Status:</span>
-                          <span className={`font-semibold ${analysisResult != null ? 'text-green-600' : 'text-red-600'}`}>
-                            {analysisResult != null ? 'Success' : 'Failed'}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1 border-b">
-                          <span className="font-medium">Company:</span>
-                          <span>{analysisResult?.companyName ?? 'N/A'}</span>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1 border-b">
-                          <span className="font-medium">Date & Time:</span>
-                          <span>{`${analysisResult?.entryTime ?? 'N/A'}`}</span>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1 border-b">
-                          <span className="font-medium">Call Type:</span>
-                          <span>{analysisResult?.callType ?? 'N/A'}</span>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1 border-b">
-                          <span className="font-medium">Stryke Type:</span>
-                          <span className={`font-semibold px-2 py-1 rounded text-xs ${
-                            strykeType === 'OLD' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
-                          }`}>
-                            {strykeType}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1 border-b">
-                          <span
-                            className={
-                              analysisResult?.preEntryTrend === 'BULLISH' ? 'text-green-600' :
-                                analysisResult?.preEntryTrend === 'BEARISH' ? 'text-red-600' :
-                                  'text-orange-600'
-                            }
-                          >
-                            Pre Entry Trend:
-                          </span>
-                          <span
-                            className={
-                              analysisResult?.preEntryTrend === 'BULLISH' ? 'text-green-600' :
-                                analysisResult?.preEntryTrend === 'BEARISH' ? 'text-red-600' :
-                                  'text-orange-600'
-                            }
-                          >
-                            {analysisResult.preEntryTrend}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1 border-b">
-                          <span
-                            className={
-                              analysisResult?.postEntryTrend === 'BULLISH' ? 'text-green-600' :
-                                analysisResult?.postEntryTrend === 'BEARISH' ? 'text-red-600' :
-                                  'text-orange-600'
-                            }
-                          >
-                            Post Entry Trend:
-                          </span>
-                          <span
-                            className={
-                              analysisResult?.postEntryTrend === 'BULLISH' ? 'text-green-600' :
-                                analysisResult?.postEntryTrend === 'BEARISH' ? 'text-red-600' :
-                                  'text-orange-600'
-                            }
-                          >
-                            {analysisResult?.postEntryTrend ?? 'N/A'}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1 border-b">
-                          <span className="font-medium">Entry Price:</span>
-                          <span>₹{analysisResult?.entryCandle ? analysisResult.entryCandle.close?.toFixed(2) || 'N/A' : 'N/A'}</span>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1 border-b">
-                          <span className="font-medium">Stop Loss:</span>
-                          <span>₹{analysisResult?.stopLoss?.toFixed(2)}</span>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1 border-b">
-                          <span className="font-medium">Target:</span>
-                          <span>₹{analysisResult?.target?.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    )}
                   </Card>
                 </div>
               </div>
