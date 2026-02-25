@@ -70,8 +70,8 @@ function StrikeAnalysisContent() {
   const [selectedTime, setSelectedTime] = useState<string>('00:00');
   const [callType, setCallType] = useState<CallType>(CallType.INTRADAY);
   const [strykeType, setStrykeType] = useState<'OLD' | 'APP' | 'DISCORD'>('APP');
-  const [stopLoss, setStopLoss] = useState<string>('0.00');
-  const [target, setTarget] = useState<string>('0.00');
+  const [stopLoss, setStopLoss] = useState<string>('');
+  const [target, setTarget] = useState<string>('');
   const [strykeList, setStrykeList] = useState<AnalysisResponse[]>([]);
   const [selectedStryke, setSelectedStryke] = useState<AnalysisResponse | null>(null);
   const [strykeAnalysisList, setStrykeAnalysisList] = useState<AnalysisResponse[]>(reduxStrykeAnalysisList);
@@ -317,6 +317,18 @@ function StrikeAnalysisContent() {
       });
       
       toast.success('Stock added successfully');
+
+      // Clear the form after successful add
+      setSelectedCompany('');
+      setSelectedInstrumentKey('');
+      setSearchTerm('');
+      setSuggestions([]);
+      setSelectedDate(new Date().toLocaleDateString('en-GB').split('/').reverse().join('-'));
+      setSelectedTime('09:15');
+      setCallType(CallType.INTRADAY);
+      setStrykeType('APP');
+      setStopLoss('');
+      setTarget('');
     } catch (error: any) {
       console.error('Error adding new stock:', error);
       toast.error(error?.response?.data?.statusText || 'Failed to add stock');
@@ -1517,6 +1529,7 @@ function StrikeAnalysisContent() {
                               placeholder="0.00"
                               value={stopLoss}
                               onChange={(e) => setStopLoss(e.target.value)}
+                              onFocus={() => { if (stopLoss === '0.00') setStopLoss(''); }}
                               className="w-full pl-8"
                             />
                           </div>
@@ -1531,6 +1544,7 @@ function StrikeAnalysisContent() {
                               placeholder="0.00"
                               value={target}
                               onChange={(e) => setTarget(e.target.value)}
+                              onFocus={() => { if (target === '0.00') setTarget(''); }}
                               className="w-full pl-8"
                             />
                           </div>
@@ -1541,8 +1555,8 @@ function StrikeAnalysisContent() {
                       <Button
                         type="submit"
                         className={`w-full text-white ${selectedCompany && selectedInstrumentKey && selectedDate && selectedTime !== "00:00" &&
-                          stopLoss !== "0.00" &&
-                          target !== "0.00"
+                          stopLoss !== '' &&
+                          target !== ''
                           ? 'bg-purple-600 hover:bg-purple-700'
                           : 'bg-gray-400 cursor-not-allowed'
                           }`}
@@ -1552,8 +1566,8 @@ function StrikeAnalysisContent() {
                           !selectedInstrumentKey &&
                           !selectedDate &&
                           selectedTime !== "00:00" &&
-                          stopLoss !== "0.00" &&
-                          target !== "0.00"
+                          stopLoss === '' &&
+                          target === ''
                         }
                       >
                         {globalLoading ? (
