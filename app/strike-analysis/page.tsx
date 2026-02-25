@@ -312,27 +312,13 @@ function StrikeAnalysisContent() {
     try {
       setIsLoading(true);
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      const response = await axios.post(`${backEndBaseUrl}/api/stryke/add-stock`, strykeInbound, {
+      await axios.post(`${backEndBaseUrl}/api/stryke/add-stock`, strykeInbound, {
         headers: {
           'accept': 'application/json',
         },
       });
-      debugger
-      const addedStock = response.data.stryke;
-      setAnalysisResult({
-        ...addedStock,
-        entryDate: new Date(addedStock.entryTime).toLocaleDateString('en-GB'),
-      }); // Display the added stock details
+      
       toast.success('Stock added successfully');
-
-      // Add the new stock to the list
-      setStrykeList((prevList) => [
-        {
-          ...addedStock,
-          entryDate: new Date(addedStock.entryTime).toLocaleDateString('en-GB'),
-        },
-        ...prevList,
-      ]);
     } catch (error: any) {
       console.error('Error adding new stock:', error);
       toast.error(error?.response?.data?.statusText || 'Failed to add stock');
