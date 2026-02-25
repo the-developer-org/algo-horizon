@@ -285,7 +285,7 @@ function StrikeAnalysisContent() {
       return;
     }
 
-    setIsLoading(true);
+    setGlobalLoading(true);
 
     const strykeInbound = {
       instrumentKey: selectedInstrumentKey,
@@ -303,13 +303,12 @@ function StrikeAnalysisContent() {
     } catch (error) {
       console.error('Error in handleSubmit:', error);
     } finally {
-      setIsLoading(false);
+      setGlobalLoading(false);
     }
   };
 
   const addNewStock = async (strykeInbound: Partial<Stryke>) => {
     try {
-      setIsLoading(true);
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
       await axios.post(`${backEndBaseUrl}/api/stryke/add-stock`, strykeInbound, {
         headers: {
@@ -321,8 +320,6 @@ function StrikeAnalysisContent() {
     } catch (error: any) {
       console.error('Error adding new stock:', error);
       toast.error(error?.response?.data?.statusText || 'Failed to add stock');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -1550,7 +1547,7 @@ function StrikeAnalysisContent() {
                           : 'bg-gray-400 cursor-not-allowed'
                           }`}
                         disabled={
-                          isLoading ||
+                          globalLoading ||
                           !selectedCompany &&
                           !selectedInstrumentKey &&
                           !selectedDate &&
@@ -1559,7 +1556,7 @@ function StrikeAnalysisContent() {
                           target !== "0.00"
                         }
                       >
-                        {isLoading ? (
+                        {globalLoading ? (
                           <div className="flex items-center justify-center">
                             <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2"></div>
                             Analyzing...
