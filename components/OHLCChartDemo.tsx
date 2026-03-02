@@ -1825,7 +1825,7 @@ export const OHLCChartDemo: React.FC = () => {
         // Show chart
         return (
           <div 
-            className="flex-1 min-h-[350px]"
+            className="flex-1 min-h-[350px] w-full"
             ref={(el) => {
               chartContainerRef.current = el;
               if (el && isMobile) {

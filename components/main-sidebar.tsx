@@ -152,8 +152,9 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
   if (isCollapsed) {
     return (
       <Sidebar 
-        variant="inset" 
-        className="bg-slate-500 w-16 transition-all duration-300"
+        variant="sidebar" 
+        className="bg-slate-500 transition-all duration-300"
+        style={{ "--sidebar-width": "3rem" } as React.CSSProperties}
         onMouseEnter={handleInteraction}
         onMouseMove={handleInteraction}
         onClick={handleInteraction}
@@ -238,8 +239,9 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
 
   return (
     <Sidebar 
-      variant="inset" 
-      className="bg-slate-500 w-80 transition-all duration-300"
+      variant="sidebar" 
+      className="bg-slate-500 transition-all duration-300"
+      style={{ "--sidebar-width": "20rem" } as React.CSSProperties}
       onMouseEnter={handleInteraction}
       onMouseMove={handleInteraction}
       onClick={handleInteraction}

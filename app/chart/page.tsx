@@ -13,7 +13,7 @@ function ChartLoading() {
 
 export default function ChartPage() {
   return (
-    <main className="h-screen w-screen overflow-hidden">
+    <main className="h-screen w-full overflow-hidden">
       <Suspense fallback={<ChartLoading />}>
         <OHLCChartDemo />
       </Suspense>
