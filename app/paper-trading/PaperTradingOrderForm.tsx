@@ -96,6 +96,9 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
   // Trailing stop loss state
   const [trailingStopLossEnabled, setTrailingStopLossEnabled] = useState(false);
 
+  // Capital percentage selector state (default 1% risk)
+  const [capitalPercentage, setCapitalPercentage] = useState<number>(1);
+
   // Initialize speech recognition
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -277,6 +280,22 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
       fetchCompanyPrice();
     }
   }, [selectedCompany, formData.entryDate, formData.entryTime]);
+
+  // Auto-calculate quantity based on risk-based position sizing:
+  // Quantity = riskAmount / (entryPrice - stopLoss)
+  useEffect(() => {
+    if (formData.prediction === 'Action-not-taken') return;
+    const riskPerShare = companyPrice && formData.stopLoss > 0
+      ? companyPrice - formData.stopLoss
+      : 0;
+    if (companyPrice && companyPrice > 0 && currentCapital > 0 && riskPerShare > 0) {
+      const riskAmount = (currentCapital * capitalPercentage) / 100;
+      const calculatedQty = Math.floor(riskAmount / riskPerShare);
+      handleInputChange('quantity', calculatedQty);
+    } else {
+      handleInputChange('quantity', 0);
+    }
+  }, [capitalPercentage, companyPrice, formData.stopLoss, currentCapital, formData.prediction]);
 
   // Handle selection from suggestions
   const handleSelectCompany = (companyName: string) => {
@@ -775,37 +794,57 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
             {/* Trading Parameters - Quantity, Stop Loss, Target Price */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                 <Label htmlFor="quantity" className="flex items-center gap-1">
+                <Label className="flex items-center gap-1">
                   <Shield className="h-4 w-4" />
-                  Quantity
+                  Max Risk (% of Capital)
                 </Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  placeholder="0"
-                  value={formData.quantity || ''}
-                  onChange={(e) => {
-                    const inputValue = parseInt(e.target.value) || 0;
-                    
-                    // Check if input exceeds max purchasable
-                    if (companyPrice && currentCapital > 0) {
-                      const maxPurchasable = Math.floor(currentCapital / companyPrice);
-                      if (inputValue > maxPurchasable) {
-                        // Don't update if it exceeds max purchasable
-                        return;
-                      }
-                    }
-                    
-                    handleInputChange('quantity', inputValue);
-                  }}
-                  className={errors.quantity ? 'border-red-500' : ''}
-                />
-                {companyPrice && currentCapital > 0 && (
-                  <div className="text-xs text-blue-600">
-                    Max purchasable: {Math.floor(currentCapital / companyPrice)} shares
-                    Capital Used : ₹{(formData.quantity * companyPrice).toFixed(2)}
-                  </div>
-                )}
+                <div className="flex gap-1 flex-wrap">
+                  {[1, 2, 3, 4, 5].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setCapitalPercentage(pct)}
+                      className={`flex-1 min-w-[2.5rem] py-1.5 text-sm font-semibold rounded-md border transition-colors ${
+                        capitalPercentage === pct
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-300'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+                {(() => {
+                  const riskAmount = (currentCapital * capitalPercentage) / 100;
+                  const riskPerShare = companyPrice && formData.stopLoss > 0 ? companyPrice - formData.stopLoss : 0;
+                  return (
+                    <div className="text-xs space-y-0.5">
+                      <div className="text-blue-600">
+                        Risk amount: <span className="font-semibold">₹{riskAmount.toFixed(2)}</span>
+                      </div>
+                      {riskPerShare > 0 ? (
+                        <>
+                          <div className="text-orange-600">
+                            Risk/share: <span className="font-semibold">₹{riskPerShare.toFixed(2)}</span>
+                            {' '}(entry − SL)
+                          </div>
+                          <div className="text-green-700 font-semibold">
+                            Qty: {formData.quantity} shares
+                            {companyPrice && formData.quantity > 0 && (
+                              <span className="text-gray-500 font-normal ml-1">
+                                (capital used ₹{(formData.quantity * companyPrice).toFixed(2)})
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-gray-400">
+                          {!companyPrice ? 'Select a company first' : 'Set stop loss to calculate qty'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {errors.quantity && (
                   <p className="text-sm text-red-500">{errors.quantity}</p>
                 )}

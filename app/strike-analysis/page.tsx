@@ -29,6 +29,78 @@ import {
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
 import { setLoading, setAnalysisData, setMetrics } from '@/lib/store/analysisSlice';
 
+const HOLIDAY_API_PATH = `${process.env.NEXT_PUBLIC_BACKEND_URL ?? ''}/api/admin/market-holidays`;
+
+const toIsoDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeDateString = (dateString: string): string => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return dateString;
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dateString)) {
+    const [day, month, year] = dateString.split('-');
+    return `${year}-${month}-${day}`;
+  }
+  return dateString;
+};
+
+const getTodayIsoDate = (): string => toIsoDate(new Date());
+
+const isWeekendDate = (isoDate: string): boolean => {
+  const date = new Date(`${isoDate}T00:00:00`);
+  const day = date.getDay();
+  return day === 0 || day === 6;
+};
+
+const isFutureDate = (isoDate: string): boolean => isoDate > getTodayIsoDate();
+
+const isHolidayDate = (isoDate: string, holidaySet: Set<string>): boolean => holidaySet.has(isoDate);
+
+const isBlockedTradingDate = (isoDate: string, holidaySet: Set<string>): boolean =>
+  isFutureDate(isoDate) || isWeekendDate(isoDate) || isHolidayDate(isoDate, holidaySet);
+
+const getBlockedDateMessage = (isoDate: string, holidaySet: Set<string>): string => {
+  if (isFutureDate(isoDate)) return 'Future dates are not allowed.';
+  if (isWeekendDate(isoDate)) return 'Saturdays and Sundays are not allowed.';
+  if (isHolidayDate(isoDate, holidaySet)) return 'Selected market holiday is blocked.';
+  return 'Please select a valid trading date.';
+};
+
+const getNearestValidTradingDate = (holidaySet: Set<string>, startDate: Date = new Date()): string => {
+  const cursor = new Date(startDate);
+  while (isBlockedTradingDate(toIsoDate(cursor), holidaySet)) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return toIsoDate(cursor);
+};
+
+const extractHolidayDates = (payload: any): string[] => {
+  let candidates: any[] = [];
+  if (Array.isArray(payload)) {
+    candidates = payload;
+  } else if (Array.isArray(payload?.holidays)) {
+    candidates = payload.holidays;
+  } else if (Array.isArray(payload?.data)) {
+    candidates = payload.data;
+  }
+
+  return Array.from(
+    new Set(
+      candidates
+        .map((item: any) => {
+          if (typeof item === 'string') return normalizeDateString(item);
+          const raw = item?.date || item?.holidayDate || item?.tradeDate || item?.isoDate;
+          if (typeof raw !== 'string') return null;
+          return normalizeDateString(raw);
+        })
+        .filter((value: string | null): value is string => !!value && /^\d{4}-\d{2}-\d{2}$/.test(value))
+    )
+  );
+};
+
 function StrikeAnalysisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -66,7 +138,8 @@ function StrikeAnalysisContent() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [selectedInstrumentKey, setSelectedInstrumentKey] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>( new Date().toLocaleDateString('en-GB').split('/').reverse().join('-') );
+  const [selectedDate, setSelectedDate] = useState<string>(getNearestValidTradingDate(new Set()));
+  const [marketHolidaySet, setMarketHolidaySet] = useState<Set<string>>(new Set());
   const [selectedTime, setSelectedTime] = useState<string>('00:00');
   const [callType, setCallType] = useState<CallType>(CallType.INTRADAY);
   const [strykeType, setStrykeType] = useState<'OLD' | 'APP' | 'DISCORD'>('APP');
@@ -218,6 +291,45 @@ function StrikeAnalysisContent() {
 
   }, []);
 
+  // Fetch market holidays from backend (Mongo-backed endpoint)
+  useEffect(() => {
+    const loadMarketHolidays = async () => {
+      try {
+        const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+        if (!backEndBaseUrl) return;
+
+        const response = await fetch(`${backEndBaseUrl}${HOLIDAY_API_PATH}`, {
+          method: 'GET',
+          headers: {
+            accept: 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Holiday API failed: ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const holidayDates = extractHolidayDates(payload);
+        setMarketHolidaySet(new Set(holidayDates));
+      } catch (error) {
+        console.error('Failed to load market holidays from backend:', error);
+      }
+    };
+
+    loadMarketHolidays();
+  }, []);
+
+  // Re-align selected date if it becomes blocked after holidays load
+  useEffect(() => {
+    const normalizedSelectedDate = normalizeDateString(selectedDate);
+    if (!normalizedSelectedDate) return;
+
+    if (isBlockedTradingDate(normalizedSelectedDate, marketHolidaySet)) {
+      setSelectedDate(getNearestValidTradingDate(marketHolidaySet));
+    }
+  }, [marketHolidaySet, selectedDate]);
+
   // Sync Redux state with local state on mount or when Redux state changes
   useEffect(() => {
     if (reduxStrykeAnalysisList.length > 0) {
@@ -262,12 +374,24 @@ function StrikeAnalysisContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const normalizedSelectedDate = normalizeDateString(selectedDate);
+
+    if (!normalizedSelectedDate) {
+      toast.error('Please select a valid date');
+      return;
+    }
+
+    if (isBlockedTradingDate(normalizedSelectedDate, marketHolidaySet)) {
+      toast.error(getBlockedDateMessage(normalizedSelectedDate, marketHolidaySet));
+      return;
+    }
+
     if (!selectedCompany || !selectedInstrumentKey) {
       toast.error('Please select a company');
       return;
     }
     try {
-      const checkIfCompanyExists = await fetchUpstoxIntradayData(selectedInstrumentKey, selectedDate);
+      const checkIfCompanyExists = await fetchUpstoxIntradayData(selectedInstrumentKey, normalizedSelectedDate);
 
     } catch (error: any) {
 
@@ -290,7 +414,7 @@ function StrikeAnalysisContent() {
     const strykeInbound = {
       instrumentKey: selectedInstrumentKey,
       companyName: selectedCompany,
-      entryDate: selectedDate,
+      entryDate: normalizedSelectedDate,
       time: selectedTime,
       callType,
       strykeType,
@@ -323,7 +447,7 @@ function StrikeAnalysisContent() {
       setSelectedInstrumentKey('');
       setSearchTerm('');
       setSuggestions([]);
-      setSelectedDate(new Date().toLocaleDateString('en-GB').split('/').reverse().join('-'));
+      setSelectedDate(getNearestValidTradingDate(marketHolidaySet));
       setSelectedTime('09:15');
       setCallType(CallType.INTRADAY);
       setStrykeType('APP');
@@ -694,6 +818,16 @@ function StrikeAnalysisContent() {
 
   // Available timeframes for chart navigation
   const timeframes = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
+
+  const handleDateChange = (dateValue: string) => {
+    const normalizedDate = normalizeDateString(dateValue);
+    if (!normalizedDate) return;
+    if (isBlockedTradingDate(normalizedDate, marketHolidaySet)) {
+      toast.error(getBlockedDateMessage(normalizedDate, marketHolidaySet));
+      return;
+    }
+    setSelectedDate(normalizedDate);
+  };
 
   useEffect(() => {
     if (showAllStrykes && strykeList.length === 0 && !progressiveLoading && !dataLoadingAttempted) {
@@ -1466,8 +1600,9 @@ function StrikeAnalysisContent() {
                           <Input
                             id="date-select"
                             type="date"
-                            value={selectedDate.split('-').reverse().join('-')}
-                            onChange={(e) => setSelectedDate(e.target.value.split('-').reverse().join('-'))}
+                            value={normalizeDateString(selectedDate)}
+                            onChange={(e) => handleDateChange(e.target.value)}
+                            max={getTodayIsoDate()}
                             className="w-full"
                           />
                         </div>
