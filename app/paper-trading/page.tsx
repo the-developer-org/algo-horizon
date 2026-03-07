@@ -37,6 +37,8 @@ export default function PaperTradingPage() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
   const [isCreatingAccount, setIsCreatingAccount] = useState<boolean>(false);
+  const [showCreateAccountInput, setShowCreateAccountInput] = useState<boolean>(false);
+  const [newAccountInputValue, setNewAccountInputValue] = useState<string>('');
 
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
 const API_BASE = `${BASE_URL}/api/paper-trade`;
@@ -168,38 +170,7 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
     handleRefresh();
   };
 
-  // Generate the next available account name
-  // Check if current user can reset the selected account
-  const canResetAccount = () => {
-    // Main account can be reset by anyone
-    if (selectedAccount === 'Main' || selectedAccount === 'Stryke' || selectedAccount === 'Algo') {
-      return true;
-    }
-    
-    // Individual accounts can only be reset by the account owner
-    // Account owner is determined by the account name matching the current user
-    // or the account being a sub-account of the current user (e.g., "Abrar-1" owned by "Abrar")
-    const accountOwner = selectedAccount.includes('-') 
-      ? selectedAccount.split('-')[0] 
-      : selectedAccount;
-    
-    return currentUser === accountOwner;
-  };
-
-  const generateNextAccountName = () => {
-    let counter = 1;
-    let suggestedName = `${currentUser}-${counter}`;
-    
-    while (availableAccounts.includes(suggestedName)) {
-      counter++;
-      suggestedName = `${currentUser}-${counter}`;
-    }
-    
-    return suggestedName;
-  };
-
-  const handleCreateAccount = async () => {
-    const newAccountName = generateNextAccountName();
+  const handleCreateAccount = async (newAccountName: string) => {
     
     // Set loading state
     setIsCreatingAccount(true);
@@ -284,7 +255,7 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
               <DollarSign className="h-8 w-8 text-green-600" />
-              Paper Trading - {selectedAccount}
+              {selectedAccount}
             </h1>
             <p className="text-gray-600 mt-1">
               Practice trading with virtual capital and track your performance
@@ -317,46 +288,69 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
               Refresh
               <span className="text-xs text-gray-500 ml-1">({lastRefreshDisplay})</span>
             </Button>
-            {/* Create Account Button - Only show when current user can create accounts for themselves */}
-            {selectedAccount !== 'Main' && selectedAccount !== 'Stryke' && selectedAccount !== 'Algo' && selectedAccount === currentUser && (
+            {/* Create Account Button / Inline Input */}
+            {showCreateAccountInput ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  value={newAccountInputValue}
+                  onChange={(e) => setNewAccountInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newAccountInputValue.trim()) {
+                      setShowCreateAccountInput(false);
+                      handleCreateAccount(newAccountInputValue.trim());
+                      setNewAccountInputValue('');
+                    } else if (e.key === 'Escape') {
+                      setShowCreateAccountInput(false);
+                      setNewAccountInputValue('');
+                    }
+                  }}
+                  placeholder="Account name..."
+                  className="h-9 w-36 rounded-md border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <Button
+                  onClick={() => {
+                    if (newAccountInputValue.trim()) {
+                      setShowCreateAccountInput(false);
+                      handleCreateAccount(newAccountInputValue.trim());
+                      setNewAccountInputValue('');
+                    }
+                  }}
+                  disabled={!newAccountInputValue.trim() || isCreatingAccount}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                >
+                  {isCreatingAccount ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                  ) : 'Create'}
+                </Button>
+                <Button
+                  onClick={() => { setShowCreateAccountInput(false); setNewAccountInputValue(''); }}
+                  variant="outline"
+                  size="sm"
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
               <Button
-                onClick={handleCreateAccount}
+                onClick={() => setShowCreateAccountInput(true)}
                 disabled={isCreatingAccount}
                 variant="outline"
                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isCreatingAccount ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-600"></div>
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="h-4 w-4" />
-                    Create Account
-                  </>
-                )}
+                <UserPlus className="h-4 w-4" />
+                Create Account
               </Button>
             )}
+          
             
             <Button
               onClick={() => setShowResetModal(true)}
-              disabled={!canResetAccount()}
+
               variant="outline"
-              className={`flex items-center gap-2 ${
-                canResetAccount() 
-                  ? 'text-red-600 hover:text-red-700 hover:bg-red-50' 
-                  : 'text-gray-400 cursor-not-allowed'
-              }`}
-              title={(() => {
-                if (canResetAccount()) {
-                  return 'Reset this account';
-                }
-                const accountOwner = selectedAccount.includes('-') 
-                  ? selectedAccount.split('-')[0] 
-                  : selectedAccount;
-                return `Only ${accountOwner} can reset this account`;
-              })()}
+              className={`flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50`}
             >
               <RotateCcw className="h-4 w-4" />
               Reset Account
