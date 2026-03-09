@@ -90,6 +90,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
   
   // Company price data state
   const [companyPrice, setCompanyPrice] = useState<number | null>(null);
+  const [companyLatestPrice, setCompanyLatestPrice] = useState<number | null>(null);
   const [companyChange, setCompanyChange] = useState<number | null>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
 
@@ -190,6 +191,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     const dayOfWeek = entryDate.getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       setCompanyPrice(null);
+      setCompanyLatestPrice(null)
       setCompanyChange(null);
       return;
     }
@@ -232,38 +234,34 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
       if (candles.length > 0) {
         // Find the candle closest to the entry time
         const entryTimeMinutes = timeToMinutes(formData.entryTime);
-        let closestCandle = candles[0];
-        let minTimeDiff = Infinity;
-
-        for (const candle of candles) {
-          // Parse the timestamp string to get hours and minutes
+        let dayOpenCandle = candles.at(candles.length - 1); // oldest candle (assuming sorted newest first)
+        let recentCandle = candles.at(0); // newest candle
+    
+        let resultCandle = candles.find(candle => {
           const candleTime = new Date(candle.timestamp);
           const candleMinutes = candleTime.getHours() * 60 + candleTime.getMinutes();
-          const timeDiff = Math.abs(candleMinutes - entryTimeMinutes);
-
-          if (timeDiff < minTimeDiff) {
-            minTimeDiff = timeDiff;
-            closestCandle = candle;
-          }
-        }
-
-        const currentPrice = closestCandle.close;
+          return candleMinutes === entryTimeMinutes;
+        });
+         let currentPrice = resultCandle.close;
+      
 
         // For change calculation, compare with the first candle of the day (oldest)
-        const firstCandleOfDay = candles[candles.length - 1]; // oldest candle (assuming sorted newest first)
-        const firstCandleOpen = firstCandleOfDay.open;
+        const firstCandleOpen = dayOpenCandle.open;
         const change = ((currentPrice - firstCandleOpen) / firstCandleOpen) * 100;
 
         setCompanyPrice(currentPrice);
+        setCompanyLatestPrice(candles[0].close)
         setCompanyChange(change);
       } else {
         setCompanyPrice(null);
+        setCompanyLatestPrice(null);
         setCompanyChange(null);
       }
     } catch (error) {
       console.error('Failed to fetch company price:', error);
       setCompanyPrice(null);
       setCompanyChange(null);
+       setCompanyLatestPrice(null);
     } finally {
       setIsLoadingPrice(false);
     }
@@ -493,6 +491,12 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     return <span className="text-gray-500">N/A</span>;
   };
 
+  const renderLatestPrice = () => {
+    if (isLoadingPrice) return <span className="text-gray-500">Loading...</span>;
+    if (companyLatestPrice) return <span className="text-green-600">₹{companyLatestPrice.toFixed(2)}</span>;
+    return <span className="text-gray-500">N/A</span>;
+  };
+
 
 
   return (
@@ -535,7 +539,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                   <div className="space-y-1 text-xs">
                     <p><span className="font-medium">Name:</span> {selectedCompany}</p>
                     <p><span className="font-medium">Key:</span> {formData.instrumentKey}</p>
-                    <p><span className="font-medium">{marketStatus ? 'Live at:' : 'Last traded at:'}</span> {renderPrice()}</p>
+                    <p><span className="font-medium">{marketStatus ? 'Live at:' : 'Last traded at:'}</span> {renderLatestPrice()}</p>
                   </div>
                 ) : (
                   <p className="text-xs text-gray-600">
@@ -797,6 +801,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                 </p>
               )}
             </div>
+            
 
             {/* Trading Parameters - Quantity, Stop Loss, Target Price */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
