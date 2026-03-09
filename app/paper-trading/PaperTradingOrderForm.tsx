@@ -198,10 +198,17 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
 
     
     let result;
+
+      let apiKey = localStorage.getItem('upstoxApiKey');
+            if (!apiKey) {
+                apiKey = 'DEFAULT_API_KEY';
+             } // Use a default or placeholder API key 
+
       // Fetch minute data for the selected date
       if(formData.entryDate === new Date().toISOString().split('T')[0]){
         result = await fetchUpstoxIntradayData(
           formData.instrumentKey,
+          apiKey,
           'minutes',
           '1'
         );
