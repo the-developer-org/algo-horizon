@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, Shield, CheckCircle } from "lucide-react";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, Shield, CheckCircle, X, Menu } from "lucide-react";
 import UpstoxIcon from "@/components/icons/UpstoxIcon";
 import {
   Sidebar,
@@ -50,31 +50,58 @@ interface MainSidebarProps extends Readonly<React.ComponentProps<typeof Sidebar>
 export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibility, ...props }: Readonly<MainSidebarProps>) {
   const router = useRouter();
   const [internalIsVisible, setInternalIsVisible] = React.useState(isVisible);
+  const [hideTimer, setHideTimer] = React.useState<NodeJS.Timeout | null>(null);
 
-  // Handle user interactions
-  const handleInteraction = React.useCallback(() => {}, []);
+  // Reset the auto-hide timer on user interaction
+  const resetHideTimer = React.useCallback(() => {
+    setHideTimer(prevTimer => {
+      if (prevTimer) clearTimeout(prevTimer);
+      return setTimeout(() => {
+        setInternalIsVisible(false);
+      }, 3000);
+    });
+  }, []);
 
-  // Sync with external visibility control
+  // Handle user interactions - reset timer
+  const handleInteraction = React.useCallback(() => {
+    resetHideTimer();
+  }, [resetHideTimer]);
+
+  // Close sidebar button handler
+  const handleCloseSidebar = React.useCallback(() => {
+    setInternalIsVisible(false);
+    setHideTimer(prevTimer => {
+      if (prevTimer) clearTimeout(prevTimer);
+      return null;
+    });
+  }, []);
+
+  // Set initial timer when sidebar becomes visible
   React.useEffect(() => {
-    setInternalIsVisible(isVisible);
-  }, [isVisible]);
+    if (internalIsVisible) {
+      resetHideTimer();
+    }
+  }, [internalIsVisible, resetHideTimer]);
 
-  // Override the toggle function to also manage internal state
-  const handleToggleVisibility = React.useCallback(() => {
-    const newVisibility = !internalIsVisible;
-    setInternalIsVisible(newVisibility);
-    onToggleVisibility?.();
-  }, [internalIsVisible, onToggleVisibility]);
+  // Cleanup timer on unmount
+  React.useEffect(() => {
+    return () => {
+      setHideTimer(prevTimer => {
+        if (prevTimer) clearTimeout(prevTimer);
+        return null;
+      });
+    };
+  }, []);
 
   if (!internalIsVisible) {
     return (
       <div className="fixed top-4 left-4 z-50">
         <button
-          onClick={handleToggleVisibility}
+          onClick={() => setInternalIsVisible(true)}
           className="p-2 bg-sidebar-primary text-sidebar-primary-foreground rounded-lg shadow-lg hover:bg-sidebar-primary/80 transition-colors"
           title="Show Sidebar"
         >
-          <TrendingUp className="size-4" />
+          <Menu className="size-5" />
         </button>
       </div>
     );
@@ -93,10 +120,17 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
       <SidebarHeader className="bg-slate-500">
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center w-full p-3">
+            <div className="flex items-center justify-between w-full p-3">
               <a href="/" className="flex flex-1 items-center text-left text-sm leading-tight">
                 <span className="font-semibold whitespace-nowrap text-white">Algo Horizon X Upstox</span>
               </a>
+              <button
+                onClick={handleCloseSidebar}
+                className="p-1 text-white hover:bg-slate-600 rounded transition-colors ml-2"
+                title="Hide Sidebar (will auto-hide in 3 seconds)"
+              >
+                <X className="size-5" />
+              </button>
             </div>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -117,7 +151,6 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
                           onClick={() => {
                             handleInteraction();
                             onShowInsights?.();
-                            // Ensure we navigate to home where the combined section lives
                             router.push('/');
                           }}
                         >
