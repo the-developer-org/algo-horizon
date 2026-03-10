@@ -99,6 +99,8 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
 
   // Capital percentage selector state (default 1% risk)
   const [capitalPercentage, setCapitalPercentage] = useState<number>(1);
+  // Toggle between percentage and quantity input
+  const [quantityMode, setQuantityMode] = useState<'percentage' | 'manual'>('percentage');
 
   // Initialize speech recognition
   useEffect(() => {
@@ -290,17 +292,20 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
   // Quantity = riskAmount / (entryPrice - stopLoss)
   useEffect(() => {
     if (formData.prediction === 'Action-not-taken') return;
-    const riskPerShare = companyPrice && formData.stopLoss > 0
-      ? companyPrice - formData.stopLoss
-      : 0;
-    if (companyPrice && companyPrice > 0 && currentCapital > 0 && riskPerShare > 0) {
-      const riskAmount = (currentCapital * capitalPercentage) / 100;
-      const calculatedQty = Math.floor(riskAmount / riskPerShare);
-      handleInputChange('quantity', calculatedQty);
-    } else {
-      handleInputChange('quantity', 0);
+    if (quantityMode === 'percentage') {
+      const riskPerShare = companyPrice && formData.stopLoss > 0
+        ? companyPrice - formData.stopLoss
+        : 0;
+      if (companyPrice && companyPrice > 0 && currentCapital > 0 && riskPerShare > 0) {
+        const riskAmount = (currentCapital * capitalPercentage) / 100;
+        const calculatedQty = Math.floor(riskAmount / riskPerShare);
+        handleInputChange('quantity', calculatedQty);
+      } else {
+        handleInputChange('quantity', 0);
+      }
     }
-  }, [capitalPercentage, companyPrice, formData.stopLoss, currentCapital, formData.prediction]);
+    // In manual mode, do not auto-update quantity
+  }, [capitalPercentage, companyPrice, formData.stopLoss, currentCapital, formData.prediction, quantityMode]);
 
   // Handle selection from suggestions
   const handleSelectCompany = (companyName: string) => {
@@ -804,120 +809,155 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
             
 
             {/* Trading Parameters - Quantity, Stop Loss, Target Price */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-4">
+              {/* Order Qty / Max Risk Section */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-1">
-                  <Shield className="h-4 w-4" />
-                  Max Risk (% of Capital)
-                </Label>
-                <div className="flex gap-1 flex-wrap">
-                  {[1, 2, 3, 4, 5].map((pct) => (
-                    <button
-                      key={pct}
-                      type="button"
-                      onClick={() => setCapitalPercentage(pct)}
-                      className={`flex-1 min-w-[2.5rem] py-1.5 text-sm font-semibold rounded-md border transition-colors ${
-                        capitalPercentage === pct
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-300'
-                      }`}
-                    >
-                      {pct}%
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <Label className="flex items-center gap-1">
+                    <Shield className="h-4 w-4" />
+                    {quantityMode === 'percentage' ? 'Max Risk' : 'Order Qty'}
+                  </Label>
+                  <div className="flex items-center ml-auto gap-1">
+                    <span className={`text-l font-medium px-2 ${quantityMode === 'percentage' ? 'text-blue-800' : 'text-gray-800'}`}>%</span>
+                    <Switch
+                      checked={quantityMode === 'manual'}
+                      onCheckedChange={checked => setQuantityMode(checked ? 'manual' : 'percentage')}
+                      className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-300"
+                      aria-label="Switch to manual quantity"
+                    />
+                    <span className={`text-l font-medium px-2 ${quantityMode === 'manual' ? 'text-blue-800' : 'text-gray-800'}`}>QTY</span>
+                  </div>
                 </div>
-                {(() => {
-                  const riskAmount = (currentCapital * capitalPercentage) / 100;
-                  const riskPerShare = companyPrice && formData.stopLoss > 0 ? companyPrice - formData.stopLoss : 0;
-                  return (
-                    <div className="text-xs space-y-0.5">
-                      <div className="text-blue-600">
-                        Risk amount: <span className="font-semibold">₹{riskAmount.toFixed(2)}</span>
-                      </div>
-                      {riskPerShare > 0 ? (
-                        <>
-                          <div className="text-orange-600">
-                            Risk/share: <span className="font-semibold">₹{riskPerShare.toFixed(2)}</span>
-                            {' '}(entry − SL)
-                          </div>
-                          <div className="text-green-700 font-semibold">
-                            Qty: {formData.quantity} shares
-                            {companyPrice && formData.quantity > 0 && (
-                              <span className="text-gray-500 font-normal ml-1">
-                                (capital used ₹{(formData.quantity * companyPrice).toFixed(2)})
-                              </span>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-gray-400">
-                          {!companyPrice ? 'Select a company first' : 'Set stop loss to calculate qty'}
-                        </div>
-                      )}
+                {quantityMode === 'percentage' ? (
+                  <>
+                    <div className="flex gap-1 flex-wrap">
+                      {[1, 2, 3, 4, 5].map((pct) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setCapitalPercentage(pct)}
+                          className={`flex-1 min-w-[2.5rem] py-1.5 text-sm font-semibold rounded-md border transition-colors ${
+                            capitalPercentage === pct
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-300'
+                          }`}
+                        >
+                          {pct}%
+                        </button>
+                      ))}
                     </div>
-                  );
-                })()}
+                    {(() => {
+                      const riskAmount = (currentCapital * capitalPercentage) / 100;
+                      const riskPerShare = companyPrice && formData.stopLoss > 0 ? companyPrice - formData.stopLoss : 0;
+                      return (
+                        <div className="text-xs space-y-0.5">
+                          <div className="text-blue-600">
+                            Risk amount: <span className="font-semibold">₹{riskAmount.toFixed(2)}</span>
+                          </div>
+                          {riskPerShare > 0 ? (
+                            <>
+                              <div className="text-orange-600">
+                                Risk/share: <span className="font-semibold">₹{riskPerShare.toFixed(2)}</span>
+                                {' '}(entry − SL)
+                              </div>
+                              <div className="text-green-700 font-semibold">
+                                Qty: {formData.quantity} shares
+                                {companyPrice && formData.quantity > 0 && (
+                                  <span className="text-gray-500 font-normal ml-1">
+                                    (capital used ₹{(formData.quantity * companyPrice).toFixed(2)})
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-gray-400">
+                              {!companyPrice ? 'Select a company first' : 'Set stop loss to calculate qty'}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={formData.quantity || ''}
+                      onChange={e => {
+                        const val = parseInt(e.target.value) || 0;
+                        handleInputChange('quantity', val);
+                      }}
+                      className={errors.quantity ? 'border-red-500' : ''}
+                      placeholder="Enter quantity"
+                    />
+                    <div className="text-xs text-gray-500">Enter the number of shares to buy/sell.</div>
+                  </>
+                )}
                 {errors.quantity && (
                   <p className="text-sm text-red-500">{errors.quantity}</p>
                 )}
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="stopLoss" className="flex items-center gap-1">
-                    <Shield className="h-4 w-4" />
-                    Stop Loss (₹)
-                  </Label>
-                  {companyPrice && formData.stopLoss > 0 && (
-                    <span className={`text-xs ${formData.stopLoss < companyPrice ? 'text-red-600' : 'text-green-600'}`}>
-                      ({formData.stopLoss < companyPrice
-                        ? `${((formData.stopLoss - companyPrice) / companyPrice * 100).toFixed(2)}%`
-                        : `+${((formData.stopLoss - companyPrice) / companyPrice * 100).toFixed(2)}%`
-                      })
-                    </span>
+              {/* Stop Loss and Target Price Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="stopLoss" className="flex items-center gap-1">
+                      <Shield className="h-4 w-4" />
+                      Stop Loss (₹)
+                    </Label>
+                    {companyPrice && formData.stopLoss > 0 && (
+                      <span className={`text-xs ${formData.stopLoss < companyPrice ? 'text-red-600' : 'text-green-600'}`}>
+                        ({formData.stopLoss < companyPrice
+                          ? `${((formData.stopLoss - companyPrice) / companyPrice * 100).toFixed(2)}%`
+                          : `+${((formData.stopLoss - companyPrice) / companyPrice * 100).toFixed(2)}%`
+                        })
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    id="stopLoss"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.stopLoss || ''}
+                    onChange={(e) => handleInputChange('stopLoss', parseFloat(e.target.value) || 0)}
+                    className={errors.stopLoss ? 'border-red-500' : ''}
+                  />
+                  {errors.stopLoss && (
+                    <p className="text-sm text-red-500">{errors.stopLoss}</p>
                   )}
                 </div>
-                <Input
-                  id="stopLoss"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={formData.stopLoss || ''}
-                  onChange={(e) => handleInputChange('stopLoss', parseFloat(e.target.value) || 0)}
-                  className={errors.stopLoss ? 'border-red-500' : ''}
-                />
-                {errors.stopLoss && (
-                  <p className="text-sm text-red-500">{errors.stopLoss}</p>
-                )}
-              </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="targetPrice" className="flex items-center gap-1">
-                    <Target className="h-4 w-4" />
-                    Target Price (₹)
-                  </Label>
-                  {companyPrice && formData.targetPrice > 0 && (
-                    <span className={`text-xs ${formData.targetPrice > companyPrice ? 'text-green-600' : 'text-red-600'}`}>
-                      ({formData.targetPrice > companyPrice 
-                        ? `+${((formData.targetPrice - companyPrice) / companyPrice * 100).toFixed(2)}%`
-                        : `${((formData.targetPrice - companyPrice) / companyPrice * 100).toFixed(2)}%`
-                      })
-                    </span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="targetPrice" className="flex items-center gap-1">
+                      <Target className="h-4 w-4" />
+                      Target Price (₹)
+                    </Label>
+                    {companyPrice && formData.targetPrice > 0 && (
+                      <span className={`text-xs ${formData.targetPrice > companyPrice ? 'text-green-600' : 'text-red-600'}`}>
+                        ({formData.targetPrice > companyPrice 
+                          ? `+${((formData.targetPrice - companyPrice) / companyPrice * 100).toFixed(2)}%`
+                          : `${((formData.targetPrice - companyPrice) / companyPrice * 100).toFixed(2)}%`
+                        })
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    id="targetPrice"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.targetPrice || ''}
+                    onChange={(e) => handleInputChange('targetPrice', parseFloat(e.target.value) || 0)}
+                    className={errors.targetPrice ? 'border-red-500' : ''}
+                  />
+                  {errors.targetPrice && (
+                    <p className="text-sm text-red-500">{errors.targetPrice}</p>
                   )}
                 </div>
-                <Input
-                  id="targetPrice"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={formData.targetPrice || ''}
-                  onChange={(e) => handleInputChange('targetPrice', parseFloat(e.target.value) || 0)}
-                  className={errors.targetPrice ? 'border-red-500' : ''}
-                />
-                {errors.targetPrice && (
-                  <p className="text-sm text-red-500">{errors.targetPrice}</p>
-                )}
               </div>
             </div>
 
@@ -1024,7 +1064,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
             </div>
 
             {/* Additional Information */}
-            <div className="space-y-4">
+            {/* <div className="space-y-4">
               <div className="space-y-4">
                 <Label>Prediction Type</Label>
                 <RadioGroup
@@ -1130,7 +1170,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                 
               </div>
             </div>
-            </div>
+            </div> */}
 
             {/* Capital Validation Error */}
             {errors.capital && (
@@ -1141,7 +1181,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
             
 
             {/* Order Summary */}
-            {formData.entryDate && formData.entryTime && formData.quantity > 0 && (
+            {/* {formData.entryDate && formData.entryTime && formData.quantity > 0 && (
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4 space-y-2">
                 <h4 className="font-semibold text-blue-800">Order Summary</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -1200,7 +1240,7 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
                   * Brokerage fees will be automatically calculated and applied by the system
                 </div>
               </div>
-            )}
+            )} */}
 
             {/* Form Actions */}
             <div className="flex justify-end gap-3 pt-4">

@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, TrendingUp, BarChart3, DollarSign, RotateCcw, UserPlus } from "lucide-react";
 import toast from 'react-hot-toast';
 import axios from 'axios';
@@ -135,10 +135,8 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
   useEffect(() => {
     const interval = setInterval(() => {
       if (isMarketHours()) {
-        //console.log('Market hours - Auto-refreshing paper trading data');
+        
         fetchData();
-      } else {
-        //console.log('Outside market hours - Skipping auto-refresh');
       }
     }, 5 * 60 * 1000); // 5 minutes in milliseconds
 
@@ -176,15 +174,12 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
     setIsCreatingAccount(true);
     
     try {
-      //console.log(`🚀 Creating account: ${newAccountName}`);
-      //console.log(`📡 API URL: ${API_BASE}/create/${newAccountName}`);
+      
       
       // Make API call to create the account
       const response = await axios.post(`${API_BASE}/create/${newAccountName}`);
       
-      //console.log('📥 API Response:', response);
-      //console.log('📊 Response Status:', response.status);
-      //console.log('📄 Response Data:', response.data);
+      
       
       // Check for successful response (status 200-299 range)
       if (response.status >= 200 && response.status < 300) {
@@ -239,6 +234,11 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
     }
   };
 
+  useEffect(() => {
+    const sorted = getSortedAccounts(availableAccounts);
+    console.log('Sorted accounts (from useEffect):', sorted);
+  }, [availableAccounts]);
+
   if (isLoading && !dashboardData) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -264,17 +264,21 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
           <div className="flex items-center gap-3">
             {/* Account Selector */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Account:</span>
+              <span className="text-sm text-gray-600">Accounts:</span>
               <Select value={selectedAccount} onValueChange={setSelectedAccount}>
                 <SelectTrigger className="w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableAccounts.map(account => (
-                    <SelectItem key={account} value={account}>
-                      {account}
-                    </SelectItem>
-                  ))}
+                  {(() => {
+    const sorted = getSortedAccounts(availableAccounts);
+    console.log('getSortedAccounts called in render:', sorted);
+    return sorted.map(account => (
+      <SelectItem key={account} value={account}>
+        {account}
+      </SelectItem>
+    ));
+  })()}
                 </SelectContent>
               </Select>
             </div>
@@ -468,4 +472,30 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
       </div>
     </div>
   );
+}
+
+// Helper to get sorted accounts for dropdown
+function getSortedAccounts(accounts: string[]): string[] {
+  // Remove duplicates and trim whitespace
+  const uniqueAccounts = Array.from(new Set(accounts.map(acc => acc.trim())));
+  // Find 'Main' (case-insensitive)
+  const mainAccount = uniqueAccounts.find(acc => acc.toLowerCase() === 'main');
+  // Remove 'Main' from the rest
+  const rest = uniqueAccounts.filter(acc => acc.toLowerCase() !== 'main');
+  // Underscore accounts, sorted ascending
+  const underscoreAccounts = rest
+    .filter(acc => acc.startsWith('_'))
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  // Regular accounts, sorted ascending
+  const regularAccounts = rest
+    .filter(acc => !acc.startsWith('_'))
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  // Compose final sorted list
+  const sorted = [
+    ...(mainAccount ? [mainAccount] : []),
+    ...underscoreAccounts,
+    ...regularAccounts,
+  ];
+  console.log('Sorted accounts for dropdown:', sorted);
+  return sorted;
 }
