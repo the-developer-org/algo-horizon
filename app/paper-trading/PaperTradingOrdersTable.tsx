@@ -629,10 +629,11 @@ export function PaperTradingOrdersTable({ orders, onOrderAction, showActions = f
           order={exitingOrder}
           onClose={() => setExitingOrder(null)}
           onSuccess={(order?: PaperTradeOrder) => {
-            // 1. Set the success modal FIRST, before any refetch triggers a re-render
             if (order) setExitSuccessOrder(order);
-            // 2. Do NOT call onOrderAction here — defer it to when the user closes the success modal
+            setExitingOrder(null); // Close the exit modal
+            onOrderAction?.();     // Refresh the orders list
           }}
+
           user={user}
         />
       )}
