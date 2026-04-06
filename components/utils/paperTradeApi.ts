@@ -57,15 +57,25 @@ export const exitPaperTradeOrder = async (
   exitData: ExitOrderRequest
 ): Promise<PaperTradeOrder> => {
   try {
+    // Use exitData.exitDate instead of exitAt
+    let exitDate = (exitData as any).exitDate || (exitData as any).exitAt;
+    if (!exitDate) {
+      throw new Error('exitDate is required in exitData');
+    }
+    if (exitDate.length === 16) {
+      exitDate = exitDate + ":00";
+    }
     const response = await axios.put<PaperTradeApiResponse>(
-      `${API_BASE}/${user}/order/${orderId}/exit`,
+      `${API_BASE}/order/${orderId}/exit/${user}/${exitDate}`,
       null,
       {
         params: {
-          exitReason: exitData.exitReason
+          exitReason: exitData.exitReason,
+          exitDate: exitDate
         }
       }
     );
+    debugger;
     if (response.data.paperTradeOrderResponse) {
       return response.data.paperTradeOrderResponse;
     }

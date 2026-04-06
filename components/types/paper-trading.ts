@@ -81,6 +81,7 @@ export interface CreateOrderRequest {
 
 export interface ExitOrderRequest {
   exitReason: string;
+   exitDate: string;
 }
 
 export interface PaperTradeApiResponse<T = any> {
