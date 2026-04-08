@@ -15,11 +15,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, TrendingUp, BarChart3, DollarSign, RotateCcw, UserPlus } from "lucide-react";
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { isMarketHours } from '@/utils/upstoxUtils';
+
+// Import xlsx for Excel export
+import * as XLSX from 'xlsx';
 
 export default function PaperTradingPage() {
   const [dashboardData, setDashboardData] = useState<PaperTradeDashboard | null>(null);
@@ -39,6 +42,99 @@ export default function PaperTradingPage() {
   const [isCreatingAccount, setIsCreatingAccount] = useState<boolean>(false);
   const [showCreateAccountInput, setShowCreateAccountInput] = useState<boolean>(false);
   const [newAccountInputValue, setNewAccountInputValue] = useState<string>('');
+
+  // Helper: Export all orders to Excel for current account
+  const handleExportOrders = () => {
+    if (!allOrders || allOrders.length === 0) {
+      toast.error('No orders to export!');
+      return;
+    }
+
+
+
+
+    const exportData = allOrders.map(order => {
+      // Company info: name, entry date
+      const company = order.companyName || '';
+      const entryDate = order.entryAt || '';
+      // Entry: price, cap used
+      const entry = order.entryPrice ?? '';
+      const capUsed = order.amountInvested ?? '';
+      // Quantity
+      const quantity = order.quantity ?? '';
+      // Stop Loss and Target as separate columns
+      const stopLoss = order.stopLoss ?? '';
+      const target = order.targetPrice ?? '';
+      // Curr Value (last real time price)
+      const currValue = order.lastRealTimePrice ?? '';
+      // Exit: price, exit date/time
+      const exit = order.exitPrice ?? '';
+      const exitDateTime = order.exitAt ?? '';
+      // P&L Details (netProfitLoss or profitLoss)
+      const pnlDetails = order.netProfitLoss ?? order.profitLoss ?? '';
+      // P&L Percentage
+      const pnlPercent = order.profitLossPercentage ?? '';
+      // Prediction
+      const prediction = order.prediction ?? '';
+      // Comments (join array)
+      const comments = Array.isArray(order.comments) ? order.comments.join('; ') : (order.comments ?? '');
+      // Status
+      const status = order.status ?? '';
+
+      return {
+        'Company': company,
+        'Entry Date': entryDate,
+        'Entry': Number(entry) || 0,
+        'Cap Used': Number(capUsed) || 0,
+        'Quantity': Number(quantity) || 0,
+        'Stop Loss': Number(stopLoss) || 0,
+        'Target': Number(target) || 0,
+        'Curr Value': Number(currValue) || 0,
+        'Exit': Number(exit) || 0,
+        'Exit DateTime': exitDateTime,
+        'P&L Details': Number(pnlDetails) || 0,
+        'P&L %': Number(pnlPercent) || 0,
+        'Prediction': prediction,
+        'Comments': comments,
+        'Status': status,
+      };
+    });
+
+    // Define column order
+    const columns = [
+      'Company',
+      'Entry Date',
+      'Entry',
+      'Cap Used',
+      'Quantity',
+      'Stop Loss',
+      'Target',
+      'Curr Value',
+      'Exit',
+      'Exit DateTime',
+      'P&L Details',
+      'P&L %',
+      'Prediction',
+      'Comments',
+      'Status',
+    ];
+
+    // Create worksheet and workbook
+    const ws = XLSX.utils.json_to_sheet(exportData, { header: columns });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Orders');
+
+    // File name: accountName-PaperTrading-YYYYMMDD.xlsx
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const fileName = `${selectedAccount}-PaperTrading-${yyyy}${mm}${dd}.xlsx`;
+
+    // Export to file (browser download)
+    XLSX.writeFile(wb, fileName);
+    toast.success('Orders exported to Excel!');
+  };
 
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
 const API_BASE = `${BASE_URL}/api/paper-trade`;
@@ -282,6 +378,16 @@ const API_BASE = `${BASE_URL}/api/paper-trade`;
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Export Orders Button */}
+            <Button
+              onClick={handleExportOrders}
+              variant="outline"
+              className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Export Orders
+            </Button>
 
             <Button
               onClick={handleRefresh}
