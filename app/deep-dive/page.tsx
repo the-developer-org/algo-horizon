@@ -26,8 +26,7 @@ export default function DeepDivePage() {
   // Filter state for analysis types (default all enabled)
   const [showStryke, setShowStryke] = useState(true);
   const [showAlgo, setShowAlgo] = useState(true);
-  const [showFibo, setShowFibo] = useState(true);
-  const [showRealTime, setShowRealTime] = useState(true);
+  const [showAlgoV2, setShowAlgoV2] = useState(true);
   
   // Search state for company name
   const [companySearch, setCompanySearch] = useState('');
@@ -205,7 +204,7 @@ export default function DeepDivePage() {
   const {
     strykeAnalysisList: reduxStrykeAnalysisList,
     algoAnalysisList: reduxAlgoAnalysisList,
-    fiboAnalysisList: reduxFiboAnalysisList,
+    algoV2AnalysisList: reduxAlgoV2AnalysisList,
     lastFetchedAt,
     isLoading: reduxIsLoading
   } = useAppSelector((state) => state.analysis);
@@ -223,7 +222,7 @@ export default function DeepDivePage() {
   // Load data from Redux cache on mount or fetch if empty
   useEffect(() => {
     if (reduxStrykeAnalysisList.length > 0) {
-      const allAnalysis = [...reduxAlgoAnalysisList, ...reduxStrykeAnalysisList, ...reduxFiboAnalysisList];
+      const allAnalysis = [...reduxAlgoAnalysisList, ...reduxStrykeAnalysisList, ...reduxAlgoV2AnalysisList];
       setDeepDiveData(allAnalysis);
     } else {
       // Auto-fetch data on first load if cache is empty
@@ -239,7 +238,7 @@ export default function DeepDivePage() {
     const isCacheValid = lastFetchedAt && (Date.now() - lastFetchedAt < CACHE_DURATION);
     
     if (!forceRefresh && isCacheValid && reduxStrykeAnalysisList.length > 0) {
-      const allCached = [...reduxAlgoAnalysisList, ...reduxStrykeAnalysisList, ...reduxFiboAnalysisList];
+      const allCached = [...reduxAlgoAnalysisList, ...reduxStrykeAnalysisList, ...reduxAlgoV2AnalysisList];
       setDeepDiveData(allCached);
       toast.success(`Loaded ${allCached.length} companies from cache`);
       return;
@@ -268,8 +267,7 @@ export default function DeepDivePage() {
     let allStrykes: AnalysisResponse[] = [];
     let allAlgoAnalysis: AnalysisResponse[] = [];
     let allStrykeAnalysis: AnalysisResponse[] = [];
-    let allFiboAnalysis: AnalysisResponse[] = [];
-    let allRealTimeAnalysis: AnalysisResponse[] = [];
+    let allAlgoV2Analysis: AnalysisResponse[] = [];
     let completedAlphabets: string[] = [];
     let consecutiveFailures = 0;
     const maxConsecutiveFailures = 5;
@@ -293,15 +291,13 @@ export default function DeepDivePage() {
             if (data.swingStatsList && data.swingStatsList !== null) {
               const algoAnalysis: AnalysisResponse[] = data.swingStatsList["ALGO"] || [];
               const strykeAnalysis: AnalysisResponse[] = data.swingStatsList["STRYKE"] || [];
-              const fiboAnalysis: AnalysisResponse[] = data.swingStatsList["FIBO"] || [];
-              const realTimeAnalysis: AnalysisResponse[] = data.swingStatsList["REAL-TIME"] || [];
-              
+              const algoV2Analysis: AnalysisResponse[] = data.swingStatsList["ALGOV2"] || [];
+
               allAlgoAnalysis = [...allAlgoAnalysis, ...algoAnalysis];
               allStrykeAnalysis = [...allStrykeAnalysis, ...strykeAnalysis];
-              allFiboAnalysis = [...allFiboAnalysis, ...fiboAnalysis];
-              allRealTimeAnalysis = [...allRealTimeAnalysis, ...realTimeAnalysis];
+              allAlgoV2Analysis = [...allAlgoV2Analysis, ...algoV2Analysis];
 
-              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis, ...realTimeAnalysis];
+              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis];
               setDeepDiveData(allStrykes);
 
               consecutiveFailures = 0;
@@ -340,8 +336,7 @@ export default function DeepDivePage() {
       dispatch(setAnalysisData({
         strykeAnalysisList: allStrykeAnalysis,
         algoAnalysisList: allAlgoAnalysis,
-        fiboAnalysisList: allFiboAnalysis,
-        realTimeAnalysisList: allRealTimeAnalysis,
+        algoV2AnalysisList: allAlgoV2Analysis,
         keyMapping: {}
       }));
 
@@ -415,14 +410,13 @@ export default function DeepDivePage() {
       // Apply analysis type filters
       if (item.label === 'STRYKE' && !showStryke) return false;
       if (item.label === 'ALGO' && !showAlgo) return false;
-      if (item.label === 'FIBO' && !showFibo) return false;
-      if (item.label === 'REAL-TIME' && !showRealTime) return false;
+      if (item.label === 'ALGOV2' && !showAlgoV2) return false;
       
       return true;
     });
-  }, [deepDiveMode, deepDiveData, filterLabelCombo, selectedMonth, filterSupportNotTouched, filterHHBreak, showStryke, showAlgo, showFibo, showRealTime]);
+  }, [deepDiveMode, deepDiveData, filterLabelCombo, selectedMonth, filterSupportNotTouched, filterHHBreak, showStryke, showAlgo, showAlgoV2]);
 
-  // Group deep dive entries by UUID (each UUID can have max 3 entries: ALGO, STRYKE, FIBO)
+  // Group deep dive entries by UUID (each UUID can have max 3 entries: ALGO, STRYKE, ALGOV2)
   const groupedByUUID = React.useMemo(() => {
     const groups = new Map<string, {
       companyName: string;
@@ -448,8 +442,8 @@ export default function DeepDivePage() {
       }
     });
     
-    // Sort entries within each group: STRYKE, ALGO, FIBO, REAL-TIME
-    const analysisOrder = { 'STRYKE': 1, 'ALGO': 2, 'FIBO': 3, 'REAL-TIME': 4 };
+    // Sort entries within each group: STRYKE, ALGO, ALGOV2
+    const analysisOrder = { 'STRYKE': 1, 'ALGO': 2, 'ALGOV2': 3 };
     groups.forEach(group => {
       group.entries.sort((a, b) => {
         const orderA = analysisOrder[a.label as keyof typeof analysisOrder] || 999;
@@ -778,26 +772,15 @@ export default function DeepDivePage() {
               {showAlgo ? '✓ ALGO' : 'ALGO'}
             </button>
             <button
-              onClick={() => setShowFibo(!showFibo)}
+              onClick={() => setShowAlgoV2(!showAlgoV2)}
               className={`px-3 py-1 rounded-md text-white transition-colors ${
-                showFibo 
-                  ? 'bg-cyan-600 hover:bg-cyan-700' 
+                showAlgoV2
+                  ? 'bg-purple-600 hover:bg-purple-700'
                   : 'bg-gray-400 hover:bg-gray-500'
               }`}
-              title="Toggle FIBO entries"
+              title="Toggle ALGOV2 entries"
             >
-              {showFibo ? '✓ FIBO' : 'FIBO'}
-            </button>
-            <button
-              onClick={() => setShowRealTime(!showRealTime)}
-              className={`px-3 py-1 rounded-md text-white transition-colors ${
-                showRealTime 
-                  ? 'bg-orange-600 hover:bg-orange-700' 
-                  : 'bg-gray-400 hover:bg-gray-500'
-              }`}
-              title="Toggle REAL-TIME entries"
-            >
-              {showRealTime ? '✓ REAL-TIME' : 'REAL-TIME'}
+              {showAlgoV2 ? '✓ ALGOV2' : 'ALGOV2'}
             </button>
           </div>
 
@@ -851,29 +834,17 @@ export default function DeepDivePage() {
               const algoBreakCount = algoEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
               return ` | ALGO: ${algoPassingCount}/${algoEntries.length} | HH BREAK: ${algoBreakCount}`;
             })()}
-            {showRealTime && (() => {
-              const realTimeEntries = deepDiveList.filter(item => item.label === 'REAL-TIME');
-              const realTimePassingCount = realTimeEntries.filter(item => {
+            {showAlgoV2 && (() => {
+              const algoV2Entries = deepDiveList.filter(item => item.label === 'ALGOV2');
+              const algoV2PassingCount = algoV2Entries.filter(item => {
                 const dd = item.analysisDeepDive;
                 const isOneOne = deepDiveMode === 'RR_1_1';
                 const prelude = isOneOne ? dd?.prelude1 : dd?.prelude2;
                 const passing = isOneOne ? dd?.passing1 : dd?.passing2;
                 return prelude && passing;
               }).length;
-              const realTimeBreakCount = realTimeEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
-              return ` | REAL-TIME: ${realTimePassingCount}/${realTimeEntries.length} | HH BREAK: ${realTimeBreakCount}`;
-            })()}
-            {showFibo && (() => {
-              const fiboEntries = deepDiveList.filter(item => item.label === 'FIBO');
-              const fiboPassingCount = fiboEntries.filter(item => {
-                const dd = item.analysisDeepDive;
-                const isOneOne = deepDiveMode === 'RR_1_1';
-                const prelude = isOneOne ? dd?.prelude1 : dd?.prelude2;
-                const passing = isOneOne ? dd?.passing1 : dd?.passing2;
-                return prelude && passing;
-              }).length;
-              const fiboBreakCount = fiboEntries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
-              return ` | FIBO: ${fiboPassingCount}/${fiboEntries.length} | HH BREAK: ${fiboBreakCount}`;
+              const algoV2BreakCount = algoV2Entries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
+              return ` | ALGOV2: ${algoV2PassingCount}/${algoV2Entries.length} | HH BREAK: ${algoV2BreakCount}`;
             })()}
           </span>
         </div>
