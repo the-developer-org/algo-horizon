@@ -110,11 +110,10 @@ function StrikeAnalysisContent() {
   const {
     strykeAnalysisList: reduxStrykeAnalysisList,
     algoAnalysisList: reduxAlgoAnalysisList,
-    fiboAnalysisList: reduxFiboAnalysisList,
-    realTimeAnalysisList: reduxRealTimeAnalysisList,
+    algoV2AnalysisList: reduxAlgoV2AnalysisList,
     strykeMetrics: reduxStrykeMetrics,
     algoMetrics: reduxAlgoMetrics,
-    fiboMetrics: reduxFiboMetrics,
+    algoV2Metrics: reduxAlgoV2Metrics,
     keyMapping: reduxKeyMapping,
     lastFetchedAt,
     isLoading: reduxIsLoading
@@ -130,7 +129,7 @@ function StrikeAnalysisContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [strykeMetrics, setStrykeMetrics] = useState<metricsData | null>(reduxStrykeMetrics);
   const [algoMetrics, setAlgoMetrics] = useState<metricsData | null>(reduxAlgoMetrics);
-  const [fiboMetrics, setFiboMetrics] = useState<metricsData | null>(reduxFiboMetrics);
+  const [algoV2Metrics, setAlgoV2Metrics] = useState<metricsData | null>(reduxAlgoV2Metrics);
   // Global blocking loader for long running actions (delete, bulk ops, etc.)
   const [globalLoading, setGlobalLoading] = useState(false);
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>(reduxKeyMapping);
@@ -149,8 +148,7 @@ function StrikeAnalysisContent() {
   const [selectedStryke, setSelectedStryke] = useState<AnalysisResponse | null>(null);
   const [strykeAnalysisList, setStrykeAnalysisList] = useState<AnalysisResponse[]>(reduxStrykeAnalysisList);
   const [algoAnalysisList, setAlgoAnalysisList] = useState<AnalysisResponse[]>(reduxAlgoAnalysisList);
-  const [fiboAnalysisList, setFiboAnalysisList] = useState<AnalysisResponse[]>(reduxFiboAnalysisList);
-  const [realTimeAnalysisList, setRealTimeAnalysisList] = useState<AnalysisResponse[]>(reduxRealTimeAnalysisList || []);
+  const [algoV2AnalysisList, setAlgoV2AnalysisList] = useState<AnalysisResponse[]>(reduxAlgoV2AnalysisList);
 
   const [filteredAnalysisList, setFilteredAnalysisList] = useState<AnalysisResponse[]>([]);
 
@@ -163,8 +161,7 @@ function StrikeAnalysisContent() {
   const [showMetrics, setShowMetrics] = useState(() => false);
   const [showAlgoAnalysis, setShowAlgoAnalysis] = useState(() => true);
   const [showStrykeAnalysis, setShowStrykeAnalysis] = useState(() => true);
-  const [showFiboAnalysis, setShowFiboAnalysis] = useState(() => true);
-  const [showRealTimeAnalysis, setShowRealTimeAnalysis] = useState(() => true);
+  const [showAlgoV2Analysis, setShowAlgoV2Analysis] = useState(() => true);
   const [showOldAnalysis, setShowOldAnalysis] = useState(() => true); // Add this new state
   const [showAppAnalysis, setShowAppAnalysis] = useState(() => true); // Add this new state
   const [showDiscordAnalysis, setShowDiscordAnalysis] = useState(() => true); // Add this new state
@@ -335,9 +332,8 @@ function StrikeAnalysisContent() {
     if (reduxStrykeAnalysisList.length > 0) {
       setStrykeAnalysisList(reduxStrykeAnalysisList);
       setAlgoAnalysisList(reduxAlgoAnalysisList);
-      setFiboAnalysisList(reduxFiboAnalysisList);
-      setRealTimeAnalysisList(reduxRealTimeAnalysisList);
-      const allAnalysis = [...(reduxAlgoAnalysisList || []), ...(reduxStrykeAnalysisList || []), ...(reduxFiboAnalysisList || []), ...(reduxRealTimeAnalysisList || [])];
+      setAlgoV2AnalysisList(reduxAlgoV2AnalysisList);
+      const allAnalysis = [...(reduxAlgoAnalysisList || []), ...(reduxStrykeAnalysisList || []), ...(reduxAlgoV2AnalysisList || [])];
       setStrykeList(allAnalysis);
       setFilteredAnalysisList(allAnalysis.filter((item, index, self) =>
         index === self.findIndex((t) => t.uuid === item.uuid)
@@ -345,9 +341,9 @@ function StrikeAnalysisContent() {
     }
     if (reduxStrykeMetrics) setStrykeMetrics(reduxStrykeMetrics);
     if (reduxAlgoMetrics) setAlgoMetrics(reduxAlgoMetrics);
-    if (reduxFiboMetrics) setFiboMetrics(reduxFiboMetrics);
+    if (reduxAlgoV2Metrics) setAlgoV2Metrics(reduxAlgoV2Metrics);
     if (Object.keys(reduxKeyMapping).length > 0) setKeyMapping(reduxKeyMapping);
-  }, [reduxStrykeAnalysisList, reduxAlgoAnalysisList, reduxFiboAnalysisList, reduxRealTimeAnalysisList, reduxStrykeMetrics, reduxAlgoMetrics, reduxFiboMetrics, reduxKeyMapping]);
+  }, [reduxStrykeAnalysisList, reduxAlgoAnalysisList, reduxAlgoV2AnalysisList, reduxStrykeMetrics, reduxAlgoMetrics, reduxAlgoV2Metrics, reduxKeyMapping]);
 
 
   // Update suggestions as user types
@@ -491,12 +487,11 @@ function StrikeAnalysisContent() {
       // Use cached data from Redux
       setStrykeAnalysisList(reduxStrykeAnalysisList);
       setAlgoAnalysisList(reduxAlgoAnalysisList);
-      setFiboAnalysisList(reduxFiboAnalysisList);
-      setRealTimeAnalysisList(reduxRealTimeAnalysisList);
+      setAlgoV2AnalysisList(reduxAlgoV2AnalysisList);
       setKeyMapping(reduxKeyMapping);
-      
+
       // Combine all analysis for display
-      const allCached = [...(reduxAlgoAnalysisList || []), ...(reduxStrykeAnalysisList || []), ...(reduxFiboAnalysisList || []), ...(reduxRealTimeAnalysisList || [])];
+      const allCached = [...(reduxAlgoAnalysisList || []), ...(reduxStrykeAnalysisList || []), ...(reduxAlgoV2AnalysisList || [])];
       setStrykeList(allCached);
       setFilteredAnalysisList(allCached.filter((item, index, self) =>
         index === self.findIndex((t) => t.uuid === item.uuid)
@@ -525,8 +520,7 @@ function StrikeAnalysisContent() {
     setStrykeList([]); // Clear existing data
     setStrykeAnalysisList([]);
     setAlgoAnalysisList([]);
-    setFiboAnalysisList([]);
-    setRealTimeAnalysisList([]);
+    setAlgoV2AnalysisList([]);
     setFilteredAnalysisList([]);
 
     // Initialize progress
@@ -542,8 +536,7 @@ function StrikeAnalysisContent() {
     let allStrykes: AnalysisResponse[] = [];
     let allAlgoAnalysis: AnalysisResponse[] = [];
     let allStrykeAnalysis: AnalysisResponse[] = [];
-    let allFiboAnalysis: AnalysisResponse[] = [];
-    let allRealTimeAnalysis: AnalysisResponse[] = [];
+    let allAlgoV2Analysis: AnalysisResponse[] = [];
     let completedAlphabets: string[] = [];
     let consecutiveFailures = 0;
     const maxConsecutiveFailures = 5; // Stop if 5 consecutive alphabets fail
@@ -574,17 +567,15 @@ function StrikeAnalysisContent() {
               // Process the new data
               const algoAnalysis: AnalysisResponse[] = data.swingStatsList["ALGO"] || [];
               const strykeAnalysis: AnalysisResponse[] = data.swingStatsList["STRYKE"] || [];
-              const fiboAnalysis: AnalysisResponse[] = data.swingStatsList["FIBO"] || [];
-              const realTimeAnalysis: AnalysisResponse[] = data.swingStatsList["REAL-TIME"] || [];
-              
+              const algoV2Analysis: AnalysisResponse[] = data.swingStatsList["ALGOV2"] || [];
+
               // Accumulate data for Redux
               allAlgoAnalysis = [...allAlgoAnalysis, ...algoAnalysis];
               allStrykeAnalysis = [...allStrykeAnalysis, ...strykeAnalysis];
-              allFiboAnalysis = [...allFiboAnalysis, ...fiboAnalysis];
-              allRealTimeAnalysis = [...allRealTimeAnalysis, ...realTimeAnalysis];
-              
+              allAlgoV2Analysis = [...allAlgoV2Analysis, ...algoV2Analysis];
+
               // Build key mapping
-              [...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis, ...realTimeAnalysis].forEach(item => {
+              [...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis].forEach(item => {
                 if (item.companyName && item.instrumentKey) {
                   newKeyMapping[item.companyName] = item.instrumentKey;
                 }
@@ -592,17 +583,16 @@ function StrikeAnalysisContent() {
               
               setAlgoAnalysisList((prev) => [...prev, ...algoAnalysis]);
               setStrykeAnalysisList((prev) => [...prev, ...strykeAnalysis]);
-              setFiboAnalysisList((prev) => [...prev, ...fiboAnalysis]);
-              setRealTimeAnalysisList((prev) => [...prev, ...realTimeAnalysis]);
+              setAlgoV2AnalysisList((prev) => [...prev, ...algoV2Analysis]);
 
               // Add to accumulated data
-              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis, ...realTimeAnalysis];
+              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis];
 
               // Update the UI immediately with new data
               setStrykeList(allStrykes);
 
               // Update filtered lists with the new combined data (deduplicate by UUID)
-              const combinedAnalysis = [...algoAnalysis, ...strykeAnalysis, ...fiboAnalysis, ...realTimeAnalysis];
+              const combinedAnalysis = [...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis];
               const uniqueAnalysis = combinedAnalysis.filter((item, index, self) =>
                 index === self.findIndex((t) => t.uuid === item.uuid)
               );
@@ -659,8 +649,7 @@ function StrikeAnalysisContent() {
       dispatch(setAnalysisData({
         strykeAnalysisList: allStrykeAnalysis,
         algoAnalysisList: allAlgoAnalysis,
-        fiboAnalysisList: allFiboAnalysis,
-        realTimeAnalysisList: allRealTimeAnalysis,
+        algoV2AnalysisList: allAlgoV2Analysis,
         keyMapping: newKeyMapping
       }));
       
@@ -952,20 +941,19 @@ function StrikeAnalysisContent() {
       // Clear metrics when no data is available
       setStrykeMetrics(null);
       setAlgoMetrics(null);
-      setFiboMetrics(null);
+      setAlgoV2Metrics(null);
     }
   }, [filteredAnalysisList, showMetrics]);
 
   // Apply all active filters to create the filtered list
   useEffect(() => {
-    let filtered = [...strykeAnalysisList, ...algoAnalysisList, ...fiboAnalysisList, ...realTimeAnalysisList];
+    let filtered = [...strykeAnalysisList, ...algoAnalysisList, ...algoV2AnalysisList];
 
-    // Filter by analysis type (ALGO, STRYKE, FIBO, REAL-TIME)
+    // Filter by analysis type (ALGO, STRYKE, ALGOV2)
     const enabledTypes: string[] = [];
     if (showAlgoAnalysis) enabledTypes.push('ALGO');
     if (showStrykeAnalysis) enabledTypes.push('STRYKE');
-    if (showFiboAnalysis) enabledTypes.push('FIBO');
-    if (showRealTimeAnalysis) enabledTypes.push('REAL-TIME');
+    if (showAlgoV2Analysis) enabledTypes.push('ALGOV2');
     
     if (enabledTypes.length > 0) {
       filtered = filtered.filter(item => enabledTypes.includes(item.label));
@@ -992,19 +980,17 @@ function StrikeAnalysisContent() {
   }, [
     strykeAnalysisList, 
     algoAnalysisList, 
-    fiboAnalysisList, 
-    realTimeAnalysisList,
-    showAlgoAnalysis, 
-    showStrykeAnalysis, 
-    showFiboAnalysis,
-    showRealTimeAnalysis,
+    algoV2AnalysisList,
+    showAlgoAnalysis,
+    showStrykeAnalysis,
+    showAlgoV2Analysis,
     showOldAnalysis,
     showAppAnalysis,
     showDiscordAnalysis, 
     showt2Analysis,
   ]);
 
-  // Group swing stats entries by UUID (each UUID can have max 3 entries: ALGO, STRYKE, FIBO)
+  // Group swing stats entries by UUID (each UUID can have max 3 entries: ALGO, STRYKE, ALGOV2)
   const groupedByUUID = React.useMemo(() => {
     const groups = new Map<string, {
       companyName: string;
@@ -1030,8 +1016,8 @@ function StrikeAnalysisContent() {
       }
     });
     
-    // Sort entries within each group: STRYKE, ALGO, FIBO, REAL-TIME
-    const analysisOrder = { 'STRYKE': 1, 'ALGO': 2, 'FIBO': 3, 'REAL-TIME': 4 };
+    // Sort entries within each group: STRYKE, ALGO, ALGOV2
+    const analysisOrder = { 'STRYKE': 1, 'ALGO': 2, 'ALGOV2': 3 };
     groups.forEach(group => {
       group.entries.sort((a, b) => {
         const orderA = analysisOrder[a.label as keyof typeof analysisOrder] || 999;
@@ -1365,19 +1351,19 @@ function StrikeAnalysisContent() {
     const algoMetricsData = calculateAnalysisMetrics((stryke) => filteredAnalysisList);
     setAlgoMetrics(algoMetricsData);
 
-    // Calculate metrics for Fibo Analysis
-    const fiboMetricsData = calculateAnalysisMetrics((stryke) => filteredAnalysisList);
-    setFiboMetrics(fiboMetricsData);
-    
+    // Calculate metrics for AlgoV2 Analysis
+    const algoV2MetricsData = calculateAnalysisMetrics((stryke) => filteredAnalysisList);
+    setAlgoV2Metrics(algoV2MetricsData);
+
     // Save metrics to Redux
     dispatch(setMetrics({
       strykeMetrics: strykeMetricsData,
       algoMetrics: algoMetricsData,
-      fiboMetrics: fiboMetricsData
+      algoV2Metrics: algoV2MetricsData
     }));
 
     if (!suppressToast) {
-      toast.success('Metrics calculated successfully for Stryke, Algo, and Fibo analysis');
+      toast.success('Metrics calculated successfully for Stryke, Algo, and AlgoV2 analysis');
     }
   }
 
@@ -1825,8 +1811,7 @@ function StrikeAnalysisContent() {
 
                       setShowAlgoAnalysis(true)
                       setShowStrykeAnalysis(true)
-                      setShowFiboAnalysis(true)
-                      setShowRealTimeAnalysis(true)
+                      setShowAlgoV2Analysis(true)
                       setShowOldAnalysis(true)   // Reset OLD toggle
                       setShowAppAnalysis(true)   // Reset APP toggle
                       setShowDiscordAnalysis(true) 
@@ -1836,7 +1821,7 @@ function StrikeAnalysisContent() {
                       setSelectedMonth(null);
 
                       // Reset filtered list to original lists - this will be handled by the useEffect
-                      // setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList, ...fiboAnalysisList]);
+                      // setFilteredAnalysisList([...strykeAnalysisList, ...algoAnalysisList, ...algoV2AnalysisList]);
                     }}
                   >
                     Reset Filters
@@ -1899,51 +1884,27 @@ function StrikeAnalysisContent() {
                         </Button>
                       )}
 
-                      {!showFiboAnalysis && (
+                      {!showAlgoV2Analysis && (
                         <Button
                           onClick={() => {
-                            setShowFiboAnalysis(true)
+                            setShowAlgoV2Analysis(true)
                             // Filtered list will be updated by useEffect
                           }}
                           className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
-                          Show Fibo Analysis
+                          Show AlgoV2 Analysis
                         </Button>
                       )}
 
-                      {showFiboAnalysis && (
+                      {showAlgoV2Analysis && (
                         <Button
                           onClick={() => {
-                            setShowFiboAnalysis(false)
+                            setShowAlgoV2Analysis(false)
                             // Filtered list will be updated by useEffect
                           }}
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
-                          Hide Fibo Analysis
-                        </Button>
-                      )}
-
-                      {!showRealTimeAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowRealTimeAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show Real-Time Analysis
-                        </Button>
-                      )}
-
-                      {showRealTimeAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowRealTimeAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide Real-Time Analysis
+                          Hide AlgoV2 Analysis
                         </Button>
                       )}
 
@@ -2375,8 +2336,8 @@ function StrikeAnalysisContent() {
                                     // Navigate to chart - similar to deep dive
                                     const strykeDates: string[] = [];
                                     const algoDates: string[] = [];
-                                    const realTimeDates: string[] = [];
-                                    
+                                    const algoV2Dates: string[] = [];
+
                                     group.entries.forEach(entry => {
                                       if (entry.entryTime) {
                                         const date = new Date(entry.entryTime);
@@ -2389,24 +2350,24 @@ function StrikeAnalysisContent() {
                                           strykeDates.push(entryDate);
                                         } else if (entry.label === 'ALGO') {
                                           algoDates.push(entryDate);
-                                        } else if (entry.label === 'REAL-TIME') {
-                                          realTimeDates.push(entryDate);
+                                        } else if (entry.label === 'ALGOV2') {
+                                          algoV2Dates.push(entryDate);
                                         }
                                       }
                                     });
-                                    
+
                                     let chartUrl = `/chart?instrumentKey=${encodeURIComponent(firstEntry.instrumentKey)}&timeframe=1d`;
-                                    
+
                                     if (strykeDates.length > 0) {
                                       chartUrl += `&strykeDate=${encodeURIComponent(strykeDates.join(','))}`;
                                     }
-                                    
+
                                     if (algoDates.length > 0) {
                                       chartUrl += `&algoDate=${encodeURIComponent(algoDates.join(','))}`;
                                     }
-                                    
-                                    if (realTimeDates.length > 0) {
-                                      chartUrl += `&realTimeDate=${encodeURIComponent(realTimeDates.join(','))}`;
+
+                                    if (algoV2Dates.length > 0) {
+                                      chartUrl += `&algoV2Date=${encodeURIComponent(algoV2Dates.join(','))}`;
                                     }
                                     
                                     window.open(chartUrl, '_blank');
@@ -3275,8 +3236,7 @@ function StrikeAnalysisContent() {
                                       <tr className={`${
                                         stryke.label === "STRYKE" ? 'bg-green-100 hover:bg-green-200 border-l-4 border-green-500' :
                                         stryke.label === "ALGO" ? 'bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500' :
-                                        stryke.label === "FIBO" ? 'bg-purple-100 hover:bg-purple-200 border-l-4 border-purple-500' :
-                                        stryke.label === "REAL-TIME" ? 'bg-orange-100 hover:bg-orange-200 border-l-4 border-orange-500' :
+                                        stryke.label === "ALGOV2" ? 'bg-purple-100 hover:bg-purple-200 border-l-4 border-purple-500' :
                                         'bg-gray-100 hover:bg-gray-200 border-l-4 border-gray-500'
                                       }`}>
                                         <td className="border border-gray-700 px-4 py-2 text-center align-middle">{entryIdx + 1}</td>
@@ -3287,14 +3247,12 @@ function StrikeAnalysisContent() {
                                               <span className={`text-xs font-semibold px-2 py-1 rounded ${
                                                 stryke.label === "STRYKE" ? 'bg-green-100 text-green-600' :
                                                 stryke.label === "ALGO" ? 'bg-blue-100 text-blue-600' :
-                                                stryke.label === "FIBO" ? 'bg-purple-100 text-purple-600' :
-                                                stryke.label === "REAL-TIME" ? 'bg-orange-100 text-orange-600' :
+                                                stryke.label === "ALGOV2" ? 'bg-purple-100 text-purple-600' :
                                                 'bg-gray-100 text-gray-600'
                                               }`}>{
                                                 stryke.label === "STRYKE" ? "Stryke" :
                                                 stryke.label === "ALGO" ? "Algo" :
-                                                stryke.label === "FIBO" ? "Fibo" :
-                                                stryke.label === "REAL-TIME" ? "Real-Time" :
+                                                stryke.label === "ALGOV2" ? "AlgoV2" :
                                                 "Unknown"
                                               }</span>
                                               {stryke.strykeType && (
