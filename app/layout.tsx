@@ -53,12 +53,12 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
         } else {
           // Not authenticated - redirect
           setAuthStatus('unauthenticated');
-          router.replace('/auth');
+          router.replace('/');
         }
       } catch (error) {
         console.error('Auth check failed:', error);
         setAuthStatus('unauthenticated');
-        router.replace('/auth');
+        router.replace('/');
       }
     };
 

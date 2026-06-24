@@ -14,19 +14,19 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
 
   if (!code) {
     console.warn('[Upstox Callback] Missing authorization code');
-    return NextResponse.redirect(`${baseUrl}/auth?error=No authorization code received`);
+    return NextResponse.redirect(`${baseUrl}/auth/upstox-management?error=No authorization code received`);
   }
 
   // Validate state (basic extraction)
   if (!state || !state.startsWith(encodeURIComponent(phone))) {
     console.warn('[Upstox Callback] State validation failed', { state, expectedPrefix: encodeURIComponent(phone) });
-    return NextResponse.redirect(`${baseUrl}/auth?error=Invalid state`);
+    return NextResponse.redirect(`${baseUrl}/auth/upstox-management?error=Invalid state`);
   }
   
   const cfg = getUpstoxConfigForUser({ userId: phone });
   if (!cfg) {
     console.error('[Upstox Callback] No config found for phone', { phone });
-    return NextResponse.redirect(`${baseUrl}/auth?error=Config not found for phone`);
+    return NextResponse.redirect(`${baseUrl}/auth/upstox-management?error=Config not found for phone`);
   }
 
   //console.log('[Upstox Callback] Resolved config', cfg);
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
     const text = await tokenResp.text();
     if (!tokenResp.ok) {
       console.error('[Upstox Callback] Token exchange failed', { status: tokenResp.status, bodyPreview: text.slice(0, 120) });
-      return NextResponse.redirect(`${baseUrl}/auth?error=${encodeURIComponent('Token exchange failed')}`);
+      return NextResponse.redirect(`${baseUrl}/auth/upstox-management?error=${encodeURIComponent('Token exchange failed')}`);
     }
 
     //console.log('[Upstox Callback] Token exchange raw response length', text.length);
@@ -64,13 +64,13 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
     let json: any;
     try { json = JSON.parse(text); } catch (err) {
       console.error('[Upstox Callback] JSON parse error', err);
-      return NextResponse.redirect(`${baseUrl}/auth?error=Bad token JSON`);
+      return NextResponse.redirect(`${baseUrl}/auth/upstox-management?error=Bad token JSON`);
     }
 
     const accessToken = json.access_token;
     if (!accessToken) {
       console.error('[Upstox Callback] No access token present in JSON keys', Object.keys(json));
-      return NextResponse.redirect(`${baseUrl}/auth?error=No access token`);
+      return NextResponse.redirect(`${baseUrl}/auth/upstox-management?error=No access token`);
     }
 
     //console.log('[Upstox Callback] Access token received (length only)', { length: accessToken.length });
@@ -90,6 +90,6 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
     return NextResponse.redirect(`${baseUrl}/auth/upstox-management`);
   } catch (e: any) {
     console.error('[Upstox Callback] Unexpected error', { message: e?.message, stack: e?.stack });
-    return NextResponse.redirect(`${baseUrl}/auth?error=${encodeURIComponent(e.message || 'Callback error')}`);
+    return NextResponse.redirect(`${baseUrl}/auth/upstox-management?error=${encodeURIComponent(e.message || 'Callback error')}`);
   }
 }

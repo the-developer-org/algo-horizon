@@ -16,7 +16,7 @@ export default function AdminPage() {
     const currentUser = localStorage.getItem('currentUser');
     
     if (isAuthorized !== 'true') {
-      router.replace('/auth');
+      router.replace('/');
     } else if (currentUser !== 'Abrar') {
       router.replace('/');
     } else {
