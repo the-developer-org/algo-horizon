@@ -74,24 +74,15 @@ export default function AuthPage() {
     setOtpSent(false); // Reset otpSent while sending
 
     try {
-      // Generate random 5-digit OTP
-      const newOtp = generateOtp();
-      setGeneratedOtp(newOtp);
+      // Use testing OTP: 72824
+      const testingOtp = '72824';
+      setGeneratedOtp(testingOtp);
 
-      // Mask the OTP
-      const maskedOtp = maskOtp(newOtp);
+      // Simulate OTP generation delay
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Send masked OTP to WhatsApp service
-      debugger
-      const success = await sendOtpToWhatsApp(maskedOtp, username);
-
-      if (success) {
-        setOtpSent(true);
-        setError('');
-      } else {
-        setError('Failed to send OTP. Please try again.');
-        setOtpSent(false);
-      }
+      setOtpSent(true);
+      setError('');
     } catch (err) {
       setError('Failed to generate OTP. Please try again.');
       setOtpSent(false);
@@ -230,7 +221,7 @@ export default function AuthPage() {
                 ))}
               </div>
               {otpSent && (
-                <p className="text-green-400 text-sm font-semibold">OTP sent to WhatsApp!</p>
+                <p className="text-green-400 text-sm font-semibold">Testing OTP: 72824</p>
               )}
               {error && (
                 <p className="text-red-500 text-sm font-semibold">{error}</p>
