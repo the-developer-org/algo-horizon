@@ -239,6 +239,7 @@ function StrikeAnalysisContent() {
 
   // Chart dropdown state
   const [chartDropdownOpen, setChartDropdownOpen] = useState<string | null>(null);
+  const [copiedStrikeId, setCopiedStrikeId] = useState<string | null>(null);
 
   // Swing labels filter dropdown state
   const [swingLabelsDropdownOpen, setSwingLabelsDropdownOpen] = useState<boolean>(false);
@@ -803,6 +804,22 @@ function StrikeAnalysisContent() {
     const chartUrl = `/chart?instrumentKey=${encodeURIComponent(instrumentKey)}&timeframe=${encodeURIComponent(timeframe)}`;
     window.open(chartUrl, '_blank');
     setChartDropdownOpen(null); // Close dropdown after navigation
+  };
+
+  const handleCopyStrikeId = async (strikeId?: string | null) => {
+    if (!strikeId) {
+      toast.error('Strike ID not available');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(strikeId);
+      setCopiedStrikeId(strikeId);
+      toast.success('Strike ID copied');
+    } catch (error) {
+      console.error('Failed to copy strike ID:', error);
+      toast.error('Failed to copy strike ID');
+    }
   };
 
   // Available timeframes for chart navigation
@@ -2377,6 +2394,13 @@ function StrikeAnalysisContent() {
                                 title="View OHLC Chart"
                               >
                                 📊
+                              </button>
+                              <button
+                                onClick={() => handleCopyStrikeId(group.entries[0]?.objectId || null)}
+                                className="px-2 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium transition-colors"
+                                title="Copy Strike ID"
+                              >
+                                {copiedStrikeId === (group.entries[0]?.objectId || null) ? 'Copied' : 'Copy ID'}
                               </button>
                             </div>
                           </div>
