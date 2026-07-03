@@ -158,6 +158,7 @@ export interface AnalysisResponse {
   absoluteProfitsPercentage: number;
   emacross: EMACROSS;
   strykeType: string;
+  didCOCBreak?: boolean;
   analysisDeepDive?: {
     swingLabels1?: string | null;
     prelude1?: boolean;

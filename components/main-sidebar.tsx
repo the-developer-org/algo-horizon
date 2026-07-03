@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, Shield, CheckCircle, X, Menu } from "lucide-react";
+import Link from "next/link";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link as LinkIcon, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, Shield, CheckCircle, X, Menu } from "lucide-react";
 import UpstoxIcon from "@/components/icons/UpstoxIcon";
 import {
   Sidebar,
@@ -21,9 +21,10 @@ import {
 const primaryItems = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Strike Analysis Form", url: "/strike-analysis", icon: Search },
-   {  title: "Swing Stats", url: "/strike-analysis?tab=swing", icon: BarChart3 },
-   { title: "Deep Dive", url: "/deep-dive", icon: Target },
-   { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
+  { title: "Swing Stats", url: "/strike-analysis?tab=swing", icon: BarChart3 },
+  { title: "Live Buffers", url: "/live-buffers", icon: Shield },
+  { title: "Deep Dive", url: "/deep-dive", icon: Target },
+  { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
   { title: "Paper Trading", url: "/paper-trading", icon: DollarSign },
   { title: "Stock Buffers", url: "/stock-buffers", icon: Shield },
   { title: "Buffer Check", url: "/buffer-check", icon: CheckCircle },
@@ -37,7 +38,7 @@ const primaryItems = [
 
 const utilityItems = [
   { title: "Algo Google Meet", url: "https://meet.google.com/cho-wpms-pbk", icon: LucidePersonStanding },
-  { title: "Upstox Conn. Management", url: "/auth/upstox-management", icon: Link },
+  { title: "Upstox Conn. Management", url: "/auth/upstox-management", icon: LinkIcon },
   { title: "Admin Panel", url: "/admin", icon: Settings },
 ];
 
@@ -48,48 +49,42 @@ interface MainSidebarProps extends Readonly<React.ComponentProps<typeof Sidebar>
 }
 
 export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibility, ...props }: Readonly<MainSidebarProps>) {
-  const router = useRouter();
   const [internalIsVisible, setInternalIsVisible] = React.useState(isVisible);
-  const [hideTimer, setHideTimer] = React.useState<NodeJS.Timeout | null>(null);
+  const hideTimer = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Reset the auto-hide timer on user interaction
   const resetHideTimer = React.useCallback(() => {
-    setHideTimer(prevTimer => {
-      if (prevTimer) clearTimeout(prevTimer);
-      return setTimeout(() => {
-        setInternalIsVisible(false);
-      }, 3000);
-    });
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+    }
+    hideTimer.current = setTimeout(() => {
+      setInternalIsVisible(false);
+    }, 3000);
   }, []);
 
-  // Handle user interactions - reset timer
+  // Reset the auto-hide timer on each interaction.
   const handleInteraction = React.useCallback(() => {
     resetHideTimer();
   }, [resetHideTimer]);
 
-  // Close sidebar button handler
   const handleCloseSidebar = React.useCallback(() => {
     setInternalIsVisible(false);
-    setHideTimer(prevTimer => {
-      if (prevTimer) clearTimeout(prevTimer);
-      return null;
-    });
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
   }, []);
 
-  // Set initial timer when sidebar becomes visible
   React.useEffect(() => {
     if (internalIsVisible) {
       resetHideTimer();
     }
   }, [internalIsVisible, resetHideTimer]);
 
-  // Cleanup timer on unmount
   React.useEffect(() => {
     return () => {
-      setHideTimer(prevTimer => {
-        if (prevTimer) clearTimeout(prevTimer);
-        return null;
-      });
+      if (hideTimer.current) {
+        clearTimeout(hideTimer.current);
+      }
     };
   }, []);
 
@@ -141,22 +136,29 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
           <SidebarGroupContent>
             <SidebarMenu>
               {primaryItems.map(item => {
+                if ((item as { type?: string }).type === "heading") {
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <div className="px-3 py-2 text-xs uppercase tracking-[0.18em] text-sidebar-foreground/70">
+                        {item.title}
+                      </div>
+                    </SidebarMenuItem>
+                  );
+                }
+
                 const isBoomDays = item.title.includes('Boom Days') || item.url === '/boom-days';
                 if (isBoomDays) {
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleInteraction();
-                            onShowInsights?.();
-                            router.push('/');
-                          }}
+                        <Link
+                          href={item.url}
+                          className="flex items-center gap-2"
+                          onClick={handleInteraction}
                         >
                           <item.icon />
                           <span>{item.title}</span>
-                        </button>
+                        </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
@@ -188,13 +190,14 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
               {utilityItems.map(item => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <a 
+                    <Link
                       href={item.url}
+                      className="flex items-center gap-2"
                       onClick={handleInteraction}
                     >
                       <item.icon />
                       <span>{item.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

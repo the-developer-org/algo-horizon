@@ -336,9 +336,7 @@ function StrikeAnalysisContent() {
       setAlgoV2AnalysisList(reduxAlgoV2AnalysisList);
       const allAnalysis = [...(reduxAlgoAnalysisList || []), ...(reduxStrykeAnalysisList || []), ...(reduxAlgoV2AnalysisList || [])];
       setStrykeList(allAnalysis);
-      setFilteredAnalysisList(allAnalysis.filter((item, index, self) =>
-        index === self.findIndex((t) => t.uuid === item.uuid)
-      ));
+      setFilteredAnalysisList(allAnalysis);
     }
     if (reduxStrykeMetrics) setStrykeMetrics(reduxStrykeMetrics);
     if (reduxAlgoMetrics) setAlgoMetrics(reduxAlgoMetrics);
@@ -494,9 +492,7 @@ function StrikeAnalysisContent() {
       // Combine all analysis for display
       const allCached = [...(reduxAlgoAnalysisList || []), ...(reduxStrykeAnalysisList || []), ...(reduxAlgoV2AnalysisList || [])];
       setStrykeList(allCached);
-      setFilteredAnalysisList(allCached.filter((item, index, self) =>
-        index === self.findIndex((t) => t.uuid === item.uuid)
-      ));
+      setFilteredAnalysisList(allCached);
       
       setDataLoadingAttempted(true);
       toast.success(`Loaded ${allCached.length} companies from cache`);
@@ -592,17 +588,9 @@ function StrikeAnalysisContent() {
               // Update the UI immediately with new data
               setStrykeList(allStrykes);
 
-              // Update filtered lists with the new combined data (deduplicate by UUID)
+              // Update filtered lists with the new combined data
               const combinedAnalysis = [...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis];
-              const uniqueAnalysis = combinedAnalysis.filter((item, index, self) =>
-                index === self.findIndex((t) => t.uuid === item.uuid)
-              );
-              setFilteredAnalysisList((prev) => {
-                const prevUnique = prev.filter((item, index, self) =>
-                  index === self.findIndex((t) => t.uuid === item.uuid)
-                );
-                return [...prevUnique, ...uniqueAnalysis];
-              });
+              setFilteredAnalysisList((prev) => [...prev, ...combinedAnalysis]);
 
               //console.log(`Loaded ${allStrykes.length} companies from alphabet ${alphabet}`);
 
@@ -1133,6 +1121,7 @@ function StrikeAnalysisContent() {
       'Resistance Touch Days',
       'Absolute Profits',
       'Days Taken to Absolute Profits',
+      'COC Candle Status',
     ];
 
     const rows: (string | number)[][] = [header];
@@ -1182,7 +1171,7 @@ function StrikeAnalysisContent() {
         resistanceDays as any,
         absoluteProfits as any,
         absoluteDays as any,
-
+        stryke.didCOCBreak === false ? 'Not Broken' : stryke.didCOCBreak === true ? 'Broken' : 'Unknown',
       ]);
     });
     return rows;
@@ -3253,6 +3242,43 @@ function StrikeAnalysisContent() {
                               </thead>
                               <tbody>
                                 {group.entries.map((stryke, entryIdx) => {
+                                  if (stryke.didCOCBreak === false) {
+                                    return (
+                                      <tr key={`${stryke.uuid}-${entryIdx}`} className="bg-yellow-100 hover:bg-yellow-200 border-l-4 border-yellow-500">
+                                        <td className="border border-gray-700 px-4 py-2 text-center align-middle">{entryIdx + 1}</td>
+                                        <td className="border border-gray-700 px-4 py-2 text-center align-middle truncate max-w-[280px]" title={stryke.companyName}>
+                                          <div className="flex flex-col">
+                                            <span className="font-medium">{stryke.companyName}</span>
+                                            <div className="flex flex-wrap gap-1 mt-1 justify-center">
+                                              <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                                                stryke.label === "STRYKE" ? 'bg-green-100 text-green-600' :
+                                                stryke.label === "ALGO" ? 'bg-blue-100 text-blue-600' :
+                                                stryke.label === "ALGOV2" ? 'bg-purple-100 text-purple-600' :
+                                                'bg-gray-100 text-gray-600'
+                                              }`}>{
+                                                stryke.label === "STRYKE" ? "Stryke" :
+                                                stryke.label === "ALGO" ? "Algo" :
+                                                stryke.label === "ALGOV2" ? "AlgoV2" :
+                                                "Unknown"
+                                              }</span>
+                                              {stryke.strykeType && (
+                                                <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                                                  stryke.strykeType === "OLD" ? 'bg-amber-100 text-amber-600' :
+                                                  stryke.strykeType === "NEW" ? 'bg-emerald-100 text-emerald-600' :
+                                                  'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                  {stryke.strykeType}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="border border-gray-700 px-4 py-3 text-center text-sm font-semibold text-yellow-900" colSpan={16}>
+                                          COC Didn't break
+                                        </td>
+                                      </tr>
+                                    );
+                                  }
 
                                   return (
                                     <React.Fragment key={`${stryke.uuid}-${entryIdx}`}>
