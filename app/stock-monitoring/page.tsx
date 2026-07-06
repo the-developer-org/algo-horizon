@@ -8,6 +8,8 @@ const ALPHABET_ORDER = [
 ];
 
 type AlphabetStatus = "pending" | "loading" | "completed" | "failed";
+type SortOption = "nameAsc" | "nameDesc" | "strykeEntryAsc" | "strykeEntryDesc" | "alphabet";
+type AnalysisKind = "stryke" | "algo";
 
 type LoadingState = {
   completedAlphabets: string[];
@@ -31,7 +33,7 @@ export default function StockMonitoringPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [monitoringMap, setMonitoringMap] = useState<Record<string, any[]>>({});
   const [activeTab, setActiveTab] = useState<string>("ALGO");
-  const [sortBy, setSortBy] = useState<'name' | 'entryDate' | 'alphabet'>('name');
+  const [sortBy, setSortBy] = useState<SortOption>("nameAsc");
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
   const completedCount = loadingState.completedAlphabets.length;
@@ -39,8 +41,62 @@ export default function StockMonitoringPage() {
 
   const selectedItemKey = selectedItem ? selectedItem.stockUuid || selectedItem.instrumentKey : null;
 
-  const selectedDetails = useMemo(() => {
-    if (!selectedItem) {
+  const getItemKey = (item: any) => item.stockUuid || item.instrumentKey || "";
+
+  const formatDate = (raw: any) => {
+    try {
+      return raw ? new Date(raw).toLocaleDateString() : "";
+    } catch {
+      return String(raw || "");
+    }
+  };
+
+  const formatNumber = (value: any, suffix = "") => {
+    return value != null && Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}${suffix}` : "-";
+  };
+
+  const getStrykeEntryRaw = (item: any) =>
+    item.entryTime ||
+    item.strykeSwingAnalysis?.algoEntryCandle?.timestamp ||
+    item.strykeSwingAnalysis?.algoentryCandle?.timestamp ||
+    item.strykeSwingAnalysis?.currentSwing?.candle?.timestamp ||
+    item.strykeSwingAnalysis?.currentSwing?.timestamp ||
+    item.strykeSwingAnalysis?.currentSwing?.time ||
+    item.entryCandle?.timestamp ||
+    item.id?.date;
+
+  const getAlgoEntryRaw = (item: any) =>
+    item.algoSwingAnalysis?.algoEntryCandle?.timestamp ||
+    item.algoSwingAnalysis?.algoentryCandle?.timestamp ||
+    item.algoSwingAnalysis?.currentSwing?.candle?.timestamp ||
+    item.algoSwingAnalysis?.currentSwing?.timestamp ||
+    item.algoSwingAnalysis?.currentSwing?.time;
+
+  const getStrykeEntryTs = (item: any) => {
+    const raw = getStrykeEntryRaw(item);
+    if (!raw) return 0;
+    if (typeof raw === "number") return raw;
+    const time = Date.parse(raw);
+    return Number.isNaN(time) ? 0 : time;
+  };
+
+  const getAnalysisLabels = (item: any, kind: AnalysisKind) => {
+    const analysis = kind === "stryke" ? item.strykeSwingAnalysis : item.algoSwingAnalysis;
+
+    return {
+      prevLabel:
+        analysis?.previousSwing?.label ||
+        (kind === "stryke" ? item.prevSwingLabel : null) ||
+        "-",
+      currLabel:
+        analysis?.currentSwing?.label ||
+        (kind === "stryke" ? item.currentSwingLabel : null) ||
+        "-",
+    };
+  };
+
+  const getAnalysisDetails = (item: any, kind: AnalysisKind) => {
+    if (!item) {
       return {
         entryDate: "",
         entryPrice: null,
@@ -57,100 +113,58 @@ export default function StockMonitoringPage() {
       };
     }
 
-    const entryRaw = selectedItem.entryTime
-      || selectedItem.strykeSwingAnalysis?.currentSwing?.candle?.timestamp
-      || selectedItem.strykeSwingAnalysis?.currentSwing?.time
-      || selectedItem.entryCandle?.timestamp
-      || selectedItem.id?.date;
-
-    let entryDate = "";
-    try {
-      entryDate = entryRaw ? new Date(entryRaw).toLocaleDateString() : "";
-    } catch (e) {
-      entryDate = String(entryRaw || "");
-    }
-
-    const entryPrice =
-      selectedItem.entryCandleClose ??
-      selectedItem.entryPrice ??
-      selectedItem.strykeSwingAnalysis?.currentSwing?.price ??
-      selectedItem.algoSwingAnalysis?.currentSwing?.price ??
-      selectedItem.entryCandle?.close ??
-      null;
-
-    const targetPrice =
-      selectedItem.target ??
-      selectedItem.algoSwingAnalysis?.algoResistance ??
-      selectedItem.strykeSwingAnalysis?.algoResistance ??
-      null;
-
-    const stopLossPrice =
-      selectedItem.stopLoss ??
-      selectedItem.algoSwingAnalysis?.algoSupport ??
-      selectedItem.strykeSwingAnalysis?.algoSupport ??
-      null;
-
-    const erGap =
-      selectedItem.minSwingProfits ??
-      selectedItem.strykeSwingAnalysis?.minSwingProfits ??
-      selectedItem.algoSwingAnalysis?.minSwingProfits ??
-      null;
-
-    const maxProfits =
-      selectedItem.maxSwingProfits ??
-      selectedItem.strykeSwingAnalysis?.maxSwingProfits ??
-      selectedItem.algoSwingAnalysis?.maxSwingProfits ??
-      null;
-
-    const absoluteProfits =
-      selectedItem.absoluteProfitsPercentage ??
-      selectedItem.strykeSwingAnalysis?.absoluteProfitsPercentage ??
-      selectedItem.algoSwingAnalysis?.absoluteProfitsPercentage ??
-      null;
-
-    const absoluteDays =
-      selectedItem.daysTakenForAbsoluteProfits ??
-      selectedItem.strykeSwingAnalysis?.daysTakenForAbsoluteProfits ??
-      selectedItem.algoSwingAnalysis?.daysTakenForAbsoluteProfits ??
-      selectedItem.daysTakenForMaxSwingProfits ??
-      null;
-
-    const supportDays =
-      selectedItem.daysTakenForSupportTouch ??
-      selectedItem.strykeSwingAnalysis?.daysTakenForSupportTouch ??
-      selectedItem.algoSwingAnalysis?.daysTakenForSupportTouch ??
-      null;
-
-    const resistanceDays =
-      selectedItem.daysTakenForResistanceTouch ??
-      selectedItem.strykeSwingAnalysis?.daysTakenForResistanceTouch ??
-      selectedItem.algoSwingAnalysis?.daysTakenForResistanceTouch ??
-      null;
-
-    const prevLabel = selectedItem.strykeSwingAnalysis?.previousSwing?.label
-      || selectedItem.algoSwingAnalysis?.previousSwing?.label
-      || "-";
-    const currLabel = selectedItem.strykeSwingAnalysis?.currentSwing?.label
-      || selectedItem.algoSwingAnalysis?.currentSwing?.label
-      || "-";
+    const analysis = kind === "stryke" ? item.strykeSwingAnalysis : item.algoSwingAnalysis;
+    const entryCandle = analysis?.algoEntryCandle || analysis?.algoentryCandle;
+    const labels = getAnalysisLabels(item, kind);
 
     return {
-      entryDate,
-      entryPrice,
-      targetPrice,
-      stopLossPrice,
-      erGap,
-      maxProfits,
-      absoluteProfits,
-      absoluteDays,
-      supportDays,
-      resistanceDays,
-      prevLabel,
-      currLabel,
+      entryDate: formatDate(kind === "stryke" ? getStrykeEntryRaw(item) : getAlgoEntryRaw(item)),
+      entryPrice:
+        kind === "stryke"
+          ? item.entryCandleClose ?? item.entryPrice ?? entryCandle?.close ?? analysis?.currentSwing?.price ?? item.entryCandle?.close ?? null
+          : entryCandle?.close ?? analysis?.currentSwing?.price ?? null,
+      targetPrice:
+        kind === "stryke"
+          ? item.target ?? analysis?.algoResistance ?? null
+          : analysis?.algoResistance ?? null,
+      stopLossPrice:
+        kind === "stryke"
+          ? item.stopLoss ?? analysis?.algoSupport ?? null
+          : analysis?.algoSupport ?? null,
+      erGap:
+        kind === "stryke"
+          ? item.minSwingProfits ?? analysis?.minSwingProfits ?? null
+          : analysis?.minSwingProfits ?? null,
+      maxProfits:
+        kind === "stryke"
+          ? item.maxSwingProfits ?? analysis?.maxSwingProfits ?? null
+          : analysis?.maxSwingProfits ?? null,
+      absoluteProfits:
+        kind === "stryke"
+          ? item.absoluteProfitsPercentage ?? analysis?.absoluteProfitsPercentage ?? null
+          : analysis?.absoluteProfitsPercentage ?? null,
+      absoluteDays:
+        kind === "stryke"
+          ? item.daysTakenForAbsoluteProfits ?? analysis?.daysTakenForAbsoluteProfits ?? item.daysTakenForMaxSwingProfits ?? null
+          : analysis?.daysTakenForAbsoluteProfits ?? analysis?.daysTakenForMaxSwingProfits ?? null,
+      supportDays:
+        kind === "stryke"
+          ? item.daysTakenForSupportTouch ?? analysis?.daysTakenForSupportTouch ?? null
+          : analysis?.daysTakenForSupportTouch ?? null,
+      resistanceDays:
+        kind === "stryke"
+          ? item.daysTakenForResistanceTouch ?? analysis?.daysTakenForResistanceTouch ?? null
+          : analysis?.daysTakenForResistanceTouch ?? null,
+      ...labels,
+    };
+  };
+
+  const selectedDetails = useMemo(() => {
+    return {
+      stryke: getAnalysisDetails(selectedItem, "stryke"),
+      algo: getAnalysisDetails(selectedItem, "algo"),
     };
   }, [selectedItem]);
-
-  const getItemKey = (item: any) => item.stockUuid || item.instrumentKey || "";
 
   const fetchMonitoringForAlphabet = async (alphabet: string) => {
     const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -286,20 +300,20 @@ export default function StockMonitoringPage() {
 
   const renderMonitoringRows = () => {
     const items = (monitoringMap[activeTab] || []).slice();
-    const getEntryTs = (it: any) => {
-      const raw = it.entryTime || it.entryCandle?.timestamp || it.id?.date;
-      if (!raw) return 0;
-      if (typeof raw === "number") return raw;
-      const t = Date.parse(raw);
-      return isNaN(t) ? 0 : t;
-    };
+    const showAlgoDetails = activeTab === "ALGOV2";
 
     items.sort((a: any, b: any) => {
-      if (sortBy === "name") {
+      if (sortBy === "nameAsc") {
         return String(a.companyName || "").localeCompare(String(b.companyName || ""));
       }
-      if (sortBy === "entryDate") {
-        return getEntryTs(b) - getEntryTs(a);
+      if (sortBy === "nameDesc") {
+        return String(b.companyName || "").localeCompare(String(a.companyName || ""));
+      }
+      if (sortBy === "strykeEntryAsc") {
+        return getStrykeEntryTs(a) - getStrykeEntryTs(b);
+      }
+      if (sortBy === "strykeEntryDesc") {
+        return getStrykeEntryTs(b) - getStrykeEntryTs(a);
       }
       const aChar = String(a.companyName || "").charAt(0).toUpperCase();
       const bChar = String(b.companyName || "").charAt(0).toUpperCase();
@@ -315,29 +329,10 @@ export default function StockMonitoringPage() {
       rows.push(
         <div key={`row-${i}`} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {rowItems.map((item: any) => {
-            const entryRaw =
-              item.entryTime ||
-              item.strykeSwingAnalysis?.currentSwing?.candle?.timestamp ||
-              item.strykeSwingAnalysis?.currentSwing?.time ||
-              item.entryCandle?.timestamp ||
-              item.id?.date;
-
-            let entryDate = "";
-            try {
-              entryDate = entryRaw ? new Date(entryRaw).toLocaleDateString() : "";
-            } catch {
-              entryDate = String(entryRaw || "");
-            }
-
-            const prevLabel =
-              item.strykeSwingAnalysis?.previousSwing?.label ||
-              item.algoSwingAnalysis?.previousSwing?.label ||
-              "-";
-
-            const currLabel =
-              item.strykeSwingAnalysis?.currentSwing?.label ||
-              item.algoSwingAnalysis?.currentSwing?.label ||
-              "-";
+            const strykeEntryDate = formatDate(getStrykeEntryRaw(item));
+            const algoEntryDate = formatDate(getAlgoEntryRaw(item));
+            const strykeLabels = getAnalysisLabels(item, "stryke");
+            const algoLabels = getAnalysisLabels(item, "algo");
 
             const isSelected = selectedItemKey && getItemKey(item) === selectedItemKey;
 
@@ -356,11 +351,21 @@ export default function StockMonitoringPage() {
                 }}
               >
                 <div className="text-sm font-medium text-slate-700">{item.companyName}</div>
-                <div className="mt-2 text-xs text-slate-500">
-                  <span className="font-medium mr-1">Stryke entry:</span>
-                  {entryDate ? <span className="mr-3">{entryDate}</span> : <span className="mr-3">-</span>}
-                  <span className="font-medium">Stryke labels:</span>
-                  <span className="ml-1">{prevLabel} &lt;- {currLabel}</span>
+                <div className="mt-2 space-y-1 text-xs text-slate-500">
+                  <div>
+                    <span className="font-medium mr-1">Stryke entry:</span>
+                    <span className="mr-3">{strykeEntryDate || "-"}</span>
+                    <span className="font-medium">Stryke labels:</span>
+                    <span className="ml-1">{strykeLabels.prevLabel} &lt;- {strykeLabels.currLabel}</span>
+                  </div>
+                  {showAlgoDetails && (
+                    <div>
+                      <span className="font-medium mr-1 text-indigo-700">Algo entry:</span>
+                      <span className="mr-3">{algoEntryDate || "-"}</span>
+                      <span className="font-medium text-indigo-700">Algo labels:</span>
+                      <span className="ml-1">{algoLabels.prevLabel} &lt;- {algoLabels.currLabel}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -393,46 +398,94 @@ export default function StockMonitoringPage() {
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Entry Date</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.entryDate || "-"}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stryke Entry Date</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.stryke.entryDate || "-"}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Entry</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.entryPrice != null ? selectedDetails.entryPrice.toFixed(2) : "-"}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stryke Entry</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.stryke.entryPrice)}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Target</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.targetPrice != null ? selectedDetails.targetPrice.toFixed(2) : "-"}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stryke Target</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.stryke.targetPrice)}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stop Loss</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.stopLossPrice != null ? selectedDetails.stopLossPrice.toFixed(2) : "-"}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stryke Stop Loss</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.stryke.stopLossPrice)}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">ER-Gap</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.erGap != null ? `${selectedDetails.erGap.toFixed(2)}%` : "-"}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stryke ER-Gap</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.stryke.erGap, "%")}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Max Profits</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.maxProfits != null ? `${selectedDetails.maxProfits.toFixed(2)}%` : "-"}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stryke Max Profits</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.stryke.maxProfits, "%")}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Absolute Profits</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.absoluteProfits != null ? `${selectedDetails.absoluteProfits.toFixed(2)}%` : "-"}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stryke Absolute Profits</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.stryke.absoluteProfits, "%")}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Absolute Days</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.absoluteDays != null ? selectedDetails.absoluteDays : "-"}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stryke Absolute Days</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.stryke.absoluteDays != null ? selectedDetails.stryke.absoluteDays : "-"}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Support</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.supportDays != null ? selectedDetails.supportDays : "-"}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stryke Support</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.stryke.supportDays != null ? selectedDetails.stryke.supportDays : "-"}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Resistance</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.resistanceDays != null ? selectedDetails.resistanceDays : "-"}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Stryke Resistance</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.stryke.resistanceDays != null ? selectedDetails.stryke.resistanceDays : "-"}</p>
                 </div>
               </div>
+
+              {showAlgoDetails && (
+                <div className="mt-4">
+                  <p className="text-sm uppercase tracking-[0.24em] text-indigo-700">Algo analysis</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Algo Entry Date</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.algo.entryDate || "-"}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Algo Entry</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.algo.entryPrice)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Algo Target</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.algo.targetPrice)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Algo Stop Loss</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.algo.stopLossPrice)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Algo ER-Gap</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.algo.erGap, "%")}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Algo Max Profits</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.algo.maxProfits, "%")}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Algo Absolute Profits</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{formatNumber(selectedDetails.algo.absoluteProfits, "%")}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Algo Absolute Days</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.algo.absoluteDays != null ? selectedDetails.algo.absoluteDays : "-"}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Algo Support</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.algo.supportDays != null ? selectedDetails.algo.supportDays : "-"}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Algo Resistance</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{selectedDetails.algo.resistanceDays != null ? selectedDetails.algo.resistanceDays : "-"}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -507,9 +560,11 @@ export default function StockMonitoringPage() {
 
               <div className="ml-auto flex items-center gap-2">
                 <label className="text-xs text-slate-600">Sort:</label>
-                <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="text-sm border rounded px-2 py-1">
-                  <option value="name">Company name</option>
-                  <option value="entryDate">Stryke entry date</option>
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="text-sm border rounded px-2 py-1">
+                  <option value="nameAsc">Company name A-Z</option>
+                  <option value="nameDesc">Company name Z-A</option>
+                  <option value="strykeEntryAsc">Stryke entry date oldest first</option>
+                  <option value="strykeEntryDesc">Stryke entry date newest first</option>
                   <option value="alphabet">Alphabet</option>
                 </select>
               </div>
