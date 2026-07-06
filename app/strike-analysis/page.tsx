@@ -1375,8 +1375,8 @@ function StrikeAnalysisContent() {
 
 
   return (
-    <div className="flex justify-start py-4 px-4 bg-cream">
-      <div className="w-full max-w-screen-2xl ml-24 mr-0">
+    <div className="flex justify-center py-4 px-2 sm:px-4 bg-cream">
+      <div className="w-full max-w-screen-2xl mx-auto">
         <Toaster position="top-right" />
 
         {globalLoading && (
@@ -1443,9 +1443,9 @@ function StrikeAnalysisContent() {
               </div>
             )}
 
-            <div className="flex flex-col md:flex-row justify-between items-center mb-4">
+            <div className="flex flex-col gap-3 md:flex-row md:justify-between md:items-center mb-4">
             
-              <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
+              <div className="flex flex-wrap gap-2 items-center justify-center md:justify-start mt-4 md:mt-0">
                 {/* Home button */}
                 <a
                   href="/"
@@ -1716,10 +1716,10 @@ function StrikeAnalysisContent() {
 
             {/* Add a new stats page */}
             {showSwingStats && (
-              <div className="container mx-auto py-4 px-4 max-w-screen-2xl">
+              <div className="w-full mx-auto py-4 px-2 sm:px-4 max-w-screen-2xl">
 
                 {/* Search, Sort, and Filter Controls */}
-                <div className="flex flex-wrap gap-1 items-center mb-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap mb-4">
 
                   {/* Search Input */}
                   <input
@@ -2101,7 +2101,7 @@ function StrikeAnalysisContent() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                         <div className="bg-white p-4 rounded-lg border shadow-sm">
                           <h4 className="text-lg font-semibold text-blue-700 mb-4 text-center">Stryke Analysis - ER Gap Distribution</h4>
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="text-center p-3 bg-red-50 rounded">
                               <div className="text-2xl font-bold text-red-600">{strykeMetrics?.ErGap_L3 || 0}</div>
                               <div className="text-xs text-gray-600">{'< 3%'}</div>
@@ -2119,7 +2119,7 @@ function StrikeAnalysisContent() {
 
                         <div className="bg-white p-4 rounded-lg border shadow-sm">
                           <h4 className="text-lg font-semibold text-green-700 mb-4 text-center">Algo Analysis - ER Gap Distribution</h4>
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="text-center p-3 bg-red-50 rounded">
                               <div className="text-2xl font-bold text-red-600">{algoMetrics?.ErGap_L3 || 0}</div>
                               <div className="text-xs text-gray-600">{'< 3%'}</div>
@@ -2142,7 +2142,7 @@ function StrikeAnalysisContent() {
                         <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
                           <h4 className="text-lg font-semibold text-blue-700 mb-4">Stryke Analysis Metrics</h4>
                           <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                               <div className="bg-white p-3 rounded">
                                 <div className="font-medium text-gray-700">Supports Touched</div>
                                 <div className="text-xl font-bold text-amber-500">{strykeMetrics?.supportsTouched || 0}</div>
@@ -2154,7 +2154,7 @@ function StrikeAnalysisContent() {
                             </div>
                             <div className="bg-white p-3 rounded">
                               <div className="font-medium text-gray-700 mb-2">Profit Values (%)</div>
-                              <div className="grid grid-cols-3 gap-2 text-sm">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
                                 <div className="text-center">
                                   <div className="text-blue-600 font-bold">{strykeMetrics?.minProfitValue || 0}%</div>
                                   <div className="text-xs">Min</div>
@@ -2180,7 +2180,7 @@ function StrikeAnalysisContent() {
                         <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
                           <h4 className="text-lg font-semibold text-green-700 mb-4">Algo Analysis Metrics</h4>
                           <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                               <div className="bg-white p-3 rounded">
                                 <div className="font-medium text-gray-700">Supports Touched</div>
                                 <div className="text-xl font-bold text-amber-500">{algoMetrics?.supportsTouched || 0}</div>
@@ -2192,7 +2192,7 @@ function StrikeAnalysisContent() {
                             </div>
                             <div className="bg-white p-3 rounded">
                               <div className="font-medium text-gray-700 mb-2">Profit Values (%)</div>
-                              <div className="grid grid-cols-3 gap-2 text-sm">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
                                 <div className="text-center">
                                   <div className="text-blue-600 font-bold">{algoMetrics?.minProfitValue || 0}%</div>
                                   <div className="text-xs">Min</div>
@@ -2394,14 +2394,14 @@ function StrikeAnalysisContent() {
                             </div>
                           </div>
                           
-                          <div className="overflow-auto max-h-[600px]">
-                            <table className="table-auto w-full border-collapse border border-gray-700 text-center">
+                          <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
+                            <table className="table-auto min-w-full border-collapse border border-gray-700 text-center whitespace-normal break-words">
                               <thead>
                                 <tr className="bg-gray-400 sticky top-0 z-10">
                                   <th className="border border-gray-700 px-4 py-2">Slno</th>
-                                  <th className="border border-gray-700 px-12 py-2 min-w-[100px]">
-                                    <div className="flex items-center ml-10">
-                                      <span>Company</span>
+                                  <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-[70px] sm:min-w-[100px] lg:min-w-[120px]">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="break-words text-left">Company</span>
                                       <button
                                         onClick={() => {
                                           const newOrder = activeFilter.name === 'asc' ? 'desc' : activeFilter.name === 'desc' ? null : 'asc';
@@ -2433,10 +2433,10 @@ function StrikeAnalysisContent() {
                                       </button>
                                     </div>
                                   </th>
-                                  <th className="border border-gray-700 px-4 py-2 min-w-[60px]">Chart</th>
-                                  <th className="border border-gray-700 px-12 py-2 min-w-[160px]">
-                                    <div className="flex items-center justify-between">
-                                      <span>Entry Date</span>
+                                  <th className="border border-gray-700 px-2 py-2 min-w-[50px]">Chart</th>
+                                  <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-[90px] lg:min-w-[120px]">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="break-words">Entry Date</span>
                                       <button
                                         onClick={() => {
                                           const newOrder = activeFilter.date === 'asc' ? 'desc' : activeFilter.date === 'desc' ? null : 'asc';
@@ -2467,8 +2467,8 @@ function StrikeAnalysisContent() {
                                       </button>
                                     </div>
                                   </th>
-                                  <th className="border border-gray-700 px-8 py-2">
-                                    <div className="flex items-center justify-between">
+                                  <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
                                       <span>Entry</span>
                                       <button
                                         onClick={() => {
@@ -2500,9 +2500,9 @@ function StrikeAnalysisContent() {
                                       </button>
                                     </div>
                                   </th>
-                                  <th className="border border-gray-700 px-8 py-2 min-w-[180px]">
-                                    <div className="flex items-center justify-between">
-                                      <span>Target</span>
+                                  <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-[80px] lg:min-w-[140px]">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="break-words">Target</span>
                                       <button
                                         onClick={() => {
                                           const newOrder = activeFilter.target === 'asc' ? 'desc' : activeFilter.target === 'desc' ? null : 'asc';
@@ -2533,9 +2533,9 @@ function StrikeAnalysisContent() {
                                       </button>
                                     </div>
                                   </th>
-                                  <th className="border border-gray-700 px-8 py-2 min-w-[180px]">
-                                    <div className="flex items-center justify-between">
-                                      <span>Stop Loss</span>
+                                  <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-[80px] lg:min-w-[140px]">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="break-words">Stop Loss</span>
                                       <button
                                         onClick={() => {
                                           const newOrder = activeFilter.stopLoss === 'asc' ? 'desc' : activeFilter.stopLoss === 'desc' ? null : 'asc';
@@ -2566,10 +2566,10 @@ function StrikeAnalysisContent() {
                                       </button>
                                     </div>
                                   </th>
-                                                            <th className="border border-gray-700 px-8 py-2 min-w-[120px]">
-                                    <div className="flex items-center justify-between">
-                                      <span>T2Sx</span>
-                                      <div className="flex items-center gap-2">
+                                                            <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-[70px] lg:min-w-[120px]">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="break-words">T2Sx</span>
+                                      <div className="flex flex-wrap items-center gap-1">
                                         <button
                                           onClick={() => {
                                             const newOrder = activeFilter.t2percentage === 'asc' ? 'desc' : activeFilter.t2percentage === 'desc' ? null : 'asc';
@@ -2643,9 +2643,9 @@ function StrikeAnalysisContent() {
                                       </div>
                                     </div>
                                   </th>
-                                  <th className="border border-gray-700 px-8 py-2 min-w-[150px] relative">
-                                    <div className="flex items-center justify-between">
-                                      <span>Swing Labels</span>
+                                  <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-[80px] lg:min-w-[120px] relative">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="break-words">Swing Labels</span>
                                       <button
                                         onClick={() => setSwingLabelsDropdownOpen(!swingLabelsDropdownOpen)}
                                         className="ml-1 p-1 hover:bg-gray-300 rounded relative"
@@ -2710,10 +2710,10 @@ function StrikeAnalysisContent() {
                                       )}
                                     </div>
                                   </th>
-                                  <th title='Entry - Resistance Gap' className="border border-gray-700 px-12 py-2 min-w-[130px] relative">
-                                    <div className="flex items-center justify-between">
-                                      <span>ER-Gap</span>
-                                      <div className="flex items-center">
+                                  <th title='Entry - Resistance Gap' className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-[80px] lg:min-w-[120px] relative">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="break-words">ER-Gap</span>
+                                      <div className="flex flex-wrap items-center gap-1">
                                         {/* Sort Button */}
                                         <button
                                           onClick={() => {
@@ -2833,10 +2833,10 @@ function StrikeAnalysisContent() {
                                       )}
                                     </div>
                                   </th>
-                                  <th className="border border-gray-700 px-12 py-2 min-w-[160px] relative">
-                                    <div className="flex items-center justify-between">
-                                      <span>Max Profits</span>
-                                      <div className="flex items-center">
+                                  <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-0 min-w-[70px] lg:min-w-[140px] relative">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="min-w-0 break-words">Max Profits</span>
+                                      <div className="flex flex-wrap items-center gap-1">
                                         {/* Sort Button */}
                                         <button
                                           onClick={() => {
@@ -2956,9 +2956,9 @@ function StrikeAnalysisContent() {
                                       )}
                                     </div>
                                   </th>
-                                  <th className="border border-gray-700 px-12 py-2 min-w-[160px] relative">
-                                    <div className="flex items-center justify-between">
-                                      <span>Absolute Profits</span>
+                                  <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-0 min-w-[70px] lg:min-w-[140px] relative">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="min-w-0 break-words">Absolute Profits</span>
                                       <button
                                         onClick={() => {
                                           const newOrder = activeFilter.absoluteProfits === 'asc' ? 'desc' : activeFilter.absoluteProfits === 'desc' ? null : 'asc';
@@ -2990,9 +2990,9 @@ function StrikeAnalysisContent() {
                                       </button>
                                     </div>
                                   </th>
-                                  <th className="border border-gray-700 px-12 py-2 min-w-[120px] relative">
-                                    <div className="flex items-center justify-between">
-                                      <span>Absolute Days</span>
+                                  <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-[70px] lg:min-w-[110px] relative">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="break-words">Absolute Days</span>
                                       <button
                                         onClick={() => {
                                           const newOrder = activeFilter.absoluteDays === 'asc' ? 'desc' : activeFilter.absoluteDays === 'desc' ? null : 'asc';
@@ -3024,10 +3024,10 @@ function StrikeAnalysisContent() {
                                       </button>
                                     </div>
                                   </th>
-                                  <th title='Time Take for Stock to Hit Support' className="border border-gray-700 px-8 py-2 relative">
-                                    <div className="flex items-center justify-between">
-                                      <span>Support</span>
-                                      <div className="flex items-center">
+                                  <th title='Time Take for Stock to Hit Support' className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-0 min-w-[70px] lg:min-w-[110px] relative">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="min-w-0 break-words">Support</span>
+                                      <div className="flex flex-wrap items-center gap-1">
                                         {/* Sort Button */}
                                         <button
                                           onClick={() => {
@@ -3130,10 +3130,10 @@ function StrikeAnalysisContent() {
                                       )}
                                     </div>
                                   </th>
-                                  <th title='Time Take for Stock to Hit Resistance' className="border border-gray-700 px-8 py-2 min-w-[80px] relative">
-                                    <div className="flex items-center justify-between">
-                                      <span>Resistance</span>
-                                      <div className="flex items-center">
+                                  <th title='Time Take for Stock to Hit Resistance' className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-0 min-w-[70px] lg:min-w-[110px] relative">
+                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <span className="min-w-0 break-words">Resistance</span>
+                                      <div className="flex flex-wrap items-center gap-1">
                                         {/* Sort Button */}
                                         <button
                                           onClick={() => {
@@ -3236,8 +3236,8 @@ function StrikeAnalysisContent() {
                                       )}
                                     </div>
                                   </th>
-                                  <th title='EMA Cross Overs' className="border border-gray-700 px-8 py-2 min-w-[200px]" colSpan={2}>Ema Position</th>
-                                  <th title='EMA Cross Overs' className="border border-gray-700 px-8 py-2">Ema Cross Overs</th>
+                                  <th title='EMA Cross Overs' className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-[120px] sm:min-w-[160px]" colSpan={2}>Ema Position</th>
+                                  <th title='EMA Cross Overs' className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2">Ema Cross Overs</th>
                                 </tr>
                               </thead>
                               <tbody>
