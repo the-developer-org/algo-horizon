@@ -1,5 +1,6 @@
 "use client";
 
+import { ChartCandlestick } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const ALPHABET_ORDER = [
@@ -55,6 +56,13 @@ export default function StockMonitoringPage() {
     return value != null && Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}${suffix}` : "-";
   };
 
+  const formatChartDate = (raw: any) => {
+    if (!raw) return null;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString().split("T")[0];
+  };
+
   const getStrykeEntryRaw = (item: any) =>
     item.entryTime ||
     item.strykeSwingAnalysis?.algoEntryCandle?.timestamp ||
@@ -78,6 +86,30 @@ export default function StockMonitoringPage() {
     if (typeof raw === "number") return raw;
     const time = Date.parse(raw);
     return Number.isNaN(time) ? 0 : time;
+  };
+
+  const buildChartUrl = (item: any) => {
+    if (!item?.instrumentKey) return null;
+
+    let chartUrl = `/chart?instrumentKey=${encodeURIComponent(item.instrumentKey)}&timeframe=1d`;
+    const strykeDate = formatChartDate(getStrykeEntryRaw(item));
+    const algoDate = formatChartDate(getAlgoEntryRaw(item));
+
+    if (strykeDate) {
+      chartUrl += `&strykeDate=${encodeURIComponent(strykeDate)}`;
+    }
+
+    if (algoDate) {
+      chartUrl += `&algoDate=${encodeURIComponent(algoDate)}`;
+    }
+
+    return chartUrl;
+  };
+
+  const openChart = (item: any) => {
+    const chartUrl = buildChartUrl(item);
+    if (!chartUrl) return;
+    window.open(chartUrl, "_blank");
   };
 
   const getAnalysisLabels = (item: any, kind: AnalysisKind) => {
@@ -350,7 +382,23 @@ export default function StockMonitoringPage() {
                   }
                 }}
               >
-                <div className="text-sm font-medium text-slate-700">{item.companyName}</div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-sm font-medium text-slate-700">{item.companyName}</div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openChart(item);
+                    }}
+                    onKeyDown={(event) => event.stopPropagation()}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={!item.instrumentKey}
+                    title="Open OHLC chart"
+                    aria-label={`Open OHLC chart for ${item.companyName || "selected stock"}`}
+                  >
+                    <ChartCandlestick className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
                 <div className="mt-2 space-y-1 text-xs text-slate-500">
                   <div>
                     <span className="font-medium mr-1">Stryke entry:</span>
