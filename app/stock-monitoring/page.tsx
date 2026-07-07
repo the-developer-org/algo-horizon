@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartCandlestick } from "lucide-react";
+import { ChartCandlestick, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const ALPHABET_ORDER = [
@@ -11,6 +11,7 @@ const ALPHABET_ORDER = [
 type AlphabetStatus = "pending" | "loading" | "completed" | "failed";
 type SortOption = "nameAsc" | "nameDesc" | "strykeEntryAsc" | "strykeEntryDesc" | "alphabet";
 type AnalysisKind = "stryke" | "algo";
+type MonitoringAction = "star" | "w" | "m";
 
 type LoadingState = {
   completedAlphabets: string[];
@@ -86,6 +87,175 @@ export default function StockMonitoringPage() {
     if (typeof raw === "number") return raw;
     const time = Date.parse(raw);
     return Number.isNaN(time) ? 0 : time;
+  };
+
+  const getMonitoringActionValue = (item: any, action: MonitoringAction) => {
+    if (action === "star") {
+      return Boolean(
+        item.isStarred ??
+        (activeTab === "ALGOV2" ? item.algoV2Starred : item.algoStarred) ??
+        item.starred ??
+        item.favorite ??
+        item.favourite ??
+        item.stockMonitoringStar
+      );
+    }
+
+    if (action === "w") {
+      return Boolean(
+        item.isW ??
+        (activeTab === "ALGOV2" ? item.algoV2WeeklyStarred : item.algoWeeklyStarred) ??
+        item.w ??
+        item.wFlag ??
+        item.watchFlag ??
+        item.stockMonitoringW
+      );
+    }
+
+    return Boolean(
+      item.isM ??
+      (activeTab === "ALGOV2" ? item.algoV2MonthlyStarred : item.algoMonthlyStarred) ??
+      item.m ??
+      item.mFlag ??
+      item.monitoringFlag ??
+      item.stockMonitoringM
+    );
+  };
+
+  const getMonitoringStrykeId = (item: any) => {
+    debugger;
+    const id = item?.id
+
+    return id ? String(id) : "";
+  };
+
+  const getMonitoringSuffix = (item: any) => {
+    return String(item?.suffix || item?.companyName?.charAt(0) || "").toUpperCase();
+  };
+
+  const updateMonitoringAction = async (item: any, action: MonitoringAction, enabled: boolean) => {
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const strykeId = getMonitoringStrykeId(item);
+    const suffix = getMonitoringSuffix(item);
+
+    debugger
+    if (!baseUrl || !strykeId || !suffix) {
+      throw new Error("Missing stock monitoring update details");
+    }
+
+    const response = await fetch(`${baseUrl}/api/stock-monitoring/update-algo-info`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        strykeId,
+        suffix,
+        algoInfo: action === "star" ? "STAR" : action.toUpperCase(),
+        toUpdate: enabled,
+        algoType: activeTab,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `Failed to update monitoring info with status ${response.status}`);
+    }
+  };
+
+  const normalizeMonitoringResponse = (result: any, suffix: string) => {
+    const normalized: Record<string, any[]> = {};
+
+    if (result?.monitoringResponseDTO?.dataMap) {
+      const dataMap = result.monitoringResponseDTO.dataMap as Record<string, any[]>;
+      for (const key of Object.keys(dataMap)) {
+        normalized[key] = dataMap[key].map(item => ({ ...item, suffix }));
+      }
+    } else if (Array.isArray(result)) {
+      for (const item of result) {
+        const key = item?.algoV2 ? "ALGOV2" : "ALGO";
+        normalized[key] = [...(normalized[key] || []), { ...item, suffix }];
+      }
+    }
+
+    return normalized;
+  };
+
+  const replaceMonitoringSuffixData = (suffix: string, refreshedData: Record<string, any[]>) => {
+    setMonitoringMap(prev => {
+      const next: Record<string, any[]> = {};
+      const allKeys = new Set([...Object.keys(prev), ...Object.keys(refreshedData)]);
+
+      allKeys.forEach(key => {
+        const existingWithoutSuffix = (prev[key] || []).filter(item => getMonitoringSuffix(item) !== suffix);
+        next[key] = [...existingWithoutSuffix, ...(refreshedData[key] || [])];
+      });
+
+      return next;
+    });
+
+    setSelectedItem((prev: any | null) => {
+      if (!prev || getMonitoringSuffix(prev) !== suffix) return prev;
+
+      const refreshedItems = Object.values(refreshedData).flat();
+      return refreshedItems.find(item => getMonitoringStrykeId(item) === getMonitoringStrykeId(prev)) || null;
+    });
+  };
+
+  const refreshMonitoringSuffix = async (suffix: string) => {
+    const result = await fetchMonitoringForAlphabet(suffix);
+    const refreshedData = normalizeMonitoringResponse(result, suffix);
+    replaceMonitoringSuffixData(suffix, refreshedData);
+  };
+
+  const updateMonitoringItemAction = (item: any, action: MonitoringAction, enabled: boolean) => {
+    const targetKey = getItemKey(item);
+    const fieldByAction: Record<MonitoringAction, string> = {
+      star: "isStarred",
+      w: "isW",
+      m: "isM",
+    };
+
+    setMonitoringMap(prev => {
+      const next: Record<string, any[]> = {};
+
+      for (const [group, groupItems] of Object.entries(prev)) {
+        next[group] = groupItems.map(groupItem =>
+          getItemKey(groupItem) === targetKey
+            ? { ...groupItem, [fieldByAction[action]]: enabled }
+            : groupItem
+        );
+      }
+
+      return next;
+    });
+
+    setSelectedItem((prev: any | null) =>
+      prev && getItemKey(prev) === targetKey
+        ? { ...prev, [fieldByAction[action]]: enabled }
+        : prev
+    );
+  };
+
+  const toggleMonitoringAction = async (item: any, action: MonitoringAction) => {
+    const enabled = !getMonitoringActionValue(item, action);
+
+    updateMonitoringItemAction(item, action, enabled);
+
+    try {
+      await updateMonitoringAction(item, action, enabled);
+    } catch (error) {
+      updateMonitoringItemAction(item, action, !enabled);
+      console.error("Failed to update stock monitoring action", error);
+      return;
+    }
+
+    try {
+      await refreshMonitoringSuffix(getMonitoringSuffix(item));
+    } catch (error) {
+      console.error("Failed to refresh stock monitoring suffix", error);
+    }
   };
 
   const buildChartUrl = (item: any) => {
@@ -257,27 +427,14 @@ export default function StockMonitoringPage() {
           completedAlphabets.push(alphabet);
           statusByAlphabet[alphabet] = "completed";
 
-          // Merge monitoring data if present
-          if (result?.monitoringResponseDTO?.dataMap) {
-            const dataMap = result.monitoringResponseDTO.dataMap as Record<string, any[]>;
-            setMonitoringMap(prev => {
-              const next = { ...prev };
-              for (const key of Object.keys(dataMap)) {
-                next[key] = [...(next[key] || []), ...dataMap[key]];
-              }
-              return next;
-            });
-          } else if (Array.isArray(result)) {
-            // Attempt to infer group from item shape
-            setMonitoringMap(prev => {
-              const next = { ...prev };
-              for (const item of result) {
-                const key = item?.algoV2 ? "ALGOV2" : "ALGO";
-                next[key] = [...(next[key] || []), item];
-              }
-              return next;
-            });
-          }
+          const normalizedData = normalizeMonitoringResponse(result, alphabet);
+          setMonitoringMap(prev => {
+            const next = { ...prev };
+            for (const key of Object.keys(normalizedData)) {
+              next[key] = [...(next[key] || []), ...normalizedData[key]];
+            }
+            return next;
+          });
 
           setLoadingState(prev => ({
             ...prev,
@@ -365,6 +522,9 @@ export default function StockMonitoringPage() {
             const algoEntryDate = formatDate(getAlgoEntryRaw(item));
             const strykeLabels = getAnalysisLabels(item, "stryke");
             const algoLabels = getAnalysisLabels(item, "algo");
+            const isStarred = getMonitoringActionValue(item, "star");
+            const isW = getMonitoringActionValue(item, "w");
+            const isM = getMonitoringActionValue(item, "m");
 
             const isSelected = selectedItemKey && getItemKey(item) === selectedItemKey;
 
@@ -383,21 +543,74 @@ export default function StockMonitoringPage() {
                 }}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="text-sm font-medium text-slate-700">{item.companyName}</div>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openChart(item);
-                    }}
-                    onKeyDown={(event) => event.stopPropagation()}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
-                    disabled={!item.instrumentKey}
-                    title="Open OHLC chart"
-                    aria-label={`Open OHLC chart for ${item.companyName || "selected stock"}`}
-                  >
-                    <ChartCandlestick className="h-4 w-4" aria-hidden="true" />
-                  </button>
+                  <div className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{item.companyName}</div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleMonitoringAction(item, "star");
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition focus:outline-none focus:ring-2 focus:ring-amber-300 ${
+                        isStarred
+                          ? "border-amber-300 bg-amber-100 text-amber-600"
+                          : "border-slate-200 bg-slate-50 text-slate-500 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600"
+                      }`}
+                      title={isStarred ? "Remove star" : "Star stock"}
+                      aria-label={`${isStarred ? "Remove star from" : "Star"} ${item.companyName || "selected stock"}`}
+                    >
+                      <Star className="h-4 w-4" fill={isStarred ? "currentColor" : "none"} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleMonitoringAction(item, "w");
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-sky-300 ${
+                        isW
+                          ? "border-sky-300 bg-sky-100 text-sky-700"
+                          : "border-slate-200 bg-slate-50 text-slate-500 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                      }`}
+                      title={isW ? "Remove W mark" : "Mark W"}
+                      aria-label={`${isW ? "Remove W mark from" : "Mark W for"} ${item.companyName || "selected stock"}`}
+                    >
+                      W
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleMonitoringAction(item, "m");
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-violet-300 ${
+                        isM
+                          ? "border-violet-300 bg-violet-100 text-violet-700"
+                          : "border-slate-200 bg-slate-50 text-slate-500 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
+                      }`}
+                      title={isM ? "Remove M mark" : "Mark M"}
+                      aria-label={`${isM ? "Remove M mark from" : "Mark M for"} ${item.companyName || "selected stock"}`}
+                    >
+                      M
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openChart(item);
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={!item.instrumentKey}
+                      title="Open OHLC chart"
+                      aria-label={`Open OHLC chart for ${item.companyName || "selected stock"}`}
+                    >
+                      <ChartCandlestick className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-2 space-y-1 text-xs text-slate-500">
                   <div>
