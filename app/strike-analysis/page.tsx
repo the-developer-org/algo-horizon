@@ -3242,7 +3242,9 @@ function StrikeAnalysisContent() {
                               </thead>
                               <tbody>
                                 {group.entries.map((stryke, entryIdx) => {
-                                  if (stryke.didCOCBreak === false) {
+                                  // Stryke entries remain visible even when their COC did not break.
+                                  // Algo and Algo V2 entries continue to show the COC status row.
+                                  if (stryke.label !== 'STRYKE' && stryke.didCOCBreak === false) {
                                     return (
                                       <tr key={`${stryke.uuid}-${entryIdx}`} className="bg-yellow-100 hover:bg-yellow-200 border-l-4 border-yellow-500">
                                         <td className="border border-gray-700 px-4 py-2 text-center align-middle">{entryIdx + 1}</td>
@@ -3712,4 +3714,3 @@ export default function StrikeAnalysisPage() {
     </Suspense>
   );
 }
-
