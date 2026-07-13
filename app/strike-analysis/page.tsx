@@ -111,9 +111,11 @@ function StrikeAnalysisContent() {
     strykeAnalysisList: reduxStrykeAnalysisList,
     algoAnalysisList: reduxAlgoAnalysisList,
     algoV2AnalysisList: reduxAlgoV2AnalysisList,
+    algoV3AnalysisList: reduxAlgoV3AnalysisList,
     strykeMetrics: reduxStrykeMetrics,
     algoMetrics: reduxAlgoMetrics,
     algoV2Metrics: reduxAlgoV2Metrics,
+    algoV3Metrics: reduxAlgoV3Metrics,
     keyMapping: reduxKeyMapping,
     lastFetchedAt,
     isLoading: reduxIsLoading
@@ -130,6 +132,7 @@ function StrikeAnalysisContent() {
   const [strykeMetrics, setStrykeMetrics] = useState<metricsData | null>(reduxStrykeMetrics);
   const [algoMetrics, setAlgoMetrics] = useState<metricsData | null>(reduxAlgoMetrics);
   const [algoV2Metrics, setAlgoV2Metrics] = useState<metricsData | null>(reduxAlgoV2Metrics);
+  const [algoV3Metrics, setAlgoV3Metrics] = useState<metricsData | null>(reduxAlgoV3Metrics);
   // Global blocking loader for long running actions (delete, bulk ops, etc.)
   const [globalLoading, setGlobalLoading] = useState(false);
   const [keyMapping, setKeyMapping] = useState<{ [companyName: string]: string }>(reduxKeyMapping);
@@ -149,6 +152,7 @@ function StrikeAnalysisContent() {
   const [strykeAnalysisList, setStrykeAnalysisList] = useState<AnalysisResponse[]>(reduxStrykeAnalysisList);
   const [algoAnalysisList, setAlgoAnalysisList] = useState<AnalysisResponse[]>(reduxAlgoAnalysisList);
   const [algoV2AnalysisList, setAlgoV2AnalysisList] = useState<AnalysisResponse[]>(reduxAlgoV2AnalysisList);
+  const [algoV3AnalysisList, setAlgoV3AnalysisList] = useState<AnalysisResponse[]>(reduxAlgoV3AnalysisList);
 
   const [filteredAnalysisList, setFilteredAnalysisList] = useState<AnalysisResponse[]>([]);
 
@@ -162,6 +166,7 @@ function StrikeAnalysisContent() {
   const [showAlgoAnalysis, setShowAlgoAnalysis] = useState(() => true);
   const [showStrykeAnalysis, setShowStrykeAnalysis] = useState(() => true);
   const [showAlgoV2Analysis, setShowAlgoV2Analysis] = useState(() => true);
+  const [showAlgoV3Analysis, setShowAlgoV3Analysis] = useState(() => true);
   const [showOldAnalysis, setShowOldAnalysis] = useState(() => true); // Add this new state
   const [showAppAnalysis, setShowAppAnalysis] = useState(() => true); // Add this new state
   const [showDiscordAnalysis, setShowDiscordAnalysis] = useState(() => true); // Add this new state
@@ -216,8 +221,11 @@ function StrikeAnalysisContent() {
     currentAlphabet: null as string | null,
     totalCompanies: 0,
     loadedCompanies: 0,
+    totalAlphabets: 26,
     isComplete: false
   });
+  const [fetchMode, setFetchMode] = useState<'all' | 'selected'>('all');
+  const [selectedFetchAlphabet, setSelectedFetchAlphabet] = useState('A');
 
   // Track if data loading has been attempted to prevent unnecessary retries
   const [dataLoadingAttempted, setDataLoadingAttempted] = useState(false);
@@ -334,15 +342,17 @@ function StrikeAnalysisContent() {
       setStrykeAnalysisList(reduxStrykeAnalysisList);
       setAlgoAnalysisList(reduxAlgoAnalysisList);
       setAlgoV2AnalysisList(reduxAlgoV2AnalysisList);
-      const allAnalysis = [...(reduxAlgoAnalysisList || []), ...(reduxStrykeAnalysisList || []), ...(reduxAlgoV2AnalysisList || [])];
+      setAlgoV3AnalysisList(reduxAlgoV3AnalysisList);
+      const allAnalysis = [...(reduxAlgoAnalysisList || []), ...(reduxStrykeAnalysisList || []), ...(reduxAlgoV2AnalysisList || []), ...(reduxAlgoV3AnalysisList || [])];
       setStrykeList(allAnalysis);
       setFilteredAnalysisList(allAnalysis);
     }
     if (reduxStrykeMetrics) setStrykeMetrics(reduxStrykeMetrics);
     if (reduxAlgoMetrics) setAlgoMetrics(reduxAlgoMetrics);
     if (reduxAlgoV2Metrics) setAlgoV2Metrics(reduxAlgoV2Metrics);
+    if (reduxAlgoV3Metrics) setAlgoV3Metrics(reduxAlgoV3Metrics);
     if (Object.keys(reduxKeyMapping).length > 0) setKeyMapping(reduxKeyMapping);
-  }, [reduxStrykeAnalysisList, reduxAlgoAnalysisList, reduxAlgoV2AnalysisList, reduxStrykeMetrics, reduxAlgoMetrics, reduxAlgoV2Metrics, reduxKeyMapping]);
+  }, [reduxStrykeAnalysisList, reduxAlgoAnalysisList, reduxAlgoV2AnalysisList, reduxAlgoV3AnalysisList, reduxStrykeMetrics, reduxAlgoMetrics, reduxAlgoV2Metrics, reduxAlgoV3Metrics, reduxKeyMapping]);
 
 
   // Update suggestions as user types
@@ -476,8 +486,8 @@ function StrikeAnalysisContent() {
     }
   };
 
-  // Fetch all strykes from API using progressive loading
-  const fetchStrykes = async (forceRefresh = false) => {
+  // Fetch all strykes or one selected alphabet from the API.
+  const fetchStrykes = async (forceRefresh = false, selectedAlphabet?: string) => {
     // Check if we have cached data and it's not a forced refresh
     const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
     const isCacheValid = lastFetchedAt && (Date.now() - lastFetchedAt < CACHE_DURATION);
@@ -487,10 +497,11 @@ function StrikeAnalysisContent() {
       setStrykeAnalysisList(reduxStrykeAnalysisList);
       setAlgoAnalysisList(reduxAlgoAnalysisList);
       setAlgoV2AnalysisList(reduxAlgoV2AnalysisList);
+      setAlgoV3AnalysisList(reduxAlgoV3AnalysisList);
       setKeyMapping(reduxKeyMapping);
 
       // Combine all analysis for display
-      const allCached = [...(reduxAlgoAnalysisList || []), ...(reduxStrykeAnalysisList || []), ...(reduxAlgoV2AnalysisList || [])];
+      const allCached = [...(reduxAlgoAnalysisList || []), ...(reduxStrykeAnalysisList || []), ...(reduxAlgoV2AnalysisList || []), ...(reduxAlgoV3AnalysisList || [])];
       setStrykeList(allCached);
       setFilteredAnalysisList(allCached);
       
@@ -508,8 +519,9 @@ function StrikeAnalysisContent() {
     // Mark that data loading has been attempted
     setDataLoadingAttempted(true);
 
-    // QWERTY order for progressive loading
-    const alphabetOrder = ['Q', 'W','E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'];
+    // QWERTY order for progressive loading, or only the requested alphabet.
+    const allAlphabets = ['Q', 'W','E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'];
+    const alphabetOrder = selectedAlphabet ? [selectedAlphabet] : allAlphabets;
 
     dispatch(setLoading(true));
     setProgressiveLoading(true);
@@ -518,6 +530,7 @@ function StrikeAnalysisContent() {
     setStrykeAnalysisList([]);
     setAlgoAnalysisList([]);
     setAlgoV2AnalysisList([]);
+    setAlgoV3AnalysisList([]);
     setFilteredAnalysisList([]);
 
     // Initialize progress
@@ -526,6 +539,7 @@ function StrikeAnalysisContent() {
       currentAlphabet: null,
       totalCompanies: 0,
       loadedCompanies: 0,
+      totalAlphabets: alphabetOrder.length,
       isComplete: false
     });
 
@@ -534,6 +548,7 @@ function StrikeAnalysisContent() {
     let allAlgoAnalysis: AnalysisResponse[] = [];
     let allStrykeAnalysis: AnalysisResponse[] = [];
     let allAlgoV2Analysis: AnalysisResponse[] = [];
+    let allAlgoV3Analysis: AnalysisResponse[] = [];
     let completedAlphabets: string[] = [];
     let consecutiveFailures = 0;
     const maxConsecutiveFailures = 5; // Stop if 5 consecutive alphabets fail
@@ -565,14 +580,16 @@ function StrikeAnalysisContent() {
               const algoAnalysis: AnalysisResponse[] = data.swingStatsList["ALGO"] || [];
               const strykeAnalysis: AnalysisResponse[] = data.swingStatsList["STRYKE"] || [];
               const algoV2Analysis: AnalysisResponse[] = data.swingStatsList["ALGOV2"] || [];
+              const algoV3Analysis: AnalysisResponse[] = data.swingStatsList["ALGOV3"] || [];
 
               // Accumulate data for Redux
               allAlgoAnalysis = [...allAlgoAnalysis, ...algoAnalysis];
               allStrykeAnalysis = [...allStrykeAnalysis, ...strykeAnalysis];
               allAlgoV2Analysis = [...allAlgoV2Analysis, ...algoV2Analysis];
+              allAlgoV3Analysis = [...allAlgoV3Analysis, ...algoV3Analysis];
 
               // Build key mapping
-              [...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis].forEach(item => {
+              [...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis, ...algoV3Analysis].forEach(item => {
                 if (item.companyName && item.instrumentKey) {
                   newKeyMapping[item.companyName] = item.instrumentKey;
                 }
@@ -581,15 +598,16 @@ function StrikeAnalysisContent() {
               setAlgoAnalysisList((prev) => [...prev, ...algoAnalysis]);
               setStrykeAnalysisList((prev) => [...prev, ...strykeAnalysis]);
               setAlgoV2AnalysisList((prev) => [...prev, ...algoV2Analysis]);
+              setAlgoV3AnalysisList((prev) => [...prev, ...algoV3Analysis]);
 
               // Add to accumulated data
-              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis];
+              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis, ...algoV3Analysis];
 
               // Update the UI immediately with new data
               setStrykeList(allStrykes);
 
               // Update filtered lists with the new combined data
-              const combinedAnalysis = [...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis];
+              const combinedAnalysis = [...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis, ...algoV3Analysis];
               setFilteredAnalysisList((prev) => [...prev, ...combinedAnalysis]);
 
               //console.log(`Loaded ${allStrykes.length} companies from alphabet ${alphabet}`);
@@ -639,6 +657,7 @@ function StrikeAnalysisContent() {
         strykeAnalysisList: allStrykeAnalysis,
         algoAnalysisList: allAlgoAnalysis,
         algoV2AnalysisList: allAlgoV2Analysis,
+        algoV3AnalysisList: allAlgoV3Analysis,
         keyMapping: newKeyMapping
       }));
       
@@ -829,13 +848,6 @@ function StrikeAnalysisContent() {
     }
   }, [showAllStrykes, strykeList.length, progressiveLoading, dataLoadingAttempted]);
 
-  useEffect(() => {
-    // Auto-fetch data when showing swing stats if Redux cache is empty
-    if (showSwingStats && reduxStrykeAnalysisList.length === 0 && !progressiveLoading && !dataLoadingAttempted) {
-      fetchStrykes();
-    }
-  }, [showSwingStats, reduxStrykeAnalysisList.length, progressiveLoading, dataLoadingAttempted]);
-
   // Close chart dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -947,18 +959,20 @@ function StrikeAnalysisContent() {
       setStrykeMetrics(null);
       setAlgoMetrics(null);
       setAlgoV2Metrics(null);
+      setAlgoV3Metrics(null);
     }
   }, [filteredAnalysisList, showMetrics]);
 
   // Apply all active filters to create the filtered list
   useEffect(() => {
-    let filtered = [...strykeAnalysisList, ...algoAnalysisList, ...algoV2AnalysisList];
+    let filtered = [...strykeAnalysisList, ...algoAnalysisList, ...algoV2AnalysisList, ...algoV3AnalysisList];
 
-    // Filter by analysis type (ALGO, STRYKE, ALGOV2)
+    // Filter by analysis type (ALGO, STRYKE, ALGOV2, ALGOV3)
     const enabledTypes: string[] = [];
     if (showAlgoAnalysis) enabledTypes.push('ALGO');
     if (showStrykeAnalysis) enabledTypes.push('STRYKE');
     if (showAlgoV2Analysis) enabledTypes.push('ALGOV2');
+    if (showAlgoV3Analysis) enabledTypes.push('ALGOV3');
     
     if (enabledTypes.length > 0) {
       filtered = filtered.filter(item => enabledTypes.includes(item.label));
@@ -986,16 +1000,18 @@ function StrikeAnalysisContent() {
     strykeAnalysisList, 
     algoAnalysisList, 
     algoV2AnalysisList,
+    algoV3AnalysisList,
     showAlgoAnalysis,
     showStrykeAnalysis,
     showAlgoV2Analysis,
+    showAlgoV3Analysis,
     showOldAnalysis,
     showAppAnalysis,
     showDiscordAnalysis, 
     showt2Analysis,
   ]);
 
-  // Group swing stats entries by UUID (each UUID can have max 3 entries: ALGO, STRYKE, ALGOV2)
+  // Group swing stats entries by UUID (one entry per analysis type)
   const groupedByUUID = React.useMemo(() => {
     const groups = new Map<string, {
       companyName: string;
@@ -1021,8 +1037,8 @@ function StrikeAnalysisContent() {
       }
     });
     
-    // Sort entries within each group: STRYKE, ALGO, ALGOV2
-    const analysisOrder = { 'STRYKE': 1, 'ALGO': 2, 'ALGOV2': 3 };
+    // Sort entries within each group: STRYKE, ALGO, ALGOV2, ALGOV3
+    const analysisOrder = { 'STRYKE': 1, 'ALGO': 2, 'ALGOV2': 3, 'ALGOV3': 4 };
     groups.forEach(group => {
       group.entries.sort((a, b) => {
         const orderA = analysisOrder[a.label as keyof typeof analysisOrder] || 999;
@@ -1361,15 +1377,19 @@ function StrikeAnalysisContent() {
     const algoV2MetricsData = calculateAnalysisMetrics((stryke) => filteredAnalysisList);
     setAlgoV2Metrics(algoV2MetricsData);
 
+    const algoV3MetricsData = calculateAnalysisMetrics((stryke) => filteredAnalysisList);
+    setAlgoV3Metrics(algoV3MetricsData);
+
     // Save metrics to Redux
     dispatch(setMetrics({
       strykeMetrics: strykeMetricsData,
       algoMetrics: algoMetricsData,
-      algoV2Metrics: algoV2MetricsData
+      algoV2Metrics: algoV2MetricsData,
+      algoV3Metrics: algoV3MetricsData
     }));
 
     if (!suppressToast) {
-      toast.success('Metrics calculated successfully for Stryke, Algo, and AlgoV2 analysis');
+      toast.success('Metrics calculated successfully for Stryke, Algo, AlgoV2, and AlgoV3 analysis');
     }
   }
 
@@ -1406,7 +1426,7 @@ function StrikeAnalysisContent() {
                   <div
                     className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-300 ease-out"
                     style={{
-                      width: `${(loadingProgress.completedAlphabets.length / 26) * 100}%`
+                      width: `${(loadingProgress.completedAlphabets.length / loadingProgress.totalAlphabets) * 100}%`
                     }}
                   ></div>
                 </div>
@@ -1434,10 +1454,10 @@ function StrikeAnalysisContent() {
                     <span>Loading alphabet <strong>{loadingProgress.currentAlphabet}</strong>...</span>
                   )}
                   {loadingProgress.isComplete && (
-                    <span className="text-green-600 font-medium">✓ All alphabets loaded successfully!</span>
+                    <span className="text-green-600 font-medium">✓ Requested data loaded successfully!</span>
                   )}
                   <span className="ml-2">
-                    ({loadingProgress.completedAlphabets.length}/26 alphabets completed)
+                    ({loadingProgress.completedAlphabets.length}/{loadingProgress.totalAlphabets} alphabet{loadingProgress.totalAlphabets === 1 ? '' : 's'} completed)
                   </span>
                 </div>
               </div>
@@ -1478,17 +1498,46 @@ function StrikeAnalysisContent() {
                 )} */}
 
 
+                <select
+                  value={fetchMode}
+                  onChange={(event) => setFetchMode(event.target.value as 'all' | 'selected')}
+                  disabled={progressiveLoading}
+                  className="border border-gray-300 rounded-md px-3 py-1.5 text-sm disabled:bg-gray-100"
+                  aria-label="Swing Stats fetch mode"
+                >
+                  <option value="all">Fetch all alphabets</option>
+                  <option value="selected">Fetch selected alphabet</option>
+                </select>
+
+                {fetchMode === 'selected' && (
+                  <select
+                    value={selectedFetchAlphabet}
+                    onChange={(event) => setSelectedFetchAlphabet(event.target.value)}
+                    disabled={progressiveLoading}
+                    className="border border-gray-300 rounded-md px-3 py-1.5 text-sm disabled:bg-gray-100"
+                    aria-label="Alphabet to fetch"
+                  >
+                    {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((letter) => (
+                      <option key={letter} value={letter}>{letter}</option>
+                    ))}
+                  </select>
+                )}
+
                 <Button
                   onClick={() => {
-                    setDataLoadingAttempted(false); // Reset the flag to allow fresh loading
-                    fetchStrykes(true); // Force refresh
+                    setDataLoadingAttempted(false);
+                    fetchStrykes(true, fetchMode === 'selected' ? selectedFetchAlphabet : undefined);
                   }}
                   className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition ${progressiveLoading ? 'bg-gray-400 cursor-not-allowed' : ''
                     }`}
                   disabled={progressiveLoading}
-                  title="Force refresh data from API (cache will be updated)"
+                  title="Fetch Swing Stats data from the API"
                 >
-                  {progressiveLoading ? 'Loading...' : lastFetchedAt ? 'Refresh Data' : 'Load Data'}
+                  {progressiveLoading
+                    ? 'Loading...'
+                    : fetchMode === 'selected'
+                      ? `Fetch ${selectedFetchAlphabet}`
+                      : lastFetchedAt ? 'Refresh All Data' : 'Fetch All Alphabets'}
                 </Button>
 
 
@@ -1818,6 +1867,7 @@ function StrikeAnalysisContent() {
                       setShowAlgoAnalysis(true)
                       setShowStrykeAnalysis(true)
                       setShowAlgoV2Analysis(true)
+                      setShowAlgoV3Analysis(true)
                       setShowOldAnalysis(true)   // Reset OLD toggle
                       setShowAppAnalysis(true)   // Reset APP toggle
                       setShowDiscordAnalysis(true) 
@@ -1911,6 +1961,18 @@ function StrikeAnalysisContent() {
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
                         >
                           Hide AlgoV2 Analysis
+                        </Button>
+                      )}
+
+                      {!showAlgoV3Analysis && (
+                        <Button onClick={() => setShowAlgoV3Analysis(true)} className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white px-3 py-1.5 text-sm rounded-md transition">
+                          Show AlgoV3 Analysis
+                        </Button>
+                      )}
+
+                      {showAlgoV3Analysis && (
+                        <Button onClick={() => setShowAlgoV3Analysis(false)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition">
+                          Hide AlgoV3 Analysis
                         </Button>
                       )}
 
@@ -2343,6 +2405,7 @@ function StrikeAnalysisContent() {
                                     const strykeDates: string[] = [];
                                     const algoDates: string[] = [];
                                     const algoV2Dates: string[] = [];
+                                    const algoV3Dates: string[] = [];
 
                                     group.entries.forEach(entry => {
                                       if (entry.entryTime) {
@@ -2358,6 +2421,8 @@ function StrikeAnalysisContent() {
                                           algoDates.push(entryDate);
                                         } else if (entry.label === 'ALGOV2') {
                                           algoV2Dates.push(entryDate);
+                                        } else if (entry.label === 'ALGOV3') {
+                                          algoV3Dates.push(entryDate);
                                         }
                                       }
                                     });
@@ -2374,6 +2439,10 @@ function StrikeAnalysisContent() {
 
                                     if (algoV2Dates.length > 0) {
                                       chartUrl += `&algoV2Date=${encodeURIComponent(algoV2Dates.join(','))}`;
+                                    }
+
+                                    if (algoV3Dates.length > 0) {
+                                      chartUrl += `&algoV3Date=${encodeURIComponent(algoV3Dates.join(','))}`;
                                     }
                                     
                                     window.open(chartUrl, '_blank');
@@ -3256,11 +3325,13 @@ function StrikeAnalysisContent() {
                                                 stryke.label === "STRYKE" ? 'bg-green-100 text-green-600' :
                                                 stryke.label === "ALGO" ? 'bg-blue-100 text-blue-600' :
                                                 stryke.label === "ALGOV2" ? 'bg-purple-100 text-purple-600' :
+                                                stryke.label === "ALGOV3" ? 'bg-fuchsia-100 text-fuchsia-600' :
                                                 'bg-gray-100 text-gray-600'
                                               }`}>{
                                                 stryke.label === "STRYKE" ? "Stryke" :
                                                 stryke.label === "ALGO" ? "Algo" :
                                                 stryke.label === "ALGOV2" ? "AlgoV2" :
+                                                stryke.label === "ALGOV3" ? "AlgoV3" :
                                                 "Unknown"
                                               }</span>
                                               {stryke.strykeType && (
@@ -3289,6 +3360,7 @@ function StrikeAnalysisContent() {
                                         stryke.label === "STRYKE" ? 'bg-green-100 hover:bg-green-200 border-l-4 border-green-500' :
                                         stryke.label === "ALGO" ? 'bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500' :
                                         stryke.label === "ALGOV2" ? 'bg-purple-100 hover:bg-purple-200 border-l-4 border-purple-500' :
+                                        stryke.label === "ALGOV3" ? 'bg-fuchsia-100 hover:bg-fuchsia-200 border-l-4 border-fuchsia-500' :
                                         'bg-gray-100 hover:bg-gray-200 border-l-4 border-gray-500'
                                       }`}>
                                         <td className="border border-gray-700 px-4 py-2 text-center align-middle">{entryIdx + 1}</td>
@@ -3300,11 +3372,13 @@ function StrikeAnalysisContent() {
                                                 stryke.label === "STRYKE" ? 'bg-green-100 text-green-600' :
                                                 stryke.label === "ALGO" ? 'bg-blue-100 text-blue-600' :
                                                 stryke.label === "ALGOV2" ? 'bg-purple-100 text-purple-600' :
+                                                stryke.label === "ALGOV3" ? 'bg-fuchsia-100 text-fuchsia-600' :
                                                 'bg-gray-100 text-gray-600'
                                               }`}>{
                                                 stryke.label === "STRYKE" ? "Stryke" :
                                                 stryke.label === "ALGO" ? "Algo" :
                                                 stryke.label === "ALGOV2" ? "AlgoV2" :
+                                                stryke.label === "ALGOV3" ? "AlgoV3" :
                                                 "Unknown"
                                               }</span>
                                               {stryke.strykeType && (

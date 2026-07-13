@@ -27,6 +27,7 @@ export default function DeepDivePage() {
   const [showStryke, setShowStryke] = useState(true);
   const [showAlgo, setShowAlgo] = useState(true);
   const [showAlgoV2, setShowAlgoV2] = useState(true);
+  const [showAlgoV3, setShowAlgoV3] = useState(true);
   
   // Search state for company name
   const [companySearch, setCompanySearch] = useState('');
@@ -205,6 +206,7 @@ export default function DeepDivePage() {
     strykeAnalysisList: reduxStrykeAnalysisList,
     algoAnalysisList: reduxAlgoAnalysisList,
     algoV2AnalysisList: reduxAlgoV2AnalysisList,
+    algoV3AnalysisList: reduxAlgoV3AnalysisList,
     lastFetchedAt,
     isLoading: reduxIsLoading
   } = useAppSelector((state) => state.analysis);
@@ -222,7 +224,7 @@ export default function DeepDivePage() {
   // Load data from Redux cache on mount or fetch if empty
   useEffect(() => {
     if (reduxStrykeAnalysisList.length > 0) {
-      const allAnalysis = [...reduxAlgoAnalysisList, ...reduxStrykeAnalysisList, ...reduxAlgoV2AnalysisList];
+      const allAnalysis = [...reduxAlgoAnalysisList, ...reduxStrykeAnalysisList, ...reduxAlgoV2AnalysisList, ...reduxAlgoV3AnalysisList];
       setDeepDiveData(allAnalysis);
     } else {
       // Auto-fetch data on first load if cache is empty
@@ -238,7 +240,7 @@ export default function DeepDivePage() {
     const isCacheValid = lastFetchedAt && (Date.now() - lastFetchedAt < CACHE_DURATION);
     
     if (!forceRefresh && isCacheValid && reduxStrykeAnalysisList.length > 0) {
-      const allCached = [...reduxAlgoAnalysisList, ...reduxStrykeAnalysisList, ...reduxAlgoV2AnalysisList];
+      const allCached = [...reduxAlgoAnalysisList, ...reduxStrykeAnalysisList, ...reduxAlgoV2AnalysisList, ...reduxAlgoV3AnalysisList];
       setDeepDiveData(allCached);
       toast.success(`Loaded ${allCached.length} companies from cache`);
       return;
@@ -268,6 +270,7 @@ export default function DeepDivePage() {
     let allAlgoAnalysis: AnalysisResponse[] = [];
     let allStrykeAnalysis: AnalysisResponse[] = [];
     let allAlgoV2Analysis: AnalysisResponse[] = [];
+    let allAlgoV3Analysis: AnalysisResponse[] = [];
     let completedAlphabets: string[] = [];
     let consecutiveFailures = 0;
     const maxConsecutiveFailures = 5;
@@ -292,12 +295,14 @@ export default function DeepDivePage() {
               const algoAnalysis: AnalysisResponse[] = data.swingStatsList["ALGO"] || [];
               const strykeAnalysis: AnalysisResponse[] = data.swingStatsList["STRYKE"] || [];
               const algoV2Analysis: AnalysisResponse[] = data.swingStatsList["ALGOV2"] || [];
+              const algoV3Analysis: AnalysisResponse[] = data.swingStatsList["ALGOV3"] || [];
 
               allAlgoAnalysis = [...allAlgoAnalysis, ...algoAnalysis];
               allStrykeAnalysis = [...allStrykeAnalysis, ...strykeAnalysis];
               allAlgoV2Analysis = [...allAlgoV2Analysis, ...algoV2Analysis];
+              allAlgoV3Analysis = [...allAlgoV3Analysis, ...algoV3Analysis];
 
-              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis];
+              allStrykes = [...allStrykes, ...algoAnalysis, ...strykeAnalysis, ...algoV2Analysis, ...algoV3Analysis];
               setDeepDiveData(allStrykes);
 
               consecutiveFailures = 0;
@@ -337,6 +342,7 @@ export default function DeepDivePage() {
         strykeAnalysisList: allStrykeAnalysis,
         algoAnalysisList: allAlgoAnalysis,
         algoV2AnalysisList: allAlgoV2Analysis,
+        algoV3AnalysisList: allAlgoV3Analysis,
         keyMapping: {}
       }));
 
@@ -411,12 +417,13 @@ export default function DeepDivePage() {
       if (item.label === 'STRYKE' && !showStryke) return false;
       if (item.label === 'ALGO' && !showAlgo) return false;
       if (item.label === 'ALGOV2' && !showAlgoV2) return false;
+      if (item.label === 'ALGOV3' && !showAlgoV3) return false;
       
       return true;
     });
-  }, [deepDiveMode, deepDiveData, filterLabelCombo, selectedMonth, filterSupportNotTouched, filterHHBreak, showStryke, showAlgo, showAlgoV2]);
+  }, [deepDiveMode, deepDiveData, filterLabelCombo, selectedMonth, filterSupportNotTouched, filterHHBreak, showStryke, showAlgo, showAlgoV2, showAlgoV3]);
 
-  // Group deep dive entries by UUID (each UUID can have max 3 entries: ALGO, STRYKE, ALGOV2)
+  // Group deep dive entries by UUID (one entry per analysis type)
   const groupedByUUID = React.useMemo(() => {
     const groups = new Map<string, {
       companyName: string;
@@ -442,8 +449,8 @@ export default function DeepDivePage() {
       }
     });
     
-    // Sort entries within each group: STRYKE, ALGO, ALGOV2
-    const analysisOrder = { 'STRYKE': 1, 'ALGO': 2, 'ALGOV2': 3 };
+    // Sort entries within each group: STRYKE, ALGO, ALGOV2, ALGOV3
+    const analysisOrder = { 'STRYKE': 1, 'ALGO': 2, 'ALGOV2': 3, 'ALGOV3': 4 };
     groups.forEach(group => {
       group.entries.sort((a, b) => {
         const orderA = analysisOrder[a.label as keyof typeof analysisOrder] || 999;
@@ -782,6 +789,17 @@ export default function DeepDivePage() {
             >
               {showAlgoV2 ? '✓ ALGOV2' : 'ALGOV2'}
             </button>
+            <button
+              onClick={() => setShowAlgoV3(!showAlgoV3)}
+              className={`px-3 py-1 rounded-md text-white transition-colors ${
+                showAlgoV3
+                  ? 'bg-fuchsia-600 hover:bg-fuchsia-700'
+                  : 'bg-gray-400 hover:bg-gray-500'
+              }`}
+              title="Toggle ALGOV3 entries"
+            >
+              {showAlgoV3 ? '✓ ALGOV3' : 'ALGOV3'}
+            </button>
           </div>
 
           {/* Company Search */}
@@ -845,6 +863,16 @@ export default function DeepDivePage() {
               }).length;
               const algoV2BreakCount = algoV2Entries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
               return ` | ALGOV2: ${algoV2PassingCount}/${algoV2Entries.length} | HH BREAK: ${algoV2BreakCount}`;
+            })()}
+            {showAlgoV3 && (() => {
+              const algoV3Entries = deepDiveList.filter(item => item.label === '');
+              const algoV3PassingCount = algoV3Entries.filter(item => {
+                const dd = item.analysisDeepDive;
+                const isOneOne = deepDiveMode === 'RR_1_1';
+                return isOneOne ? dd?.prelude1 && dd?.passing1 : dd?.prelude2 && dd?.passing2;
+              }).length;
+              const algoV3BreakCount = algoV3Entries.filter(item => item.analysisDeepDive?.hhBreakOut === true).length;
+              return ` | ALGOV3: ${algoV3PassingCount}/${algoV3Entries.length} | HH BREAK: ${algoV3BreakCount}`;
             })()}
           </span>
         </div>

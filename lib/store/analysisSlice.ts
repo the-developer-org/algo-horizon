@@ -5,9 +5,11 @@ export interface AnalysisState {
   strykeAnalysisList: AnalysisResponse[];
   algoAnalysisList: AnalysisResponse[];
   algoV2AnalysisList: AnalysisResponse[];
+  algoV3AnalysisList: AnalysisResponse[];
   strykeMetrics: metricsData | null;
   algoMetrics: metricsData | null;
   algoV2Metrics: metricsData | null;
+  algoV3Metrics: metricsData | null;
   keyMapping: { [companyName: string]: string };
   lastFetchedAt: number | null;
   isLoading: boolean;
@@ -17,9 +19,11 @@ const initialState: AnalysisState = {
   strykeAnalysisList: [],
   algoAnalysisList: [],
   algoV2AnalysisList: [],
+  algoV3AnalysisList: [],
   strykeMetrics: null,
   algoMetrics: null,
   algoV2Metrics: null,
+  algoV3Metrics: null,
   keyMapping: {},
   lastFetchedAt: null,
   isLoading: false,
@@ -36,11 +40,13 @@ const analysisSlice = createSlice({
       strykeAnalysisList: AnalysisResponse[];
       algoAnalysisList: AnalysisResponse[];
       algoV2AnalysisList: AnalysisResponse[];
+      algoV3AnalysisList: AnalysisResponse[];
       keyMapping: { [companyName: string]: string };
     }>) => {
       state.strykeAnalysisList = action.payload.strykeAnalysisList;
       state.algoAnalysisList = action.payload.algoAnalysisList;
       state.algoV2AnalysisList = action.payload.algoV2AnalysisList;
+      state.algoV3AnalysisList = action.payload.algoV3AnalysisList;
       state.keyMapping = action.payload.keyMapping;
       state.lastFetchedAt = Date.now();
       state.isLoading = false;
@@ -49,10 +55,12 @@ const analysisSlice = createSlice({
       strykeMetrics: metricsData | null;
       algoMetrics: metricsData | null;
       algoV2Metrics: metricsData | null;
+      algoV3Metrics: metricsData | null;
     }>) => {
       state.strykeMetrics = action.payload.strykeMetrics;
       state.algoMetrics = action.payload.algoMetrics;
       state.algoV2Metrics = action.payload.algoV2Metrics;
+      state.algoV3Metrics = action.payload.algoV3Metrics;
     },
     clearAnalysisCache: (state) => {
       return initialState;
