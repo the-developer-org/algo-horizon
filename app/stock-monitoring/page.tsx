@@ -2,6 +2,7 @@
 
 import { ChartCandlestick, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 
 const ALPHABET_ORDER = [
   "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
@@ -12,6 +13,7 @@ type AlphabetStatus = "pending" | "loading" | "completed" | "failed";
 type SortOption = "nameAsc" | "nameDesc" | "strykeEntryAsc" | "strykeEntryDesc" | "alphabet";
 type AnalysisKind = "stryke" | "algo";
 type MonitoringAction = "star" | "w" | "m";
+type MonitoringFilter = "all" | MonitoringAction;
 
 type LoadingState = {
   completedAlphabets: string[];
@@ -35,8 +37,10 @@ export default function StockMonitoringPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [monitoringMap, setMonitoringMap] = useState<Record<string, any[]>>({});
   const [activeTab, setActiveTab] = useState<string>("ALGO");
+  const [activeFilter, setActiveFilter] = useState<MonitoringFilter>("all");
   const [sortBy, setSortBy] = useState<SortOption>("nameAsc");
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [copiedStrykeId, setCopiedStrykeId] = useState<string | null>(null);
 
   const completedCount = loadingState.completedAlphabets.length;
   const progressPercent = Math.round((completedCount / ALPHABET_ORDER.length) * 100);
@@ -127,6 +131,24 @@ export default function StockMonitoringPage() {
     const id = item?.id
 
     return id ? String(id) : "";
+  };
+
+  const handleCopyStrykeId = async (item: any) => {
+    const strykeId = getMonitoringStrykeId(item);
+
+    if (!strykeId) {
+      toast.error("Stryke ID not available");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(strykeId);
+      setCopiedStrykeId(strykeId);
+      toast.success("Stryke ID copied");
+    } catch (error) {
+      console.error("Failed to copy Stryke ID:", error);
+      toast.error("Failed to copy Stryke ID");
+    }
   };
 
   const getMonitoringSuffix = (item: any) => {
@@ -487,8 +509,22 @@ export default function StockMonitoringPage() {
     [loadingState.statusByAlphabet]
   );
 
+  const activeMonitoringItems = monitoringMap[activeTab] || [];
+  const filteredMonitoringItems = useMemo(() => {
+    if (activeFilter === "all") return activeMonitoringItems;
+
+    return activeMonitoringItems.filter(item => getMonitoringActionValue(item, activeFilter));
+  }, [activeFilter, activeMonitoringItems, activeTab]);
+
+  const monitoringFilterTabs: { value: MonitoringFilter; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "star", label: "Star" },
+    { value: "w", label: "W" },
+    { value: "m", label: "M" },
+  ];
+
   const renderMonitoringRows = () => {
-    const items = (monitoringMap[activeTab] || []).slice();
+    const items = filteredMonitoringItems.slice();
     const showAlgoDetails = activeTab === "ALGOV2";
 
     items.sort((a: any, b: any) => {
@@ -525,6 +561,7 @@ export default function StockMonitoringPage() {
             const isStarred = getMonitoringActionValue(item, "star");
             const isW = getMonitoringActionValue(item, "w");
             const isM = getMonitoringActionValue(item, "m");
+            const strykeId = getMonitoringStrykeId(item);
 
             const isSelected = selectedItemKey && getItemKey(item) === selectedItemKey;
 
@@ -545,6 +582,20 @@ export default function StockMonitoringPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{item.companyName}</div>
                   <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleCopyStrykeId(item);
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      className="rounded-md bg-gray-100 px-2 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={!strykeId}
+                      title="Copy Stryke ID"
+                      aria-label={`Copy Stryke ID for ${item.companyName || "selected stock"}`}
+                    >
+                      {copiedStrykeId === strykeId ? "Copied" : "Copy ID"}
+                    </button>
                     <button
                       type="button"
                       onClick={(event) => {
@@ -805,14 +856,20 @@ export default function StockMonitoringPage() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setActiveTab("ALGO")}
+                onClick={() => {
+                  setActiveTab("ALGO");
+                  setSelectedItem(null);
+                }}
                 className={`px-3 py-1 rounded flex items-center gap-2 ${activeTab === "ALGO" ? "bg-emerald-500 text-white" : "bg-white text-slate-700 border"}`}
               >
                 <span>ALGO</span>
                 <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700">{(monitoringMap['ALGO'] || []).length}</span>
               </button>
               <button
-                onClick={() => setActiveTab("ALGOV2")}
+                onClick={() => {
+                  setActiveTab("ALGOV2");
+                  setSelectedItem(null);
+                }}
                 className={`px-3 py-1 rounded flex items-center gap-2 ${activeTab === "ALGOV2" ? "bg-emerald-500 text-white" : "bg-white text-slate-700 border"}`}
               >
                 <span>ALGOV2</span>
@@ -831,12 +888,45 @@ export default function StockMonitoringPage() {
               </div>
             </div>
 
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-4">
+              <span className="text-xs font-medium text-slate-600">Show:</span>
+              {monitoringFilterTabs.map(({ value, label }) => {
+                const count = value === "all"
+                  ? activeMonitoringItems.length
+                  : activeMonitoringItems.filter(item => getMonitoringActionValue(item, value)).length;
+
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setActiveFilter(value);
+                      setSelectedItem(null);
+                    }}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium transition ${
+                      activeFilter === value
+                        ? "border-emerald-500 bg-emerald-500 text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50"
+                    }`}
+                    aria-pressed={activeFilter === value}
+                  >
+                    {label}
+                    <span className={`rounded-full px-1.5 py-0.5 text-xs ${activeFilter === value ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="mt-4">
               <div className="space-y-4">
                 {renderMonitoringRows()}
               </div>
-              {(!monitoringMap[activeTab] || monitoringMap[activeTab].length === 0) && (
-                <p className="mt-3 text-sm text-slate-500">No data for {activeTab}</p>
+              {filteredMonitoringItems.length === 0 && (
+                <p className="mt-3 text-sm text-slate-500">
+                  No {activeFilter === "all" ? "data" : `${activeFilter.toUpperCase()}-marked stocks`} for {activeTab}
+                </p>
               )}
             </div>
           </div>
