@@ -477,6 +477,17 @@ export default function DeepDivePage() {
     return result;
   }, [deepDiveList, companySearch]);
 
+  const getAnalysisStatus = (uuid: string, label: 'STRYKE' | 'ALGO' | 'ALGOV2' | 'ALGOV3') => {
+    const entry = deepDiveData.find(item => item.uuid === uuid && item.label === label);
+    const analysis = entry?.analysisDeepDive;
+    const isOneOne = deepDiveMode === 'RR_1_1';
+    const prelude = isOneOne ? analysis?.prelude1 : analysis?.prelude2;
+    const passing = isOneOne ? analysis?.passing1 : analysis?.passing2;
+
+    if (!analysis || prelude == null || passing == null) return 'no-data';
+    return prelude && passing ? 'pass' : 'fail';
+  };
+
   // Export Deep Dive data to Excel
   const exportDeepDiveToExcel = async () => {
     const rows = buildDeepDiveRowsForExcel();
@@ -865,7 +876,7 @@ export default function DeepDivePage() {
               return ` | ALGOV2: ${algoV2PassingCount}/${algoV2Entries.length} | HH BREAK: ${algoV2BreakCount}`;
             })()}
             {showAlgoV3 && (() => {
-              const algoV3Entries = deepDiveList.filter(item => item.label === '');
+              const algoV3Entries = deepDiveList.filter(item => item.label === 'ALGOV3');
               const algoV3PassingCount = algoV3Entries.filter(item => {
                 const dd = item.analysisDeepDive;
                 const isOneOne = deepDiveMode === 'RR_1_1';
@@ -907,6 +918,39 @@ export default function DeepDivePage() {
                       >
                         📊
                       </button>
+                    </div>
+                    <div
+                      className="flex shrink-0 items-center gap-1 rounded-full border border-slate-700 bg-slate-950 p-1 shadow-[0_4px_14px_rgba(15,23,42,0.25)]"
+                      aria-label="Deep Dive analysis status"
+                    >
+                        {([
+                          { label: 'STRYKE', shortLabel: 'S' },
+                          { label: 'ALGO', shortLabel: 'A' },
+                          { label: 'ALGOV2', shortLabel: 'V2' },
+                          { label: 'ALGOV3', shortLabel: 'V3' },
+                        ] as const).map(({ label, shortLabel }) => {
+                          const status = getAnalysisStatus(group.uuid, label);
+                          const statusClass = status === 'pass'
+                            ? 'border-emerald-200/80 bg-gradient-to-br from-emerald-300 via-emerald-500 to-cyan-700 text-white shadow-[0_0_12px_rgba(16,185,129,0.8)]'
+                            : status === 'fail'
+                            ? 'border-rose-200/80 bg-gradient-to-br from-rose-300 via-rose-500 to-orange-700 text-white shadow-[0_0_12px_rgba(244,63,94,0.7)]'
+                            : 'border-slate-500 bg-gradient-to-br from-slate-500 via-slate-600 to-slate-800 text-slate-200 shadow-inner';
+                          const statusText = status === 'pass'
+                            ? 'Prelude and Passing: Yes'
+                            : status === 'fail'
+                            ? 'Prelude or Passing: No'
+                            : 'No data';
+
+                          return (
+                            <span
+                              key={label}
+                              className={`inline-flex h-7 min-w-8 items-center justify-center rounded-full border px-1.5 text-[11px] font-bold leading-none transition-transform hover:scale-110 ${statusClass}`}
+                              title={`${label}: ${statusText}`}
+                            >
+                              {shortLabel}
+                            </span>
+                          );
+                        })}
                     </div>
                   </div>
                   
@@ -973,6 +1017,7 @@ export default function DeepDivePage() {
                                 <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                                   item.label === 'ALGO' ? 'bg-indigo-100 text-indigo-700' :
                                   item.label === 'STRYKE' ? 'bg-purple-100 text-purple-700' :
+                                  item.label === 'ALGOV3' ? 'bg-fuchsia-100 text-fuchsia-700' :
                                   'bg-cyan-100 text-cyan-700'
                                 }`}>
                                   {item.label}
