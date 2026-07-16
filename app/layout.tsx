@@ -38,8 +38,8 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   useEffect(() => {
     const checkAuth = () => {
       try {
-        const isAuthorised = localStorage.getItem('isUserAuthorised');
-        const currentUser = localStorage.getItem('currentUser');
+        const isAuthorised = sessionStorage.getItem('isUserAuthorised');
+        const currentUser = sessionStorage.getItem('currentUser');
 
         // Allow access to auth page without authentication
         if (isAuthPage) {

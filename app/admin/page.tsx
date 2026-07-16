@@ -13,7 +13,7 @@ export default function AdminPage() {
   useEffect(() => {
     // Check if user is authenticated and has admin privileges
     const isAuthorized = sessionStorage.getItem('isUserAuthorised');
-    const currentUser = localStorage.getItem('currentUser');
+    const currentUser = sessionStorage.getItem('currentUser');
     
     if (isAuthorized !== 'true') {
       router.replace('/auth');

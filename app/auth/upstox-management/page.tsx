@@ -9,7 +9,6 @@ export default function UpstoxUserManagementPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [env, setEnv] = useState<'prod' | 'sandbox'>('prod');
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -29,25 +28,12 @@ export default function UpstoxUserManagementPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
         <h1 className="text-2xl font-semibold">Upstox Connection's Management</h1>
-        <div className="flex items-center gap-3 bg-muted/40 rounded-md px-3 py-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Environment</span>
-          <div className="flex items-center gap-1 text-xs">
-            <button
-              onClick={() => setEnv('prod')}
-              className={`px-3 py-1 rounded-md border text-xs font-semibold transition ${env==='prod' ? 'bg-green-600 text-white border-green-600' : 'border-gray-300 hover:bg-gray-100'}`}
-            >Prod</button>
-            <button
-              onClick={() => setEnv('sandbox')}
-              className={`px-3 py-1 rounded-md border text-xs font-semibold transition ${env==='sandbox' ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-300 hover:bg-gray-100'}`}
-            >Sandbox</button>
-          </div>
-        </div>
       </div>
       {loading && <div className="text-sm text-muted-foreground">Loading users...</div>}
       {error && <div className="text-sm text-red-500 mb-4">{error}</div>}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {users.map((u, index) => {
-          const connected = env === 'prod' ? !!u.tokenId : !!u.sandBoxTokenId;
+          const connected = !!u.tokenId;
           return (
             <Card key={`${u.phoneNumber}-${index}`} className="border border-gray-200">
               <CardHeader className="pb-2">
@@ -62,7 +48,7 @@ export default function UpstoxUserManagementPage() {
                 </div>
         <Button
                   variant={connected ? 'secondary' : 'default'}
-                  disabled={connected || env === 'sandbox'}
+                  disabled={connected}
                   className={`${connected ? 'bg-green-500 hover:bg-green-500 cursor-default' : 'bg-red-500 hover:bg-red-600'} w-full h-9 text-white text-sm`}
                   onClick={async () => {
                     if (!connected) {
@@ -90,9 +76,7 @@ export default function UpstoxUserManagementPage() {
                       }
                     }
                   }}
-                >{
-                    env === 'prod' ? (connected ? `Upstox Connected` : `Connect Upstox`) : (connected ? `Upstox Connected (Sandbox)` : `Save Token (Sandbox)`)
-                }
+                >{connected ? `Upstox Connected` : `Connect Upstox`}
                 </Button>
               </CardContent>
             </Card>

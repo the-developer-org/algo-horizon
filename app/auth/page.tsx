@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { sendOtpToWhatsApp, getUserPhone } from '@/utils/whatsappUtils';
+import { sendOtpToWhatsApp, verifyOtpWithBackend, getUserPhone } from '@/utils/whatsappUtils';
 import axios from 'axios';
 
 export default function AuthPage() {
@@ -12,11 +12,12 @@ export default function AuthPage() {
   const [shouldShow, setShouldShow] = useState(false);
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [isInvalid, setIsInvalid] = useState(false);
   const [otp, setOtp] = useState(['', '', '', '', '']);
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [isGeneratingOtp, setIsGeneratingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   // OTP masking function
   const maskOtp = (otp: string): number => {
     const num = parseInt(otp);
@@ -30,14 +31,10 @@ export default function AuthPage() {
   };
 
   useEffect(() => {
-    const isAuthorized = localStorage.getItem('isUserAuthorised');
-    if (isAuthorized === 'true') {
-      router.replace('/');
-    } else {
-      setShouldShow(true);
-    }
+    // Keep the login page available so an authenticated user can switch accounts.
+    setShouldShow(true);
     setIsLoading(false);
-  }, [router]);
+  }, []);
 
   const handleOtpChange = (index: number, value: string) => {
     // Only allow single digits
@@ -71,18 +68,21 @@ export default function AuthPage() {
 
     setIsGeneratingOtp(true);
     setError('');
+    setSuccessMessage('');
     setOtpSent(false); // Reset otpSent while sending
+    setOtp(['', '', '', '', '']);
 
     try {
-      // Use testing OTP: 72824
-      const testingOtp = '72824';
-      setGeneratedOtp(testingOtp);
+      const newOtp = generateOtp();
+      const sent = await sendOtpToWhatsApp(maskOtp(newOtp), username);
 
-      // Simulate OTP generation delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!sent) {
+        throw new Error('OTP delivery failed');
+      }
 
       setOtpSent(true);
       setError('');
+      setSuccessMessage('OTP sent successfully.');
     } catch (err) {
       setError('Failed to generate OTP. Please try again.');
       setOtpSent(false);
@@ -105,30 +105,39 @@ export default function AuthPage() {
       return;
     }
 
-    // Verify OTP against the originally generated OTP
-    if (otpString === generatedOtp) {
-      setError('');
-      // Store user session persistently across tabs
-      localStorage.setItem('isUserAuthorised', 'true');
-      localStorage.setItem('currentUser', username);
-      
-      // Log login event (fire-and-forget)
-      const phoneNumber = getUserPhone(username);
-      if (phoneNumber) {
-        axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/audit/logLogin?phoneNumber=${encodeURIComponent(phoneNumber)}`, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }).catch(error => {
-          console.warn('Failed to log login event:', error);
-        });
+    setIsVerifyingOtp(true);
+
+    try {
+      const isValidOtp = await verifyOtpWithBackend(username, otpString);
+
+      if (isValidOtp) {
+        setError('');
+        // Store the authenticated user for the active browser session.
+        sessionStorage.setItem('isUserAuthorised', 'true');
+        sessionStorage.setItem('currentUser', username);
+        localStorage.setItem('isUserAuthorised', 'true');
+        localStorage.setItem('currentUser', username);
+
+        // Log login event (fire-and-forget)
+        const phoneNumber = getUserPhone(username);
+        if (phoneNumber) {
+          axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/audit/logLogin?phoneNumber=${encodeURIComponent(phoneNumber)}`, {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }).catch(error => {
+            console.warn('Failed to log login event:', error);
+          });
+        }
+
+        router.replace('/');
+      } else {
+        setError('Invalid OTP. Please try again.');
+        setIsInvalid(true);
+        setOtp(['', '', '', '', '']);
       }
-      
-      router.replace('/');
-    } else {
-      setError('Invalid OTP. Please try again.');
-      setIsInvalid(true);
-      setOtp(['', '', '', '', '']);
+    } finally {
+      setIsVerifyingOtp(false);
     }
   };
 
@@ -164,6 +173,7 @@ export default function AuthPage() {
                   onChange={(e) => {
                     setUsername(e.target.value);
                     setError('');
+                    setSuccessMessage('');
                     setIsInvalid(false);
                     setOtpSent(false);
                     setOtp(['', '', '', '', '']);
@@ -220,23 +230,23 @@ export default function AuthPage() {
                   </div>
                 ))}
               </div>
-              {otpSent && (
-                <p className="text-green-400 text-sm font-semibold">Testing OTP: 72824</p>
-              )}
               {error && (
                 <p className="text-red-500 text-sm font-semibold">{error}</p>
+              )}
+              {successMessage && (
+                <p className="text-green-400 text-sm font-semibold">{successMessage}</p>
               )}
             </div>
 
             <Button
               type="submit"
-              disabled={!otpSent || otp.some(digit => digit === '')}
+              disabled={isVerifyingOtp || !otpSent || otp.some(digit => digit === '')}
               className={`w-[200px] h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 
-                       ${!otpSent || otp.some(digit => digit === '')
+                       ${isVerifyingOtp || !otpSent || otp.some(digit => digit === '')
                          ? 'bg-gray-500 cursor-not-allowed' 
                          : 'bg-green-600 hover:bg-green-700'}`}
             >
-              Verify OTP
+              {isVerifyingOtp ? 'Verifying...' : 'Verify OTP'}
             </Button>
           </form>
       </div>
