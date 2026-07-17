@@ -516,11 +516,35 @@ export default function StockMonitoringPage() {
     return activeMonitoringItems.filter(item => getMonitoringActionValue(item, activeFilter));
   }, [activeFilter, activeMonitoringItems, activeTab]);
 
+  const currentWeekLabel = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 4);
+
+    const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "short" });
+    const mondayMonth = monthFormatter.format(monday);
+    const fridayMonth = monthFormatter.format(friday);
+
+    if (mondayMonth === fridayMonth) {
+      return `${mondayMonth} ${monday.getDate()}-${friday.getDate()}`;
+    }
+
+    return `${mondayMonth} ${monday.getDate()}-${fridayMonth} ${friday.getDate()}`;
+  }, []);
+
+  const currentMonthLabel = useMemo(() => {
+    return new Intl.DateTimeFormat("en-US", { month: "long" }).format(new Date());
+  }, []);
+
   const monitoringFilterTabs: { value: MonitoringFilter; label: string }[] = [
     { value: "all", label: "All" },
     { value: "star", label: "Star" },
-    { value: "w", label: "W" },
-    { value: "m", label: "M" },
+    { value: "w", label: `W • ${currentWeekLabel}` },
+    { value: "m", label: `M • ${currentMonthLabel}` },
   ];
 
   const renderMonitoringRows = () => {
@@ -888,12 +912,33 @@ export default function StockMonitoringPage() {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-4">
-              <span className="text-xs font-medium text-slate-600">Show:</span>
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">Filters</span>
+                <span className="text-xs text-slate-500">Week: {currentWeekLabel} | Month: {currentMonthLabel}</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
               {monitoringFilterTabs.map(({ value, label }) => {
                 const count = value === "all"
                   ? activeMonitoringItems.length
                   : activeMonitoringItems.filter(item => getMonitoringActionValue(item, value)).length;
+
+                const isActive = activeFilter === value;
+
+                let tabClassName = "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50";
+
+                if (isActive) {
+                  if (value === "star") {
+                    tabClassName = "border-amber-300 bg-amber-50 text-amber-800";
+                  } else if (value === "w") {
+                    tabClassName = "border-sky-300 bg-sky-50 text-sky-800";
+                  } else if (value === "m") {
+                    tabClassName = "border-violet-300 bg-violet-50 text-violet-800";
+                  } else {
+                    tabClassName = "border-emerald-300 bg-emerald-50 text-emerald-800";
+                  }
+                }
 
                 return (
                   <button
@@ -903,20 +948,21 @@ export default function StockMonitoringPage() {
                       setActiveFilter(value);
                       setSelectedItem(null);
                     }}
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium transition ${
-                      activeFilter === value
-                        ? "border-emerald-500 bg-emerald-500 text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50"
-                    }`}
-                    aria-pressed={activeFilter === value}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium transition ${tabClassName}`}
+                    aria-pressed={isActive}
                   >
                     {label}
-                    <span className={`rounded-full px-1.5 py-0.5 text-xs ${activeFilter === value ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-xs ${
+                        isActive ? "bg-white/70 text-slate-800" : "bg-slate-100 text-slate-600"
+                      }`}
+                    >
                       {count}
                     </span>
                   </button>
                 );
               })}
+              </div>
             </div>
 
             <div className="mt-4">
