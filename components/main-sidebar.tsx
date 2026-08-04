@@ -23,6 +23,7 @@ const primaryItems = [
   { title: "Strike Analysis Form", url: "/strike-analysis", icon: Search },
   { title: "Swing Stats", url: "/strike-analysis?tab=swing", icon: BarChart3 },
   { title: "Stock Monitoring", url: "/stock-monitoring", icon: Shield },
+  { title: "Scalping", url: "/scalping", icon: BarChart3 },
   { title: "Deep Dive", url: "/deep-dive", icon: Target },
   { title: "OHLC Chart", url: "/chart", icon: TrendingUp },
   { title: "Paper Trading", url: "/paper-trading", icon: DollarSign },

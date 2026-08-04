@@ -528,7 +528,7 @@ function HighsAndLowsInterface() {
                   // Update batch progress before saving
                   const currentSaved = (currentIteration - 1) * 10 + batchProcessedData.length;
                   setBatchProgress(`(${currentSaved}/${companies.length})`);
-                  debugger
+                  
                   await saveToBackend(batchProcessedData);
             
                   setSavedCount(prev => prev + batchProcessedData.length);

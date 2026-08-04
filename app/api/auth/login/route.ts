@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   // (Optional) Set an httpOnly cookie to later validate state integrity
   const cookieValue = crypto.createHash('sha256').update(state).digest('hex');
-  debugger
+  
 
   const authUrl = `https://api-v2.upstox.com/login/authorization/dialog?client_id=${encodeURIComponent(cfg.clientId)}&redirect_uri=${encodeURIComponent(cfg?.redirectUri)}&response_type=code&state=${state}`;
 

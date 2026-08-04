@@ -62,7 +62,7 @@ export default function UpstoxUserManagementPage() {
                         // Fetch the auth URL from our API
                         const response = await fetch(`/api/auth/login?phone=${phoneParam}`);
                         const data = await response.json();
-                        debugger
+                        
                         if (data.authUrl) {
                           // Open in new tab
                           window.open(data.authUrl, '_blank');

@@ -78,7 +78,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pho
     // Store token in backend associated with phone
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     //console.log('[Upstox Callback] Storing token to backend', { backendUrl, phone });
-    debugger
+    
     await fetch(`${backendUrl}/api/user/store-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

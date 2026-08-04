@@ -75,7 +75,7 @@ export const exitPaperTradeOrder = async (
         }
       }
     );
-    debugger;
+    ;
     if (response.data.paperTradeOrderResponse) {
       return response.data.paperTradeOrderResponse;
     }

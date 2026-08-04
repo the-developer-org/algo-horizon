@@ -96,16 +96,19 @@ export default function AuthPage() {
 
     if (!otpSent) {
       setError('Please generate OTP first');
+      setSuccessMessage('');
       return;
     }
 
     const otpString = otp.join('');
     if (otpString.length !== 5) {
       setError('Please enter a valid 5-digit OTP');
+      setSuccessMessage('');
       return;
     }
 
     setIsVerifyingOtp(true);
+    setSuccessMessage('');
 
     try {
       const isValidOtp = await verifyOtpWithBackend(username, otpString);

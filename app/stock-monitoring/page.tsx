@@ -15,6 +15,21 @@ type AnalysisKind = "stryke" | "algo";
 type MonitoringAction = "star" | "w" | "m";
 type MonitoringFilter = "all" | MonitoringAction;
 
+type LiveStockBuffer = {
+  nextSwing?: {
+    price?: number;
+  };
+  hourlyBuffers?: Array<{
+    entryPrice?: number;
+    resistanceLevel?: number;
+    stopLoss?: number;
+    cocCandle?: {
+      timestamp?: string;
+      close?: number;
+    };
+  }>;
+};
+
 type LoadingState = {
   completedAlphabets: string[];
   currentAlphabet: string | null;
@@ -40,7 +55,12 @@ export default function StockMonitoringPage() {
   const [activeFilter, setActiveFilter] = useState<MonitoringFilter>("all");
   const [sortBy, setSortBy] = useState<SortOption>("nameAsc");
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [bufferModalItem, setBufferModalItem] = useState<any | null>(null);
+  const [bufferModalLoading, setBufferModalLoading] = useState(false);
+  const [bufferModalError, setBufferModalError] = useState<string | null>(null);
+  const [bufferLiveData, setBufferLiveData] = useState<LiveStockBuffer | null>(null);
   const [copiedStrykeId, setCopiedStrykeId] = useState<string | null>(null);
+  const bufferModalRef = useRef<HTMLDivElement | null>(null);
 
   const completedCount = loadingState.completedAlphabets.length;
   const progressPercent = Math.round((completedCount / ALPHABET_ORDER.length) * 100);
@@ -127,7 +147,7 @@ export default function StockMonitoringPage() {
   };
 
   const getMonitoringStrykeId = (item: any) => {
-    debugger;
+    ;
     const id = item?.id
 
     return id ? String(id) : "";
@@ -160,7 +180,7 @@ export default function StockMonitoringPage() {
     const strykeId = getMonitoringStrykeId(item);
     const suffix = getMonitoringSuffix(item);
 
-    debugger
+    
     if (!baseUrl || !strykeId || !suffix) {
       throw new Error("Missing stock monitoring update details");
     }
@@ -303,6 +323,100 @@ export default function StockMonitoringPage() {
     if (!chartUrl) return;
     window.open(chartUrl, "_blank");
   };
+
+  const extractLiveStockBuffer = (raw: any): LiveStockBuffer | null => {
+    if (!raw || typeof raw !== "object") return null;
+    if (raw.liveStockBuffer) return raw.liveStockBuffer as LiveStockBuffer;
+    if (raw.data?.liveStockBuffer) return raw.data.liveStockBuffer as LiveStockBuffer;
+    if (raw.result?.liveStockBuffer) return raw.result.liveStockBuffer as LiveStockBuffer;
+    return null;
+  };
+
+  const openBuffer = async (item: any) => {
+    setBufferModalItem(item);
+    setBufferModalLoading(true);
+    setBufferModalError(null);
+    setBufferLiveData(null);
+
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const strykeId = getMonitoringStrykeId(item);
+    const suffix = getMonitoringSuffix(item);
+
+    if (!baseUrl || !strykeId || !suffix) {
+      setBufferModalError("Missing buffer request details");
+      setBufferModalLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/prediction/live-run/${encodeURIComponent(strykeId)}/${encodeURIComponent(suffix)}`,
+        {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch buffer data with status ${response.status}`);
+      }
+
+      const rawResult = await response.json();
+      const liveStockBuffer = extractLiveStockBuffer(rawResult);
+
+      if (!liveStockBuffer) {
+        throw new Error("Buffer data not available in API response");
+      }
+
+      setBufferLiveData(liveStockBuffer);
+    } catch (error) {
+      console.error("Failed to fetch live buffer data", error);
+      setBufferModalError(error instanceof Error ? error.message : "Failed to fetch buffer data");
+    } finally {
+      setBufferModalLoading(false);
+    }
+  };
+
+  const closeBufferModal = () => {
+    setBufferModalItem(null);
+    setBufferModalLoading(false);
+    setBufferModalError(null);
+    setBufferLiveData(null);
+  };
+
+  useEffect(() => {
+    if (!bufferModalItem) return;
+
+    const handleOutsideMouseDown = (event: MouseEvent) => {
+      if (!bufferModalRef.current) return;
+
+      const target = event.target as Node | null;
+      if (target && !bufferModalRef.current.contains(target)) {
+        closeBufferModal();
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideMouseDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideMouseDown);
+    };
+  }, [bufferModalItem]);
+
+  const primaryHourlyBuffer = bufferLiveData?.hourlyBuffers?.[0] ?? null;
+  const bufferEntryPrice = primaryHourlyBuffer?.entryPrice ?? null;
+  const bufferTarget = primaryHourlyBuffer?.resistanceLevel ?? bufferLiveData?.nextSwing?.price ?? null;
+  const bufferStopLoss = primaryHourlyBuffer?.stopLoss ?? null;
+  const cocTimestampRaw = primaryHourlyBuffer?.cocCandle?.timestamp;
+  const cocDateTime = cocTimestampRaw ? formatDate(cocTimestampRaw) : "-";
+  const cocCloseValue = primaryHourlyBuffer?.cocCandle?.close ?? null;
+  const entryToTargetRatio =
+    bufferEntryPrice != null && bufferTarget != null && Number(bufferEntryPrice) !== 0
+      ? Number(bufferTarget) / Number(bufferEntryPrice)
+      : null;
 
   const getAnalysisLabels = (item: any, kind: AnalysisKind) => {
     const analysis = kind === "stryke" ? item.strykeSwingAnalysis : item.algoSwingAnalysis;
@@ -618,7 +732,20 @@ export default function StockMonitoringPage() {
                       title="Copy Stryke ID"
                       aria-label={`Copy Stryke ID for ${item.companyName || "selected stock"}`}
                     >
-                      {copiedStrykeId === strykeId ? "Copied" : "Copy ID"}
+                      {copiedStrykeId === strykeId ? "Done" : "ID"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openBuffer(item);
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      className="rounded-md border border-violet-300 bg-violet-100 px-2 py-1.5 text-sm font-medium text-violet-800 transition-colors hover:bg-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-300"
+                      title="Open Buffer"
+                      aria-label={`Open Buffer for ${item.companyName || "selected stock"}`}
+                    >
+                      Buffer
                     </button>
                     <button
                       type="button"
@@ -981,6 +1108,72 @@ export default function StockMonitoringPage() {
             <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
               Error loading one or more alphabets: {loadingState.error}
             </div>
+          )}
+
+          {bufferModalItem && (
+            <dialog
+              open
+              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4"
+            >
+              <div
+                ref={bufferModalRef}
+                className="w-full max-w-lg rounded-2xl border border-violet-200 bg-white p-5 shadow-2xl"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-violet-600">Buffer</p>
+                    <h2 className="mt-1 text-xl font-semibold text-slate-900">{bufferModalItem.companyName || "Selected stock"}</h2>
+                    <p className="mt-1 text-sm text-slate-600">Instrument: {bufferModalItem.instrumentKey || "-"}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeBufferModal}
+                    className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-violet-100 bg-violet-50 p-4 text-sm text-slate-700">
+                  {bufferModalLoading && <p>Loading live buffer data...</p>}
+
+                  {!bufferModalLoading && bufferModalError && (
+                    <p className="text-rose-700">{bufferModalError}</p>
+                  )}
+
+                    {!bufferModalLoading && !bufferModalError && bufferLiveData && (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="rounded-lg border border-violet-200 bg-white p-3">
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Entry-Target Ratio</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {entryToTargetRatio != null ? `${entryToTargetRatio.toFixed(3)}x` : "-"}
+                          </p>
+                        </div>
+                      <div className="rounded-lg border border-violet-200 bg-white p-3">
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Entry Price</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">{formatNumber(bufferEntryPrice)}</p>
+                        </div>
+                        <div className="rounded-lg border border-violet-200 bg-white p-3">
+                        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Target</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{formatNumber(bufferTarget)}</p>
+                      </div>
+                      <div className="rounded-lg border border-violet-200 bg-white p-3">
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Stop Loss</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">{formatNumber(bufferStopLoss)}</p>
+                        </div>
+                        <div className="rounded-lg border border-violet-200 bg-white p-3">
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-500">COC Candle Date-Time</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">{cocDateTime}</p>
+                        </div>
+                        <div className="rounded-lg border border-violet-200 bg-white p-3">
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-500">COC Candle Close</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">{formatNumber(cocCloseValue)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </dialog>
           )}
         </div>
       </div>

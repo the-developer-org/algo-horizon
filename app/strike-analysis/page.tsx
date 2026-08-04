@@ -1395,8 +1395,8 @@ function StrikeAnalysisContent() {
 
 
   return (
-    <div className="flex justify-center py-4 px-2 sm:px-4 bg-cream">
-      <div className="w-full max-w-screen-2xl mx-auto">
+    <div className="flex justify-center py-4 px-2 sm:px-4 bg-cream overflow-x-auto">
+      <div className="w-full mx-auto">
         <Toaster position="top-right" />
 
         {globalLoading && (
@@ -1765,7 +1765,7 @@ function StrikeAnalysisContent() {
 
             {/* Add a new stats page */}
             {showSwingStats && (
-              <div className="w-full mx-auto py-4 px-2 sm:px-4 max-w-screen-2xl">
+              <div className="w-full mx-auto py-4 px-2 sm:px-4 overflow-x-auto">
 
                 {/* Search, Sort, and Filter Controls */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap mb-4">
@@ -2762,7 +2762,7 @@ function StrikeAnalysisContent() {
                                                   setSwingLabelsDropdownOpen(false);
                                                   // Apply filter to both lists
                                                   const [prev, curr] = combo.split('<-');
-                                              debugger
+                                              
                                                   setFilteredAnalysisList([...filteredAnalysisList].filter(item =>
                                                     item.prevSwingLabel === prev && item.currentSwingLabel === curr
                                                   ));  

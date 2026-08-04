@@ -100,7 +100,7 @@ export const algoHorizonApi = {
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
             const response = await fetch(`${backendUrl}/api/user/get-all-users-phone-mapping`);
-            debugger
+            
             if (response.ok) {
                 const data = await response.json();
 

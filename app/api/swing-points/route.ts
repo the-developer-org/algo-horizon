@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         //console.log('🎯 SWING POINTS API CALLED');
         //console.log('📝 Request params:', { instrumentKey, companyName, fromDate, lookback });
 
-        debugger
+        
         if (!instrumentKey || !companyName) {
             return NextResponse.json(
                 { error: 'instrumentKey and companyName are required' },

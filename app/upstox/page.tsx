@@ -608,7 +608,7 @@ export default function UpstoxPage() {
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
             const response = await fetch(`${backendUrl}/api/upstox/orders/get-completed-orders?phoneNumber=${phoneNumber}`);
-            debugger
+            
             if (response.ok) {
                 const data: OpenOrders[] = await response.json();
 
