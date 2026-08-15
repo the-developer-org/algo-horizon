@@ -10,8 +10,10 @@ export const AdminPanel: React.FC = () => {
   const [isRedeployed, setIsRedeployed] = useState(false);
 
   const checkHealthStatus = async (): Promise<boolean> => {
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
+
     try {
-      const response = await fetch('https://algo-horizon.store/api/admin/health-check/check');
+      const response = await fetch(`${backendUrl}/api/admin/health-check/check`);
       if (!response.ok) {
         return false;
       }
@@ -62,11 +64,13 @@ export const AdminPanel: React.FC = () => {
       return;
     }
 
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
+
     try {
       setIsRedeploying(true);
       setIsRedeployed(false);
 
-      const response = await fetch('https://algo-horizon.store/api/admin/redeploy', {
+      const response = await fetch(`${backendUrl}/api/admin/redeploy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

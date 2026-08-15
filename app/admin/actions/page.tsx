@@ -1050,8 +1050,10 @@ export default function AdminActionsPage() {
 
   // Health check function
   const checkHealthStatus = async (): Promise<boolean> => {
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
+
     try {
-      const response = await axios.get('https://algo-horizon.store/api/admin/health-check/check', {
+      const response = await axios.get(`${backendUrl}/api/admin/health-check/check`, {
         headers: {
           'Content-Type': 'application/json',
         },
@@ -1178,12 +1180,13 @@ export default function AdminActionsPage() {
                   const confirmed = window.confirm('Are you sure you want to redeploy the server? This may cause downtime.');
                   if (!confirmed) return;
                   
+                  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
+
                   try {
                     setIsRedeploying(true);
                     setIsRedeployed(false);
                     
-                    const res = await axios.post('https://algo-horizon.store/api/admin/redeploy', {
-                      method: 'POST',
+                    const res = await axios.post(`${backendUrl}/api/admin/redeploy`, {
                       headers: {
                         'Content-Type': 'application/json',
                       },
