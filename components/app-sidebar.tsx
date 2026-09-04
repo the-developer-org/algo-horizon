@@ -17,6 +17,7 @@ import {
   Globe,
   Zap,
 } from "lucide-react";
+import Speedometer from "@/components/icons/Speedometer";
 
 import {
   Sidebar,
@@ -126,6 +127,11 @@ const toolsItems = [
     title: "Backtest Stats",
     url: "/backtest-stats",
     icon: FileText,
+  },
+  {
+    title: "Confidence Meter",
+    url: "/confidence-meter",
+    icon: Speedometer,
   },
   {
     title: "Strike Analysis",

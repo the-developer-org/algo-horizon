@@ -1,7 +1,17 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { persistStore, persistReducer } from 'redux-persist';
-import storage from 'redux-persist/lib/storage';
 import analysisReducer from './analysisSlice';
+
+const createNoopStorage = () => ({
+  getItem: async () => null,
+  setItem: async (_key: string, value: string) => value,
+  removeItem: async () => undefined,
+});
+
+const storage =
+  typeof window === 'undefined'
+    ? createNoopStorage()
+    : require('redux-persist/lib/storage').default;
 
 const persistConfig = {
   key: 'analysis-cache',

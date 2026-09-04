@@ -2,6 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link as LinkIcon, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, Shield, CheckCircle, X, Menu } from "lucide-react";
+import Speedometer from "@/components/icons/Speedometer";
 import UpstoxIcon from "@/components/icons/UpstoxIcon";
 import {
   Sidebar,
@@ -33,6 +34,7 @@ const primaryItems = [
   { title: "Tick Data", url: "/tick-data", icon: TrendingUp },
   { title: "Boom Days & Watch Lists", url: "/boom-days", icon: Calendar },
   { title: "Backtest Stats", url: "/backtest-stats", icon: FileText },
+  { title: "Confidence Meter", url: "/confidence-meter", icon: Speedometer },
   { title: "Portfolio", url: "/portfolio", icon: Layers },
   { title: "Alerts", url: "/alerts", icon: Bell },
 ];

@@ -83,11 +83,24 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
     );
   }
 
-  // If not authenticated, show loading (should redirect)
+  // If not authenticated, show a clear message instead of a blank loading state
   if (authStatus === 'unauthenticated') {
     return (
-      <div className="min-h-screen w-full bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+      <div className="min-h-screen w-full bg-gray-50 flex items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-6 text-center shadow-sm">
+          <div className="mb-3 text-3xl">⚠️</div>
+          <h2 className="text-xl font-semibold text-gray-900">Authentication required</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Your session is missing or expired. Please log in again to access the app.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.replace('/auth')}
+            className="mt-5 inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Go to login
+          </button>
+        </div>
       </div>
     );
   }
