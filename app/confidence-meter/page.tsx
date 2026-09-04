@@ -7,6 +7,7 @@ import { fetchKeyMapping } from '@/utils/apiUtils';
 
 export default function ConfidenceMeterPage() {
   const [data, setData] = React.useState<any[]>([]);
+  const [masterIndicators, setMasterIndicators] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   
@@ -34,6 +35,7 @@ export default function ConfidenceMeterPage() {
     profitable: false,
   });
   const [viewMode, setViewMode] = React.useState<"confidence" | "master">("confidence");
+  const [indicatorPickerOwner, setIndicatorPickerOwner] = React.useState<string | null>(null);
 
   // fetch master indicators
   const fetchMasterList = React.useCallback(async (signal?: AbortSignal) => {
@@ -49,6 +51,7 @@ export default function ConfidenceMeterPage() {
       }
       const json = await res.json();
       const list = Array.isArray(json?.masterIndicatorsList) ? json.masterIndicatorsList : [];
+      setMasterIndicators(list);
       setData(list);
     } catch (err: any) {
       if (signal?.aborted) return;
@@ -210,19 +213,40 @@ export default function ConfidenceMeterPage() {
   }, [selectedCompanyId, confidenceEntries]);
 
   const ownerIndicatorGroups = React.useMemo(() => {
-    if (!selectedCompany?.confidenceIndicatorsList) return {} as Record<string, any[]>;
+    const companyIndicators = Array.isArray(selectedCompany?.confidenceIndicatorsList)
+      ? selectedCompany.confidenceIndicatorsList
+      : [];
 
-    return selectedCompany.confidenceIndicatorsList
+    const groups = companyIndicators
       .filter((indicator: any) => indicator?.deleted !== true)
       .reduce((acc: Record<string, any[]>, indicator: any) => {
-      const owner = indicator?.owner || "Unassigned";
-      acc[owner] = acc[owner] || [];
-      acc[owner].push(indicator);
-      return acc;
+        const owner = indicator?.owner || "Unassigned";
+        acc[owner] = acc[owner] || [];
+        acc[owner].push(indicator);
+        return acc;
       }, {} as Record<string, any[]>);
+
+    return {
+      Nawaz: groups.Nawaz || [],
+      Sadik: groups.Sadik || [],
+    };
   }, [selectedCompany]);
 
   const ownerColumns = Object.entries(ownerIndicatorGroups) as Array<[string, any[]]>;
+
+  const availableIndicatorsForOwner = (owner: string) => {
+    const existingNames = new Set(
+      (selectedCompany?.confidenceIndicatorsList || [])
+        .filter((indicator: any) => indicator?.owner === owner && indicator?.deleted !== true)
+        .map((indicator: any) => String(indicator?.indicatorName || indicator?.indicator_name).trim().toLowerCase())
+    );
+
+    return masterIndicators.filter((indicator: any) => {
+      if (indicator?.deleted === true) return false;
+      const name = String(indicator?.indicatorName || indicator?.indicator_name || "").trim().toLowerCase();
+      return name && !existingNames.has(name);
+    });
+  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -341,6 +365,54 @@ export default function ConfidenceMeterPage() {
     }
   };
 
+  const handleAddIndicatorToCompany = async (masterIndicator: any, owner: string) => {
+    if (!selectedCompany || !masterIndicator) return;
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const base = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+      const url = base ? `${base}/api/confidence-meter/update` : "/api/confidence-meter/update";
+      const indicators = Array.isArray(selectedCompany.confidenceIndicatorsList)
+        ? selectedCompany.confidenceIndicatorsList
+        : [];
+      const newIndicator = {
+        ...masterIndicator,
+        owner,
+        deleted: false,
+      };
+      const payload = {
+        id: selectedCompany.id ?? selectedCompany._id,
+        companyName: selectedCompany.companyName ?? "",
+        entryTime: selectedCompany.entryTime,
+        entryPrice: Number(selectedCompany.entryPrice ?? 0),
+        target: Number(selectedCompany.target ?? 0),
+        stopLoss: Number(selectedCompany.stopLoss ?? 0),
+        entryTaken: Boolean(selectedCompany.entryTaken),
+        profitable: Boolean(selectedCompany.profitable),
+        confidenceIndicatorsList: [...indicators, newIndicator],
+      };
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      await fetchList();
+      setIndicatorPickerOwner(null);
+      setSuccessMsg("Indicator added successfully");
+      if (successTimer.current) window.clearTimeout(successTimer.current);
+      successTimer.current = window.setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: any) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleEditSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!editingItem) return;
@@ -438,21 +510,22 @@ export default function ConfidenceMeterPage() {
   };
 
   return (
-    <div className="min-h-screen p-6 bg-gradient-to-br from-white to-slate-50 text-slate-900">
-      <header className="mb-6 flex items-center justify-between">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_8%_0%,rgba(186,230,253,0.7),transparent_30%),radial-gradient(circle_at_94%_12%,rgba(224,242,254,0.9),transparent_28%),linear-gradient(135deg,#f8fcff_0%,#eef7fb_48%,#f8fafc_100%)] p-4 text-slate-900 sm:p-6">
+      <header className="mx-auto mb-6 flex max-w-[1600px] flex-col gap-5 rounded-[26px] border border-white/80 bg-white/75 p-5 shadow-[0_18px_60px_rgba(14,116,144,0.12)] backdrop-blur-xl sm:p-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
-          <div className="p-3 rounded-full bg-white ring-1 ring-slate-200 shadow-sm">
+          <div className="rounded-2xl bg-gradient-to-br from-cyan-500 to-sky-600 p-3 shadow-lg shadow-cyan-200/70 ring-4 ring-white">
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 3v9l4 2" stroke="#7dd3fc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               <circle cx="12" cy="12" r="8" stroke="#a78bfa" strokeWidth="1.2" />
             </svg>
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">Confidence Meter</h1>
-            <p className="text-sm text-slate-600">Track indicators and master entries — clean, lightweight UI.</p>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.28em] text-cyan-600">Signal workspace</div>
+            <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Confidence Meter</h1>
+            <p className="mt-1 text-sm text-slate-600">Track indicators and master entries — clean, lightweight UI.</p>
           </div>
         </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <div>
               <button
                 onClick={() => {
@@ -463,7 +536,7 @@ export default function ConfidenceMeterPage() {
                     successTimer.current = null;
                   }
                 }}
-                className="px-4 py-2 rounded-lg bg-white border border-slate-200 shadow-sm"
+                className="rounded-xl border border-slate-200/90 bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:text-cyan-700"
               >
                 {showForm ? 'Close' : 'Add Indicator'}
               </button>
@@ -471,7 +544,7 @@ export default function ConfidenceMeterPage() {
             <div>
               <button
                 onClick={() => openCompanyModal()}
-                className="px-4 py-2 rounded-lg bg-white border border-slate-200 shadow-sm"
+                className="rounded-xl border border-slate-200/90 bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:text-cyan-700"
               >
                 Add Company
               </button>
@@ -489,7 +562,7 @@ export default function ConfidenceMeterPage() {
                 if (newMode === "master") fetchMasterList(c.signal);
                 else fetchList(c.signal);
               }}
-              className="px-4 py-2 rounded-lg bg-white border border-slate-200 shadow-sm"
+              className="rounded-xl border border-cyan-200 bg-cyan-50/80 px-4 py-2 text-sm font-bold text-cyan-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-cyan-100"
             >
               {viewMode === "confidence" ? "Show Master Indicators" : "Show Confidence Entries"}
             </button>
@@ -647,7 +720,7 @@ export default function ConfidenceMeterPage() {
         </div>
       )}
 
-      <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <main className="mx-auto grid max-w-[1600px] grid-cols-1 gap-6 lg:grid-cols-3">
         {viewMode === "master" ? (
           <section className="lg:col-span-3 space-y-4 flex flex-col min-h-screen">
             <div className="grid gap-4">
@@ -667,10 +740,44 @@ export default function ConfidenceMeterPage() {
 
                   if (isIndicator) {
                     return (
-                      <div key={itemKey} className="p-4 rounded-2xl border border-slate-100 bg-white shadow-sm">
+                      <div key={itemKey} className="rounded-2xl border border-white/90 bg-white/80 p-5 shadow-[0_12px_35px_rgba(15,118,110,0.08)] backdrop-blur transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_rgba(14,116,144,0.14)]">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="text-lg font-bold">{name}</div>
+                        {indicatorPickerOwner && (
+                          <div
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm"
+                            role="dialog"
+                            aria-modal="true"
+                            onClick={() => setIndicatorPickerOwner(null)}
+                          >
+                            <div className="w-full max-w-md rounded-2xl border border-white/80 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h3 className="text-lg font-bold text-slate-900">Add Indicator</h3>
+                                  <p className="mt-1 text-sm text-slate-500">{indicatorPickerOwner}</p>
+                                </div>
+                                <button type="button" onClick={() => setIndicatorPickerOwner(null)} className="text-2xl leading-none text-slate-400 hover:text-slate-700" aria-label="Close">&times;</button>
+                              </div>
+                              <div className="mt-4 max-h-80 space-y-2 overflow-y-auto">
+                                {availableIndicatorsForOwner(indicatorPickerOwner).length === 0 ? (
+                                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No indicators available.</div>
+                                ) : availableIndicatorsForOwner(indicatorPickerOwner).map((indicator: any, index: number) => (
+                                  <button
+                                    key={String(getItemId(indicator) ?? `${indicator.indicatorName}-${index}`)}
+                                    type="button"
+                                    disabled={submitting}
+                                    onClick={() => handleAddIndicatorToCompany(indicator, indicatorPickerOwner)}
+                                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 disabled:opacity-50"
+                                  >
+                                    <span>{indicator.indicatorName || indicator.indicator_name}</span>
+                                    <span className="text-cyan-600">+</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                             <div className="text-sm text-slate-600">Owner: {owner || "-"}</div>
                             <div className="text-xs text-slate-500">Remaining Edits: {getRemainingEdits(item)}</div>
                           </div>
@@ -692,7 +799,7 @@ export default function ConfidenceMeterPage() {
                   }
 
                   return (
-                    <div key={itemKey} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div key={itemKey} className="rounded-2xl border border-white/90 bg-white/80 p-5 shadow-[0_12px_35px_rgba(15,118,110,0.08)] backdrop-blur transition hover:shadow-[0_18px_45px_rgba(14,116,144,0.14)]">
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                           <div className="text-2xl font-bold text-slate-900">{item.companyName || name || "Unknown Company"}</div>
@@ -735,8 +842,8 @@ export default function ConfidenceMeterPage() {
         ) : (
           <section className="lg:col-span-3">
             <div className="grid h-[calc(100vh-220px)] min-h-[600px] grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-              <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <aside className="overflow-hidden rounded-2xl border border-white/90 bg-white/75 shadow-[0_16px_45px_rgba(14,116,144,0.1)] backdrop-blur-xl">
+                <div className="border-b border-cyan-100 bg-cyan-50/70 px-4 py-4">
                   <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Companies</div>
                   <div className="mt-1 text-sm text-slate-600">{confidenceEntries.length} entries</div>
                 </div>
@@ -779,12 +886,12 @@ export default function ConfidenceMeterPage() {
                 </div>
               </aside>
 
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="overflow-hidden rounded-2xl border border-white/90 bg-white/80 shadow-[0_16px_45px_rgba(14,116,144,0.1)] backdrop-blur-xl">
                 {!selectedCompany ? (
                   <div className="flex h-full items-center justify-center p-10 text-slate-500">Select a company to view details.</div>
                 ) : (
                   <div className="flex h-full flex-col">
-                    <div className="border-b border-slate-200 bg-slate-50 p-5">
+                    <div className="border-b border-cyan-100 bg-cyan-50/60 p-5">
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                           <div className="text-3xl font-bold text-slate-900">{selectedCompany.companyName}</div>
@@ -828,11 +935,22 @@ export default function ConfidenceMeterPage() {
                           No confidence indicators added for this company.
                         </div>
                       ) : (
-                        <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+                        <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2">
                           {ownerColumns.map(([owner, indicators]) => (
-                            <div key={owner} className="rounded-2xl border border-slate-200 bg-slate-50 shadow-sm">
-                              <div className="border-b border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
-                                {owner || "Unassigned"}
+                            <div key={owner} className="overflow-hidden rounded-2xl border border-cyan-100 bg-slate-50/70 shadow-sm">
+                              <div className="flex items-center justify-between border-b border-cyan-100 bg-white/80 px-4 py-3">
+                                <div className="text-sm font-bold text-cyan-800">{owner || "Unassigned"}</div>
+                                {owner === "Nawaz" || owner === "Sadik" ? (
+                                  <button
+                                    type="button"
+                                    aria-label={`Add indicator for ${owner}`}
+                                    title={`Add indicator for ${owner}`}
+                                    onClick={() => setIndicatorPickerOwner(owner)}
+                                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-lg font-semibold leading-none text-cyan-700 transition hover:bg-cyan-100"
+                                  >
+                                    +
+                                  </button>
+                                ) : null}
                               </div>
                               <div className="space-y-3 p-3">
                                 {indicators.map((indicator: any, idx: number) => {
@@ -844,18 +962,18 @@ export default function ConfidenceMeterPage() {
 
                                   const toggleTrack = (active: boolean) => (
                                     <div
-                                      className={`relative h-6 w-12 rounded-full transition-all ${active ? "bg-emerald-500" : "bg-red-500"}`}
+                                      className={`relative h-7 w-14 shrink-0 rounded-full border border-white/70 p-0.5 shadow-inner transition-colors ${active ? "bg-emerald-500 shadow-emerald-200" : "bg-rose-400 shadow-rose-200"}`}
                                       aria-label={active ? "Enabled" : "Disabled"}
                                     >
                                       <span
-                                        className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${active ? "left-7" : "left-1"}`}
+                                        className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-[0_2px_5px_rgba(15,23,42,0.25)] transition-[left] duration-200 ${active ? "left-8" : "left-1"}`}
                                       />
                                     </div>
                                   );
 
                                   return (
-                                    <div key={`${owner}-${indicator.id ?? idx}`} className="rounded-xl border border-slate-200 bg-white p-3">
-                                      <div className="flex items-center justify-between gap-2">
+                                    <div key={`${owner}-${indicator.id ?? idx}`} className="rounded-xl border border-slate-100 bg-white/90 p-4 shadow-sm transition hover:border-cyan-200 hover:shadow-md">
+                                      <div className="flex min-h-8 items-center justify-between gap-3">
                                         <div className="min-w-0 flex-1">
                                           <div className="text-sm font-semibold text-slate-800 truncate">{indicator.indicatorName || `Indicator ${idx + 1}`}</div>
                                         </div>
@@ -881,21 +999,21 @@ export default function ConfidenceMeterPage() {
                                         </div>
                                       </div>
 
-                                      <div className="mt-3 space-y-2">
-                                        <div className="flex items-center justify-between gap-2">
-                                          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Qualifies</span>
+                                      <div className="mt-4 space-y-2.5 border-t border-slate-100 pt-3">
+                                        <div className="flex min-h-7 items-center justify-between gap-2">
+                                          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-600">Qualifies</span>
                                           {toggleTrack(qualifies)}
                                         </div>
-                                        <div className="flex items-center justify-between gap-2">
-                                          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Used For Entry</span>
+                                        <div className="flex min-h-7 items-center justify-between gap-2">
+                                          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-600">Used For Entry</span>
                                           {toggleTrack(usedForEntry)}
                                         </div>
-                                        <div className="flex items-center justify-between gap-2">
-                                          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Helped in Profit Booking</span>
+                                        <div className="flex min-h-7 items-center justify-between gap-2">
+                                          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-600">Helped in Profit Booking</span>
                                           {toggleTrack(helpedInProfit)}
                                         </div>
-                                        <div className="flex items-center justify-between gap-2">
-                                          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Helped in Loss Identification</span>
+                                        <div className="flex min-h-7 items-center justify-between gap-2">
+                                          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-600">Helped in Loss Identification</span>
                                           {toggleTrack(helpedInLoss)}
                                         </div>
                                       </div>
