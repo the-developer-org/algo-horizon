@@ -17,14 +17,23 @@ export default function ConfidenceMeterPage() {
   const [form, setForm] = React.useState({
     indicatorName: "",
     owner: "",
+    weightage: "",
   });
   const [showForm, setShowForm] = React.useState(false);
   const [showCancelModal, setShowCancelModal] = React.useState(false);
   const [indicatorPendingDeletion, setIndicatorPendingDeletion] = React.useState<Record<string, unknown> | null>(null);
+  const [masterIndicatorPendingDeletion, setMasterIndicatorPendingDeletion] = React.useState<any | null>(null);
   const [showEditModal, setShowEditModal] = React.useState(false);
   const [editingItem, setEditingItem] = React.useState<any | null>(null);
-  const [editForm, setEditForm] = React.useState({ indicatorName: "", owner: "" });
+  const [editForm, setEditForm] = React.useState({
+    indicatorName: "",
+    owner: "",
+    isAutomated: false,
+    weightage: "",
+  });
   const [showCompanyModal, setShowCompanyModal] = React.useState(false);
+  const [editingCompany, setEditingCompany] = React.useState<any | null>(null);
+  const [companyPendingDeletion, setCompanyPendingDeletion] = React.useState<any | null>(null);
   const [keyMapping, setKeyMapping] = React.useState<Record<string, string>>({});
   const [companyForm, setCompanyForm] = React.useState({
     companyName: "",
@@ -39,6 +48,7 @@ export default function ConfidenceMeterPage() {
   const [indicatorPickerOwner, setIndicatorPickerOwner] = React.useState<string | null>(null);
   const [selectedOwner, setSelectedOwner] = React.useState<string | null>(null);
   const [currentUser, setCurrentUser] = React.useState("");
+  const [currentTime, setCurrentTime] = React.useState(() => Date.now());
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [savingChanges, setSavingChanges] = React.useState(false);
   const pendingCompanyUpdates = React.useRef(new Map<string, any>());
@@ -49,6 +59,11 @@ export default function ConfidenceMeterPage() {
     if (user.trim().toLowerCase() !== "abrar") {
       setForm((previous) => ({ ...previous, owner: user }));
     }
+  }, []);
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
   // fetch master indicators
@@ -234,6 +249,41 @@ export default function ConfidenceMeterPage() {
     return typeof name === "string" && name.trim() ? name : "this indicator";
   };
 
+  const getEntryTimestamp = (value: any): number | null => {
+    if (value == null || value === "") return null;
+
+    if (typeof value === "number") {
+      const timestamp = value < 1e12 ? value * 1000 : value;
+      return Number.isFinite(timestamp) ? timestamp : null;
+    }
+
+    if (Array.isArray(value) && value.length >= 3) {
+      const [year, month, day, hour = 0, minute = 0, second = 0] = value.map(Number);
+      const date = new Date(year, month - 1, day, hour, minute, second);
+      return Number.isNaN(date.getTime()) ? null : date.getTime();
+    }
+
+    if (typeof value === "object") {
+      return getEntryTimestamp(value.$date ?? value.date ?? value.value);
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const numericValue = Number(trimmed);
+      if (Number.isFinite(numericValue)) return getEntryTimestamp(numericValue);
+      const date = new Date(trimmed);
+      return Number.isNaN(date.getTime()) ? null : date.getTime();
+    }
+
+    return null;
+  };
+
+  const isEntryTimePassed = (company: any) => {
+    const entryTimestamp = getEntryTimestamp(company?.entryTime);
+    return entryTimestamp !== null && entryTimestamp <= currentTime;
+  };
+
   const ownerIndicatorGroups = React.useMemo(() => {
     const companyIndicators = Array.isArray(selectedCompany?.confidenceIndicatorsList)
       ? selectedCompany.confidenceIndicatorsList
@@ -250,11 +300,21 @@ export default function ConfidenceMeterPage() {
 
     return {
       Nawaz: groups.Nawaz || [],
-      Sadik: groups.Sadik || [],
+      Sadiq: groups.Sadiq || [],
     };
   }, [selectedCompany]);
 
   const ownerColumns = Object.entries(ownerIndicatorGroups) as Array<[string, any[]]>;
+  const cumulativeIndicators = [...ownerIndicatorGroups.Nawaz, ...ownerIndicatorGroups.Sadiq];
+  const cumulativeScored = cumulativeIndicators.filter((indicator: any) => Boolean(indicator?.qualifies)).length;
+  const cumulativeTotal = cumulativeIndicators.length;
+  const cumulativePercentage = cumulativeTotal === 0 ? 0 : Math.round((cumulativeScored / cumulativeTotal) * 100);
+
+  const masterOwnerColumns = (["Nawaz", "Sadiq"] as const).map((owner) => [
+    owner,
+    masterIndicators.filter((indicator: any) => String(indicator?.owner || "").trim().toLowerCase() === owner.toLowerCase() && !isDeleted(indicator?.deleted)),
+  ] as [string, any[]]);
+  const visibleMasterOwnerColumns = masterOwnerColumns.filter(([owner]) => !selectedOwner || owner === selectedOwner);
 
   const availableIndicatorsForOwner = (owner: string) => {
     const existingNames = new Set(
@@ -290,6 +350,7 @@ export default function ConfidenceMeterPage() {
       const payload: any = {
         indicatorName: form.indicatorName,
         owner: form.owner || undefined,
+        weightage: form.weightage === "" ? undefined : Number(form.weightage),
       };
       const res = await fetch(url, {
         method: "POST",
@@ -306,7 +367,7 @@ export default function ConfidenceMeterPage() {
       }
       await fetchMasterList();
       setShowForm(false);
-      setForm({ indicatorName: "", owner: "" });
+      setForm({ indicatorName: "", owner: "", weightage: "" });
       setError(null);
       setSuccessMsg("Indicator added successfully");
       if (successTimer.current) window.clearTimeout(successTimer.current);
@@ -318,16 +379,10 @@ export default function ConfidenceMeterPage() {
     }
   };
 
-  const getRemainingEdits = (item: any) => {
-    const raw = item?.remainingEdits ?? item?.remaining_edits ?? 0;
-    const value = Number(raw);
-    return Number.isFinite(value) ? value : 0;
-  };
-
   const canEditIndicator = (item: any) => {
     const owner = String(item?.owner || "").trim().toLowerCase();
     const user = currentUser.trim().toLowerCase();
-    return (user === "abrar" || user === owner) && getRemainingEdits(item) > 0;
+    return user === "abrar" || (Boolean(user) && user === owner);
   };
 
   const canManageOwner = (owner: string) => {
@@ -365,12 +420,21 @@ export default function ConfidenceMeterPage() {
     }
     const id = item?.id ?? item?._id ?? item?.key ?? null;
     setEditingItem(item);
-    setEditForm({ indicatorName: item?.indicatorName ?? item?.indicator_name ?? "", owner: item?.owner ?? "" });
+    setEditForm({
+      indicatorName: item?.indicatorName ?? item?.indicator_name ?? "",
+      owner: item?.owner ?? "",
+      isAutomated: Boolean(item?.isAutomated ?? item?.automated),
+      weightage: String(item?.weightage ?? ""),
+    });
     setShowEditModal(true);
   };
 
   const handleIndicatorUpdate = async (indicator: any) => {
     if (!indicator) return;
+    if (isEntryTimePassed(selectedCompany)) {
+      setError("This confidence entry is locked because its entry time has passed");
+      return;
+    }
     if (!canManageOwner(String(indicator?.owner || ""))) {
       setError("You can only delete indicators in your own owner column");
       return;
@@ -397,6 +461,10 @@ export default function ConfidenceMeterPage() {
 
   const handleAddIndicatorToCompany = async (masterIndicator: any, owner: string) => {
     if (!selectedCompany || !masterIndicator) return;
+    if (isEntryTimePassed(selectedCompany)) {
+      setError("This confidence entry is locked because its entry time has passed");
+      return;
+    }
     if (!canManageOwner(owner)) {
       setError("You can only add indicators to your own owner column");
       return;
@@ -414,6 +482,10 @@ export default function ConfidenceMeterPage() {
 
   const handleIndicatorScoreChange = async (indicator: any, field: "qualifies" | "helpedInProfit" | "helpedInLoss", value: boolean) => {
     if (!selectedCompany || !indicator || !canManageOwner(String(indicator?.owner || ""))) return;
+    if (isEntryTimePassed(selectedCompany)) {
+      setError("This confidence entry is locked because its entry time has passed");
+      return;
+    }
 
     let indicatorUpdate: Record<string, boolean> = { [field]: value };
     if (value) {
@@ -446,6 +518,10 @@ export default function ConfidenceMeterPage() {
   };
 
   const openIndicatorPicker = async (owner: string) => {
+    if (isEntryTimePassed(selectedCompany)) {
+      setError("This confidence entry is locked because its entry time has passed");
+      return;
+    }
     setIndicatorPickerOwner(owner);
     if (masterIndicators.length === 0) {
       await fetchMasterList(undefined, false);
@@ -455,6 +531,10 @@ export default function ConfidenceMeterPage() {
   const handleEditSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!editingItem) return;
+    if (isEntryTimePassed(selectedCompany)) {
+      setError("This confidence entry is locked because its entry time has passed");
+      return;
+    }
     if (!canManageOwner(editingItem?.owner || editForm.owner || "")) {
       setError("You can only edit indicators in your own owner column");
       return;
@@ -470,7 +550,12 @@ export default function ConfidenceMeterPage() {
       if (!id) throw new Error("Unable to determine item id for update");
       const safeId = encodeURIComponent(String(id));
       const url = base ? `${base}/api/master-indicators/${safeId}` : `/api/master-indicators/${safeId}`;
-      const payload = { indicatorName: editForm.indicatorName, owner: editForm.owner || undefined };
+      const payload = {
+        indicatorName: editForm.indicatorName.trim(),
+        owner: editForm.owner || undefined,
+        isAutomated: editForm.isAutomated,
+        weightage: editForm.weightage === "" ? undefined : Number(editForm.weightage),
+      };
       const res = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -490,6 +575,35 @@ export default function ConfidenceMeterPage() {
       setSuccessMsg("Indicator updated successfully");
       if (successTimer.current) window.clearTimeout(successTimer.current);
       successTimer.current = window.setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: any) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleMasterIndicatorDelete = async () => {
+    if (!masterIndicatorPendingDeletion) return;
+    if (!canManageOwner(String(masterIndicatorPendingDeletion?.owner || ""))) {
+      setError("You can only delete indicators in your own owner column");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const base = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+      const id = getItemId(masterIndicatorPendingDeletion);
+      if (!id) throw new Error("Unable to determine item id for deletion");
+      const safeId = encodeURIComponent(String(id));
+      const url = base ? `${base}/api/master-indicators/${safeId}` : `/api/master-indicators/${safeId}`;
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      await fetchMasterList();
+      setMasterIndicatorPendingDeletion(null);
+      setSuccessMsg("Indicator deleted successfully");
     } catch (err: any) {
       setError(err?.message ?? String(err));
     } finally {
@@ -520,8 +634,63 @@ export default function ConfidenceMeterPage() {
   };
 
   const openCompanyModal = async () => {
+    setEditingCompany(null);
     setShowCompanyModal(true);
     setCompanyForm((f) => ({ ...f, companyName: "", entryTime: new Date().toISOString().slice(0,16), entryPrice: "", target: "", stopLoss: "", entryTaken: false, profitable: false }));
+  };
+
+  const toDateTimeInputValue = (value: any) => {
+    const date = value ? new Date(value) : null;
+    return date && !Number.isNaN(date.getTime())
+      ? date.toISOString().slice(0, 16)
+      : new Date().toISOString().slice(0, 16);
+  };
+
+  const openEditCompanyModal = () => {
+    if (!selectedCompany) return;
+    if (isEntryTimePassed(selectedCompany)) {
+      setError("This confidence entry is locked because its entry time has passed");
+      return;
+    }
+    setEditingCompany(selectedCompany);
+    setCompanyForm({
+      companyName: selectedCompany.companyName ?? "",
+      entryTime: toDateTimeInputValue(selectedCompany.entryTime),
+      entryPrice: String(selectedCompany.entryPrice ?? ""),
+      target: String(selectedCompany.target ?? ""),
+      stopLoss: String(selectedCompany.stopLoss ?? ""),
+      entryTaken: Boolean(selectedCompany.entryTaken),
+      profitable: Boolean(selectedCompany.profitable),
+    });
+    setShowCompanyModal(true);
+  };
+
+  const handleCompanyDelete = async () => {
+    if (!companyPendingDeletion || currentUser.trim().toLowerCase() !== "abrar") return;
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const id = getItemId(companyPendingDeletion);
+      if (!id) throw new Error("Unable to determine company entry id for deletion");
+      const base = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+      const safeId = encodeURIComponent(String(id));
+      const url = base ? `${base}/api/confidence-meter/${safeId}` : `/api/confidence-meter/${safeId}`;
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+
+      setCompanyPendingDeletion(null);
+      setSelectedCompanyId(null);
+      await fetchList();
+      setSuccessMsg("Confidence entry deleted successfully");
+    } catch (err: any) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Removed KeyMapping search logic — server endpoint /add-new will handle additions
@@ -546,6 +715,16 @@ export default function ConfidenceMeterPage() {
     }
 
     try {
+      if (editingCompany) {
+        const indicators = Array.isArray(editingCompany.confidenceIndicatorsList) ? editingCompany.confidenceIndicatorsList : [];
+        const updatedCompany = { ...editingCompany, ...payload, confidenceIndicatorsList: indicators };
+        setData((items) => items.map((item) => String(getItemId(item)) === String(getItemId(editingCompany)) ? updatedCompany : item));
+        queueCompanyUpdate(updatedCompany, indicators);
+        setEditingCompany(null);
+        setShowCompanyModal(false);
+        setSuccessMsg("Confidence entry updated locally. Save changes to persist it.");
+        return;
+      }
       const base = (process.env.NEXT_PUBLIC_BACKEND_URL || '').replace(/\/$/, '');
       const url = base ? `${base}/api/confidence-meter/add-new` : '/api/confidence-meter/add-new';
 
@@ -650,7 +829,9 @@ export default function ConfidenceMeterPage() {
       </header>
 
       {successMsg && (
-        <div className="mb-4 px-4 py-2 bg-emerald-100 text-slate-900 rounded-lg shadow-sm">{successMsg}</div>
+        <div className="mx-auto mb-4 w-full max-w-[1600px] min-w-0 overflow-hidden break-words rounded-lg bg-emerald-100 px-4 py-2 text-slate-900 shadow-sm">
+          {successMsg}
+        </div>
       )}
 
       {showForm && (
@@ -675,9 +856,18 @@ export default function ConfidenceMeterPage() {
                   className="px-3 py-2 rounded-lg border border-slate-200 bg-white"
                 >
                   {currentUser.trim().toLowerCase() === "abrar" ? <option value="">-- Select Owner --</option> : null}
-                  <option value="Sadik">Sadik</option>
+                  <option value="Sadiq">Sadiq</option>
                   <option value="Nawaz">Nawaz</option>
                 </select>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="Weightage"
+                  value={form.weightage}
+                  onChange={(e) => handleChange("weightage", e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-slate-200 bg-white placeholder-slate-400"
+                />
               </div>
               <div className="mt-3 flex gap-3">
                 <button
@@ -720,12 +910,36 @@ export default function ConfidenceMeterPage() {
               <button
                 onClick={() => {
                   setShowForm(false);
-                  setForm({ indicatorName: "", owner: "" });
+                  setForm({ indicatorName: "", owner: "", weightage: "" });
                   setShowCancelModal(false);
                 }}
                 className="px-4 py-2 rounded-md bg-red-600 text-white"
               >
                 Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {companyPendingDeletion && currentUser.trim().toLowerCase() === "abrar" && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-company-entry-title"
+          onClick={() => setCompanyPendingDeletion(null)}
+        >
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h3 id="delete-company-entry-title" className="text-lg font-bold text-slate-900">Delete confidence entry?</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Delete &quot;{companyPendingDeletion.companyName || "this company"}&quot; permanently?
+            </p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setCompanyPendingDeletion(null)} className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm">
+                Cancel
+              </button>
+              <button type="button" disabled={submitting} onClick={handleCompanyDelete} className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+                {submitting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
@@ -739,16 +953,25 @@ export default function ConfidenceMeterPage() {
           onClick={() => setShowCompanyModal(false)}
         >
           <div className="w-full max-w-lg bg-white rounded-xl p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold">Add Confidence Meter Entry</h3>
+            <h3 className="text-lg font-semibold">{editingCompany ? "Edit Confidence Meter Entry" : "Add Confidence Meter Entry"}</h3>
             <form onSubmit={handleAddCompanySubmit} className="mt-4">
               <div className="grid grid-cols-1 gap-3">
-                <CompanySearch
-                  keyMapping={keyMapping}
-                  label="Company Name"
-                  placeholder="Search company name..."
-                  onSelect={(companyName) => setCompanyForm((s) => ({ ...s, companyName }))}
-                  className=""
-                />
+                {editingCompany ? (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-700">Company Name</label>
+                    <div className="px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700">
+                      {companyForm.companyName}
+                    </div>
+                  </div>
+                ) : (
+                  <CompanySearch
+                    keyMapping={keyMapping}
+                    label="Company Name"
+                    placeholder="Search company name..."
+                    onSelect={(companyName) => setCompanyForm((s) => ({ ...s, companyName }))}
+                    className=""
+                  />
+                )}
                 <input type="datetime-local" value={companyForm.entryTime} onChange={(e) => setCompanyForm((s) => ({ ...s, entryTime: e.target.value }))} className="px-3 py-2 rounded-lg border border-slate-200 bg-white" />
                 <input type="number" step="any" placeholder="Entry Price" value={companyForm.entryPrice} onChange={(e) => setCompanyForm((s) => ({ ...s, entryPrice: e.target.value }))} className="px-3 py-2 rounded-lg border border-slate-200 bg-white" />
                 <input type="number" step="any" placeholder="Target" value={companyForm.target} onChange={(e) => setCompanyForm((s) => ({ ...s, target: e.target.value }))} className="px-3 py-2 rounded-lg border border-slate-200 bg-white" />
@@ -758,7 +981,7 @@ export default function ConfidenceMeterPage() {
               </div>
               <div className="mt-4 flex justify-end gap-3">
                 <button type="button" onClick={() => setShowCompanyModal(false)} className="px-4 py-2 rounded-md bg-white border">Cancel</button>
-                <button type="submit" className="px-4 py-2 rounded-md bg-blue-600 text-white">Add Entry</button>
+                <button type="submit" className="px-4 py-2 rounded-md bg-blue-600 text-white">{editingCompany ? "Update Entry" : "Add Entry"}</button>
               </div>
             </form>
           </div>
@@ -785,12 +1008,27 @@ export default function ConfidenceMeterPage() {
                 <select
                   value={editForm.owner}
                   onChange={(e) => handleEditChange("owner", e.target.value)}
+                  disabled={currentUser.trim().toLowerCase() !== "abrar"}
                   className="px-3 py-2 rounded-lg border border-slate-200 bg-white"
                 >
                   <option value="">-- Select Owner --</option>
-                  <option value="Sadik">Sadik</option>
+                  <option value="Sadiq">Sadiq</option>
                   <option value="Nawaz">Nawaz</option>
                 </select>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={editForm.isAutomated} onChange={(e) => handleEditChange("isAutomated", e.target.checked)} />
+                  Automated indicator
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    ["weightage", "Weightage"],
+                  ].map(([field, label]) => (
+                    <label key={field} className="text-sm text-slate-600">
+                      {label}
+                      <input type="number" step="any" value={editForm[field as keyof typeof editForm] as string} onChange={(e) => handleEditChange(field, e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+                    </label>
+                  ))}
+                </div>
               </div>
               <div className="mt-4 flex justify-end gap-3">
                 <button onClick={() => setShowEditModal(false)} type="button" className="px-4 py-2 rounded-md bg-white border">Cancel</button>
@@ -827,8 +1065,11 @@ export default function ConfidenceMeterPage() {
                   onClick={() => handleAddIndicatorToCompany(indicator, indicatorPickerOwner)}
                   className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 disabled:opacity-50"
                 >
-                  <span>{indicator.indicatorName || indicator.indicator_name}</span>
-                  <span className="text-cyan-600">+</span>
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="truncate">{indicator.indicatorName || indicator.indicator_name}</span>
+                    <span className="shrink-0 text-xs font-medium text-slate-500">Weightage: {indicator.weightage ?? 0}</span>
+                  </span>
+                  <span className="ml-3 shrink-0 text-cyan-600">+</span>
                 </button>
               ))}
             </div>
@@ -870,10 +1111,42 @@ export default function ConfidenceMeterPage() {
         </div>
       )}
 
+      {masterIndicatorPendingDeletion && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="delete-master-indicator-title" onClick={() => setMasterIndicatorPendingDeletion(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-white/80 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 id="delete-master-indicator-title" className="text-lg font-bold text-slate-900">Delete master indicator?</h3>
+            <p className="mt-2 text-sm text-slate-600">Delete &quot;{getIndicatorName(masterIndicatorPendingDeletion)}&quot; permanently?</p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setMasterIndicatorPendingDeletion(null)} className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">Cancel</button>
+              <button type="button" disabled={submitting} onClick={handleMasterIndicatorDelete} className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{submitting ? "Deleting..." : "Delete"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="mx-auto grid max-w-[1600px] grid-cols-1 gap-6 lg:grid-cols-3">
         {viewMode === "master" ? (
           <section className="lg:col-span-3 space-y-4 flex flex-col min-h-screen">
-            <div className="grid gap-4">
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-cyan-100 bg-white/95 p-3 shadow-sm backdrop-blur">
+              <span className="mr-2 text-sm font-bold uppercase tracking-[0.12em] text-cyan-800">Indicator owner</span>
+              {(["Nawaz", "Sadiq"] as const).map((owner) => (
+                <button
+                  key={owner}
+                  type="button"
+                  onClick={() => setSelectedOwner((current) => current === owner ? null : owner)}
+                  aria-pressed={selectedOwner === owner}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${selectedOwner === owner ? "bg-cyan-700 text-white" : "bg-cyan-50 text-cyan-800 hover:bg-cyan-100"}`}
+                >
+                  {owner}
+                </button>
+              ))}
+              {selectedOwner && (
+                <button type="button" onClick={() => setSelectedOwner(null)} className="px-2 py-1.5 text-sm text-slate-500 hover:text-slate-800">
+                  All
+                </button>
+              )}
+            </div>
+            <div className={`grid items-start gap-4 ${visibleMasterOwnerColumns.length === 2 ? "md:grid-cols-2" : "grid-cols-1"}`}>
               {!loading && !error && data.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="w-full p-6 mx-6 rounded-xl border border-slate-100 bg-white text-center shadow-sm">
@@ -882,10 +1155,12 @@ export default function ConfidenceMeterPage() {
                   </div>
                 </div>
               ) : (
-                data.map((item: any, index: number) => {
+                visibleMasterOwnerColumns.map(([owner, indicators]) => (
+                  <div key={owner} className="space-y-4">
+                    <div className="rounded-xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm font-bold uppercase tracking-[0.12em] text-cyan-800">{owner}</div>
+                    {indicators.map((item: any, index: number) => {
                   const isIndicator = !!(item?.indicatorName || item?.indicator_name);
                   const name = item.indicatorName ?? item.indicator_name ?? item.name ?? item.companyName ?? "";
-                  const owner = item.owner ?? "";
                   const itemKey = String(item?.id ?? item?._id ?? item?.key ?? `${name}-${owner}-${index}`);
 
                   if (isIndicator && isDeleted(item?.deleted)) return null;
@@ -896,17 +1171,23 @@ export default function ConfidenceMeterPage() {
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="text-lg font-bold">{name}</div>
-                            <div className="text-sm text-slate-600">Owner: {owner || "-"}</div>
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                              <span>Automated: {Boolean(item?.isAutomated ?? item?.automated) ? "Yes" : "No"}</span>
+                              <span>Weightage: {item?.weightage ?? "-"}</span>
+                              <span>Helped in profit: {item?.helpedInProfit ?? "-"}</span>
+                              <span>Helped in loss: {item?.helpedInLoss ?? "-"}</span>
+                            </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            <div className="text-xs text-slate-500">Indicator</div>
                             {viewMode === "master" && canManageOwner(owner) && (
-                              <button
-                                onClick={() => openEdit(item)}
-                                className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-1 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-100"
-                              >
-                                Edit
-                              </button>
+                              <>
+                                <button onClick={() => openEdit(item)} className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-1 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-100">
+                                  Edit
+                                </button>
+                                <button onClick={() => setMasterIndicatorPendingDeletion(item)} className="rounded-xl border border-red-200 bg-red-50 px-3 py-1 text-sm font-semibold text-red-700 transition hover:bg-red-100">
+                                  Delete
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
@@ -925,9 +1206,11 @@ export default function ConfidenceMeterPage() {
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${Boolean(item?.entryTaken) ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
                             {Boolean(item?.entryTaken) ? "Entry Taken" : "Not Taken"}
                           </span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${Boolean(item?.profitable) ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
-                            {Boolean(item?.profitable) ? "Profitable" : "Not Profitable"}
-                          </span>
+                          {Boolean(item?.entryTaken) && (
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${Boolean(item?.profitable) ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                              {Boolean(item?.profitable) ? "Profitable" : "Not Profitable"}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -951,7 +1234,9 @@ export default function ConfidenceMeterPage() {
                       </div>
                     </div>
                   );
-                })
+                    })}
+                  </div>
+                ))
               )}
             </div>
           </section>
@@ -990,9 +1275,11 @@ export default function ConfidenceMeterPage() {
                               <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${entryTaken ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
                                 {entryTaken ? "Taken" : "Open"}
                               </span>
-                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${profitable ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
-                                {profitable ? "Profit" : "Loss"}
-                              </span>
+                              {entryTaken && (
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${profitable ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                                  {profitable ? "Profit" : "Loss"}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </button>
@@ -1017,9 +1304,19 @@ export default function ConfidenceMeterPage() {
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${Boolean(selectedCompany.entryTaken) ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
                             {Boolean(selectedCompany.entryTaken) ? "Entry Taken" : "Not Taken"}
                           </span>
-                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${Boolean(selectedCompany.profitable) ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
-                            {Boolean(selectedCompany.profitable) ? "Profitable" : "Not Profitable"}
-                          </span>
+                          {Boolean(selectedCompany.entryTaken) && (
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${Boolean(selectedCompany.profitable) ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                              {Boolean(selectedCompany.profitable) ? "Profitable" : "Not Profitable"}
+                            </span>
+                          )}
+                          <button type="button" onClick={openEditCompanyModal} disabled={isEntryTimePassed(selectedCompany)} className="rounded-lg border border-cyan-200 bg-white px-3 py-1 text-xs font-semibold text-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50">
+                            Edit Entry
+                          </button>
+                          {currentUser.trim().toLowerCase() === "abrar" && (
+                            <button type="button" onClick={() => setCompanyPendingDeletion(selectedCompany)} className="rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                              Delete Entry
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -1043,18 +1340,30 @@ export default function ConfidenceMeterPage() {
                       </div>
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-hidden p-5">
+                    <div className="min-h-0 flex-1 overflow-y-auto p-5">
                       <div className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Confidence Indicators</div>
+                      <div className="mb-5 rounded-2xl border border-cyan-100 bg-white p-4 shadow-sm">
+                        <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                          <span className="font-semibold text-slate-700">Combined Nawaz + Sadiq</span>
+                          <span className="shrink-0 font-bold text-slate-700">{cumulativeScored} of {cumulativeTotal} ({cumulativePercentage}%)</span>
+                        </div>
+                        <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${cumulativePercentage > 75 ? "bg-emerald-500" : cumulativePercentage > 50 ? "bg-amber-500" : "bg-red-500"}`}
+                            style={{ width: `${cumulativePercentage}%` }}
+                          />
+                        </div>
+                      </div>
 
                       {ownerColumns.length === 0 ? (
                         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
                           No confidence indicators added for this company.
                         </div>
                       ) : (
-                        <div className="grid h-full min-h-0 w-full grid-cols-1 gap-5 md:grid-cols-2">
+                        <div className="grid min-h-0 w-full grid-cols-1 gap-5 md:grid-cols-2">
                           {ownerColumns.filter(([owner]) => !selectedOwner || owner === selectedOwner).map(([owner, indicators]) => (
-                            <div key={owner} className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-cyan-100 bg-slate-50/70 shadow-sm">
-                              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-cyan-100 bg-white px-4 py-3 shadow-sm">
+                            <div key={owner} className="flex min-h-0 flex-col rounded-2xl border border-cyan-100 bg-slate-50/70 shadow-sm">
+                              <div className="sticky top-[-1.25rem] z-20 flex items-center justify-between border-b border-cyan-100 bg-white px-4 py-3 shadow-sm">
                                 <button
                                   type="button"
                                   onClick={() => setSelectedOwner((current) => current === owner ? null : owner)}
@@ -1079,20 +1388,21 @@ export default function ConfidenceMeterPage() {
                                       </div>
                                     );
                                   })()}
-                                  {(owner === "Nawaz" || owner === "Sadik") && canManageOwner(owner) ? (
+                                  {(owner === "Nawaz" || owner === "Sadiq") && canManageOwner(owner) ? (
                                     <button
                                       type="button"
                                       aria-label={`Add indicator for ${owner}`}
                                       title={`Add indicator for ${owner}`}
                                       onClick={() => openIndicatorPicker(owner)}
-                                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-lg font-semibold leading-none text-cyan-700 transition hover:bg-cyan-100"
+                                      disabled={isEntryTimePassed(selectedCompany)}
+                                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-lg font-semibold leading-none text-cyan-700 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                       +
                                     </button>
                                   ) : null}
                                 </div>
                               </div>
-                              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+                              <div className="space-y-3 p-3">
                                 {indicators.map((indicator: any, idx: number) => {
                                   const isAutomated = indicator?.isAutomated ?? indicator?.automated ?? false;
                                   const qualifies = Boolean(indicator?.qualifies);
@@ -1103,7 +1413,7 @@ export default function ConfidenceMeterPage() {
                                     <button
                                       type="button"
                                       onClick={onChange}
-                                      disabled={!onChange || submitting}
+                                      disabled={!onChange || submitting || isEntryTimePassed(selectedCompany)}
                                       className={`relative h-7 w-14 shrink-0 rounded-full border border-white/70 p-0.5 shadow-inner transition-colors ${active ? "bg-emerald-500 shadow-emerald-200" : "bg-rose-400 shadow-rose-200"}`}
                                       aria-label={active ? "Enabled" : "Disabled"}
                                     >
@@ -1131,7 +1441,7 @@ export default function ConfidenceMeterPage() {
                                             aria-label={`Delete ${indicator.indicatorName || 'indicator'}`}
                                             title="Delete indicator"
                                             onClick={() => handleIndicatorUpdate(indicator)}
-                                            disabled={submitting || !canManageOwner(owner)}
+                                            disabled={submitting || !canManageOwner(owner) || isEntryTimePassed(selectedCompany)}
                                             className="flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                                           >
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
