@@ -674,9 +674,12 @@ export default function ConfidenceMeterPage() {
       const id = getItemId(companyPendingDeletion);
       if (!id) throw new Error("Unable to determine company entry id for deletion");
       const base = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
-      const safeId = encodeURIComponent(String(id));
-      const url = base ? `${base}/api/confidence-meter/${safeId}` : `/api/confidence-meter/${safeId}`;
-      const res = await fetch(url, { method: "DELETE" });
+      const url = base ? `${base}/api/confidence-meter/delete` : "/api/confidence-meter/delete";
+      const res = await fetch(url, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
       if (!res.ok && res.status !== 204) {
         const text = await res.text().catch(() => "");
         throw new Error(text || `HTTP ${res.status}`);
