@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { sendOtpToWhatsApp, verifyOtpWithBackend, getUserPhone } from '@/utils/whatsappUtils';
 import axios from 'axios';
+import { ArrowRight, LockKeyhole, MessageCircle, ShieldCheck } from 'lucide-react';
 
 export default function AuthPage() {
   const router = useRouter();
@@ -146,32 +147,34 @@ export default function AuthPage() {
 
   if (isLoading || !shouldShow) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+      <div className="auth-loading-shell">
+        <div className="app-loading-spinner" />
       </div>
     );
   }
 
   return (
-    <main 
-      className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center"
-      style={{
-        backgroundImage: `url('https://images.pexels.com/photos/730547/pexels-photo-730547.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1')`,
-      }}
-    >
-      <div className="bg-black bg-opacity-60 p-8 rounded-lg flex flex-col items-center gap-6 w-full max-w-md mx-4">
-        <h1 
-          className={`text-3xl md:text-4xl font-bold text-white uppercase px-8 py-4 rounded-lg text-center tracking-widest w-full
-          ${isInvalid ? 'bg-red-600 bg-opacity-40' : 'bg-green-600 bg-opacity-40'}`}
-        >
-          ALGOHORIZON
-        </h1>
+    <main className="auth-page">
+      <div className="auth-orbit auth-orbit-one" aria-hidden="true" />
+      <div className="auth-orbit auth-orbit-two" aria-hidden="true" />
+      <section className="auth-panel" aria-labelledby="auth-title">
+        <div className="auth-brand-mark"><LockKeyhole className="size-6" /></div>
+        <div className="auth-heading">
+          <p className="auth-eyebrow">Secure access</p>
+          <h1 id="auth-title">Welcome to Algo Horizon</h1>
+        </div>
+        <div className="auth-step-row">
+          <span className="auth-step auth-step-active"><MessageCircle className="size-4" /> 1. Send code</span>
+          <span className="auth-step"><ShieldCheck className="size-4" /> 2. Verify</span>
+        </div>
         
         {/* OTP Login Form */}
-        <form onSubmit={handleOtpSubmit} className="flex flex-col items-center gap-4 w-full">
-            <div className="flex flex-col items-center gap-2 w-full">
-              <div className="flex gap-2 w-full max-w-[340px]">
+        <form onSubmit={handleOtpSubmit} className="auth-form">
+            <div className="auth-field-group">
+              <label htmlFor="auth-user">Choose your profile</label>
+              <div className="auth-user-row">
                 <select
+                  id="auth-user"
                   value={username}
                   onChange={(e) => {
                     setUsername(e.target.value);
@@ -181,7 +184,7 @@ export default function AuthPage() {
                     setOtpSent(false);
                     setOtp(['', '', '', '', '']);
                   }}
-                  className="flex-1 h-[48px] bg-white bg-opacity-90 border-2 border-green-500 focus:border-green-600 rounded-lg text-center"
+                  className="auth-select"
                 >
                   <option value="" disabled>Select user to login</option>
                   <option value="Nawaz">Nawaz</option>
@@ -192,10 +195,10 @@ export default function AuthPage() {
                   type="button"
                   onClick={handleGenerateOtp}
                   disabled={isGeneratingOtp || !username}
-                  className={`px-4  h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 
+                  className={`auth-primary-button
                            ${isGeneratingOtp || !username
-                             ? 'bg-gray-500 cursor-not-allowed' 
-                             : 'bg-blue-600 hover:bg-blue-700'}`}
+                             ? 'auth-button-disabled' 
+                             : ''}`}
                 >
                   {isGeneratingOtp ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
@@ -206,8 +209,9 @@ export default function AuthPage() {
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-2 w-full">
-              <div className="flex items-center gap-2">
+            <div className="auth-field-group auth-otp-group">
+              <div className="auth-otp-label-row"><label>Enter your 5-digit code</label></div>
+              <div className="auth-otp-row">
                 {[0, 1, 2, 3, 4].map((index) => (
                   <div key={`otp-box-${index}`} className="flex items-center">
                     <input
@@ -218,41 +222,40 @@ export default function AuthPage() {
                       value={otp[index]}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      className={`w-12 h-12 text-center text-xl bg-white bg-opacity-90 rounded-lg 
-                               border-2 focus:outline-none transition-colors duration-300
+                      className={`auth-otp-input
                                ${isInvalid 
-                                 ? 'border-red-500 focus:border-red-600' 
-                                 : 'border-green-500 focus:border-green-600'}`}
+                                 ? 'auth-otp-invalid' 
+                                 : ''}`}
                       maxLength={1}
                       disabled={!otpSent}
                       autoComplete="off"
                     />
                     {index < 4 && (
-                      <span className="mx-1 text-white text-xl font-bold">-</span>
+                      <span className="auth-otp-divider">-</span>
                     )}
                   </div>
                 ))}
               </div>
               {error && (
-                <p className="text-red-500 text-sm font-semibold">{error}</p>
+                <p className="auth-message auth-error">{error}</p>
               )}
               {successMessage && (
-                <p className="text-green-400 text-sm font-semibold">{successMessage}</p>
+                <p className="auth-message auth-success">{successMessage}</p>
               )}
             </div>
 
             <Button
               type="submit"
               disabled={isVerifyingOtp || !otpSent || otp.some(digit => digit === '')}
-              className={`w-[200px] h-[48px] text-white font-semibold rounded-lg transition-colors duration-200 
+              className={`auth-submit-button
                        ${isVerifyingOtp || !otpSent || otp.some(digit => digit === '')
-                         ? 'bg-gray-500 cursor-not-allowed' 
-                         : 'bg-green-600 hover:bg-green-700'}`}
+                         ? 'auth-button-disabled' 
+                         : ''}`}
             >
-              {isVerifyingOtp ? 'Verifying...' : 'Verify OTP'}
+              {isVerifyingOtp ? 'Verifying...' : <>Verify OTP <ArrowRight className="size-4" /></>}
             </Button>
           </form>
-      </div>
+      </section>
     </main>
   );
 }

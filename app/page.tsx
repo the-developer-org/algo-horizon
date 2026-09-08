@@ -1,9 +1,7 @@
 "use client";
 import { useState } from "react";
-import { MainSidebar } from "../components/main-sidebar";
 import { WatchLists } from "../components/WatchLists";
 import { HistoricalInsights } from "../components/HistoricalInsights";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
 export default function Home() {
   const [showWatchLists, setShowWatchLists] = useState(false);
@@ -11,16 +9,7 @@ export default function Home() {
   // Root now directly shows the simplified dashboard (formerly new-home)
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen w-full bg-gray-50">
-        <MainSidebar
-          onShowInsights={() => {
-            // Toggle both watchlists and insights like original combined section
-            setShowWatchLists(prev => !prev);
-            setShowHistoricalInsights(prev => !prev);
-          }}
-        />
-        <SidebarInset className="flex flex-col overflow-y-auto py-6 px-0">
+    <div className="min-h-[30vh] w-full">
          
       
           {/* Empty dashboard - add widgets/components here as needed */}
@@ -125,8 +114,6 @@ export default function Home() {
               )}
             </div>
           )}
-  </SidebarInset>
-      </div>
-    </SidebarProvider>
+    </div>
   );
 }
