@@ -1350,7 +1350,7 @@ export const OHLCChartDemo: React.FC = () => {
         > 
           <button
             onClick={() => setShowControls(true)}
-            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded shadow-sm"
+            className="chart-control-secondary"
           >
             Show Controls
           </button>
@@ -1409,13 +1409,13 @@ export const OHLCChartDemo: React.FC = () => {
                 <button
                   onClick={handleFetchData}
                   data-testid="fetch-button"
-                  className="flex-1 bg-blue-500 text-white py-1.5 px-2 rounded text-xs font-semibold shadow-md active:scale-95 transition-transform"
+                  className="chart-control-primary flex-1 py-1.5 px-2 text-xs"
                 >
                   Load
                 </button>
                 <a
                   href="/"
-                  className="flex-1 bg-gray-200 text-gray-800 py-1.5 px-2 rounded text-xs font-semibold text-center shadow-md active:scale-95 transition-transform"
+                  className="chart-control-secondary flex-1 py-1.5 px-2 text-xs text-center"
                 >
                   Home
                 </a>
@@ -1629,13 +1629,13 @@ export const OHLCChartDemo: React.FC = () => {
                   <button
                     onClick={handleFetchData}
                     data-testid="fetch-button"
-                    className="bg-blue-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm"
+                    className="chart-control-primary px-4 py-2 text-sm"
                   >
                     Load Data
                   </button>
                   <a
                     href="/"
-                    className="px-4 py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors text-sm font-medium text-center shadow-sm"
+                    className="chart-control-secondary px-4 py-2 text-sm text-center"
                   >
                     Home
                   </a>
@@ -1787,10 +1787,10 @@ export const OHLCChartDemo: React.FC = () => {
                   <button
                     onClick={() => loadMoreHistoricalData()}
                     disabled={loadingOlderData}
-                    className={`px-4 py-2 rounded-md text-sm font-medium shadow-sm ${
+                    className={`chart-control-secondary px-4 py-2 text-sm ${
                       loadingOlderData
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-green-600 text-white hover:bg-green-700'
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'chart-control-primary'
                     }`}
                   >
                     {loadingOlderData ? 'Loading...' : 'Load More History'}
@@ -1802,7 +1802,7 @@ export const OHLCChartDemo: React.FC = () => {
               <div className="flex justify-center mt-3 pt-3 border-t border-gray-200 w-full">
                 <button
                   onClick={() => setShowControls(false)}
-                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded-md text-sm font-medium transition-colors shadow-sm"
+                  className="chart-control-secondary px-6 py-2 text-sm"
                 >
                   Hide Controls
                 </button>
@@ -1842,11 +1842,11 @@ export const OHLCChartDemo: React.FC = () => {
             }}
           >
             {candles.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 bg-gray-50 border border-gray-200 rounded-lg m-4">
+              <div className="chart-empty-state flex flex-col items-center justify-center h-64 m-4">
                 <div className="text-center space-y-3">
                   <div className="text-4xl text-gray-400">📊</div>
-                  <h3 className="text-lg font-semibold text-gray-600">No Chart Data</h3>
-                  <p className="text-gray-500 max-w-md">
+                  <h3 className="text-lg font-semibold text-slate-700">No Chart Data</h3>
+                  <p className="text-slate-500 max-w-md">
                     {(() => {
                       if (!selectedCompany) {
                         return 'Please select a company from the search dropdown and click "Load Data".';

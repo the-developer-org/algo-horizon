@@ -5,8 +5,9 @@ import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { MainSidebar } from "../components/main-sidebar";
+import Link from "next/link";
+import { Home, LogOut } from "lucide-react";
+import { AppNavigationGrid } from "@/components/app-navigation-grid";
 import { DeepDiveProvider } from "@/context/DeepDiveContext";
 import { MarketDataProvider } from "@/context/MarketDataContext";
 import StoreProvider from "@/lib/store/StoreProvider";
@@ -28,12 +29,6 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
   // Exclude upstox-management from being treated as a regular auth page
   const isAuthPage = (pathname?.startsWith('/auth') && pathname !== '/auth/upstox-management') ?? false;
-  const isUpstoxPage = pathname?.startsWith('/upstox') ?? false;
-  const [sidebarVisible, setSidebarVisible] = useState(true);
-
-  const toggleSidebar = () => {
-    setSidebarVisible(!sidebarVisible);
-  };
 
   useEffect(() => {
     const checkAuth = () => {
@@ -68,8 +63,8 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   // Show loading spinner while checking authentication
   if (authStatus === 'checking') {
     return (
-      <div className="min-h-screen w-full bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+      <div className="app-loading-shell">
+        <div className="app-loading-spinner" aria-label="Loading" />
       </div>
     );
   }
@@ -77,7 +72,7 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   // For auth page, render without sidebar
   if (isAuthPage) {
     return (
-      <div className="min-h-screen w-full bg-gray-50">
+      <div className="app-shell w-full">
         {children}
       </div>
     );
@@ -86,8 +81,8 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   // If not authenticated, show a clear message instead of a blank loading state
   if (authStatus === 'unauthenticated') {
     return (
-      <div className="min-h-screen w-full bg-gray-50 flex items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-6 text-center shadow-sm">
+      <div className="app-loading-shell p-6">
+        <div className="app-empty-surface w-full max-w-md p-6 text-center">
           <div className="mb-3 text-3xl">⚠️</div>
           <h2 className="text-xl font-semibold text-gray-900">Authentication required</h2>
           <p className="mt-2 text-sm text-gray-600">
@@ -109,20 +104,30 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <DeepDiveProvider>
       <MarketDataProvider>
-        <SidebarProvider>
-          <Toaster position="top-right" />
-          <div className="flex min-h-screen w-full bg-gray-50">
-            {!isUpstoxPage && (
-              <MainSidebar isVisible={sidebarVisible} onToggleVisibility={toggleSidebar} />
-            )}
-            <div className="flex-1 overflow-y-auto">
-              {children}
+        <Toaster position="top-right" />
+        <div className="app-shell">
+          <header className="app-topbar">
+            <Link href="/" className="app-brand" aria-label="Go to Algo Horizon home">
+              <span className="app-brand-mark"><TrendingMark /></span>
+              <span><strong>Algo Horizon</strong></span>
+            </Link>
+            <div className="app-topbar-actions">
+              <Link href="/" className="app-home-link"><Home className="size-4" /> Home</Link>
+              <button type="button" className="app-logout-link" onClick={() => { sessionStorage.clear(); localStorage.removeItem("isUserAuthorised"); localStorage.removeItem("currentUser"); router.replace("/auth"); }}>
+                <LogOut className="size-4" /> Sign out
+              </button>
             </div>
-          </div>
-        </SidebarProvider>
+          </header>
+          {pathname === "/" && <AppNavigationGrid />}
+          <main className="app-content">{children}</main>
+        </div>
       </MarketDataProvider>
     </DeepDiveProvider>
   );
+}
+
+function TrendingMark() {
+  return <span className="app-brand-glyph" aria-hidden="true">↗</span>;
 }
 
 export default function RootLayout({
