@@ -15,6 +15,7 @@ import {
   Gauge,
   Link2,
   LineChart,
+  FlaskConical,
   Search,
   Settings,
   ShieldCheck,
@@ -78,6 +79,7 @@ const navigationGroups: NavigationGroup[] = [
     color: "from-amber-500 to-orange-600",
     items: [
       { title: "Confidence Meter", href: "/confidence-meter", icon: Gauge },
+      { title: "Strategy testing", href: "/backtesting", icon: FlaskConical },
       { title: "Backtest Stats", href: "/backtest-stats", icon: FileText },
       { title: "Buffer Check", href: "/buffer-check", icon: CheckCircle },
       { title: "Stock Buffers", href: "/stock-buffers", icon: ShieldCheck },
