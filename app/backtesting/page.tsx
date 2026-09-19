@@ -7,6 +7,9 @@ import { Activity, BarChart3, FileText, LoaderCircle, RefreshCw, ShieldCheck } f
 type TradeEntry = {
   entryCandle?: { timestamp?: string; close?: number };
   profitCandle?: { timestamp?: string };
+  absoluteProfitCandle?: { timestamp?: string; close?: number };
+  prevSwing?: { label?: string };
+  currentSwing?: { label?: string };
   hitTarget?: boolean;
   hitStop?: boolean;
   profitPercentage?: number;
@@ -83,6 +86,14 @@ export default function StrategyTestingPage() {
     });
   };
 
+  const getProfitPercentage = (entry: TradeEntry) => entry.profitPercent ?? entry.profitPercentage;
+  const getAbsoluteProfitPercentage = (entry: TradeEntry) => {
+    const entryClose = entry.entryCandle?.close;
+    const absoluteClose = entry.absoluteProfitCandle?.close;
+    if (entryClose == null || absoluteClose == null || entryClose === 0) return undefined;
+    return ((absoluteClose - entryClose) / entryClose) * 100;
+  };
+
   const renderNiftyHLContent = () => {
     if (isLoadingNiftyHL) {
       return <div className="strategy-preview-state"><LoaderCircle className="size-5 animate-spin" /> Loading strategy data...</div>;
@@ -104,25 +115,32 @@ export default function StrategyTestingPage() {
                 <h4>{companyName}</h4>
                 <div className="strategy-company-metrics">
                   <span>15M entries <strong>{companyEntries.filter((item) => item.timeframe === "15M").length}</strong></span>
-                  <span>Target hits <strong>{companyEntries.filter((item) => item.entry.hitTarget).length}</strong></span>
+                  <span>Target hits <strong>{companyEntries.filter((item) => (getProfitPercentage(item.entry) ?? 0) >= 2).length}</strong></span>
+                  <span>Absolute profit <strong>{companyEntries.filter((item) => (getAbsoluteProfitPercentage(item.entry) ?? 0) >= 2).length}</strong></span>
                 </div>
               </div>
                   <div className="strategy-entry-table" role="table" aria-label={`${companyName} trade entries`}>
                     <div className="strategy-entry-row strategy-entry-row-header" role="row">
-                      <span>#</span><span>Entry date</span><span>Exit date</span><span>Entry value</span><span>Stop loss</span><span>Target</span><span>Result</span><span>Note</span>
+                      <span>#</span><span>Entry date</span><span>Exit date</span><span>Entry value</span><span>Prev swing</span><span>Curr swing</span><span>Stop loss</span><span>Target</span><span>Result</span><span>Absolute profit</span><span>Note</span>
                     </div>
                     {companyEntries.map(({ entry, groupIndex, entryIndex }, companyEntryIndex) => {
                       const serialNumber = entries.indexOf(companyEntries[companyEntryIndex]);
-                      let outcome = "Open";
-                      let resultValue = entry.profitPercent ?? entry.profitPercentage;
+                      const resultValue = getProfitPercentage(entry);
+                      const absoluteProfit = getAbsoluteProfitPercentage(entry);
+                      let absoluteProfitClass = "";
+                      let absoluteProfitText = "-";
+                      if (absoluteProfit != null) {
+                        absoluteProfitClass = absoluteProfit >= 2 ? "strategy-entry-profit" : "strategy-entry-amber";
+                        absoluteProfitText = `${absoluteProfit.toFixed(2)}%`;
+                      }
+                      let resultText = "-";
                       let resultClass = "";
-                      if (entry.hitTarget) {
-                        outcome = "Target hit";
-                        resultClass = "strategy-entry-profit";
-                      } else if (entry.hitStop) {
-                        outcome = "Stop hit";
-                        resultValue = entry.lossPercent ?? entry.lossPercentage;
+                      if (entry.hitStop) {
+                        resultText = "SL";
                         resultClass = "strategy-entry-loss";
+                      } else if (resultValue != null) {
+                        resultText = `${Number(resultValue).toFixed(2)}%`;
+                        resultClass = resultValue >= 2 ? "strategy-entry-profit" : "strategy-entry-amber";
                       }
                       return (
                         <div className="strategy-entry-row" role="row" key={`${groupIndex}-${entryIndex}`}>
@@ -130,9 +148,12 @@ export default function StrategyTestingPage() {
                           <span>{formatTradeDate(entry.entryCandle?.timestamp)}</span>
                           <span>{formatTradeDate(entry.profitCandle?.timestamp)}</span>
                           <span>{entry.entryCandle?.close ?? "-"}</span>
+                          <span>{entry.prevSwing?.label || "-"}</span>
+                          <span>{entry.currentSwing?.label || "-"}</span>
                           <span>{entry.stopLoss ?? "-"}</span>
                           <span>{entry.target ?? "-"}</span>
-                          <span className={resultClass}>{resultValue == null ? outcome : `${outcome} · ${Number(resultValue).toFixed(2)}%`}</span>
+                          <span className={resultClass}>{resultText}</span>
+                          <span className={absoluteProfitClass}>{absoluteProfitText}</span>
                           <span className="strategy-entry-note">{entry.note || "-"}</span>
                         </div>
                       );

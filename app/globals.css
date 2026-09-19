@@ -228,7 +228,7 @@
   .strategy-company-metrics strong { margin-left: .2rem; color: #293945; font-size: .76rem; }
   .strategy-company-group .strategy-entry-table { border-radius: 0 .65rem .65rem .65rem; }
   .strategy-entry-table { overflow-x: auto; border: 1px solid #e5ecef; border-radius: .65rem; }
-  .strategy-entry-row { display: grid; grid-template-columns: .45fr 1fr 1fr .85fr .8fr .8fr minmax(8rem, 1.45fr) minmax(8rem, 1.5fr); align-items: center; min-width: 65rem; gap: .75rem; padding: .65rem .75rem; border-top: 1px solid #edf1f2; color: #52616d; font-size: .72rem; }
+  .strategy-entry-row { display: grid; grid-template-columns: .45fr 1fr 1fr .85fr .8fr .8fr .8fr .8fr minmax(7rem, 1.2fr) minmax(7rem, 1.2fr) minmax(8rem, 1.5fr); align-items: center; min-width: 84rem; gap: .75rem; padding: .65rem .75rem; border-top: 1px solid #edf1f2; color: #52616d; font-size: .72rem; }
   .strategy-entry-row:first-child { border-top: 0; }
   .strategy-entry-row:nth-child(even) { background: rgba(248,250,251,.62); }
   .strategy-entry-row-header { color: #8a969e; background: #f7fafb !important; font-size: .62rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
@@ -241,6 +241,7 @@
   .strategy-entry-outcome-open { color: #8a6514; background: #fff6d9; }
   .strategy-entry-profit { color: #087f65; font-weight: 800; }
   .strategy-entry-loss { color: #bd4d43; font-weight: 800; }
+  .strategy-entry-amber { color: #a56b00; font-weight: 800; }
   .strategy-entry-note { overflow: hidden; color: #71808c; text-overflow: ellipsis; white-space: nowrap; }
   .backtesting-home-link, .backtesting-open-link { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid #dbe4e8; border-radius: .7rem; padding: .6rem .8rem; color: #52616d; background: rgba(255,255,255,.78); font-size: .78rem; font-weight: 800; text-decoration: none; white-space: nowrap; }
   .backtesting-home-link:hover, .backtesting-open-link:hover { border-color: #67c5d8; color: #087f99; background: white; }
