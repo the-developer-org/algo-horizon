@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StrykeEntries } from "@/types/analysis";
 
 const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -25,16 +25,17 @@ export default function StrykeEntriesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [rerunningId, setRerunningId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const hasStartedLoading = useRef(false);
 
   useEffect(() => {
-    let cancelled = false;
+    if (hasStartedLoading.current) return;
+    hasStartedLoading.current = true;
 
     const loadEntries = async () => {
       setIsLoading(true);
       setError(null);
 
       for (const alphabet of ALPHABETS) {
-        if (cancelled) return;
         setCurrentAlphabet(alphabet);
 
         try {
@@ -49,30 +50,21 @@ export default function StrykeEntriesPage() {
           }
 
           const data: EntriesResponse = await response.json();
-          if (!cancelled) {
-            setEntries((previous) => [
-              ...previous,
-              ...(data.strykeInboundDataList ?? []),
-            ]);
-            setCompleted((previous) => [...previous, alphabet]);
-          }
+          setEntries((previous) => [
+            ...previous,
+            ...(data.strykeInboundDataList ?? []),
+          ]);
+          setCompleted((previous) => [...previous, alphabet]);
         } catch (loadError) {
-          if (!cancelled) {
-            setError(loadError instanceof Error ? loadError.message : "Failed to load entries");
-          }
+          setError(loadError instanceof Error ? loadError.message : "Failed to load entries");
         }
       }
 
-      if (!cancelled) {
-        setCurrentAlphabet(null);
-        setIsLoading(false);
-      }
+      setCurrentAlphabet(null);
+      setIsLoading(false);
     };
 
     loadEntries();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   const handleRerun = async (entry: StrykeEntries) => {
