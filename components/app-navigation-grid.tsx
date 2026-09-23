@@ -57,6 +57,7 @@ const navigationGroups: NavigationGroup[] = [
     color: "from-violet-500 to-fuchsia-600",
     items: [
       { title: "Strike Analysis", href: "/strike-analysis", icon: Search },
+      { title: "Stryke Entries", href: "/stryke-entries", icon: FileText },
       { title: "Swing Stats", href: "/strike-analysis?tab=swing", icon: BarChart3 },
       { title: "Deep Dive", href: "/deep-dive", icon: Target },
       { title: "Boom Days", href: "/boom-days", icon: Calendar },

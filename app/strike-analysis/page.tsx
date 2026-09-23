@@ -439,7 +439,7 @@ function StrikeAnalysisContent() {
   const addNewStock = async (strykeInbound: Partial<Stryke>) => {
     try {
       const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      await axios.post(`${backEndBaseUrl}/api/stryke/add-stock`, strykeInbound, {
+      await axios.post(`${backEndBaseUrl}/api/stryke-inbound/add-stock`, strykeInbound, {
         headers: {
           'accept': 'application/json',
         },
@@ -1766,6 +1766,8 @@ function StrikeAnalysisContent() {
             {/* Add a new stats page */}
             {showSwingStats && (
               <div className="w-full mx-auto py-4 px-2 sm:px-4 overflow-x-auto">
+
+                <h2 className="text-xl font-semibold mb-3">Swing Stats</h2>
 
                 {/* Search, Sort, and Filter Controls */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap mb-4">

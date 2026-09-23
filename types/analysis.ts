@@ -127,6 +127,21 @@ export interface Stryke {
   algoSwingAnalysis?: SwingAnalysis;
 }
 
+
+export interface StrykeEntries {
+  id: string;
+  instrumentKey: string;
+  companyName: string;
+  entryDate: string;
+  time: string;
+  callType: string;
+  stopLoss: number;
+  target: number;
+  executed: boolean;
+  strykeId: string;
+  failed: boolean;
+}
+
 export interface DayStats {
   peak: number;
   dip: number;
