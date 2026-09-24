@@ -39,6 +39,7 @@ const strategyTabs = [
 export default function StrategyTestingPage() {
   const [activeTab, setActiveTab] = useState("nifty-nawaz");
   const [niftyHL, setNiftyHL] = useState<NiftyHL[]>([]);
+  const [expandedCompanies, setExpandedCompanies] = useState<Set<string>>(new Set());
   const [isLoadingNiftyHL, setIsLoadingNiftyHL] = useState(true);
   const [niftyHLError, setNiftyHLError] = useState<string | null>(null);
 
@@ -94,6 +95,24 @@ export default function StrategyTestingPage() {
     return ((absoluteClose - entryClose) / entryClose) * 100;
   };
 
+  const getTargetHitClass = (companyEntries: typeof entries) => {
+    const fifteenMinuteEntries = companyEntries.filter((item) => item.timeframe === "15M");
+    const targetHits = fifteenMinuteEntries.filter((item) => (getProfitPercentage(item.entry) ?? 0) >= 2).length;
+    const targetHitRate = fifteenMinuteEntries.length > 0 ? (targetHits / fifteenMinuteEntries.length) * 100 : 0;
+    if (targetHitRate > 70) return "green";
+    if (targetHitRate >= 40) return "amber";
+    return "red";
+  };
+
+  const toggleCompany = (companyName: string) => {
+    setExpandedCompanies((current) => {
+      const next = new Set(current);
+      if (next.has(companyName)) next.delete(companyName);
+      else next.add(companyName);
+      return next;
+    });
+  };
+
   const renderNiftyHLContent = () => {
     if (isLoadingNiftyHL) {
       return <div className="strategy-preview-state"><LoaderCircle className="size-5 animate-spin" /> Loading strategy data...</div>;
@@ -111,15 +130,15 @@ export default function StrategyTestingPage() {
             <div className="strategy-entry-list-heading"><h3>Trade entries</h3><span>{entries.length} records</span></div>
             {[...companyGroups.entries()].map(([companyName, companyEntries]) => (
                 <section className="strategy-company-group" key={companyName}>
-              <div className="strategy-company-heading">
-                <h4>{companyName}</h4>
-                <div className="strategy-company-metrics">
+              <button type="button" className={`strategy-company-heading strategy-company-heading-${getTargetHitClass(companyEntries)}`} onClick={() => toggleCompany(companyName)} aria-expanded={expandedCompanies.has(companyName)} aria-controls={`entries-${companyName}`}>
+                <span className="strategy-company-title"><span className="strategy-company-chevron" aria-hidden="true">{expandedCompanies.has(companyName) ? "-" : "+"}</span><h4>{companyName}</h4></span>
+                <span className="strategy-company-metrics">
                   <span>15M entries <strong>{companyEntries.filter((item) => item.timeframe === "15M").length}</strong></span>
                   <span>Target hits <strong>{companyEntries.filter((item) => (getProfitPercentage(item.entry) ?? 0) >= 2).length}</strong></span>
                   <span>Absolute profit <strong>{companyEntries.filter((item) => (getAbsoluteProfitPercentage(item.entry) ?? 0) >= 2).length}</strong></span>
-                </div>
-              </div>
-                  <div className="strategy-entry-table" role="table" aria-label={`${companyName} trade entries`}>
+                </span>
+              </button>
+              {expandedCompanies.has(companyName) && <div id={`entries-${companyName}`} className="strategy-entry-table" role="table" aria-label={`${companyName} trade entries`}>
                     <div className="strategy-entry-row strategy-entry-row-header" role="row">
                       <span>#</span><span>Entry date</span><span>Exit date</span><span>Entry value</span><span>Prev swing</span><span>Curr swing</span><span>Stop loss</span><span>Target</span><span>Result</span><span>Absolute profit</span><span>Note</span>
                     </div>
@@ -158,7 +177,7 @@ export default function StrategyTestingPage() {
                         </div>
                       );
                     })}
-                  </div>
+                  </div>}
                 </section>
               ))}
           </div>
