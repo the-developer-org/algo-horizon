@@ -221,6 +221,7 @@
   .strategy-entry-list-heading h3 { margin: 0; color: #293945; font-size: .85rem; font-weight: 800; }
   .strategy-entry-list-heading span { color: #82919a; font-size: .68rem; }
   .strategy-company-group + .strategy-company-group { margin-top: .85rem; }
+  .strategy-company-controls { display: flex; align-items: stretch; gap: .45rem; }
   .strategy-company-heading { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 1rem; margin-bottom: .45rem; padding: .65rem .75rem; border: 1px solid #e5ecef; border-radius: .65rem; background: #f7fafb; cursor: pointer; text-align: left; }
   .strategy-company-heading:hover { border-color: #83d1dc; background: #f1fbfc; }
   .strategy-company-heading-green { background: #b8f0cf !important; }
@@ -235,6 +236,12 @@
   .strategy-company-heading span { color: #82919a; font-size: .66rem; }
   .strategy-company-metrics { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .75rem; }
   .strategy-company-metrics strong { margin-left: .2rem; color: #293945; font-size: .76rem; }
+  .strategy-company-summary-button { align-self: stretch; margin-bottom: .45rem; padding: 0 .8rem; border: 1px solid #087f99; border-radius: .65rem; color: #075f72; background: #ecfbfc; cursor: pointer; font-size: .72rem; font-weight: 900; }
+  .strategy-company-summary-button:hover { border-color: #064e5d; color: #064e5d; background: #d7f5f8; }
+  .strategy-company-summary { display: grid; gap: .45rem; margin-bottom: .45rem; padding: .75rem .9rem; border: 1px solid #8bcbd4; border-radius: .55rem; background: #f5fdfe; box-shadow: 0 3px 8px rgba(8, 127, 153, .08); }
+  .strategy-company-summary-row { display: grid; grid-template-columns: minmax(10rem, 1fr) auto auto; gap: 1.25rem; align-items: center; padding: .3rem .4rem; border-bottom: 1px solid #d8eef1; color: #52616d; font-size: .75rem; }
+  .strategy-company-summary-row:last-child { border-bottom: 0; }
+  .strategy-company-summary-row strong { color: #16222d; font-size: .78rem; font-weight: 900; }
   .strategy-company-group:has(.strategy-entry-table) .strategy-company-heading { margin-bottom: 0; border-radius: .65rem .65rem 0 0; }
   .strategy-company-group .strategy-entry-table { border-radius: 0 .65rem .65rem .65rem; }
   .strategy-entry-table { overflow-x: auto; border: 1px solid #e5ecef; border-radius: .65rem; }
