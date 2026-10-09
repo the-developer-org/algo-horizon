@@ -2,6 +2,7 @@
 
 import { ChartCandlestick, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
 const ALPHABET_ORDER = [
@@ -39,6 +40,7 @@ type LoadingState = {
 };
 
 export default function StockMonitoringPage() {
+  const router = useRouter();
   const [loadingState, setLoadingState] = useState<LoadingState>({
     completedAlphabets: [],
     currentAlphabet: null,
@@ -322,6 +324,16 @@ export default function StockMonitoringPage() {
     const chartUrl = buildChartUrl(item);
     if (!chartUrl) return;
     window.open(chartUrl, "_blank");
+  };
+
+  const goToConfidenceMeter = (companyName: string) => {
+    const trimmedCompanyName = String(companyName || "").trim();
+    if (!trimmedCompanyName) {
+      toast.error("Company name is not available");
+      return;
+    }
+
+    void router.push(`/confidence-meter?companyName=${encodeURIComponent(trimmedCompanyName)}`);
   };
 
   const extractLiveStockBuffer = (raw: any): LiveStockBuffer | null => {
@@ -850,13 +862,22 @@ export default function StockMonitoringPage() {
                   <p className="mt-1 text-sm text-slate-600">{selectedItem?.ticker || selectedItem?.symbol || ""}</p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedItem(null)}
-                  className="inline-flex items-center rounded-full border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
-                >
-                  Close
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => goToConfidenceMeter(selectedItem?.companyName || "")}
+                    className="inline-flex items-center rounded-full border border-cyan-300 bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-cyan-700"
+                  >
+                    Add to Confidence Meter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedItem(null)}
+                    className="inline-flex items-center rounded-full border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

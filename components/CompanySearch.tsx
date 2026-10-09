@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 type CompanySearchProps = Readonly<{
   keyMapping: Record<string, string>;
@@ -7,6 +7,7 @@ type CompanySearchProps = Readonly<{
   error?: string;
   className?: string;
   inputClassName?: string;
+  initialValue?: string;
   onSelect: (companyName: string, instrumentKey: string) => void;
 }>;
 
@@ -17,10 +18,17 @@ export default function CompanySearch({
   error,
   className = "",
   inputClassName = "",
+  initialValue = "",
   onSelect,
 }: CompanySearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCompany, setSelectedCompany] = useState("");
+
+  useEffect(() => {
+    const value = initialValue.trim();
+    setSearchTerm(value);
+    setSelectedCompany(value);
+  }, [initialValue]);
 
   const suggestions = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();

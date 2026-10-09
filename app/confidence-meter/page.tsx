@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import toast from 'react-hot-toast';
 import CompanySearch from '@/components/CompanySearch';
 import { fetchKeyMapping } from '@/utils/apiUtils';
 
 export default function ConfidenceMeterPage() {
+  const searchParams = useSearchParams();
   const [data, setData] = React.useState<any[]>([]);
   const [masterIndicators, setMasterIndicators] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -222,6 +224,32 @@ export default function ConfidenceMeterPage() {
   );
 
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string | null>(null);
+
+  const companyPrefillFromUrl = React.useMemo(() => {
+    const candidates = [
+      searchParams.get("companyName"),
+      searchParams.get("company"),
+      searchParams.get("name"),
+    ];
+    const match = candidates.find((value) => typeof value === "string" && value.trim());
+    return match ? match.trim() : "";
+  }, [searchParams]);
+
+  React.useEffect(() => {
+    if (!companyPrefillFromUrl) return;
+
+    setEditingCompany(null);
+    setCompanyForm({
+      companyName: companyPrefillFromUrl,
+      entryTime: new Date().toISOString().slice(0, 16),
+      entryPrice: "",
+      target: "",
+      stopLoss: "",
+      entryTaken: false,
+      profitable: false,
+    });
+    setShowCompanyModal(true);
+  }, [companyPrefillFromUrl]);
 
   React.useEffect(() => {
     if (viewMode !== "confidence" || confidenceEntries.length === 0) return;
@@ -633,10 +661,19 @@ export default function ConfidenceMeterPage() {
     }
   };
 
-  const openCompanyModal = async () => {
+  const openCompanyModal = (prefilledCompanyName = "") => {
     setEditingCompany(null);
     setShowCompanyModal(true);
-    setCompanyForm((f) => ({ ...f, companyName: "", entryTime: new Date().toISOString().slice(0,16), entryPrice: "", target: "", stopLoss: "", entryTaken: false, profitable: false }));
+    setCompanyForm((f) => ({
+      ...f,
+      companyName: prefilledCompanyName,
+      entryTime: new Date().toISOString().slice(0, 16),
+      entryPrice: "",
+      target: "",
+      stopLoss: "",
+      entryTaken: false,
+      profitable: false,
+    }));
   };
 
   const toDateTimeInputValue = (value: any) => {
@@ -971,6 +1008,7 @@ export default function ConfidenceMeterPage() {
                     keyMapping={keyMapping}
                     label="Company Name"
                     placeholder="Search company name..."
+                    initialValue={companyForm.companyName}
                     onSelect={(companyName) => setCompanyForm((s) => ({ ...s, companyName }))}
                     className=""
                   />
