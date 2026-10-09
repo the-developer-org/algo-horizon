@@ -24,6 +24,7 @@ const primaryItems = [
   { title: "Strike Analysis Form", url: "/strike-analysis", icon: Search },
   { title: "Stryke Entries", url: "/stryke-entries", icon: FileText },
   { title: "Swing Stats", url: "/strike-analysis?tab=swing", icon: BarChart3 },
+  { title: "Liquidity Sweep", url: "/liquidity-sweep", icon: BarChart3 },
   { title: "Stock Monitoring", url: "/stock-monitoring", icon: Shield },
   { title: "Scalping", url: "/scalping", icon: BarChart3 },
   { title: "Deep Dive", url: "/deep-dive", icon: Target },

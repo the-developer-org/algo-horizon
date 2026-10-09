@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import { Input } from '@/components/ui/input';
@@ -101,9 +100,7 @@ const extractHolidayDates = (payload: any): string[] => {
   );
 };
 
-function StrikeAnalysisContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+function LiquiditySweepContent() {
   const dispatch = useAppDispatch();
   
   // Get data from Redux store
@@ -120,12 +117,6 @@ function StrikeAnalysisContent() {
     lastFetchedAt,
     isLoading: reduxIsLoading
   } = useAppSelector((state) => state.analysis);
-
-  // Get tab from URL parameter, default to 'form'
-  const getInitialTab = () => {
-    const tab = searchParams?.get('tab');
-    return tab || 'form';
-  };
 
   // State
   const [isLoading, setIsLoading] = useState(false);
@@ -148,7 +139,6 @@ function StrikeAnalysisContent() {
   const [stopLoss, setStopLoss] = useState<string>('');
   const [target, setTarget] = useState<string>('');
   const [strykeList, setStrykeList] = useState<AnalysisResponse[]>([]);
-  const [selectedStryke, setSelectedStryke] = useState<AnalysisResponse | null>(null);
   const [strykeAnalysisList, setStrykeAnalysisList] = useState<AnalysisResponse[]>(reduxStrykeAnalysisList);
   const [algoAnalysisList, setAlgoAnalysisList] = useState<AnalysisResponse[]>(reduxAlgoAnalysisList);
   const [algoV2AnalysisList, setAlgoV2AnalysisList] = useState<AnalysisResponse[]>(reduxAlgoV2AnalysisList);
@@ -157,20 +147,8 @@ function StrikeAnalysisContent() {
   const [filteredAnalysisList, setFilteredAnalysisList] = useState<AnalysisResponse[]>([]);
 
   // Initialize tab states based on URL parameter
-  const initialTab = getInitialTab();
-  const [showStrykeForm, setShowStrykeForm] = useState(() => initialTab === 'form');
-  const [showAllStrykes, setShowAllStrykes] = useState(() => initialTab === 'all');
-  const [showStrykeStats, setShowStrykeStats] = useState(() => initialTab === 'stats');
-  const [showSwingStats, setShowSwingStats] = useState(() => initialTab === 'swing');
+  const [showLiquiditySweep] = useState(true);
   const [showMetrics, setShowMetrics] = useState(() => false);
-  const [showAlgoAnalysis, setShowAlgoAnalysis] = useState(() => true);
-  const [showStrykeAnalysis, setShowStrykeAnalysis] = useState(() => true);
-  const [showAlgoV2Analysis, setShowAlgoV2Analysis] = useState(() => true);
-  const [showAlgoV3Analysis, setShowAlgoV3Analysis] = useState(() => true);
-  const [showOldAnalysis, setShowOldAnalysis] = useState(() => true); // Add this new state
-  const [showAppAnalysis, setShowAppAnalysis] = useState(() => true); // Add this new state
-  const [showDiscordAnalysis, setShowDiscordAnalysis] = useState(() => true); // Add this new state
-  const [showt2Analysis, setShowt2Analysis] = useState(() => true); // Add this new state
   const [activeFilter, setActiveFilter] = useState({
     date: null as FilterOrder,
     name: null as FilterOrder,
@@ -224,8 +202,9 @@ function StrikeAnalysisContent() {
     totalAlphabets: 26,
     isComplete: false
   });
-  const [fetchMode, setFetchMode] = useState<'all' | 'selected'>('all');
+  const [fetchMode, setFetchMode] = useState<'all' | 'selected'>('selected');
   const [selectedFetchAlphabet, setSelectedFetchAlphabet] = useState('A');
+  const [selectedLossType, setSelectedLossType] = useState<'Stryke Loss' | 'Algo Loss' | 'Algo V2 Loss'>('Stryke Loss');
 
   // Track if data loading has been attempted to prevent unnecessary retries
   const [dataLoadingAttempted, setDataLoadingAttempted] = useState(false);
@@ -239,17 +218,11 @@ function StrikeAnalysisContent() {
   }>({ open: false, timeframe: null, companyName: null, list: [] });
 
   // Modal state to show stocks missing analysis data
-  const [missingAnalysisModal, setMissingAnalysisModal] = useState<{
-    open: boolean;
-    type: 'stryke' | 'algo' | null;
-    stocks: Stryke[];
-  }>({ open: false, type: null, stocks: [] });
-
   // Chart dropdown state
   const [chartDropdownOpen, setChartDropdownOpen] = useState<string | null>(null);
   const [copiedStrikeId, setCopiedStrikeId] = useState<string | null>(null);
 
-  // Swing labels filter dropdown state
+  // Liquidity Sweep labels filter dropdown state
   const [swingLabelsDropdownOpen, setSwingLabelsDropdownOpen] = useState<boolean>(false);
 
   // ER-Gap filter dropdown state
@@ -263,16 +236,6 @@ function StrikeAnalysisContent() {
 
   // Resistance filter dropdown state
   const [resistanceDropdownOpen, setResistanceDropdownOpen] = useState<boolean>(false);
-
-  // Helper function to apply stryke analysis filter
-  const applyStrykeAnalysisFilter = (stocks: Stryke[]): Stryke[] => {
-    if (showStrykeAnalysis) {
-      // If showStrykeAnalysis is true, only include stocks that have strykeSwingAnalysis
-      return stocks.filter(stock => stock.strykeSwingAnalysis != null);
-    }
-    // If showStrykeAnalysis is false, include all stocks
-    return stocks;
-  };
 
   // Fetch KeyMapping from Redis on mount
   useEffect(() => {
@@ -464,30 +427,12 @@ function StrikeAnalysisContent() {
     }
   };
 
-  const recalculateStrykeAnalysis = async () => {
-    try {
-      setIsLoading(true);
-      const backEndBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      await axios.get(`${backEndBaseUrl}/api/stryke/recalculate`, {
-        headers: {
-          'accept': 'application/json',
-        },
-      });
-
-      // Reset failure tracking before refetching data
-      (0);
-      setDataLoadingAttempted(false);
-      fetchStrykes();
-    } catch (error) {
-      console.error('Error recalculating stryke analysis:', error);
-      toast.error('Failed to recalculate stryke analysis');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Fetch all strykes or one selected alphabet from the API.
-  const fetchStrykes = async (forceRefresh = false, selectedAlphabet?: string) => {
+  const fetchStrykes = async (
+    forceRefresh = false,
+    selectedAlphabet?: string,
+    lossType: 'STRYKE' | 'ALGO' | 'ALGOV2' = 'STRYKE'
+  ) => {
     // Check if we have cached data and it's not a forced refresh
     const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
     const isCacheValid = lastFetchedAt && (Date.now() - lastFetchedAt < CACHE_DURATION);
@@ -566,7 +511,7 @@ function StrikeAnalysisContent() {
         }));
 
         try {
-          const response = await fetch(`${backEndBaseUrl}/api/stryke/fetch-all-analysis/${alphabet}`, {
+          const response = await fetch(`${backEndBaseUrl}/api/stryke/fetch-all-analysis-liquidity-sweep/${alphabet}/${lossType}`, {
             headers: {
               'accept': 'application/json',
             },
@@ -842,12 +787,6 @@ function StrikeAnalysisContent() {
     setSelectedDate(normalizedDate);
   };
 
-  useEffect(() => {
-    if (showAllStrykes && strykeList.length === 0 && !progressiveLoading && !dataLoadingAttempted) {
-      fetchStrykes();
-    }
-  }, [showAllStrykes, strykeList.length, progressiveLoading, dataLoadingAttempted]);
-
   // Close chart dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -865,7 +804,7 @@ function StrikeAnalysisContent() {
     }
   }, [chartDropdownOpen]);
 
-  // Close swing labels dropdown when clicking outside
+  // Close Liquidity Sweep labels dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (swingLabelsDropdownOpen) {
@@ -967,51 +906,15 @@ function StrikeAnalysisContent() {
   useEffect(() => {
     let filtered = [...strykeAnalysisList, ...algoAnalysisList, ...algoV2AnalysisList, ...algoV3AnalysisList];
 
-    // Filter by analysis type (ALGO, STRYKE, ALGOV2, ALGOV3)
-    const enabledTypes: string[] = [];
-    if (showAlgoAnalysis) enabledTypes.push('ALGO');
-    if (showStrykeAnalysis) enabledTypes.push('STRYKE');
-    if (showAlgoV2Analysis) enabledTypes.push('ALGOV2');
-    if (showAlgoV3Analysis) enabledTypes.push('ALGOV3');
-    
-    if (enabledTypes.length > 0) {
-      filtered = filtered.filter(item => enabledTypes.includes(item.label));
-    }
-
-    // Filter by strykeType (OLD/APP/DISCORD) - only filter if not all three are enabled
-    // If all three showOldAnalysis, showAppAnalysis, and showDiscordAnalysis are true, show all items regardless of strykeType
-    if (!(showOldAnalysis && showAppAnalysis && showDiscordAnalysis)) {
-      const enabledStrykeTypes: string[] = [];
-      if (showOldAnalysis) enabledStrykeTypes.push('OLD');
-      if (showAppAnalysis) enabledStrykeTypes.push('APP');
-      if (showDiscordAnalysis) enabledStrykeTypes.push('DISCORD');
-      
-      if (enabledStrykeTypes.length > 0) {
-        filtered = filtered.filter(item => {
-          // If item doesn't have strykeType field, include it (for backward compatibility)
-          if (!item.strykeType) return true;
-          return enabledStrykeTypes.includes(item.strykeType);
-        });
-      }
-    }
-
     setFilteredAnalysisList(filtered);
   }, [
     strykeAnalysisList, 
     algoAnalysisList, 
     algoV2AnalysisList,
     algoV3AnalysisList,
-    showAlgoAnalysis,
-    showStrykeAnalysis,
-    showAlgoV2Analysis,
-    showAlgoV3Analysis,
-    showOldAnalysis,
-    showAppAnalysis,
-    showDiscordAnalysis, 
-    showt2Analysis,
   ]);
 
-  // Group swing stats entries by UUID (one entry per analysis type)
+  // Group Liquidity Sweep entries by UUID (one entry per analysis type)
   const groupedByUUID = React.useMemo(() => {
     const groups = new Map<string, {
       companyName: string;
@@ -1057,30 +960,6 @@ function StrikeAnalysisContent() {
     return result;
   }, [filteredAnalysisList]);
 
-  const handleToggleView = (showForm: boolean, showAll: boolean, showStats: boolean, showSwing: boolean) => {
-    setShowStrykeForm(showForm);
-    //setShowAllStrykes(showAll);
-    // setShowStrykeStats(showStats);
-    setShowSwingStats(showSwing);
-
-    // Update URL parameter to maintain tab state
-    const newTab = showForm ? 'form' : showAll ? 'all' : showStats ? 'stats' : showSwing ? 'swing' : 'form';
-    const url = new URL(window.location.href);
-    url.searchParams.set('tab', newTab);
-    router.replace(url.pathname + url.search);
-  };
-
-  // Handle URL parameter changes (for browser back/forward navigation)
-  useEffect(() => {
-    const tab = searchParams?.get('tab') || 'form';
-
-    // Update states based on URL parameter
-    setShowStrykeForm(tab === 'form');
-    //setShowAllStrykes(tab === 'all');
-    // setShowStrykeStats(tab === 'stats');
-    setShowSwingStats(tab === 'swing');
-  }, [searchParams]);
-
   // Utility function to parse date strings
   function parseDateString(dateString: string): Date {
     return new Date(dateString);
@@ -1116,7 +995,7 @@ function StrikeAnalysisContent() {
 
 
 
-  // Build numeric-only rows for Excel for Swing Stats
+  // Build numeric-only rows for Excel for Liquidity Sweep
   const buildSwingStatsRowsForExcel = () => {
     const header: string[] = [
       'Slno',
@@ -1200,8 +1079,8 @@ function StrikeAnalysisContent() {
     const XLSX = await import('xlsx');
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Swing Stats');
-    XLSX.writeFile(wb, `swing-stats-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Liquidity Sweep');
+    XLSX.writeFile(wb, `liquidity-sweep-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   if (isLoading && !progressiveLoading) {
@@ -1274,6 +1153,14 @@ function StrikeAnalysisContent() {
         })
         .filter(val => isFinite(val) && val >= 0);
 
+      const supportTouchDays = strykeDataWithAnalysis
+        .map(item => Number(item.analysis.daysTakenForSupportTouch))
+        .filter(val => isFinite(val));
+
+      const resistanceTouchDays = strykeDataWithAnalysis
+        .map(item => Number(item.analysis.daysTakenForResistanceTouch))
+        .filter(val => isFinite(val));
+
       // Calculate target percentages for comparison
       const getTargetPercentage = (stryke: any, analysisType: 'stryke' | 'algo') => {
         if (analysisType === 'stryke') {
@@ -1322,8 +1209,8 @@ function StrikeAnalysisContent() {
         }
       });
 
-      const supportsTouched = strykeDataWithAnalysis.filter(item => item.analysis.didSupportTouch === true).length;
-      const resistancesTouched = strykeDataWithAnalysis.filter(item => item.analysis.didResistanceTouch === true).length;
+      const supportsTouched = supportTouchDays.filter(val => val > 0).length;
+      const resistancesTouched = resistanceTouchDays.filter(val => val > 0).length;
 
       // ER Gap categorization
       const ErGap_L3 = minProfits.filter(val => val >= 0 && val < 3).length;
@@ -1465,37 +1352,12 @@ function StrikeAnalysisContent() {
                 >
                   Home
                 </a>
-                {(!showStrykeForm) && (
-                  <Button
-                    onClick={() => handleToggleView(true, false, false, false)}
-                    className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                  >
-                    Show Stryke Form
-                  </Button>
-                )}
-
-                {/* {(!showAllStrykes) && (
-                  <Button
-                    onClick={() => {
-                      handleToggleView(false, true, false, false);
-                      fetchStrykes();
-                    }}
-                    className={`bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition ${
-                      progressiveLoading ? 'bg-gray-400 cursor-not-allowed' : ''
-                    }`}
-                    disabled={progressiveLoading}
-                  >
-                    {progressiveLoading ? 'Loading Companies...' : 'Fetch All Stryke Analysis'}
-                  </Button>
-                )} */}
-
-
                 <select
                   value={fetchMode}
                   onChange={(event) => setFetchMode(event.target.value as 'all' | 'selected')}
                   disabled={progressiveLoading}
                   className="border border-gray-300 rounded-md px-3 py-1.5 text-sm disabled:bg-gray-100"
-                  aria-label="Swing Stats fetch mode"
+                  aria-label="Liquidity Sweep fetch mode"
                 >
                   <option value="all">Fetch all alphabets</option>
                   <option value="selected">Fetch selected alphabet</option>
@@ -1515,15 +1377,32 @@ function StrikeAnalysisContent() {
                   </select>
                 )}
 
+                <select
+                  value={selectedLossType}
+                  onChange={(event) => setSelectedLossType(event.target.value as typeof selectedLossType)}
+                  disabled={progressiveLoading}
+                  className="border border-gray-300 rounded-md px-3 py-1.5 text-sm disabled:bg-gray-100"
+                  aria-label="Loss type to fetch"
+                >
+                  <option value="Stryke Loss">Stryke Loss</option>
+                  <option value="Algo Loss">Algo Loss</option>
+                  <option value="Algo V2 Loss">Algo V2 Loss</option>
+                </select>
+
                 <Button
                   onClick={() => {
                     setDataLoadingAttempted(false);
-                    fetchStrykes(true, fetchMode === 'selected' ? selectedFetchAlphabet : undefined);
+                    const lossType = selectedLossType === 'Stryke Loss'
+                      ? 'STRYKE'
+                      : selectedLossType === 'Algo Loss'
+                        ? 'ALGO'
+                        : 'ALGOV2';
+                    fetchStrykes(true, fetchMode === 'selected' ? selectedFetchAlphabet : undefined, lossType);
                   }}
                   className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition ${progressiveLoading ? 'bg-gray-400 cursor-not-allowed' : ''
                     }`}
                   disabled={progressiveLoading}
-                  title="Fetch Swing Stats data from the API"
+                  title="Fetch Liquidity Sweep data from the API"
                 >
                   {progressiveLoading
                     ? 'Loading...'
@@ -1532,21 +1411,7 @@ function StrikeAnalysisContent() {
                       : lastFetchedAt ? 'Refresh All Data' : 'Fetch All Alphabets'}
                 </Button>
 
-
-                {/* {!showStrykeStats && (
-                  <Button
-                    onClick={() => {
-                      handleToggleView(false, false, true, false);
-                      fetchStrykes();
-                    }}
-                    className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                  >
-                    Show Stryke Stats
-                  </Button>
-                )} */}
-
-
-                {showSwingStats && (
+                {showLiquiditySweep && (
                   <Button
                     onClick={() => {
                       if (!showMetrics) {
@@ -1559,30 +1424,14 @@ function StrikeAnalysisContent() {
                       : 'bg-purple-500 hover:bg-purple-600 text-white'
                       }`}
                   >
-                    {showMetrics ? 'Hide Metrics' : 'Show Metrics'}
+                    {showMetrics ? 'Hide Sweep Stats' : 'Show Sweep Stats'}
                   </Button>
                 )}
               
-                {/* 
-                {showAllStrykes && (
-                  <Button
-                    onClick={async () => {
-                      const confirmed = window.confirm(
-                        'Recalculate all Stryke analysis? This may take a while.'
-                      );
-                      if (!confirmed) return;
-                      await recalculateStrykeAnalysis();
-                    }}
-                    className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md transition ${isLoading ? 'bg-gray-400 cursor-not-allowed' : ''}`}
-                    disabled={isLoading}
-                  >
-                    Recalculate
-                  </Button>
-                )} */}
               </div>
             </div>
 
-            {showStrykeForm && (
+            {false && (
               <div className="flex flex-col md:flex-row gap-4">
                 {/* Form Section */}
                 <div className="w-full md:w-1/2">
@@ -1756,10 +1605,10 @@ function StrikeAnalysisContent() {
 
 
             {/* Add a new stats page */}
-            {showSwingStats && (
+            {showLiquiditySweep && (
               <div className="w-full mx-auto py-4 px-2 sm:px-4 overflow-x-auto">
 
-                <h2 className="text-xl font-semibold mb-3">Swing Stats</h2>
+                <h2 className="text-xl font-semibold mb-3">Liquidity Sweep</h2>
 
                 {/* Search, Sort, and Filter Controls */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap mb-4">
@@ -1816,12 +1665,12 @@ function StrikeAnalysisContent() {
                     Export As Excel
                   </button> */}
 
-                  {/* Export Swing Stats Button */}
+                  {/* Export analysis button */}
                   <button
                     className="px-3 py-1 rounded-md bg-blue-500 hover:bg-blue-600 text-white"
                     onClick={exportSwingStatsToExcel}
                   >
-                    Export Swing Stats
+                    Export Liquidity Sweep
                   </button>
 
 
@@ -1858,15 +1707,6 @@ function StrikeAnalysisContent() {
                         absoluteProfits : null
                       });
 
-                      setShowAlgoAnalysis(true)
-                      setShowStrykeAnalysis(true)
-                      setShowAlgoV2Analysis(true)
-                      setShowAlgoV3Analysis(true)
-                      setShowOldAnalysis(true)   // Reset OLD toggle
-                      setShowAppAnalysis(true)   // Reset APP toggle
-                      setShowDiscordAnalysis(true) 
-                      setShowt2Analysis(true)   // Reset T2 toggle
-
                       // Reset month selection
                       setSelectedMonth(null);
 
@@ -1879,196 +1719,6 @@ function StrikeAnalysisContent() {
 
 
 
-
-                  {/* Count */}
-
-                  {/* Row 3: Analysis Toggle Buttons */}
-                  <div className="inline-flex items-center gap-2">
-
-                    <div className="flex flex-wrap gap-1 items-center">
-                      {!showAlgoAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowAlgoAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 text-sm rounded-md transition"
-                        >
-                          Show Algo Analysis
-                        </Button>
-                      )}
-
-                      {showAlgoAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowAlgoAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide Algo Analysis
-                        </Button>
-                      )}
-
-                      {!showStrykeAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowStrykeAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-cyan-500 hover:bg-cyan-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show Stryke Analysis
-                        </Button>
-                      )}
-
-                      {showStrykeAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowStrykeAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide Stryke Analysis
-                        </Button>
-                      )}
-
-                      {!showAlgoV2Analysis && (
-                        <Button
-                          onClick={() => {
-                            setShowAlgoV2Analysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show AlgoV2 Analysis
-                        </Button>
-                      )}
-
-                      {showAlgoV2Analysis && (
-                        <Button
-                          onClick={() => {
-                            setShowAlgoV2Analysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide AlgoV2 Analysis
-                        </Button>
-                      )}
-
-                      {!showAlgoV3Analysis && (
-                        <Button onClick={() => setShowAlgoV3Analysis(true)} className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white px-3 py-1.5 text-sm rounded-md transition">
-                          Show AlgoV3 Analysis
-                        </Button>
-                      )}
-
-                      {showAlgoV3Analysis && (
-                        <Button onClick={() => setShowAlgoV3Analysis(false)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition">
-                          Hide AlgoV3 Analysis
-                        </Button>
-                      )}
-
-                      {/* NEW: OLD/APP/DISCORD Analysis Toggles */}
-                      {!showOldAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowOldAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show OLD
-                        </Button>
-                      )}
-
-                      {showOldAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowOldAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide OLD
-                        </Button>
-                      )}
-
-                      {!showAppAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowAppAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show APP
-                        </Button>
-                      )}
-
-                      {showAppAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowAppAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide APP
-                        </Button>
-                      )}
-
-                      {!showDiscordAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowDiscordAnalysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show Discord
-                        </Button>
-                      )}
-
-                      {showDiscordAnalysis && (
-                        <Button
-                          onClick={() => {
-                            setShowDiscordAnalysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide Discord
-                        </Button>
-                      )}
-
-                        {!showt2Analysis && (
-                        <Button
-                          onClick={() => {
-                            setShowt2Analysis(true)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Show T2
-                        </Button>
-                      )}
-
-                      {showt2Analysis && (
-                        <Button
-                          onClick={() => {
-                            setShowt2Analysis(false)
-                            // Filtered list will be updated by useEffect
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 text-sm rounded-md transition"
-                        >
-                          Hide T2
-                        </Button>
-                      )}
-
-                    </div>
-                  </div>
 
                   <span className="text-lg font-bold">Count: {filteredAnalysisList.length}</span>
 
@@ -2156,7 +1806,7 @@ function StrikeAnalysisContent() {
                       {/* ER Gap Distribution Comparison */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                         <div className="bg-white p-4 rounded-lg border shadow-sm">
-                          <h4 className="text-lg font-semibold text-blue-700 mb-4 text-center">Stryke Analysis - ER Gap Distribution</h4>
+                          <h4 className="text-lg font-semibold text-blue-700 mb-4 text-center">Liquidity Sweep Analysis - ER Gap Distribution</h4>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="text-center p-3 bg-red-50 rounded">
                               <div className="text-2xl font-bold text-red-600">{strykeMetrics?.ErGap_L3 || 0}</div>
@@ -2196,7 +1846,7 @@ function StrikeAnalysisContent() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* Stryke Analysis Detailed Metrics */}
                         <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                          <h4 className="text-lg font-semibold text-blue-700 mb-4">Stryke Analysis Metrics</h4>
+                          <h4 className="text-lg font-semibold text-blue-700 mb-4">Liquidity Sweep Analysis Metrics</h4>
                           <div className="space-y-3">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                               <div className="bg-white p-3 rounded">
@@ -2708,7 +2358,7 @@ function StrikeAnalysisContent() {
                                   </th>
                                   <th className="border border-gray-700 px-2 py-2 sm:px-4 sm:py-2 min-w-[80px] lg:min-w-[120px] relative">
                                     <div className="flex flex-wrap items-center justify-between gap-1">
-                                      <span className="break-words">Swing Labels</span>
+                                      <span className="break-words">Liquidity Labels</span>
                                       <button
                                         onClick={() => setSwingLabelsDropdownOpen(!swingLabelsDropdownOpen)}
                                         className="ml-1 p-1 hover:bg-gray-300 rounded relative"
@@ -3159,9 +2809,9 @@ function StrikeAnalysisContent() {
                                             onClick={() => {
                                               setActiveFilter({ ...activeFilter, supportLabel: 'HIT' });
                                               setSupportDropdownOpen(false);
-                                              // Filter using the explicit backend touch flag.
+                                              // Filter for items that hit support (value > 0) from original data
                                               const filtered = filteredAnalysisList.filter(item =>
-                                                item.didSupportTouch === true
+                                                (item.daysTakenForSupportTouch ?? 0) > 0
                                               );
                                               setFilteredAnalysisList(filtered);
                                             }}
@@ -3176,9 +2826,9 @@ function StrikeAnalysisContent() {
                                             onClick={() => {
                                               setActiveFilter({ ...activeFilter, supportLabel: 'NO_HIT' });
                                               setSupportDropdownOpen(false);
-                                              // Filter using the explicit backend touch flag.
+                                              // Filter for items that didn't hit support (value = 0) from original data
                                               const filtered = filteredAnalysisList.filter(item =>
-                                                item.didSupportTouch !== true
+                                                (item.daysTakenForSupportTouch ?? 0) === 0
                                               );
                                               setFilteredAnalysisList(filtered);
                                             }}
@@ -3265,9 +2915,9 @@ function StrikeAnalysisContent() {
                                             onClick={() => {
                                               setActiveFilter({ ...activeFilter, resistanceLabel: 'HIT' });
                                               setResistanceDropdownOpen(false);
-                                              // Filter using the explicit backend touch flag.
+                                              // Filter for items that hit resistance (value > 0) from original data
                                               const filtered = filteredAnalysisList.filter(item =>
-                                                item.didResistanceTouch === true
+                                                (item.daysTakenForResistanceTouch ?? 0) > 0
                                               );
                                               setFilteredAnalysisList(filtered);
                                             }}
@@ -3282,9 +2932,9 @@ function StrikeAnalysisContent() {
                                             onClick={() => {
                                               setActiveFilter({ ...activeFilter, resistanceLabel: 'NO_HIT' });
                                               setResistanceDropdownOpen(false);
-                                              // Filter using the explicit backend touch flag.
+                                              // Filter for items that didn't hit resistance (value = 0) from original data
                                               const filtered = filteredAnalysisList.filter(item =>
-                                                item.didResistanceTouch !== true
+                                                (item.daysTakenForResistanceTouch ?? 0) === 0
                                               );
                                               setFilteredAnalysisList(filtered);
                                             }}
@@ -3554,7 +3204,7 @@ function StrikeAnalysisContent() {
                                         <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
                                           (() => {
                                             if (stryke?.daysTakenForSupportTouch == null) return 'N/A';
-                                            if (stryke.didSupportTouch !== true) {
+                                            if (Number(stryke.daysTakenForSupportTouch) === 0) {
                                               const cls = 'text-green-600 font-semibold';
                                               return <span className={cls}>{`No Hit`}</span>;
                                             }
@@ -3569,7 +3219,7 @@ function StrikeAnalysisContent() {
                                         <td className="border border-gray-700 px-4 py-2 text-center align-middle">{
                                           (() => {
                                             if (stryke?.daysTakenForResistanceTouch == null) return 'N/A';
-                                            if (stryke.didResistanceTouch !== true) {
+                                            if (Number(stryke.daysTakenForResistanceTouch) === 0) {
                                               const cls = 'text-red-700 font-semibold';
                                               return <span className={cls}>{`No Hit`}</span>;
                                             }
@@ -3778,7 +3428,7 @@ function StrikeAnalysisContent() {
 export default function StrikeAnalysisPage() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <StrikeAnalysisContent />
+      <LiquiditySweepContent />
     </Suspense>
   );
 }

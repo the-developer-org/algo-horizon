@@ -169,6 +169,8 @@ export interface AnalysisResponse {
   daysTakenForMaxSwingProfits: number;
   daysTakenForSupportTouch: number;
   daysTakenForResistanceTouch: number;
+  didSupportTouch?: boolean;
+  didResistanceTouch?: boolean;
   daysTakenForAbsoluteProfits: number;
   absoluteProfitsPercentage: number;
   emacross: EMACROSS;
