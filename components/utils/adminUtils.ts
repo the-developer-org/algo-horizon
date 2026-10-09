@@ -145,28 +145,14 @@ export const calculateCacheSize = (): {
       key.startsWith('timeframe_cache_') ||
       key.startsWith('chart_data_') ||
       key.startsWith('processed_data_') ||
-      key.startsWith('api_cache_')
+      key.startsWith('api_cache_') ||
+      key.startsWith('temp_cache_') ||
+      key.startsWith('session_cache_')
     )) {
       const value = localStorage.getItem(key);
       if (value) {
         const sizeBytes = new Blob([value]).size;
         cacheEntries.push({ key, sizeBytes });
-        totalSize += sizeBytes;
-      }
-    }
-  }
-
-  // Check sessionStorage
-  for (let i = 0; i < sessionStorage.length; i++) {
-    const key = sessionStorage.key(i);
-    if (key && (
-      key.startsWith('temp_cache_') ||
-      key.startsWith('session_cache_')
-    )) {
-      const value = sessionStorage.getItem(key);
-      if (value) {
-        const sizeBytes = new Blob([value]).size;
-        cacheEntries.push({ key: `[Session] ${key}`, sizeBytes });
         totalSize += sizeBytes;
       }
     }

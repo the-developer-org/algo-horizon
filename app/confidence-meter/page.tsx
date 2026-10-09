@@ -56,7 +56,7 @@ export default function ConfidenceMeterPage() {
   const pendingCompanyUpdates = React.useRef(new Map<string, any>());
 
   React.useEffect(() => {
-    const user = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser") || "";
+    const user = localStorage.getItem("currentUser") || "";
     setCurrentUser(user);
     if (user.trim().toLowerCase() !== "abrar") {
       setForm((previous) => ({ ...previous, owner: user }));

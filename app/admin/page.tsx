@@ -12,8 +12,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     // Check if user is authenticated and has admin privileges
-    const isAuthorized = sessionStorage.getItem('isUserAuthorised');
-    const currentUser = sessionStorage.getItem('currentUser');
+    const isAuthorized = localStorage.getItem('isUserAuthorised');
+    const currentUser = localStorage.getItem('currentUser');
     
     if (isAuthorized !== 'true') {
       router.replace('/auth');
@@ -22,7 +22,7 @@ export default function AdminPage() {
     } else {
       setIsAuthenticated(true);
       setIsAdmin(true);
-      sessionStorage.setItem('isAdmin', 'true');
+      localStorage.setItem('isAdmin', 'true');
     }
     setIsLoading(false);
   }, [router]);

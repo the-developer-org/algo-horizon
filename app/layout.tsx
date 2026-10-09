@@ -33,8 +33,8 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   useEffect(() => {
     const checkAuth = () => {
       try {
-        const isAuthorised = sessionStorage.getItem('isUserAuthorised');
-        const currentUser = sessionStorage.getItem('currentUser');
+        const isAuthorised = localStorage.getItem('isUserAuthorised');
+        const currentUser = localStorage.getItem('currentUser');
 
         // Allow access to auth page without authentication
         if (isAuthPage) {
@@ -113,7 +113,7 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
             </Link>
             <div className="app-topbar-actions">
               <Link href="/" className="app-home-link"><Home className="size-4" /> Home</Link>
-              <button type="button" className="app-logout-link" onClick={() => { sessionStorage.clear(); localStorage.removeItem("isUserAuthorised"); localStorage.removeItem("currentUser"); router.replace("/auth"); }}>
+              <button type="button" className="app-logout-link" onClick={() => { localStorage.removeItem("isUserAuthorised"); localStorage.removeItem("currentUser"); localStorage.removeItem("isAdmin"); router.replace("/auth"); }}>
                 <LogOut className="size-4" /> Sign out
               </button>
             </div>

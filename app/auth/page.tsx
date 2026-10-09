@@ -116,9 +116,7 @@ export default function AuthPage() {
 
       if (isValidOtp) {
         setError('');
-        // Store the authenticated user for the active browser session.
-        sessionStorage.setItem('isUserAuthorised', 'true');
-        sessionStorage.setItem('currentUser', username);
+        // Store the authenticated user for cross-tab persistence.
         localStorage.setItem('isUserAuthorised', 'true');
         localStorage.setItem('currentUser', username);
 
