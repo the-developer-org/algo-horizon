@@ -2,7 +2,6 @@
 
 import { ChartCandlestick, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
 const ALPHABET_ORDER = [
@@ -40,7 +39,6 @@ type LoadingState = {
 };
 
 export default function StockMonitoringPage() {
-  const router = useRouter();
   const [loadingState, setLoadingState] = useState<LoadingState>({
     completedAlphabets: [],
     currentAlphabet: null,
@@ -333,7 +331,8 @@ export default function StockMonitoringPage() {
       return;
     }
 
-    void router.push(`/confidence-meter?companyName=${encodeURIComponent(trimmedCompanyName)}`);
+    const confidenceUrl = `/confidence-meter?companyName=${encodeURIComponent(trimmedCompanyName)}`;
+    window.open(confidenceUrl, "_blank", "noopener,noreferrer");
   };
 
   const extractLiveStockBuffer = (raw: any): LiveStockBuffer | null => {
