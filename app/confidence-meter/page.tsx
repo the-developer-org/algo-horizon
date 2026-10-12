@@ -39,6 +39,7 @@ export default function ConfidenceMeterPage() {
   const [keyMapping, setKeyMapping] = React.useState<Record<string, string>>({});
   const [companyForm, setCompanyForm] = React.useState({
     companyName: "",
+    instrumentKey: "",
     entryTime: new Date().toISOString().slice(0,16),
     entryPrice: "",
     target: "",
@@ -241,6 +242,7 @@ export default function ConfidenceMeterPage() {
     setEditingCompany(null);
     setCompanyForm({
       companyName: companyPrefillFromUrl,
+      instrumentKey: "",
       entryTime: new Date().toISOString().slice(0, 16),
       entryPrice: "",
       target: "",
@@ -250,6 +252,32 @@ export default function ConfidenceMeterPage() {
     });
     setShowCompanyModal(true);
   }, [companyPrefillFromUrl]);
+
+  const resolveInstrumentKey = React.useCallback(
+    (companyName: string, fallbackKey = "") => {
+      const trimmedName = companyName.trim();
+      if (!trimmedName) return fallbackKey;
+
+      if (fallbackKey.trim()) return fallbackKey;
+
+      const directMatch = keyMapping[trimmedName];
+      if (directMatch) return directMatch;
+
+      const lowerName = trimmedName.toLowerCase();
+      const matchedEntry = Object.entries(keyMapping).find(([mappedName]) => mappedName.trim().toLowerCase() === lowerName);
+      return matchedEntry?.[1] || fallbackKey;
+    },
+    [keyMapping]
+  );
+
+  React.useEffect(() => {
+    if (!companyForm.companyName.trim()) return;
+
+    const resolvedInstrumentKey = resolveInstrumentKey(companyForm.companyName, companyForm.instrumentKey);
+    if (resolvedInstrumentKey !== companyForm.instrumentKey) {
+      setCompanyForm((current) => ({ ...current, instrumentKey: resolvedInstrumentKey }));
+    }
+  }, [companyForm.companyName, companyForm.instrumentKey, resolveInstrumentKey]);
 
   React.useEffect(() => {
     if (viewMode !== "confidence" || confidenceEntries.length === 0) return;
@@ -667,6 +695,7 @@ export default function ConfidenceMeterPage() {
     setCompanyForm((f) => ({
       ...f,
       companyName: prefilledCompanyName,
+      instrumentKey: "",
       entryTime: new Date().toISOString().slice(0, 16),
       entryPrice: "",
       target: "",
@@ -692,6 +721,7 @@ export default function ConfidenceMeterPage() {
     setEditingCompany(selectedCompany);
     setCompanyForm({
       companyName: selectedCompany.companyName ?? "",
+      instrumentKey: selectedCompany.instrumentKey ?? "",
       entryTime: toDateTimeInputValue(selectedCompany.entryTime),
       entryPrice: String(selectedCompany.entryPrice ?? ""),
       target: String(selectedCompany.target ?? ""),
@@ -739,8 +769,10 @@ export default function ConfidenceMeterPage() {
     e?.preventDefault();
 
     const trimmedCompanyName = companyForm.companyName.trim();
+    const resolvedInstrumentKey = resolveInstrumentKey(trimmedCompanyName, companyForm.instrumentKey);
     const payload = {
       companyName: trimmedCompanyName,
+      instrumentKey: resolvedInstrumentKey || undefined,
       entryTime: companyForm.entryTime || new Date().toISOString().slice(0, 16),
       entryPrice: Number.parseFloat(String(companyForm.entryPrice) || "0"),
       target: Number.parseFloat(String(companyForm.target) || "0"),
@@ -1009,7 +1041,7 @@ export default function ConfidenceMeterPage() {
                     label="Company Name"
                     placeholder="Search company name..."
                     initialValue={companyForm.companyName}
-                    onSelect={(companyName) => setCompanyForm((s) => ({ ...s, companyName }))}
+                    onSelect={(companyName, instrumentKey) => setCompanyForm((s) => ({ ...s, companyName, instrumentKey: resolveInstrumentKey(companyName, instrumentKey) }))}
                     className=""
                   />
                 )}
