@@ -53,7 +53,7 @@ export default function StockMonitoringPage() {
   const [monitoringMap, setMonitoringMap] = useState<Record<string, any[]>>({});
   const [activeTab, setActiveTab] = useState<string>("ALGO");
   const [activeFilter, setActiveFilter] = useState<MonitoringFilter>("all");
-  const [sortBy, setSortBy] = useState<SortOption>("nameAsc");
+  const [sortBy, setSortBy] = useState<SortOption>("strykeEntryDesc");
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [bufferModalItem, setBufferModalItem] = useState<any | null>(null);
   const [bufferModalLoading, setBufferModalLoading] = useState(false);
@@ -105,12 +105,39 @@ export default function StockMonitoringPage() {
     item.algoSwingAnalysis?.currentSwing?.timestamp ||
     item.algoSwingAnalysis?.currentSwing?.time;
 
-  const getStrykeEntryTs = (item: any) => {
-    const raw = getStrykeEntryRaw(item);
+  const getV2EntryRaw = (item: any) =>
+    item.v2SwingAnalysis?.algoEntryCandle?.timestamp ||
+    item.v2SwingAnalysis?.algoentryCandle?.timestamp ||
+    item.v2SwingAnalysis?.currentSwing?.candle?.timestamp ||
+    item.v2SwingAnalysis?.currentSwing?.timestamp ||
+    item.v2SwingAnalysis?.currentSwing?.time ||
+    item.algoV2EntryCandle?.timestamp ||
+    item.algoV2EntryTime ||
+    item.algoV2EntryDate;
+
+  const getSortTimestamp = (raw: any) => {
     if (!raw) return 0;
     if (typeof raw === "number") return raw;
     const time = Date.parse(raw);
     return Number.isNaN(time) ? 0 : time;
+  };
+
+  const getStrykeEntryTs = (item: any) => getSortTimestamp(getStrykeEntryRaw(item));
+  const getAlgoEntryTs = (item: any) => getSortTimestamp(getAlgoEntryRaw(item) || getV2EntryRaw(item));
+  const getV2EntryTs = (item: any) => getSortTimestamp(getV2EntryRaw(item) || getAlgoEntryRaw(item));
+
+  const getTabEntryTimestamp = (item: any) => {
+    const tabName = String(activeTab || "").toUpperCase();
+
+    if (tabName === "ALGOV2" || tabName === "V2") {
+      return getAlgoEntryTs(item);
+    }
+
+    if (tabName === "ALGOV3" || tabName === "V3") {
+      return getV2EntryTs(item);
+    }
+
+    return getStrykeEntryTs(item);
   };
 
   const getMonitoringActionValue = (item: any, action: MonitoringAction) => {
@@ -684,10 +711,10 @@ export default function StockMonitoringPage() {
         return String(b.companyName || "").localeCompare(String(a.companyName || ""));
       }
       if (sortBy === "strykeEntryAsc") {
-        return getStrykeEntryTs(a) - getStrykeEntryTs(b);
+        return getTabEntryTimestamp(a) - getTabEntryTimestamp(b);
       }
       if (sortBy === "strykeEntryDesc") {
-        return getStrykeEntryTs(b) - getStrykeEntryTs(a);
+        return getTabEntryTimestamp(b) - getTabEntryTimestamp(a);
       }
       const aChar = String(a.companyName || "").charAt(0).toUpperCase();
       const bChar = String(b.companyName || "").charAt(0).toUpperCase();
@@ -1052,8 +1079,8 @@ export default function StockMonitoringPage() {
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="text-sm border rounded px-2 py-1">
                   <option value="nameAsc">Company name A-Z</option>
                   <option value="nameDesc">Company name Z-A</option>
-                  <option value="strykeEntryAsc">Stryke entry date oldest first</option>
-                  <option value="strykeEntryDesc">Stryke entry date newest first</option>
+                  <option value="strykeEntryAsc">Entry date oldest first</option>
+                  <option value="strykeEntryDesc">Entry date newest first</option>
                   <option value="alphabet">Alphabet</option>
                 </select>
               </div>
