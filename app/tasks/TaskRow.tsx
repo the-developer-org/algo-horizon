@@ -1,10 +1,11 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { Task } from "@/types/task";
-import { TaskCategory, taskCategory, taskCreatedAt } from "./taskDate";
+import { TaskCategory, formatPendingFor, formatTimeTaken, taskCategory, taskCreatedAt } from "./taskDate";
 
 interface TaskRowProps {
   task: Task;
+  now: number;
   onComplete: (task: Task) => void;
   onDiscard: (task: Task) => void;
 }
@@ -16,9 +17,10 @@ const CATEGORY_STYLES: Record<TaskCategory, string> = {
   DISCARDED: "border-gray-300 bg-gray-100",
 };
 
-export function TaskRow({ task, onComplete, onDiscard }: Readonly<TaskRowProps>) {
-  const category = taskCategory(task);
+export function TaskRow({ task, now, onComplete, onDiscard }: Readonly<TaskRowProps>) {
+  const category = taskCategory(task, now);
   const isPending = category === "LONG_PENDING" || category === "NEW";
+  const timeTaken = isPending ? null : formatTimeTaken(task);
 
   return (
     <div className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 shadow-sm ${CATEGORY_STYLES[category]}`}>
@@ -30,8 +32,16 @@ export function TaskRow({ task, onComplete, onDiscard }: Readonly<TaskRowProps>)
           Created by <b>{task.createdBy || "Unknown"}</b> on {taskCreatedAt(task).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
         </div>
       </div>
+      {timeTaken && (
+        <span className="whitespace-nowrap text-xs font-semibold text-gray-600">
+          {category === "COMPLETED" ? "Completed in" : "Discarded after"} {timeTaken}
+        </span>
+      )}
       {isPending && (
         <>
+          <span className={`whitespace-nowrap text-xs font-semibold ${category === "LONG_PENDING" ? "text-red-600" : "text-amber-600"}`}>
+            Pending since {formatPendingFor(task, now)}
+          </span>
           <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => onComplete(task)}>
             Mark as completed
           </Button>

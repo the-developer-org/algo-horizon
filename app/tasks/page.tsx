@@ -32,6 +32,8 @@ export default function TasksPage() {
   const [selected, setSelected] = useState<TaskCategory[]>(CATEGORY_ORDER);
   const [description, setDescription] = useState("");
   const [currentUser, setCurrentUser] = useState("");
+  // Fixed at first load so ages don't tick live.
+  const [now] = useState(() => Date.now());
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -79,15 +81,15 @@ export default function TasksPage() {
     setSelected(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
 
   const counts = tasks.reduce<Record<TaskCategory, number>>(
-    (acc, t) => ({ ...acc, [taskCategory(t)]: acc[taskCategory(t)] + 1 }),
+    (acc, t) => ({ ...acc, [taskCategory(t, now)]: acc[taskCategory(t, now)] + 1 }),
     { LONG_PENDING: 0, NEW: 0, COMPLETED: 0, DISCARDED: 0 }
   );
 
   const visible = tasks
-    .filter(t => selected.includes(taskCategory(t)))
+    .filter(t => selected.includes(taskCategory(t, now)))
     .sort(
       (a, b) =>
-        CATEGORY_ORDER.indexOf(taskCategory(a)) - CATEGORY_ORDER.indexOf(taskCategory(b)) ||
+        CATEGORY_ORDER.indexOf(taskCategory(a, now)) - CATEGORY_ORDER.indexOf(taskCategory(b, now)) ||
         taskCreatedAt(b).getTime() - taskCreatedAt(a).getTime()
     );
 
@@ -101,6 +103,7 @@ export default function TasksPage() {
       <TaskRow
         key={task.id}
         task={task}
+        now={now}
         onComplete={t => updateTask(t, { completed: true, discarded: false })}
         onDiscard={t => updateTask(t, { completed: false, discarded: true })}
       />
