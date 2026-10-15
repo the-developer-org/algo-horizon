@@ -15,6 +15,7 @@ import {
   Gauge,
   Link2,
   LineChart,
+  ListChecks,
   FlaskConical,
   Search,
   Settings,
@@ -49,6 +50,7 @@ const navigationGroups: NavigationGroup[] = [
       { title: "Home", href: "/", icon: TrendingUp },
       { title: "Stock Monitoring", href: "/stock-monitoring", icon: Activity },
       { title: "Alerts", href: "/alerts", icon: Bell },
+      { title: "Tasks", href: "/tasks", icon: ListChecks },
     ],
   },
   {
