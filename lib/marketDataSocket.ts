@@ -1,5 +1,8 @@
-// Shared, ref-counted WebSocket to the backend market-data endpoint.
-// Transport only: messages are delivered to listeners exactly as received.
+// Shared, ref-counted SockJS/STOMP connection to the backend market-data feed.
+// Transport only: STOMP message bodies are delivered to listeners unchanged.
+
+import SockJS from 'sockjs-client';
+import { Client, ReconnectionTimeMode } from '@stomp/stompjs';
 
 export type MarketDataStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 export type RawMessage = string | ArrayBuffer;
@@ -14,13 +17,12 @@ export interface ReconnectOptions {
 const DEFAULT_RECONNECT: ReconnectOptions = { initialDelayMs: 1000, maxDelayMs: 30000, factor: 2 };
 
 export class MarketDataSocket {
-  private ws: WebSocket | null = null;
+  private client: Client | null = null;
   private status: MarketDataStatus = 'disconnected';
   private messageListeners = new Set<MessageListener>();
   private statusListeners = new Set<() => void>();
   private refCount = 0;
   private attempts = 0;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private lastError: string | null = null;
 
@@ -55,7 +57,7 @@ export class MarketDataSocket {
   acquire() {
     this.refCount++;
     if (this.closeTimer) { clearTimeout(this.closeTimer); this.closeTimer = null; }
-    if (!this.ws && !this.reconnectTimer) this.open();
+    if (!this.client) this.open();
   }
 
   release() {
@@ -82,73 +84,72 @@ export class MarketDataSocket {
     }
     this.lastError = null;
     this.setStatus('connecting');
-    let ws: WebSocket;
     try {
-      ws = new WebSocket(this.url);
-    } catch (e) {
-      this.lastError = e instanceof Error ? e.message : 'Invalid WebSocket URL';
-      this.setStatus('error');
-      return;
-    }
-    // Text frames arrive as string; binary frames as ArrayBuffer.
-    ws.binaryType = 'arraybuffer';
-    this.ws = ws;
-
-    ws.onopen = () => {
-      if (this.ws !== ws) return;
-      this.attempts = 0;
-      this.setStatus('connected');
-    };
-    ws.onmessage = (ev) => {
-      if (this.ws !== ws) return;
-      const data = ev.data as RawMessage;
-      this.messageListeners.forEach((l) => {
-        try { l(data); } catch (e) { console.error('market-data listener failed', e); }
+      const client = new Client({
+        // The backend registers a SockJS endpoint at /ws, not a native WebSocket
+        // endpoint. SockJS negotiates the session and WebSocket upgrade for us.
+        webSocketFactory: () => new SockJS(this.url!, null, { transports: ['websocket'] }),
+        reconnectDelay: this.reconnect.initialDelayMs,
+        maxReconnectDelay: this.reconnect.maxDelayMs,
+        reconnectTimeMode: ReconnectionTimeMode.EXPONENTIAL,
+        onConnect: () => {
+          if (this.client !== client) return;
+          this.attempts = 0;
+          this.lastError = null;
+          this.setStatus('connected');
+          client.subscribe(marketDataTopic(), (message) => {
+            if (this.client !== client) return;
+            const raw: RawMessage = message.isBinaryBody
+              ? new Uint8Array(message.binaryBody).buffer
+              : message.body;
+            this.messageListeners.forEach((listener) => {
+              try { listener(raw); } catch (e) { console.error('market-data listener failed', e); }
+            });
+          });
+        },
+        onWebSocketError: () => {
+          if (this.client !== client) return;
+          this.lastError = 'Market-data connection error';
+          this.setStatus('error');
+        },
+        onStompError: (frame) => {
+          if (this.client !== client) return;
+          this.lastError = frame.headers.message || 'Market-data broker error';
+          this.setStatus('error');
+        },
+        onWebSocketClose: () => {
+          if (this.client !== client) return;
+          if (this.status !== 'error') this.setStatus('disconnected');
+        },
       });
-    };
-    ws.onerror = () => {
-      if (this.ws !== ws) return;
-      this.lastError = 'WebSocket error';
+      this.client = client;
+      client.activate();
+    } catch (e) {
+      this.lastError = e instanceof Error ? e.message : 'Invalid SockJS URL';
       this.setStatus('error');
-    };
-    ws.onclose = () => {
-      if (this.ws !== ws) return;
-      this.ws = null;
-      if (this.status !== 'error') this.setStatus('disconnected');
-      if (this.refCount > 0) this.scheduleReconnect();
-    };
-  }
-
-  private scheduleReconnect() {
-    const { initialDelayMs, maxDelayMs, factor } = this.reconnect;
-    const base = Math.min(maxDelayMs, initialDelayMs * Math.pow(factor, this.attempts++));
-    const delay = base / 2 + Math.random() * (base / 2); // jitter
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      if (this.refCount > 0 && !this.ws) this.open();
-    }, delay);
+    }
   }
 
   private close() {
-    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
-    const ws = this.ws;
-    this.ws = null;
+    const client = this.client;
+    this.client = null;
     this.attempts = 0;
-    if (ws) {
-      ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
-      ws.close();
-    }
+    if (client) void client.deactivate();
     this.setStatus('disconnected');
   }
 }
 
-// Derived from the existing NEXT_PUBLIC_BACKEND_URL (http->ws, https->wss).
-// The path is overridable via NEXT_PUBLIC_MARKET_DATA_WS_PATH.
+// SockJS starts from its registered HTTP endpoint; it performs the WebSocket
+// upgrade internally. The backend broadcasts market ticks on /topic/data.
 function buildUrl(): string | undefined {
   const base = process.env.NEXT_PUBLIC_BACKEND_URL;
   if (!base) return undefined;
-  const path = process.env.NEXT_PUBLIC_MARKET_DATA_WS_PATH || '/ws/market-data';
-  return base.replace(/\/$/, '').replace(/^http/, 'ws') + path;
+  const path = process.env.NEXT_PUBLIC_MARKET_DATA_SOCKJS_PATH || process.env.NEXT_PUBLIC_WS_PATH || '/ws';
+  return base.replace(/\/$/, '') + path;
+}
+
+function marketDataTopic() {
+  return process.env.NEXT_PUBLIC_MARKET_DATA_TOPIC || '/topic/data';
 }
 
 // Single shared instance for the whole app.
