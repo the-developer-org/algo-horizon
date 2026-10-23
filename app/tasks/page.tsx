@@ -90,7 +90,7 @@ export default function TasksPage() {
     .sort(
       (a, b) =>
         CATEGORY_ORDER.indexOf(taskCategory(a, now)) - CATEGORY_ORDER.indexOf(taskCategory(b, now)) ||
-        taskCreatedAt(b).getTime() - taskCreatedAt(a).getTime()
+        taskCreatedAt(a).getTime() - taskCreatedAt(b).getTime()
     );
 
   let list;

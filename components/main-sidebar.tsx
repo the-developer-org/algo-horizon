@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link as LinkIcon, LucidePersonStanding, DollarSign, Bell, BarChart3, Target, Shield, CheckCircle, X, Menu } from "lucide-react";
+import { Home, TrendingUp, Search, Calendar, FileText, Settings, Layers, Link as LinkIcon, LucidePersonStanding, DollarSign, Bell, Radio, BarChart3, Target, Shield, CheckCircle, X, Menu } from "lucide-react";
 import Speedometer from "@/components/icons/Speedometer";
 import UpstoxIcon from "@/components/icons/UpstoxIcon";
 import {
@@ -39,6 +39,7 @@ const primaryItems = [
   { title: "Confidence Meter", url: "/confidence-meter", icon: Speedometer },
   { title: "Portfolio", url: "/portfolio", icon: Layers },
   { title: "Alerts", url: "/alerts", icon: Bell },
+  { title: "Live Market", url: "/alerts/live-market", icon: Radio },
 ];
 
 const utilityItems = [
@@ -168,12 +169,14 @@ export function MainSidebar({ onShowInsights, isVisible = true, onToggleVisibili
                     </SidebarMenuItem>
                   );
                 }
+                const isLive = item.url === '/alerts/live-market';
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <a 
                         href={item.url}
                         onClick={handleInteraction}
+                        className={isLive ? "live-market-glow font-semibold ml-4" : undefined}
                       >
                         <item.icon />
                         <span>{item.title}</span>

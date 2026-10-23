@@ -62,16 +62,22 @@ export default function AlertsPage() {
                         <div className="text-xs text-gray-500">{alert.instrumentKey}</div>
                       </div>
                       <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 font-semibold">
-                        {alert.alertType.replace(/_/g, " ")}
+                        {alert.alertType ? String(alert.alertType).replace(/_/g, " ") : "PRICE REACHED"}
                       </span>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                      <div className="flex gap-4 text-sm">
-                        <span>Target: <b>{alert.targetPrice ?? '-'}</b></span>
-                        <span>Support: <b>{alert.supportLevel ?? '-'}</b></span>
-                        <span>Resistance: <b>{alert.resistanceLevel ?? '-'}</b></span>
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <span className="text-green-600">Target: <b>{alert.targetPrice || '-'}</b></span>
+                        <span className="text-amber-600">Entry: <b>{alert.entryPrice || '-'}</b></span>
+                        <span className="text-red-600">SL: <b>{alert.stopLoss || '-'}</b></span>
                       </div>
-                      <div className="text-gray-600 text-sm">{alert.message}</div>
+                      {alert.priceBasedExit && (
+                        <div className="text-xs text-green-700">Price-based exit</div>
+                      )}
+                      {alert.tickSource && (
+                        <div className="text-xs text-gray-500">{String(alert.tickSource).replace(/_/g, " ")}</div>
+                      )}
+                      {alert.message && <div className="text-gray-600 text-sm">{alert.message}</div>}
                     </CardContent>
                     <div className="flex justify-between items-center text-xs text-gray-400 px-4 pb-2">
                       <span>Created: {alert.createdAt ? new Date(alert.createdAt).toLocaleString() : '-'}</span>
@@ -91,12 +97,23 @@ export default function AlertsPage() {
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
         onAdd={async (newAlert) => {
-          // Call backend to add alert
-          await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/alerts/add`, {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/alerts/add`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(newAlert)
           });
+          if (!response.ok) {
+            const text = await response.text();
+            let message = text.trim() || `Could not add alert (${response.status})`;
+            try {
+              const body = JSON.parse(text) as { statusText?: unknown; message?: unknown };
+              const parsed = body.statusText ?? body.message;
+              if (typeof parsed === "string" && parsed.trim()) message = parsed.trim();
+            } catch {
+              // Response is plain text.
+            }
+            throw new Error(message);
+          }
           setShowAddModal(false);
           setTab("ACTIVE");
         }}

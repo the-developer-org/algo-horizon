@@ -50,6 +50,7 @@ const navigationGroups: NavigationGroup[] = [
       { title: "Home", href: "/", icon: TrendingUp },
       { title: "Stock Monitoring", href: "/stock-monitoring", icon: Activity },
       { title: "Alerts", href: "/alerts", icon: Bell },
+      { title: "Live Market", href: "/alerts/live-market", icon: Activity },
       { title: "Tasks", href: "/tasks", icon: ListChecks },
     ],
   },
@@ -132,13 +133,15 @@ export function AppNavigationGrid() {
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = !item.external && isActivePath(pathname, item.href);
-                const className = `nav-grid-card${active ? " nav-grid-card-active" : ""}`;
+                const isLive = item.href === "/alerts/live-market";
+                const className = `nav-grid-card${active ? " nav-grid-card-active" : ""}${isLive ? " nav-grid-card-live" : ""}`;
                 const content = (
                   <>
                     <span className="nav-grid-icon"><Icon className="size-[18px]" /></span>
                     <span className="nav-grid-card-copy">
                       <span className="nav-grid-card-title">{item.title}</span>
                     </span>
+                    {isLive && <span className="nav-live-badge">LIVE</span>}
                     {item.external ? <ExternalLink className="nav-grid-external size-4" /> : <span className="nav-grid-arrow" aria-hidden="true">↗</span>}
                   </>
                 );
