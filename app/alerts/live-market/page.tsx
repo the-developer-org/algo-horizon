@@ -6,6 +6,7 @@ import { useMarketDataMessages, useMarketDataStatus, useMarketFeedMessages, useM
 import { fetchKeyMapping } from '@/utils/apiUtils';
 import { decodeUpstoxFeed } from '@/lib/upstoxFeed';
 import type { RawMessage } from '@/lib/marketDataSocket';
+import { InstrumentQuote } from '../InstrumentQuote';
 import { DerivativePicker, InstrumentKindTabs, modalTheme } from '../InstrumentPicker';
 import { sessionClose, todaySessionClose, type InstrumentTab } from '../instrumentCatalog';
 
@@ -535,6 +536,7 @@ export default function LiveMarketPage() {
               </div>
               {selectedStock ? (
                 <div className="space-y-3">
+                  <InstrumentQuote instrumentKey={selectedStock.key} tab={tab} />
                   <input
                     autoFocus
                     type="number"

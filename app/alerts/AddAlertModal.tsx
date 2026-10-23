@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "react-hot-toast";
+import { InstrumentQuote } from "./InstrumentQuote";
 import { DerivativePicker, InstrumentKindTabs, modalTheme } from "./InstrumentPicker";
 import { sessionClose, todaySessionClose, type InstrumentTab } from "./instrumentCatalog";
 
@@ -187,6 +188,7 @@ export function AddAlertModal({ open, onClose, onAdd }: AddAlertModalProps) {
           {picked && tab !== 'stocks' && (
             <p className={`text-xs font-semibold ${theme.muted}`}>{picked.name}</p>
           )}
+          {picked && <InstrumentQuote instrumentKey={picked.key} tab={tab} />}
           <Input
             type="number"
             placeholder="Target Price"
