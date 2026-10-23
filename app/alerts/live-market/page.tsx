@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { useMarketDataMessages, useMarketDataStatus } from '@/hooks/useMarketData';
+import { useMarketDataMessages, useMarketDataStatus, useMarketFeedMessages, useMarketFeedStatus } from '@/hooks/useMarketData';
 import { fetchKeyMapping } from '@/utils/apiUtils';
 import { decodeUpstoxFeed } from '@/lib/upstoxFeed';
-import { marketDataSocket } from '@/lib/marketDataSocket';
 import type { RawMessage } from '@/lib/marketDataSocket';
 import { DerivativePicker, InstrumentKindTabs, modalTheme } from '../InstrumentPicker';
 import { sessionClose, todaySessionClose, type InstrumentTab } from '../instrumentCatalog';
@@ -106,7 +105,10 @@ export default function LiveMarketPage() {
     const id = setInterval(check, 15000);
     return () => clearInterval(id);
   }, []);
-  const { status, error } = useMarketDataStatus(inWindow);
+  const feed = useMarketFeedStatus(inWindow);
+  const stomp = useMarketDataStatus(inWindow);
+  const status = feed.status === 'connected' || stomp.status === 'connected' ? 'connected' : feed.status;
+  const error = status === 'connected' ? null : feed.error ?? stomp.error;
   const [baseline, setBaseline] = useState<Record<string, number>>({});
   const [names, setNames] = useState<Record<string, string>>({});
   const [trackedKeys, setTrackedKeys] = useState<string[]>([]);
@@ -293,7 +295,7 @@ export default function LiveMarketPage() {
   const raf = useRef<number | null>(null);
 
   // Updates are coalesced per animation frame in the UI layer only.
-  useMarketDataMessages((raw) => {
+  const onMarketMessage = (raw: RawMessage) => {
     receivedRef.current++;
     if (receivedRef.current <= 3 || receivedRef.current % 50 === 0) {
       setReceived(receivedRef.current);
@@ -312,7 +314,8 @@ export default function LiveMarketPage() {
       pending.current = {};
       const next = { ...latest.current };
       const now = Date.now();
-      for (const [k, v] of Object.entries(batch)) {
+      for (const [rawKey, v] of Object.entries(batch)) {
+        const k = normalizeKey(rawKey);
         const prev = next[k];
         const ltp = v.ltp ?? prev?.ltp;
         const dir = prev?.ltp !== undefined && ltp !== undefined
@@ -323,7 +326,9 @@ export default function LiveMarketPage() {
       latest.current = next;
       setQuotes(next);
     });
-  });
+  };
+  useMarketFeedMessages(onMarketMessage);
+  useMarketDataMessages(onMarketMessage);
 
   useEffect(() => () => { if (raf.current !== null) cancelAnimationFrame(raf.current); }, []);
 
