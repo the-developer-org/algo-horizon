@@ -8,7 +8,7 @@ import { decodeUpstoxFeed } from '@/lib/upstoxFeed';
 import type { RawMessage } from '@/lib/marketDataSocket';
 import { InstrumentQuote } from '../InstrumentQuote';
 import { DerivativePicker, InstrumentKindTabs, modalTheme } from '../InstrumentPicker';
-import { sessionClose, todaySessionClose, type InstrumentTab } from '../instrumentCatalog';
+import { INSTRUMENT_TABS, sessionClose, todaySessionClose, type InstrumentTab } from '../instrumentCatalog';
 
 interface Quote {
   ltp?: number;
@@ -117,12 +117,15 @@ export default function LiveMarketPage() {
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<InstrumentTab>('stocks');
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [selectedStock, setSelectedStock] = useState<{ key: string; name: string; expiry?: string } | null>(null);
+  const [selectedStock, setSelectedStock] = useState<{ key: string; name: string; expiry?: string; instrumentKey?: string } | null>(null);
   const [targetPrice, setTargetPrice] = useState('');
   const [entryPrice, setEntryPrice] = useState('');
   const [stopLoss, setStopLoss] = useState('');
   const [levels, setLevels] = useState<Record<string, { targetPrice?: number; entryPrice?: number; stopLoss?: number }>>({});
   const [alerts, setAlerts] = useState<MarketAlert[]>([]);
+  const [autoExpire, setAutoExpire] = useState(false);
+  const [liveIndexes, setLiveIndexes] = useState<Record<string, string[]>>({});
+  const [selectedIndex, setSelectedIndex] = useState<string | null>(null);
 
   // Names from the Redis KeyMapping (name -> key).
   useEffect(() => {
@@ -156,11 +159,30 @@ export default function LiveMarketPage() {
     return list;
   };
 
+  const loadLiveIndexes = async () => {
+    try {
+      const response = await fetch(`${backendBase}/api/alerts/live-indexes`);
+      if (response.ok) {
+        const data = await response.json() as Record<string, string[]>;
+        setLiveIndexes(data);
+        const firstIndex = Object.keys(data)[0];
+        if (firstIndex) {
+          setSelectedIndex(firstIndex);
+        }
+      }
+    } catch (e) {
+      console.error('Could not load live indexes:', e);
+    }
+  };
+
   useEffect(() => {
     let active = true;
-    loadActiveAlerts().catch((e) => {
-      if (active) toast.error(e instanceof Error ? e.message : 'Could not load active alerts');
-    });
+    Promise.all([
+      loadActiveAlerts().catch((e) => {
+        if (active) toast.error(e instanceof Error ? e.message : 'Could not load active alerts');
+      }),
+      loadLiveIndexes()
+    ]);
     return () => { active = false; };
   }, [backendBase]);
 
@@ -183,7 +205,7 @@ export default function LiveMarketPage() {
   const parsedTarget = parsePrice(targetPrice);
   const parsedEntry = parsePrice(entryPrice);
   const parsedStopLoss = parsePrice(stopLoss);
-  const hasAnyPrice = parsedTarget !== undefined || parsedEntry !== undefined || parsedStopLoss !== undefined;
+  const hasAnyPrice = tab === 'indexes' || parsedTarget !== undefined || parsedEntry !== undefined || parsedStopLoss !== undefined;
 
   const resetAddForm = () => {
     setAddOpen(false);
@@ -192,7 +214,6 @@ export default function LiveMarketPage() {
     setTargetPrice('');
     setEntryPrice('');
     setStopLoss('');
-    setTab('stocks');
   };
 
   const theme = modalTheme(tab);
@@ -203,50 +224,89 @@ export default function LiveMarketPage() {
     const { key, name, expiry: contractExpiry } = selectedStock;
     setBusyKey(key);
     try {
-      const expiry = new Date();
-      expiry.setDate(expiry.getDate() + 30);
-      const tickSource = tab === 'options' ? 'STOCK_OPTIONS' : tab === 'indexes' ? 'INDEX' : 'REGULAR_MONITORING';
-      const expiryDate = tab === 'options'
-        ? (contractExpiry ? sessionClose(contractExpiry) : undefined)
-        : tab === 'indexes'
-          ? todaySessionClose()
-          : expiry.toISOString().slice(0, 19);
-      if (!expiryDate) {
-        throw new Error('Option expiry is missing');
-      }
-      const alertResponse = await fetch(`${backendBase}/api/alerts/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyName: name,
-          instrumentKey: key,
-          alertType: 'PRICE_REACHED',
-          ...(parsedTarget !== undefined ? { targetPrice: parsedTarget } : {}),
-          ...(parsedEntry !== undefined ? { entryPrice: parsedEntry } : {}),
-          ...(parsedStopLoss !== undefined ? { stopLoss: parsedStopLoss } : {}),
-          priceBasedExit: true,
-          tickSource,
-          expiryDate,
-        }),
-      });
-      if (!alertResponse.ok) {
-        throw new Error(await readApiError(alertResponse, `Could not save prices (${alertResponse.status})`));
-      }
-      const saved = await alertResponse.json().catch(() => null) as MarketAlert | null;
-      try {
-        await loadActiveAlerts();
-      } catch {
-        setTrackedKeys((current) => current.includes(key) ? current : [...current, key]);
-        if (saved?.id) {
-          setAlerts((current) => [...current.filter((alert) => alert.id !== saved.id), saved]);
+      if (tab === 'indexes') {
+        // For indexes, key is like NIFTY_50, instrumentKey is like NSE_INDEX|Nifty 50
+        const indexKey = key; // e.g., NIFTY_50
+        const indexInstrumentKey = selectedStock.instrumentKey || `NSE_INDEX|${key}`; // Fallback if not provided
+        
+        // Call the index API to add alerts for all constituent stocks
+        const indexResponse = await fetch(`${backendBase}/api/alerts/add/index/${encodeURIComponent(indexKey)}`, {
+          method: 'POST',
+        });
+        if (!indexResponse.ok) {
+          throw new Error(await readApiError(indexResponse, `Could not add index alerts (${indexResponse.status})`));
         }
+        
+        // Also save an index alert record with the correct instrument key
+        // For indexes, always expire in 1 day
+        const alertResponse = await fetch(`${backendBase}/api/alerts/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyName: name,
+            instrumentKey: indexInstrumentKey,
+            alertType: 'INDEX_MONITORING',
+            tickSource: 'INDEX_MONITORING',
+            expiryDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19),
+            toBeExpiredInDays: 1,
+          }),
+        });
+        if (!alertResponse.ok) {
+          console.error('Could not save index alert record:', await readApiError(alertResponse, 'Unknown error'));
+        }
+        
+        try {
+          await Promise.all([loadActiveAlerts(), loadLiveIndexes()]);
+        } catch {
+          setTrackedKeys((current) => current.includes(key) ? current : [...current, key]);
+        }
+        resetAddForm();
+        toast.success(`${name} index alerts added`);
+      } else {
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + (autoExpire ? 1 : 30));
+        const tickSource = tab === 'options' ? 'STOCK_OPTIONS' : 'REGULAR_MONITORING';
+        const expiryDate = tab === 'options'
+          ? (contractExpiry ? sessionClose(contractExpiry) : undefined)
+          : expiry.toISOString().slice(0, 19);
+        if (!expiryDate) {
+          throw new Error('Option expiry is missing');
+        }
+        const alertResponse = await fetch(`${backendBase}/api/alerts/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyName: name,
+            instrumentKey: key,
+            alertType: 'PRICE_REACHED',
+            ...(parsedTarget !== undefined ? { targetPrice: parsedTarget } : {}),
+            ...(parsedEntry !== undefined ? { entryPrice: parsedEntry } : {}),
+            ...(parsedStopLoss !== undefined ? { stopLoss: parsedStopLoss } : {}),
+            priceBasedExit: true,
+            tickSource,
+            expiryDate,
+            ...(autoExpire ? { toBeExpiredInDays: 1 } : {}),
+          }),
+        });
+        if (!alertResponse.ok) {
+          throw new Error(await readApiError(alertResponse, `Could not save prices (${alertResponse.status})`));
+        }
+        const saved = await alertResponse.json().catch(() => null) as MarketAlert | null;
+        try {
+          await loadActiveAlerts();
+        } catch {
+          setTrackedKeys((current) => current.includes(key) ? current : [...current, key]);
+          if (saved?.id) {
+            setAlerts((current) => [...current.filter((alert) => alert.id !== saved.id), saved]);
+          }
+        }
+        setLevels((current) => ({
+          ...current,
+          [key]: { targetPrice: parsedTarget, entryPrice: parsedEntry, stopLoss: parsedStopLoss },
+        }));
+        resetAddForm();
+        toast.success(`${name} added to Live Market`);
       }
-      setLevels((current) => ({
-        ...current,
-        [key]: { targetPrice: parsedTarget, entryPrice: parsedEntry, stopLoss: parsedStopLoss },
-      }));
-      resetAddForm();
-      toast.success(`${name} added to Live Market`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not add instrument');
     } finally {
@@ -346,8 +406,40 @@ export default function LiveMarketPage() {
   const nameOf = (k: string) => alertFor(k)?.companyName || names[k] || names[k.replace('|', '-')];
   const allRows = Object.entries(merged);
   const rows = allRows
+    .filter(([key]) => {
+      const alert = alertFor(key);
+      const companyNameUpper = alert?.companyName?.toUpperCase() || '';
+      const normalizedKey = key.toUpperCase();
+      
+      if (tab === 'stocks') {
+        return !companyNameUpper.includes(' CE') && !companyNameUpper.includes(' PE') && !normalizedKey.includes('NIFTY');
+      }
+      if (tab === 'indexes') {
+        // Only show companies that belong to the selected index
+        if (selectedIndex && liveIndexes[selectedIndex]) {
+          const companyName = nameOf(key);
+          return liveIndexes[selectedIndex].includes(companyName);
+        }
+        return false;
+      }
+      if (tab === 'options') {
+        return companyNameUpper.includes(' CE') || companyNameUpper.includes(' PE');
+      }
+      return true;
+    })
     .filter(([, quote]) => momentumFilter === 'all' || quote.dir === momentumFilter)
     .sort(([keyA, quoteA], [keyB, quoteB]) => {
+      // For indexes tab, always sort by change percentage (highest first)
+      if (tab === 'indexes') {
+        const changeA = quoteA.ltp !== undefined && quoteA.cp ? ((quoteA.ltp - quoteA.cp) / quoteA.cp) * 100 : null;
+        const changeB = quoteB.ltp !== undefined && quoteB.cp ? ((quoteB.ltp - quoteB.cp) / quoteB.cp) * 100 : null;
+        if (changeA === null && changeB !== null) return 1;
+        if (changeB === null && changeA !== null) return -1;
+        if (changeA !== null && changeB !== null && changeA !== changeB) {
+          return changeB - changeA; // Sort descending (highest change first)
+        }
+      }
+      
       if (changeOrder !== 'default') {
         const changeA = quoteA.ltp !== undefined && quoteA.cp ? quoteA.ltp - quoteA.cp : null;
         const changeB = quoteB.ltp !== undefined && quoteB.cp ? quoteB.ltp - quoteB.cp : null;
@@ -380,6 +472,21 @@ export default function LiveMarketPage() {
                 {inWindow ? STATUS_LABEL[status] : 'Market closed'}
               </span>
               <span className="text-xs font-medium text-slate-500">{allRows.length} subscribed</span>
+              <div className="rounded-md border border-slate-200 bg-white">
+                {INSTRUMENT_TABS.map((tabItem, index) => (
+                  <button
+                    key={tabItem.id}
+                    type="button"
+                    onClick={() => setTab(tabItem.id)}
+                    aria-pressed={tab === tabItem.id}
+                    className={`px-3 py-1.5 text-xs font-semibold transition ${
+                      index === 0 ? 'rounded-l-md border-r border-slate-200' : index === INSTRUMENT_TABS.length - 1 ? 'rounded-r-md' : 'border-r border-slate-200'
+                    } ${tab === tabItem.id ? 'bg-green-600 text-black border-green-600' : 'bg-slate-50 text-black hover:bg-slate-100'}`}
+                  >
+                    {tabItem.label}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={() => setAddOpen(true)}
@@ -390,10 +497,32 @@ export default function LiveMarketPage() {
             </div>
           </div>
         </header>
+        {tab === 'indexes' && Object.keys(liveIndexes).length > 0 && (
+          <div className="mb-6 overflow-x-auto rounded-lg border border-slate-200 bg-white/50 backdrop-blur">
+            <div className="flex gap-1 p-2 md:p-3" role="tablist" aria-label="Select Nifty index">
+              {Object.keys(liveIndexes).map((indexKey) => (
+                <button
+                  key={indexKey}
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedIndex === indexKey}
+                  onClick={() => setSelectedIndex(indexKey)}
+                  className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    selectedIndex === indexKey
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {indexKey}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {!inWindow && rows.length > 0 && (
           <p className="mb-4 text-sm text-gray-500">Market closed – showing last known prices. Live feed runs Mon–Fri, 9:14 AM – 3:31 PM IST.</p>
         )}
-        {allRows.length > 0 && (
+        {allRows.length > 0 && tab !== 'indexes' && (
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2" aria-label="Filter by tick momentum">
               {([
@@ -536,33 +665,55 @@ export default function LiveMarketPage() {
               </div>
               {selectedStock ? (
                 <div className="space-y-3">
-                  <InstrumentQuote instrumentKey={selectedStock.key} tab={tab} />
-                  <input
-                    autoFocus
-                    type="number"
-                    value={targetPrice}
-                    onChange={(event) => setTargetPrice(event.target.value)}
-                    placeholder="Target Price"
-                    className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 ${theme.input}`}
-                  />
-                  <input
-                    type="number"
-                    value={entryPrice}
-                    onChange={(event) => setEntryPrice(event.target.value)}
-                    placeholder="Entry Price"
-                    className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 ${theme.input}`}
-                  />
-                  <input
-                    type="number"
-                    value={stopLoss}
-                    onChange={(event) => setStopLoss(event.target.value)}
-                    placeholder="Stop Loss"
-                    className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 ${theme.input}`}
-                  />
-                  <p className={`text-xs ${theme.muted}`}>
-                    At least one price is required.
-                    {tab === 'options' ? ' Expiry is the option expiry at 3:30pm.' : tab === 'indexes' ? ' Expiry is today at 3:30pm.' : ' Expiry is set to 30 days.'}
-                  </p>
+                  <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={tab === 'indexes' ? true : autoExpire}
+                      onChange={(event) => setAutoExpire(event.target.checked)}
+                      disabled={tab === 'indexes'}
+                      className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 disabled:opacity-50"
+                    />
+                    <span className="text-sm font-medium text-slate-700">Auto expire in 1 day</span>
+                  </label>
+                  <InstrumentQuote instrumentKey={selectedStock.instrumentKey || selectedStock.key} tab={tab} />
+                  {tab !== 'indexes' && (
+                    <>
+                      <input
+                        autoFocus
+                        type="number"
+                        value={targetPrice}
+                        onChange={(event) => setTargetPrice(event.target.value)}
+                        placeholder="Target Price"
+                        disabled={autoExpire}
+                        className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 ${theme.input}`}
+                      />
+                      <input
+                        type="number"
+                        value={entryPrice}
+                        onChange={(event) => setEntryPrice(event.target.value)}
+                        placeholder="Entry Price"
+                        disabled={autoExpire}
+                        className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 ${theme.input}`}
+                      />
+                      <input
+                        type="number"
+                        value={stopLoss}
+                        onChange={(event) => setStopLoss(event.target.value)}
+                        placeholder="Stop Loss"
+                        disabled={autoExpire}
+                        className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 ${theme.input}`}
+                      />
+                      <p className={`text-xs ${theme.muted}`}>
+                        At least one price is required.
+                        {tab === 'options' ? ' Expiry is the option expiry at 3:30pm.' : ' Expiry is set to 30 days.'}
+                      </p>
+                    </>
+                  )}
+                  {tab === 'indexes' && (
+                    <p className={`text-xs ${theme.muted}`}>
+                      Index alerts will be added for all constituent stocks.
+                    </p>
+                  )}
                   <div className="flex justify-end gap-2 pt-1">
                     <button
                       type="button"
