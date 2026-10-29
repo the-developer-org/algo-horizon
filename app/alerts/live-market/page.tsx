@@ -205,7 +205,7 @@ export default function LiveMarketPage() {
   const parsedTarget = parsePrice(targetPrice);
   const parsedEntry = parsePrice(entryPrice);
   const parsedStopLoss = parsePrice(stopLoss);
-  const hasAnyPrice = tab === 'indexes' || parsedTarget !== undefined || parsedEntry !== undefined || parsedStopLoss !== undefined;
+  const hasAnyPrice = tab === 'indexes' || autoExpire || parsedTarget !== undefined || parsedEntry !== undefined || parsedStopLoss !== undefined;
 
   const resetAddForm = () => {
     setAddOpen(false);
