@@ -315,8 +315,10 @@ export default function LiveMarketPage() {
   };
 
   const removeInstrument = async (alert: MarketAlert) => {
-    if (alert.tickSource !== 'REGULAR_MONITORING' || !alert.id) return;
+    if (!alert.id) return;
     const key = normalizeKey(alert.instrumentKey);
+    const isIndex = key.includes('NIFTY');
+    if (isIndex) return; // Don't allow deletion of indexes
     setBusyKey(key);
     try {
       const response = await fetch(`${backendBase}/api/alerts/delete/${encodeURIComponent(alert.id)}`, {
@@ -587,7 +589,8 @@ export default function LiveMarketPage() {
               const target = alert?.targetPrice || levels[key]?.targetPrice;
               const entry = alert?.entryPrice || levels[key]?.entryPrice;
               const sl = alert?.stopLoss || levels[key]?.stopLoss;
-              const canDelete = alert?.tickSource === 'REGULAR_MONITORING';
+              const isIndex = key.includes('NIFTY');
+              const canDelete = !isIndex;
               return (
                 <div
                   key={key}
