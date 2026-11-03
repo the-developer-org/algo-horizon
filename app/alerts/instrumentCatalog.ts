@@ -6,32 +6,39 @@ export const INSTRUMENT_TABS: { id: InstrumentTab; label: string }[] = [
   { id: 'indexes', label: 'Indexes' },
 ];
 
-export const INDEXES: { name: string; key: string; instrumentKey: string }[] = [
-  { name: 'Nifty 50', key: 'NIFTY_50', instrumentKey: 'NSE_INDEX|Nifty 50' },
+export interface IndexInstrument {
+  name: string;
+  key: string;
+  instrumentKey: string;
+  tredCodeKey?: string;
+}
+
+export const INDEXES: IndexInstrument[] = [
+  { name: 'Nifty 50', key: 'NIFTY_50', instrumentKey: 'NSE_INDEX|Nifty 50', tredCodeKey: 'NIFTY' },
   { name: 'Nifty 100', key: 'NIFTY_100', instrumentKey: 'NSE_INDEX|Nifty 100' },
   { name: 'Nifty 200', key: 'NIFTY_200', instrumentKey: 'NSE_INDEX|Nifty 200' },
   { name: 'Nifty 500', key: 'NIFTY_500', instrumentKey: 'NSE_INDEX|Nifty 500' },
-  { name: 'Nifty Auto', key: 'NIFTY_AUTO', instrumentKey: 'NSE_INDEX|Nifty Auto' },
-  { name: 'Nifty Bank', key: 'NIFTY_BANK', instrumentKey: 'NSE_INDEX|Nifty Bank' },
+  { name: 'Nifty Auto', key: 'NIFTY_AUTO', instrumentKey: 'NSE_INDEX|Nifty Auto', tredCodeKey: 'NIFTYAUTO' },
+  { name: 'Nifty Bank', key: 'NIFTY_BANK', instrumentKey: 'NSE_INDEX|Nifty Bank', tredCodeKey: 'BANKNIFTY' },
   { name: 'Nifty Commodities', key: 'NIFTY_COMMODITIES', instrumentKey: 'NSE_INDEX|Nifty Commodities' },
   { name: 'Nifty Consumer Durables', key: 'NIFTY_CONSUMER_DURABLES', instrumentKey: 'NSE_INDEX|Nifty Consumer Durables' },
   { name: 'Nifty CPSE', key: 'NIFTY_CPSE', instrumentKey: 'NSE_INDEX|Nifty CPSE' },
-  { name: 'Nifty Financial Services', key: 'NIFTY_FINANCIAL_SERVICES', instrumentKey: 'NSE_INDEX|Nifty Financial Services' },
-  { name: 'Nifty FMCG', key: 'NIFTY_FMCG', instrumentKey: 'NSE_INDEX|Nifty FMCG' },
+  { name: 'Nifty Financial Services', key: 'NIFTY_FINANCIAL_SERVICES', instrumentKey: 'NSE_INDEX|Nifty Financial Services', tredCodeKey: 'NIFTYFINSERVICE' },
+  { name: 'Nifty FMCG', key: 'NIFTY_FMCG', instrumentKey: 'NSE_INDEX|Nifty FMCG', tredCodeKey: 'NIFTYFMCG' },
   { name: 'Nifty Healthcare', key: 'NIFTY_HEALTHCARE', instrumentKey: 'NSE_INDEX|NIFTY HEALTHCARE' },
-  { name: 'Nifty IT', key: 'NIFTY_IT', instrumentKey: 'NSE_INDEX|Nifty IT' },
-  { name: 'Nifty Media', key: 'NIFTY_MEDIA', instrumentKey: 'NSE_INDEX|Nifty Media' },
-  { name: 'Nifty Metal', key: 'NIFTY_METAL', instrumentKey: 'NSE_INDEX|Nifty Metal' },
+  { name: 'Nifty IT', key: 'NIFTY_IT', instrumentKey: 'NSE_INDEX|Nifty IT', tredCodeKey: 'CNXIT' },
+  { name: 'Nifty Media', key: 'NIFTY_MEDIA', instrumentKey: 'NSE_INDEX|Nifty Media', tredCodeKey: 'NIFTYMEDIA' },
+  { name: 'Nifty Metal', key: 'NIFTY_METAL', instrumentKey: 'NSE_INDEX|Nifty Metal', tredCodeKey: 'NIFTYMETAL' },
   { name: 'Nifty Midcap 50', key: 'NIFTY_MIDCAP_50', instrumentKey: 'NSE_INDEX|Nifty Midcap 50' },
   { name: 'Nifty Midcap 100', key: 'NIFTY_MIDCAP_100', instrumentKey: 'NSE_INDEX|NIFTY MIDCAP 100' },
   { name: 'Nifty Midcap 150', key: 'NIFTY_MIDCAP_150', instrumentKey: 'NSE_INDEX|NIFTY MIDCAP 150' },
   { name: 'Nifty Midcap Select', key: 'NIFTY_MIDCAP_SELECT', instrumentKey: 'NSE_INDEX|NIFTY MID SELECT' },
   { name: 'Nifty Next 50', key: 'NIFTY_NEXT_50', instrumentKey: 'NSE_INDEX|Nifty Next 50' },
   { name: 'Nifty Oil & Gas', key: 'NIFTY_OIL_AND_GAS', instrumentKey: 'NSE_INDEX|NIFTY OIL AND GAS' },
-  { name: 'Nifty Pharma', key: 'NIFTY_PHARMA', instrumentKey: 'NSE_INDEX|Nifty Pharma' },
-  { name: 'Nifty Private Bank', key: 'NIFTY_PRIVATE_BANK', instrumentKey: 'NSE_INDEX|Nifty Private Bank' },
-  { name: 'Nifty PSU Bank', key: 'NIFTY_PSU_BANK', instrumentKey: 'NSE_INDEX|Nifty PSU Bank' },
-  { name: 'Nifty Realty', key: 'NIFTY_REALTY', instrumentKey: 'NSE_INDEX|Nifty Realty' },
+  { name: 'Nifty Pharma', key: 'NIFTY_PHARMA', instrumentKey: 'NSE_INDEX|Nifty Pharma', tredCodeKey: 'CNXPHARMA' },
+  { name: 'Nifty Private Bank', key: 'NIFTY_PRIVATE_BANK', instrumentKey: 'NSE_INDEX|Nifty Private Bank', tredCodeKey: 'NIFTYPVTBANK' },
+  { name: 'Nifty PSU Bank', key: 'NIFTY_PSU_BANK', instrumentKey: 'NSE_INDEX|Nifty PSU Bank', tredCodeKey: 'NIFTYPSUBANK' },
+  { name: 'Nifty Realty', key: 'NIFTY_REALTY', instrumentKey: 'NSE_INDEX|Nifty Realty', tredCodeKey: 'CNXREALTY' },
   { name: 'Nifty Smallcap 50', key: 'NIFTY_SMALLCAP_50', instrumentKey: 'NSE_INDEX|Nifty Smallcap 500' },
   { name: 'Nifty Smallcap 100', key: 'NIFTY_SMALLCAP_100', instrumentKey: 'NSE_INDEX|Nifty Smallcap 100' },
   { name: 'Nifty Smallcap 250', key: 'NIFTY_SMALLCAP_250', instrumentKey: 'NSE_INDEX|Nifty Smallcap 250' },
@@ -41,7 +48,7 @@ export const INDEXES: { name: string; key: string; instrumentKey: string }[] = [
   { name: 'Nifty Chemicals', key: 'NIFTY_CHEMICALS', instrumentKey: 'NSE_INDEX|Nifty Chemicals' },
   { name: 'Nifty Construction', key: 'NIFTY_CONSTRUCTION', instrumentKey: 'NSE_INDEX|Nifty 50' },
   { name: 'Nifty Consumer Services', key: 'NIFTY_CONSUMER_SERVICES', instrumentKey: 'NSE_INDEX|Nifty Consumer Services' },
-  { name: 'Nifty Energy', key: 'NIFTY_ENERGY', instrumentKey: 'NSE_INDEX|Nifty Energy' },
+  { name: 'Nifty Energy', key: 'NIFTY_ENERGY', instrumentKey: 'NSE_INDEX|Nifty Energy', tredCodeKey: 'CNXENERGY' },
   { name: 'Nifty Financial Services 25-50', key: 'NIFTY_FINANCIAL_SERVICES_25_50', instrumentKey: 'NSE_INDEX|Nifty Financial Services 25 50' },
   { name: 'Nifty Financial Services Ex-Bank', key: 'NIFTY_FINANCIAL_SERVICES_EX_BANK', instrumentKey: 'NSE_INDEX|Nifty Financial Services Ex Bank' },
   { name: 'Nifty Hospitals', key: 'NIFTY_HOSPITALS', instrumentKey: 'NSE_INDEX|Nifty 50' },
@@ -82,6 +89,20 @@ export const INDEXES: { name: string; key: string; instrumentKey: string }[] = [
   { name: 'Nifty SME Emerge', key: 'NIFTY_SME_EMERGE', instrumentKey: 'NSE_INDEX|Nifty SME Emerge' },
   { name: 'Nifty Sugar & Ethanol', key: 'NIFTY_SUGAR_ETHANOL', instrumentKey: 'NSE_INDEX|Nifty 50' },
 ];
+
+function sectorSymbol(value: string) {
+  return value.trim().toUpperCase().replace(/[\s_-]+/g, '');
+}
+
+/** Trendlyne sector Symbol (tredCodeKey) -> INDEXES.key. Only explicit keys match. */
+export const TRED_CODE_TO_KEY: Record<string, string> = Object.fromEntries(
+  INDEXES.flatMap((item) => item.tredCodeKey ? [[sectorSymbol(item.tredCodeKey), item.key]] : []),
+);
+
+export function indexForSector(symbol: string): IndexInstrument | undefined {
+  const key = TRED_CODE_TO_KEY[sectorSymbol(symbol)];
+  return key ? INDEXES.find((item) => item.key === key) : undefined;
+}
 
 // Mapping from API index name (NIFTY_XXX) to Instrument Key (NSE_INDEX|Display Name)
 export const INDEX_NAME_TO_KEY: Record<string, string> = {

@@ -23,10 +23,13 @@ export function useMarketDataStatus(enabled = true): { status: MarketDataStatus;
  * Subscribe to raw messages from the shared socket. The callback is invoked for
  * every message with the original payload; it never causes a rerender by itself.
  */
-export function useMarketDataMessages(onMessage: (raw: RawMessage) => void) {
+export function useMarketDataMessages(onMessage: (raw: RawMessage) => void, enabled = true) {
   const ref = useRef(onMessage);
   ref.current = onMessage;
-  useEffect(() => marketDataSocket.subscribe((raw) => ref.current(raw)), []);
+  useEffect(() => {
+    if (!enabled) return;
+    return marketDataSocket.subscribe((raw) => ref.current(raw));
+  }, [enabled]);
 }
 
 /** Raw Upstox binary fan-out. Live ticks are not published on STOMP `/topic/data`. */

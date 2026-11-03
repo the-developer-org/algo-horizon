@@ -97,8 +97,10 @@ export class MarketDataSocket {
           this.attempts = 0;
           this.lastError = null;
           this.setStatus('connected');
+          let messageCount = 0;
           client.subscribe(marketDataTopic(), (message) => {
             if (this.client !== client) return;
+            messageCount += 1;
             const raw: RawMessage = message.isBinaryBody
               ? new Uint8Array(message.binaryBody).buffer
               : message.body;
@@ -107,7 +109,7 @@ export class MarketDataSocket {
             });
           });
         },
-        onWebSocketError: () => {
+        onWebSocketError: (event) => {
           if (this.client !== client) return;
           this.lastError = 'Market-data connection error';
           this.setStatus('error');

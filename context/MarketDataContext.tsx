@@ -69,7 +69,6 @@ export const MarketDataProvider: React.FC<MarketDataProviderProps> = ({ children
       eventSourceRef.current.close();
     }
 
-    // Connect to SSE endpoint
     const eventSource = new EventSource('/api/market-data/sse');
     eventSourceRef.current = eventSource;
 
@@ -79,10 +78,8 @@ export const MarketDataProvider: React.FC<MarketDataProviderProps> = ({ children
     };
 
     eventSource.onmessage = (event) => {
-      console.log('EventSource onmessage fired with event:', event);
       try {
         const data = JSON.parse(event.data);
-        console.log('Received SSE data:', data);
 
         // Handle the backend format: {"NSE_EQ|INE758T01015": 286.25}
         // Extract instrument and price from the single key-value pair
@@ -121,7 +118,7 @@ export const MarketDataProvider: React.FC<MarketDataProviderProps> = ({ children
       setIsConnected(false);
       setConnectionStatus('Connection Error');
     };
-  }, []);
+  }, [isMarketOpen]);
 
   const reconnect = useCallback(() => {
     if (!isMarketOpen()) {
