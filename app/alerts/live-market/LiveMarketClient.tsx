@@ -67,6 +67,17 @@ function normalizeKey(key: string) {
   return key.replace('-', '|');
 }
 
+function chartUrlForInstrument(instrumentKey: string, levels?: { entry?: number; target?: number; stopLoss?: number }) {
+  const params = new URLSearchParams({
+    instrumentKey,
+    timeframe: '1d',
+  });
+  if (levels?.entry) params.set('entryPrice', String(levels.entry));
+  if (levels?.target) params.set('targetPrice', String(levels.target));
+  if (levels?.stopLoss) params.set('stopLossPrice', String(levels.stopLoss));
+  return `/chart?${params.toString()}`;
+}
+
 function istToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 }
@@ -126,6 +137,201 @@ function toGapInfo(entry: RawClosingEntry): GapUpInfo | null {
     };
   }
   return null;
+}
+
+function param3Value(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  return param3Value(record.param_3 ?? record.param3 ?? record.value);
+}
+
+function indexParameterMapFromData(data: unknown): Record<string, Record<string, number>> {
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return {};
+    try {
+      return indexParameterMapFromData(JSON.parse(trimmed));
+    } catch {
+      return {};
+    }
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+  const record = data as Record<string, unknown>;
+  if (record.data && typeof record.data === 'object' && ('status' in record || 'type' in record)) {
+    return indexParameterMapFromData(record.data);
+  }
+  const next: Record<string, Record<string, number>> = {};
+  for (const [indexName, stocks] of Object.entries(record)) {
+    if (!stocks || typeof stocks !== 'object' || Array.isArray(stocks)) continue;
+    const values: Record<string, number> = {};
+    for (const [symbol, value] of Object.entries(stocks)) {
+      const numeric = param3Value(value);
+      if (!symbol || numeric === null) continue;
+      values[symbol] = numeric;
+    }
+    if (Object.keys(values).length > 0) next[indexName] = values;
+  }
+  return next;
+}
+
+const INDEX_PARAM_ALIASES: Record<string, string[]> = {
+  NIFTY_50: ['NIFTY 50', 'NIFTY'],
+  NIFTY_BANK: ['NIFTY BANK', 'BANK NIFTY'],
+  NIFTY_AUTO: ['NIFTY AUTO'],
+  NIFTY_FINANCIAL_SERVICES: ['NIFTY FIN SERV', 'NIFTY FINANCIAL SERVICES'],
+  NIFTY_FMCG: ['NIFTY FMCG'],
+  NIFTY_IT: ['NIFTY IT'],
+  NIFTY_MEDIA: ['NIFTY MEDIA'],
+  NIFTY_METAL: ['NIFTY METAL', 'NITFY METAL'],
+  NIFTY_PHARMA: ['NIFTY PHARMA'],
+  NIFTY_PSU_BANK: ['NIFTY PSU BANK'],
+  NIFTY_PRIVATE_BANK: ['NIFTY PVT BANK', 'NIFTY PVT BANKS', 'NIFTY PRIVATE BANK'],
+  NIFTY_REALTY: ['NIFTY REALTY', 'NIFTY REALITY'],
+  NIFTY_ENERGY: ['NIFTY ENERGY'],
+};
+
+function compactIndexName(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function stocksForIndex(map: Record<string, Record<string, number>>, selectedIndex: string | null) {
+  if (!selectedIndex) return undefined;
+  if (map[selectedIndex]) return map[selectedIndex];
+  const selected = compactIndexName(selectedIndex.replace(/^NSE_INDEX\|/i, ''));
+  const wanted = new Set([selected]);
+  for (const [key, aliases] of Object.entries(INDEX_PARAM_ALIASES)) {
+    const group = [key, ...aliases].map(compactIndexName);
+    if (group.includes(selected)) group.forEach((name) => wanted.add(name));
+  }
+  return Object.entries(map).find(([name]) => wanted.has(compactIndexName(name)))?.[1];
+}
+
+const COMPANY_NAME_SKIP = new Set(['LTD', 'LIMITED', 'INC', 'CORP', 'CORPORATION', 'CO', 'COMPANY', 'OF', 'THE', 'AND', 'PVT', 'PRIVATE']);
+
+function companyWords(companyName: string) {
+  return companyName
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter((word) => word && !COMPANY_NAME_SKIP.has(word));
+}
+
+function lettersInOrder(needle: string, haystack: string) {
+  let index = 0;
+  for (const letter of haystack) {
+    if (letter === needle[index]) index += 1;
+    if (index === needle.length) return true;
+  }
+  return needle.length === 0;
+}
+
+const R_FACTOR_SYMBOL_BY_COMPANY: Record<string, string> = {
+  'STATE BANK OF INDIA': 'SBIN',
+  'MAHINDRA AND MAHINDRA': 'M&M',
+  'INFOSYS': 'INFY',
+  'TATA CONSULTANCY SERVICES': 'TCS',
+  'LARSEN AND TOUBRO': 'LT',
+  'OIL AND NATURAL GAS CORPORATION': 'ONGC',
+  'HINDUSTAN UNILEVER': 'HINDUNILVR',
+  'ULTRATECH CEMENT': 'ULTRACEMCO',
+  'BAJAJ FINANCE': 'BAJFINANCE',
+  'JIO FINANCIAL': 'JIOFIN',
+  'JIO FINANCIAL SERVICES': 'JIOFIN',
+  'INTERGLOBE AVIATION': 'INDIGO',
+  'TECH MAHINDRA': 'TECHM',
+};
+
+const R_FACTOR_SYMBOL_LOOKUP: Record<string, string> = {};
+for (const [name, symbol] of Object.entries(R_FACTOR_SYMBOL_BY_COMPANY)) {
+  R_FACTOR_SYMBOL_LOOKUP[name] = symbol;
+  R_FACTOR_SYMBOL_LOOKUP[companyWords(name).join(' ')] = symbol;
+}
+
+function symbolFromCompanyMap(companyName: string) {
+  const raw = companyName.trim().toUpperCase().replace(/\s+/g, ' ');
+  return R_FACTOR_SYMBOL_LOOKUP[raw] ?? R_FACTOR_SYMBOL_LOOKUP[companyWords(companyName).join(' ')];
+}
+
+function rFactorEntry(stocks: Record<string, number>, symbol: string) {
+  const wanted = compactIndexName(symbol);
+  for (const [key, value] of Object.entries(stocks)) {
+    if (compactIndexName(key) === wanted) return { symbol: key, value };
+  }
+  return undefined;
+}
+
+function matchRFactor(stocks: Record<string, number> | undefined, companyName: string) {
+  if (!stocks || !companyName) return undefined;
+  const mappedSymbol = symbolFromCompanyMap(companyName);
+  if (mappedSymbol) return rFactorEntry(stocks, mappedSymbol);
+  const words = companyWords(companyName);
+  const [firstWord, ...restWords] = words;
+  if (!firstWord) return undefined;
+  const rest = restWords.join('');
+  let match: { symbol: string; value: number } | undefined;
+  let bestScore = -1;
+  for (const [symbol, value] of Object.entries(stocks)) {
+    const keyword = compactIndexName(symbol);
+    const firstAt = keyword.indexOf(firstWord);
+    if (firstAt < 0) continue;
+    const before = keyword.slice(0, firstAt);
+    const after = keyword.slice(firstAt + firstWord.length);
+    if (before && !lettersInOrder(before, words.join('').slice(0, words.join('').indexOf(firstWord)))) continue;
+    if (after && !lettersInOrder(after, rest)) continue;
+    const score = keyword.length + (firstAt === 0 ? 20 : 0) + after.length;
+    if (score > bestScore) {
+      bestScore = score;
+      match = { symbol, value };
+    }
+  }
+  return match;
+}
+
+function param3ForCompany(stocks: Record<string, number> | undefined, companyName: string) {
+  return matchRFactor(stocks, companyName)?.value;
+}
+
+function unmatchedRFactorStocks(
+  maps: Array<[string, Record<string, number>]>,
+  companyNames: string[],
+) {
+  const claimed = new Set<string>();
+  for (const [, stocks] of maps) {
+    for (const companyName of companyNames) {
+      const match = matchRFactor(stocks, companyName);
+      if (match) claimed.add(compactIndexName(match.symbol));
+    }
+  }
+  const seen = new Set<string>();
+  const leftovers: Array<{ symbol: string; value: number; indexName: string }> = [];
+  for (const [indexName, stocks] of maps) {
+    for (const [symbol, value] of Object.entries(stocks)) {
+      const compact = compactIndexName(symbol);
+      if (claimed.has(compact) || seen.has(compact)) continue;
+      seen.add(compact);
+      leftovers.push({ symbol, value, indexName });
+    }
+  }
+  return leftovers.sort((a, b) => b.value - a.value || a.symbol.localeCompare(b.symbol));
+}
+
+type SectorialSocketAction =
+  | { kind: 'ignore' }
+  | { kind: 'index-map'; map: Record<string, Record<string, number>>; raw: unknown }
+  | { kind: 'sectorial'; rows: unknown[] | null };
+
+function sectorialSocketAction(message: unknown): SectorialSocketAction {
+  if (message && typeof message === 'object' && !Array.isArray(message)) {
+    const messageType = (message as { type?: unknown }).type;
+    if (messageType === 'CONNECTION_TEST') return { kind: 'ignore' };
+    if (messageType === 'INDEX_PARAMETER_MAP') {
+      const raw = (message as { data?: unknown }).data;
+      return { kind: 'index-map', raw, map: indexParameterMapFromData(raw) };
+    }
+    if (messageType && messageType !== 'SECTORIAL_FLOW') return { kind: 'ignore' };
+  }
+  return { kind: 'sectorial', rows: sectorRowsFromPayload(message) };
 }
 
 function sectorRowsFromPayload(value: unknown, depth = 0): unknown[] | null {
@@ -287,6 +493,7 @@ export default function LiveMarketPage() {
   const [sectorialLoading, setSectorialLoading] = useState(true);
   const [sectorialError, setSectorialError] = useState<string | null>(null);
   const [sectorialSocketStatus, setSectorialSocketStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
+  const [indexParameterMap, setIndexParameterMap] = useState<Record<string, Record<string, number>>>({});
 
   // Names from the Redis KeyMapping (name -> key).
   useEffect(() => {
@@ -397,11 +604,16 @@ export default function LiveMarketPage() {
         } catch {
           return;
         }
-        if (message && typeof message === 'object' && !Array.isArray(message) && (message as { type?: unknown }).type === 'CONNECTION_TEST') {
+        const action = sectorialSocketAction(message);
+        if (action.kind === 'ignore') return;
+        if (action.kind === 'index-map') {
+          setIndexParameterMap(action.map);
+          if (process.env.NODE_ENV !== 'production') {
+            console.info('INDEX_PARAMETER_MAP param_3', { raw: action.raw, stored: action.map });
+          }
           return;
         }
-
-        const rows = sectorRowsFromPayload(message);
+        const rows = action.rows;
         if (!rows) return;
 
         const changes = rows.flatMap((item) => {
@@ -820,6 +1032,11 @@ export default function LiveMarketPage() {
   const nonPositiveSectorialChanges = sectorialChanges
     .filter(({ chgValue }) => chgValue <= 0)
     .sort((a, b) => a.chgValue - b.chgValue);
+  const selectedRFactorStocks = stocksForIndex(indexParameterMap, selectedIndex);
+  const selectedIndexNames = (selectedIndex ? liveIndexes[selectedIndex] ?? [] : []).filter((name) => name.trim());
+  const unmatchedRFactor = tab === 'indexes' && selectedIndex && selectedRFactorStocks && selectedIndexNames.length > 0
+    ? unmatchedRFactorStocks([[selectedIndex, selectedRFactorStocks]], selectedIndexNames)
+    : [];
 
   return (
     <div className="min-h-screen bg-[#f3f7fb] bg-[radial-gradient(ellipse_at_top_right,_rgba(34,211,238,0.12),_transparent_38%),linear-gradient(135deg,#f8fafc_0%,#eef5f7_55%,#f0fdf4_100%)] px-4 py-8 md:px-8">
@@ -1033,6 +1250,27 @@ export default function LiveMarketPage() {
               : 'No instruments match this momentum filter.'}
           </div>
         ) : (
+          <>
+          {tab === 'indexes' && selectedIndex && unmatchedRFactor.length > 0 && (
+            <section className="mb-4 rounded-2xl border border-amber-200 bg-white p-4 shadow-sm" aria-label="Unmatched R factor">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-sm font-extrabold tracking-tight text-slate-900">Unmatched R factor</h2>
+                <span className="text-xs font-semibold text-slate-500">
+                  {unmatchedRFactor.length} with no company match · {selectedIndex}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                {unmatchedRFactor.map(({ symbol, value, indexName }) => (
+                  <div key={`${indexName}-${symbol}`} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                    <div className="truncate text-sm font-bold text-slate-800" title={symbol}>{symbol}</div>
+                    <div className={`mt-1 text-sm font-extrabold tabular-nums ${value >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {value >= 0 ? '+' : ''}{value.toFixed(2)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {rows.map(([key, q]) => {
               const change = q.ltp !== undefined && q.cp ? q.ltp - q.cp : undefined;
@@ -1049,6 +1287,7 @@ export default function LiveMarketPage() {
               const sl = alert?.stopLoss || levels[key]?.stopLoss;
               const isIndex = key.includes('NIFTY');
               const canDelete = !isIndex;
+              const param3 = param3ForCompany(stocksForIndex(indexParameterMap, selectedIndex), nameOf(key) ?? '');
               return (
                 <div
                   key={key}
@@ -1070,7 +1309,28 @@ export default function LiveMarketPage() {
                     key={q.updatedAt}
                     className={`rounded-lg px-1 py-2 ${q.dir === 'up' ? 'lm-flash-up' : q.dir === 'down' ? 'lm-flash-down' : ''}`}
                   >
-                    <div className={`truncate text-sm font-bold tracking-wide text-slate-700 ${canDelete ? 'pr-16' : ''}`}>{nameOf(key) ?? key}</div>
+                    <div className={`flex items-center gap-2 ${canDelete ? 'pr-16' : ''}`}>
+                      <div className="min-w-0 truncate text-sm font-bold tracking-wide text-slate-700">{nameOf(key) ?? key}</div>
+                      {!isIndex && (
+                        <a
+                          href={chartUrlForInstrument(normalizeKey(alert?.instrumentKey || key), {
+                            entry: entry || undefined,
+                            target: target || undefined,
+                            stopLoss: sl || undefined,
+                          })}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0 text-[11px] font-bold text-cyan-700 underline underline-offset-2 hover:text-cyan-900"
+                        >
+                          Chart
+                        </a>
+                      )}
+                    </div>
+                    {param3 !== undefined && (
+                      <div className={`mt-1 text-xs font-bold tabular-nums ${param3 >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        R factor {param3 >= 0 ? '+' : ''}{param3.toFixed(2)}
+                      </div>
+                    )}
                     <div className="mb-4 mt-5 flex items-end justify-between gap-2">
                       <div className={`text-3xl font-extrabold tracking-tight tabular-nums ${color}`}>
                         {q.ltp?.toFixed(2) ?? '—'}
@@ -1088,16 +1348,21 @@ export default function LiveMarketPage() {
                           const tone = up ? 'text-green-700' : 'text-red-700';
                           const ink = up ? 'bg-green-600' : 'bg-red-600';
                           const frame = up ? 'border-green-700' : 'border-red-700';
+                          const box = `mx-auto flex h-5 w-16 items-center justify-center rounded border text-center text-[11px] font-bold leading-none tabular-nums ${tone} ${frame}`;
                           const topValue = up ? candle.close : candle.open;
                           const bottomValue = up ? candle.open : candle.close;
+                          const ocPct = candle.open > 0 ? ((candle.close - candle.open) / candle.open) * 100 : undefined;
                           return (
                             <div key={candle.label} className="pt-1">
-                              <div className={`mx-auto mb-3 w-fit rounded border px-1.5 py-0.5 text-center text-[11px] font-bold ${tone} ${frame}`}>{candle.label}</div>
+                              <div className={box}>{candle.label}</div>
+                              <div className={`${box} mb-4 mt-1`}>
+                                {ocPct === undefined ? '—' : `${ocPct >= 0 ? '+' : ''}${ocPct.toFixed(2)}%`}
+                              </div>
                               <div className={`mb-1 text-center text-[10px] font-bold leading-none tabular-nums ${tone}`}>{candle.high.toFixed(2)}</div>
-                              <div className={`relative flex h-24 justify-center ${tone}`}>
-                                <div className="flex h-24 flex-col items-center">
+                              <div className={`relative flex h-32 justify-center ${tone}`}>
+                                <div className="flex h-32 flex-col items-center">
                                   <div className={`h-6 w-px ${ink}`} />
-                                  <div className={`h-12 w-3 rounded-[2px] ${ink}`} />
+                                  <div className={`h-20 w-3 rounded-[2px] ${ink}`} />
                                   <div className={`h-6 w-px ${ink}`} />
                                 </div>
                                 <span className="absolute top-6 left-1/2 ml-2 -translate-y-1/2 text-[10px] font-bold leading-none tabular-nums">{topValue.toFixed(2)}</span>
@@ -1145,6 +1410,7 @@ export default function LiveMarketPage() {
               );
             })}
           </div>
+          </>
         )}
         {addOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation" onMouseDown={(event) => {
