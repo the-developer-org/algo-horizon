@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { fetchKeyMapping } from '@/utils/apiUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -122,17 +123,10 @@ export default function BufferCheckPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch KeyMapping from Redis on mount
+  // Fetch company to instrument key mapping on mount
   useEffect(() => {
-    fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-      },
-    })
-      .then(res => res.json())
-      .then(data => {
-        const mapping = JSON.parse(data.result);
+    fetchKeyMapping()
+      .then((mapping) => {
         setKeyMapping(mapping);
       })
       .catch(() => {

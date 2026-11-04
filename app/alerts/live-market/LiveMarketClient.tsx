@@ -495,7 +495,7 @@ export default function LiveMarketPage() {
   const [sectorialSocketStatus, setSectorialSocketStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const [indexParameterMap, setIndexParameterMap] = useState<Record<string, Record<string, number>>>({});
 
-  // Names from the Redis KeyMapping (name -> key).
+  // Names from the instrument key mapping (name -> key).
   useEffect(() => {
     let active = true;
     fetchKeyMapping()

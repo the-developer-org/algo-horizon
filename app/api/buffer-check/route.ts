@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Fetch the KeyMapping from Upstash Redis
+    // Fetch the company name to instrument key mapping
     const keyMapping = await fetchKeyMapping();
 
     // Check if the company exists in the mapping

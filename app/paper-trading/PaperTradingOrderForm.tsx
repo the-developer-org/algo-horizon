@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { fetchKeyMapping } from '@/utils/apiUtils';
 import { CreateOrderRequest } from '../../components/types/paper-trading';
 import { createPaperTradeOrder } from '../../components/utils/paperTradeApi';
 import { Button } from "@/components/ui/button";
@@ -163,17 +164,10 @@ export function PaperTradingOrderForm({ onClose, onSuccess, currentCapital, user
     };
   }, [recognition, isListening]);
 
-  // Fetch KeyMapping from Redis on mount
+  // Fetch company to instrument key mapping on mount
   useEffect(() => {
-    fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-      },
-    })
-      .then(res => res.json())
-      .then(data => {
-        const mapping = JSON.parse(data.result);
+    fetchKeyMapping()
+      .then((mapping) => {
         setKeyMapping(mapping);
       })
       .catch(() => {

@@ -10,6 +10,7 @@ import { fetchUpstoxIntradayData, fetchUpstoxHistoricalData } from "@/components
 import toast, { Toaster } from 'react-hot-toast';
 import { algoHorizonApi } from "@/lib/api/algoHorizonApi";
 import { useRouter, useSearchParams } from 'next/navigation';
+import { fetchKeyMapping } from '@/utils/apiUtils';
 
 export default function UpstoxPage() {
     // Account to phone number mapping
@@ -245,19 +246,12 @@ export default function UpstoxPage() {
             validity: 'Day'
         };
 
-    // Fetch KeyMapping from Redis on mount
+    // Fetch company to instrument key mapping on mount
     useEffect(() => {
-        const fetchKeyMapping = async () => {
+        const loadKeyMapping = async () => {
             setIsLoadingKeyMapping(true);
             try {
-                const res = await fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
-                    method: "GET",
-                    headers: {
-                        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-                    },
-                });
-                const data = await res.json();
-                const mapping = JSON.parse(data.result);
+                const mapping = await fetchKeyMapping();
                 setKeyMapping(mapping);
                 toast.success('Company mapping loaded');
             } catch (err) {
@@ -268,7 +262,7 @@ export default function UpstoxPage() {
             }
         };
 
-        fetchKeyMapping();
+        loadKeyMapping();
     }, []);
 
     // Update suggestions as user types

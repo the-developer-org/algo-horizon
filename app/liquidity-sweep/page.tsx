@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from 'react';
+import { fetchKeyMapping } from '@/utils/apiUtils';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import { Input } from '@/components/ui/input';
@@ -237,18 +238,11 @@ function LiquiditySweepContent() {
   // Resistance filter dropdown state
   const [resistanceDropdownOpen, setResistanceDropdownOpen] = useState<boolean>(false);
 
-  // Fetch KeyMapping from Redis on mount
+  // Fetch company to instrument key mapping on mount
   useEffect(() => {
 
-    fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-      },
-    })
-      .then(res => res.json())
-      .then(data => {
-        const mapping = JSON.parse(data.result);
+    fetchKeyMapping()
+      .then((mapping) => {
         setKeyMapping(mapping);
 
       })

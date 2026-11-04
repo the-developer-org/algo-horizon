@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
+import { fetchKeyMapping } from '@/utils/apiUtils';
 import { useSearchParams, useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import { useIsMobile } from '../hooks/use-mobile';
@@ -109,18 +110,11 @@ export const OHLCChartDemo: React.FC = () => {
   const [chartContainerDimensions, setChartContainerDimensions] = useState<{width: number, height: number} | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
- // Fetch KeyMapping from Redis on mount
+ // Fetch company to instrument key mapping on mount
   useEffect(() => {
     setIsLoading(true);
-    fetch("https://saved-dassie-60359.upstash.io/get/KeyMapping", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer AevHAAIjcDE5ZjcwOWVlMmQzNWI0MmE5YTA0NzgxN2VhN2E0MTNjZHAxMA`,
-      },
-    })
-      .then(res => res.json())
-      .then(data => {
-        const mapping = JSON.parse(data.result);
+    fetchKeyMapping()
+      .then((mapping) => {
         setKeyMapping(mapping);
         setIsLoading(false);
       })
