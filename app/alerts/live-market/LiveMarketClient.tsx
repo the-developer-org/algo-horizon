@@ -690,7 +690,7 @@ export default function LiveMarketPage() {
   const addIndexAlerts = async (indexKey: string, name: string, instrumentKey: string) => {
     setBusyKey(indexKey);
     try {
-      const indexResponse = await fetch(`${backendBase}/api/alerts/add/index/${encodeURIComponent(instrumentKey)}`, {
+      const indexResponse = await fetch(`${backendBase}/api/alerts/add/index?indexName=${encodeURIComponent(instrumentKey.trim())}`, {
         method: 'POST',
       });
       if (!indexResponse.ok) {
@@ -756,7 +756,7 @@ export default function LiveMarketPage() {
     setBusyKey(index.key);
     void (async () => {
       try {
-        const indexResponse = await fetch(`${backendBase}/api/alerts/add/index/${encodeURIComponent(index.instrumentKey)}`, {
+        const indexResponse = await fetch(`${backendBase}/api/alerts/add/index?indexName=${encodeURIComponent(index.instrumentKey.trim())}`, {
           method: 'POST',
         });
         if (!indexResponse.ok) {
