@@ -27,8 +27,8 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
   const router = useRouter();
   const pathname = usePathname();
   const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
-  // Exclude upstox-management from being treated as a regular auth page
-  const isAuthPage = (pathname?.startsWith('/auth') && pathname !== '/auth/upstox-management') ?? false;
+  // Pages that can be accessed without being logged in to the application
+  const isAuthPage = (pathname?.startsWith('/auth')) ?? false;
 
   useEffect(() => {
     const checkAuth = () => {
@@ -119,7 +119,7 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
             </div>
           </header>
           {pathname === "/" && <AppNavigationGrid />}
-          <main className="app-content">{children}</main>
+          <main className={`app-content${pathname === "/alerts/live-market" || pathname?.startsWith("/alerts/live-market/") ? " app-content-wide" : ""}`}>{children}</main>
         </div>
       </MarketDataProvider>
     </DeepDiveProvider>
