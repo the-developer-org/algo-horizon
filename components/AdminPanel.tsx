@@ -13,18 +13,15 @@ export const AdminPanel: React.FC = () => {
     setIsFetchingToken(true);
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
     try {
-      const response = await fetch(`${backendUrl}/api/admin/get-analytics-token`, {
-        method: 'POST',
+      fetch(`${backendUrl}/api/selenium/start`, {
+        method: 'GET',
+      }).catch((err) => {
+        console.error('Selenium start request error:', err);
       });
-      const text = (await response.text()).trim().replace(/^"|"$/g, '');
-      if (!response.ok || !text || /no valid token/i.test(text)) {
-        throw new Error(text || 'No analytics token found');
-      }
-      setFetchedToken(text);
-      toast.success('Analytics token fetched successfully!');
+      toast.success('Triggered fetch token process successfully!');
     } catch (err: any) {
       console.error('Fetch token failed:', err);
-      toast.error(err.message || 'Failed to fetch analytics token');
+      toast.error(err.message || 'Failed to trigger token fetch');
     } finally {
       setIsFetchingToken(false);
     }
