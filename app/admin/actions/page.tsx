@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchKeyMapping } from '@/utils/apiUtils';
 import * as Switch from "@radix-ui/react-switch";
-import { Calculator, Database, ArrowLeft, Mail } from "lucide-react";
+import { Calculator, Database, ArrowLeft, Mail, Key } from "lucide-react";
 import {
   SidebarProvider,
   SidebarInset,
@@ -107,7 +107,7 @@ function AdminActionsSidebar({ onItemClick, ...props }: { onItemClick: (section:
 
         <SidebarSeparator />
 
-        {/* Gmail Integration Section */}
+        {/* Communication Section */}
         <SidebarGroup>
           <SidebarGroupLabel>Communication</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -119,6 +119,26 @@ function AdminActionsSidebar({ onItemClick, ...props }: { onItemClick: (section:
                 >
                   <Mail />
                   <span>Gmail Access</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        {/* Tokens & Authentication Section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Authentication</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onItemClick('fetch-token')}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Key />
+                  <span>Fetch Token</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -952,6 +972,31 @@ export default function AdminActionsPage() {
   });
   const [isGmailSaving, setIsGmailSaving] = useState<boolean>(false);
 
+  // Fetch token state
+  const [isFetchingToken, setIsFetchingToken] = useState<boolean>(false);
+  const [fetchedToken, setFetchedToken] = useState<string | null>(null);
+
+  const handleFetchAnalyticsToken = async () => {
+    setIsFetchingToken(true);
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
+    try {
+      const response = await fetch(`${backendUrl}/api/admin/get-analytics-token`, {
+        method: 'POST',
+      });
+      const text = (await response.text()).trim().replace(/^"|"$/g, '');
+      if (!response.ok || !text || /no valid token/i.test(text)) {
+        throw new Error(text || 'No analytics token found');
+      }
+      setFetchedToken(text);
+      toast.success('Analytics token fetched successfully!');
+    } catch (err: any) {
+      console.error('Fetch token failed:', err);
+      toast.error(err.message || 'Failed to fetch analytics token');
+    } finally {
+      setIsFetchingToken(false);
+    }
+  };
+
   const handleSidebarItemClick = (section: string) => {
     setActiveSection(section);
   };
@@ -1292,6 +1337,75 @@ export default function AdminActionsPage() {
                     )}
                   </Button>
                 </div>
+              </div>
+            </div>
+          </Card>
+        );
+      case 'fetch-token':
+        return (
+          <Card className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400">
+                  <Key className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Fetch Analytics Token</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Retrieve the active Upstox analytics token from the backend server
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50 p-4 border border-gray-200 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">STATUS & PREVIEW</p>
+                {fetchedToken ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        ✓ Token Available
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          navigator.clipboard.writeText(fetchedToken);
+                          toast.success('Token copied to clipboard');
+                        }}
+                      >
+                        Copy Full Token
+                      </Button>
+                    </div>
+                    <code className="block p-2 rounded bg-gray-100 dark:bg-gray-900 text-xs font-mono break-all text-gray-700 dark:text-gray-300 max-h-32 overflow-y-auto">
+                      {fetchedToken}
+                    </code>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 italic">No token fetched yet in this session.</p>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={handleFetchAnalyticsToken}
+                  disabled={isFetchingToken}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isFetchingToken ? (
+                    <>
+                      <span className="inline-block mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      Fetching Token...
+                    </>
+                  ) : (
+                    <>
+                      <Key className="mr-2 h-4 w-4" />
+                      Fetch Token
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
           </Card>

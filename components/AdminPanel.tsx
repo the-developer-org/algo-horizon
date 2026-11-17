@@ -1,13 +1,34 @@
 "use client";
 
 import React, { useState } from 'react';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "./app-sidebar";
 import toast from 'react-hot-toast';
 
 export const AdminPanel: React.FC = () => {
   const [isRedeploying, setIsRedeploying] = useState(false);
   const [isRedeployed, setIsRedeployed] = useState(false);
+  const [isFetchingToken, setIsFetchingToken] = useState(false);
+  const [fetchedToken, setFetchedToken] = useState<string | null>(null);
+
+  const handleFetchToken = async () => {
+    setIsFetchingToken(true);
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
+    try {
+      const response = await fetch(`${backendUrl}/api/admin/get-analytics-token`, {
+        method: 'POST',
+      });
+      const text = (await response.text()).trim().replace(/^"|"$/g, '');
+      if (!response.ok || !text || /no valid token/i.test(text)) {
+        throw new Error(text || 'No analytics token found');
+      }
+      setFetchedToken(text);
+      toast.success('Analytics token fetched successfully!');
+    } catch (err: any) {
+      console.error('Fetch token failed:', err);
+      toast.error(err.message || 'Failed to fetch analytics token');
+    } finally {
+      setIsFetchingToken(false);
+    }
+  };
 
   const checkHealthStatus = async (): Promise<boolean> => {
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8090';
@@ -102,59 +123,74 @@ export const AdminPanel: React.FC = () => {
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-          {/* Header with sidebar trigger */}
-          <div className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-            <div className="flex items-center gap-2 px-4">
-              <SidebarTrigger className="-ml-1" />
-              <div className="h-4 w-px bg-sidebar-border" />
-              <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-            </div>
-          </div>
+    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      {/* Header */}
+      <div className="flex h-16 shrink-0 items-center gap-2">
+        <div className="flex items-center gap-2 px-4">
+          <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+        </div>
+      </div>
 
-          {/* Main content area */}
-          <div className="flex flex-1 flex-col gap-4 p-4">
-            <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-              <div className="aspect-video rounded-xl bg-muted/50 p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Quick Stats</h3>
-                <p className="text-gray-400">System overview and key metrics</p>
-              </div>
-              <div className="aspect-video rounded-xl bg-muted/50 p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Recent Activity</h3>
-                <p className="text-gray-400">Latest system activities and logs</p>
-              </div>
-              <div className="aspect-video rounded-xl bg-muted/50 p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">System Health</h3>
-                <p className="text-gray-400 mb-3">Current system status and health</p>
-                <button
-                  className={`px-3 py-2 rounded-md text-white text-sm ${redeployButtonClass}`}
-                  onClick={handleRedeploy}
-                  disabled={isRedeploying || isRedeployed}
-                >
-                  {redeployButtonLabel}
-                </button>
-                {isRedeploying && (
-                  <p className="text-yellow-700 text-xs mt-2">Checking server health after redeploy...</p>
-                )}
-                {isRedeployed && (
-                  <p className="text-green-700 text-xs mt-2">Health check passed and server is live.</p>
-                )}
-              </div>
+      {/* Main content area */}
+      <div className="flex flex-1 flex-col gap-4 p-4">
+        <div className="grid auto-rows-min gap-4 md:grid-cols-4">
+          <div className="aspect-video rounded-xl bg-muted/50 p-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Quick Stats</h3>
+            <p className="text-gray-400">System overview and key metrics</p>
+          </div>
+          <div className="aspect-video rounded-xl bg-muted/50 p-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Recent Activity</h3>
+            <p className="text-gray-400">Latest system activities and logs</p>
+          </div>
+          <div className="aspect-video rounded-xl bg-muted/50 p-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">System Health</h3>
+            <p className="text-gray-400 mb-3">Current system status and health</p>
+            <button
+              className={`px-3 py-2 rounded-md text-white text-sm ${redeployButtonClass}`}
+              onClick={handleRedeploy}
+              disabled={isRedeploying || isRedeployed}
+            >
+              {redeployButtonLabel}
+            </button>
+            {isRedeploying && (
+              <p className="text-yellow-700 text-xs mt-2">Checking server health after redeploy...</p>
+            )}
+            {isRedeployed && (
+              <p className="text-green-700 text-xs mt-2">Health check passed and server is live.</p>
+            )}
+          </div>
+          <div className="aspect-video rounded-xl bg-muted/50 p-4 flex flex-col justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Fetch Token</h3>
+              <p className="text-gray-400 mb-3 text-xs">Request analytics authentication token from backend</p>
             </div>
-            
-            <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 p-4">
-              <div className="text-center py-20">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Welcome to Admin Panel</h2>
-                <p className="text-gray-400 mb-4">Select an option from the sidebar to get started</p>
-                <p className="text-sm text-gray-500">This is your clean slate for building admin functionality</p>
-              </div>
+            <div>
+              <button
+                className={`px-3 py-2 rounded-md text-white text-sm transition-colors ${
+                  isFetchingToken ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+                onClick={handleFetchToken}
+                disabled={isFetchingToken}
+              >
+                {isFetchingToken ? 'Fetching Token...' : 'Fetch Token'}
+              </button>
+              {fetchedToken && (
+                <div className="mt-2 text-xs text-green-700 font-mono truncate" title={fetchedToken}>
+                  Token: {fetchedToken.slice(0, 15)}...
+                </div>
+              )}
             </div>
           </div>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+        
+        <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 p-4">
+          <div className="text-center py-20">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Welcome to Admin Panel</h2>
+            <p className="text-gray-400 mb-4">Select an option from the sidebar to get started</p>
+            <p className="text-sm text-gray-500">This is your clean slate for building admin functionality</p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
