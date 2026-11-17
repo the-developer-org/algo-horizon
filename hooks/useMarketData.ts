@@ -47,10 +47,13 @@ export function useMarketFeedStatus(enabled = true): { status: MarketDataStatus;
   return { status, error: marketDataFeedSocket.getError() };
 }
 
-export function useMarketFeedMessages(onMessage: (raw: RawMessage) => void) {
+export function useMarketFeedMessages(onMessage: (raw: RawMessage) => void, enabled = true) {
   const ref = useRef(onMessage);
   ref.current = onMessage;
-  useEffect(() => marketDataFeedSocket.subscribe((raw) => ref.current(raw)), []);
+  useEffect(() => {
+    if (!enabled) return;
+    return marketDataFeedSocket.subscribe((raw) => ref.current(raw));
+  }, [enabled]);
 }
 
 /** Optional parsing step, outside the transport. Returns null for non-JSON. */

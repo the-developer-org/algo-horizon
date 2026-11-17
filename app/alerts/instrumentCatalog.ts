@@ -183,11 +183,15 @@ export const INDEX_NAME_TO_KEY: Record<string, string> = {
 };
 
 export interface OptionContract {
+  name?: string;
   trading_symbol: string;
   instrument_key: string;
   strike_price?: number;
   instrument_type?: string;
   expiry?: string;
+  lot_size?: number;
+  minimum_lot?: number;
+  weekly?: boolean;
 }
 
 export function sessionClose(date: string) {
@@ -211,12 +215,45 @@ export function nextExpiryContracts(contracts: OptionContract[]): OptionContract
   );
 }
 
+export function currentMonthOptionContracts(contracts: OptionContract[], today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())): OptionContract[] {
+  const chain = contracts.filter((item) =>
+    (item.instrument_type === 'CE' || item.instrument_type === 'PE') &&
+    typeof item.expiry === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(item.expiry) &&
+    item.expiry.slice(0, 7) === today.slice(0, 7) &&
+    item.expiry >= today,
+  );
+  const expiry = chain.map((item) => item.expiry).sort()[0];
+  return expiry ? chain.filter((item) => item.expiry === expiry) : [];
+}
+
+export function strikesNearPrice(contracts: OptionContract[], price: number, type: 'CE' | 'PE'): OptionContract[] {
+  if (!Number.isFinite(price) || price <= 0) return [];
+  const candidates = contracts.filter((item): item is OptionContract & { strike_price: number } =>
+    item.instrument_type === type && typeof item.strike_price === 'number' &&
+    Number.isFinite(item.strike_price) && (type === 'CE' ? item.strike_price > price : item.strike_price < price),
+  );
+  candidates.sort((a, b) => type === 'CE' ? a.strike_price - b.strike_price : b.strike_price - a.strike_price);
+  const seen = new Set<number>();
+  return candidates.filter((item) => {
+    const strike = item.strike_price;
+    if (seen.has(strike)) return false;
+    seen.add(strike);
+    return true;
+  }).slice(0, 3);
+}
+
 export async function fetchOptionContracts(instrumentKey: string): Promise<OptionContract[]> {
   const url = `/api/upstox/option-contracts?instrument_key=${encodeURIComponent(instrumentKey)}`;
   const response = await fetch(url);
-  const body = await response.json().catch(() => ({}));
+  const body: unknown = await response.json().catch(() => null);
+  const result = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : null;
   if (!response.ok) {
-    throw new Error(body?.statusText || body?.message || 'Could not load option contracts');
+    const message = result?.statusText ?? result?.message;
+    throw new Error(typeof message === 'string' && message ? message : 'Could not load option contracts');
   }
-  return Array.isArray(body?.data) ? body.data : [];
+  if (!Array.isArray(result?.data)) {
+    throw new Error('Invalid option contracts response');
+  }
+  return result.data;
 }

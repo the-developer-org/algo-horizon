@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { useMarketDataMessages, useMarketDataStatus, useMarketFeedMessages, useMarketFeedStatus } from '@/hooks/useMarketData';
 import { fetchKeyMapping } from '@/utils/apiUtils';
@@ -406,7 +407,13 @@ function extract(raw: RawMessage): Record<string, { ltp?: number; cp?: number; l
     const d = decodeUpstoxFeed(raw);
     if (!d) return null;
     const o: Record<string, { ltp?: number; cp?: number; ltt?: string }> = {};
-    for (const [k, v] of Object.entries(d)) o[k] = { ltp: v.ltp, cp: v.cp, ltt: v.ltt !== undefined ? String(v.ltt) : undefined };
+    for (const [k, v] of Object.entries(d)) {
+      o[k] = {
+        ltp: v.ltp && v.ltp > 0 ? v.ltp : undefined,
+        cp: v.cp && v.cp > 0 ? v.cp : undefined,
+        ltt: v.ltt !== undefined ? String(v.ltt) : undefined,
+      };
+    }
     return o;
   }
   let msg: any;
@@ -416,9 +423,16 @@ function extract(raw: RawMessage): Record<string, { ltp?: number; cp?: number; l
   const out: Record<string, { ltp?: number; cp?: number; ltt?: string }> = {};
   for (const key of Object.keys(feeds)) {
     const f = feeds[key];
+    // In new JSON format, ltpc is directly under feeds[key].ltpc; fallback defensively to nested structures.
     const ltpc =
-      f?.fullFeed?.marketFF?.ltpc ?? f?.fullFeed?.indexFF?.ltpc ?? f?.ltpc ?? f?.firstLevelWithGreeks?.ltpc;
-    if (ltpc) out[key] = { ltp: ltpc.ltp, cp: ltpc.cp, ltt: ltpc.ltt };
+      f?.ltpc ?? f?.fullFeed?.marketFF?.ltpc ?? f?.fullFeed?.indexFF?.ltpc ?? f?.firstLevelWithGreeks?.ltpc;
+    if (ltpc) {
+      out[key] = {
+        ltp: typeof ltpc.ltp === 'number' && ltpc.ltp > 0 ? ltpc.ltp : undefined,
+        cp: typeof ltpc.cp === 'number' && ltpc.cp > 0 ? ltpc.cp : undefined,
+        ltt: ltpc.ltt !== undefined && ltpc.ltt !== null ? String(ltpc.ltt) : undefined,
+      };
+    }
   }
   return out;
 }
@@ -1040,7 +1054,7 @@ export default function LiveMarketPage() {
 
   return (
     <div className="min-h-screen bg-[#f3f7fb] bg-[radial-gradient(ellipse_at_top_right,_rgba(34,211,238,0.12),_transparent_38%),linear-gradient(135deg,#f8fafc_0%,#eef5f7_55%,#f0fdf4_100%)] px-4 py-8 md:px-8">
-      <div className="mx-auto max-w-7xl">
+      <div className="w-full">
         <header className="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white/90 shadow-[0_12px_40px_rgba(15,23,42,0.08)] backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-5 border-b border-slate-100 px-6 py-5 md:px-8">
             <div>
@@ -1271,7 +1285,7 @@ export default function LiveMarketPage() {
               </div>
             </section>
           )}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {rows.map(([key, q]) => {
               const change = q.ltp !== undefined && q.cp ? q.ltp - q.cp : undefined;
               const pct = change !== undefined && q.cp ? (change / q.cp) * 100 : undefined;
@@ -1309,7 +1323,7 @@ export default function LiveMarketPage() {
                     key={q.updatedAt}
                     className={`rounded-lg px-1 py-2 ${q.dir === 'up' ? 'lm-flash-up' : q.dir === 'down' ? 'lm-flash-down' : ''}`}
                   >
-                    <div className={`flex items-center gap-2 ${canDelete ? 'pr-16' : ''}`}>
+                    <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 ${canDelete ? 'pr-16' : ''}`}>
                       <div className="min-w-0 truncate text-sm font-bold tracking-wide text-slate-700">{nameOf(key) ?? key}</div>
                       {!isIndex && (
                         <a
@@ -1325,6 +1339,12 @@ export default function LiveMarketPage() {
                           Chart
                         </a>
                       )}
+                      <Link
+                        href={`/alerts/live-market/profile?${new URLSearchParams({ instrumentKey: normalizeKey(alert?.instrumentKey || key), name: nameOf(key) ?? key }).toString()}`}
+                        className="shrink-0 text-[11px] font-bold text-cyan-700 underline underline-offset-2 hover:text-cyan-900"
+                      >
+                        Profile
+                      </Link>
                     </div>
                     {param3 !== undefined && (
                       <div className={`mt-1 text-xs font-bold tabular-nums ${param3 >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>

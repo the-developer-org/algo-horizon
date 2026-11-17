@@ -1,7 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { algoHorizonApi } from "@/lib/api/algoHorizonApi";
+import { useAppDispatch } from "@/lib/store/hooks";
+import { fetchInstrumentsMapping } from "@/lib/store/instrumentsSlice";
+import { fetchAllUsers } from "@/lib/store/usersSlice";
 import {
   Activity,
   BarChart3,
@@ -14,6 +19,7 @@ import {
   FileText,
   Gauge,
   Link2,
+  Layers,
   LineChart,
   ListChecks,
   FlaskConical,
@@ -75,7 +81,8 @@ const navigationGroups: NavigationGroup[] = [
       { title: "OHLC Chart", href: "/chart", icon: LineChart },
       { title: "Paper Trading", href: "/paper-trading", icon: CircleDollarSign },
       { title: "Scalping", href: "/scalping", icon: Zap },
-      { title: "Upstox", href: "/upstox", icon: UpstoxIcon },
+      { title: "Nexus Stocks", href: "/nexus/stocks", icon: Layers },
+      { title: "Nexus Options", href: "/nexus/options", icon: Layers },
     ],
   },
   {
@@ -111,6 +118,13 @@ function isActivePath(pathname: string, href: string) {
 
 export function AppNavigationGrid() {
   const pathname = usePathname() ?? "/";
+  const dispatch = useAppDispatch();
+
+  // Preload users and instrument mappings in Redux as soon as home grid is rendered
+  useEffect(() => {
+    void dispatch(fetchAllUsers());
+    void dispatch(fetchInstrumentsMapping());
+  }, [dispatch]);
 
   return (
     <section className="nav-grid-shell" aria-label="Application navigation">

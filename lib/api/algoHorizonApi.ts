@@ -13,14 +13,19 @@ export interface UserProfile {
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-export const algoHorizonApi = {
-    /**
-     * Fetch all users from the backend
-     * @returns Promise<UserProfile[]>
-     */
-    getAllUsers: async (): Promise<UserProfile[]> => {
+let allUsersCache: Promise<UserProfile[]> | null = null;
+
+/**
+ * Fetch all users directly from the backend API.
+ */
+export const fetchAllUsersDirect = async (): Promise<UserProfile[]> => {
+    if (allUsersCache) {
+        return allUsersCache;
+    }
+
+    allUsersCache = (async () => {
         try {
-            const resp = await fetch(`${BASE_URL}/api/user/get-all-users`);
+            const resp = await fetch(`${BASE_URL}/api/user/get-all-users`, { cache: 'no-store' });
             if (!resp.ok) throw new Error(`Failed: ${resp.status}`);
             const data = await resp?.json();
 
@@ -33,9 +38,30 @@ export const algoHorizonApi = {
 
             return uniqueUsers;
         } catch (error: any) {
+            allUsersCache = null; // Reset cache on failure so retry works
             console.error('Failed to fetch users:', error);
             throw new Error(error.message || 'Failed to load users');
         }
+    })();
+
+    return allUsersCache;
+};
+
+export const algoHorizonApi = {
+    /**
+     * Fetch all users from Redux (or backend if not cached)
+     * @returns Promise<UserProfile[]>
+     */
+    getAllUsers: async (forceRefresh = false): Promise<UserProfile[]> => {
+        if (typeof window !== 'undefined') {
+            try {
+                const { getOrFetchAllUsers } = await import('@/lib/store/usersSlice');
+                return await getOrFetchAllUsers(forceRefresh);
+            } catch {
+                return fetchAllUsersDirect();
+            }
+        }
+        return fetchAllUsersDirect();
     },
 
     /**

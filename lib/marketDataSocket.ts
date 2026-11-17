@@ -3,6 +3,7 @@
 
 import SockJS from 'sockjs-client';
 import { Client, ReconnectionTimeMode } from '@stomp/stompjs';
+import { normalizeStompPayload } from './stompPayload';
 
 export type MarketDataStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 export type RawMessage = string | ArrayBuffer;
@@ -102,7 +103,7 @@ export class MarketDataSocket {
             if (this.client !== client) return;
             messageCount += 1;
             const raw: RawMessage = message.isBinaryBody
-              ? new Uint8Array(message.binaryBody).buffer
+              ? normalizeStompPayload(message.binaryBody)
               : message.body;
             this.messageListeners.forEach((listener) => {
               try { listener(raw); } catch (e) { console.error('market-data listener failed', e); }

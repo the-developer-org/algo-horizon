@@ -156,6 +156,7 @@
   .app-home-link:hover, .app-logout-link:hover { border-color: #67c5d8; color: #087f99; background: white; transform: translateY(-1px); }
   .app-logout-link { cursor: pointer; }
   .app-content { padding-bottom: 3rem; }
+  .app-content.app-content-wide { width: 100%; }
 
   .nav-grid-shell { padding: 1rem 0 1.8rem; }
   .nav-grid-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: .85rem; }
@@ -503,24 +504,45 @@
   }
 
   .upstox-theme {
-    /* Light */
-    --upx-primary: #542087; /* specified purple */
-    --upx-primary-600: #451a70;
-    --upx-primary-700: #361459;
-    --upx-primary-300: #7a32b8;
-    --upx-primary-50: #f0e6f7;
-    --upx-border: rgba(84, 32, 135, 0.35);
-    --upx-surface-tint: rgba(84, 32, 135, 0.06);
+    /* Nexus Stocks: Calm Utopian Palette (Oceanic Slate & Mist Teal) - Light */
+    --upx-primary: #0e7490; /* Calm Cyan-Slate */
+    --upx-primary-600: #0891b2;
+    --upx-primary-700: #155e75;
+    --upx-primary-300: #06b6d4;
+    --upx-primary-50: #ecfeff;
+    --upx-border: rgba(14, 116, 144, 0.25);
+    --upx-surface-tint: rgba(14, 116, 144, 0.04);
   }
   .dark .upstox-theme {
-    /* Dark */
-    --upx-primary: #7a32b8;
-    --upx-primary-600: #8f3fc9;
-    --upx-primary-700: #a44cda;
-    --upx-primary-300: #b873e0;
-    --upx-primary-50: rgba(122, 50, 184, 0.12);
-    --upx-border: rgba(122, 50, 184, 0.35);
-    --upx-surface-tint: rgba(122, 50, 184, 0.08);
+    /* Nexus Stocks: Calm Utopian Palette - Dark */
+    --upx-primary: #22d3ee;
+    --upx-primary-600: #06b6d4;
+    --upx-primary-700: #0891b2;
+    --upx-primary-300: #67e8f9;
+    --upx-primary-50: rgba(34, 211, 238, 0.1);
+    --upx-border: rgba(34, 211, 238, 0.25);
+    --upx-surface-tint: rgba(34, 211, 238, 0.05);
+  }
+
+  .nexus-options-theme {
+    /* Nexus Options: Singularity Ultraviolet (Cold, lethal, futuristic UV execution suite) - Light */
+    --upx-primary: #6d28d9; /* Deep Tactical Purple-Indigo */
+    --upx-primary-600: #7c3aed;
+    --upx-primary-700: #5b21b6;
+    --upx-primary-300: #8b5cf6;
+    --upx-primary-50: #f5f3ff;
+    --upx-border: rgba(109, 40, 217, 0.28);
+    --upx-surface-tint: rgba(109, 40, 217, 0.04);
+  }
+  .dark .nexus-options-theme {
+    /* Nexus Options: Singularity Ultraviolet - Dark */
+    --upx-primary: #a855f7; /* Electric Laser Violet */
+    --upx-primary-600: #c084fc;
+    --upx-primary-700: #9333ea;
+    --upx-primary-300: #e9d5ff;
+    --upx-primary-50: rgba(168, 85, 247, 0.12);
+    --upx-border: rgba(168, 85, 247, 0.35);
+    --upx-surface-tint: rgba(168, 85, 247, 0.06);
   }
 
   /* Buttons */

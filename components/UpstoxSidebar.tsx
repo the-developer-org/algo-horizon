@@ -32,7 +32,7 @@ export function UpstoxSidebar(props: Readonly<React.ComponentProps<typeof Sideba
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <a href="/upstox">
+              <a href="/nexus/stocks">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <UpstoxIcon className="size-4" />
                 </div>

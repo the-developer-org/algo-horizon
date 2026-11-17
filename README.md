@@ -16,7 +16,18 @@ bun dev
 
 Open [http://localhost:5050](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+You can start editing the page by modifying `app/page.tsx`. Next.js Fast Refresh updates the page as you edit. The development commands use file polling to detect changes reliably when filesystem notifications are unavailable. Restart the server after changing environment variables or server configuration.
+
+## Live Market profiles
+
+Select **Profile** on an instrument in Live Market to view its live quote, market depth, and trading activity when supplied by the existing market-data feed. Missing fields are shown as unavailable; the feed does not provide company fundamentals. The instrument must already be subscribed, and live updates depend on the feed and market availability.
+Stock and index profiles wait for a connected feed and valid live price before fetching option contracts for the nearest remaining expiry in the current month. Pull CE displays up to three distinct strikes above that price; Pull PE displays up to three below it. Results capture the price when clicked and do not subscribe the contracts. Option-contract profiles do not perform an underlying lookup.
+
+Run the feed decoder tests with Node.js 22.18 or later:
+
+```bash
+node --test lib/upstoxFeed.test.mjs
+```
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

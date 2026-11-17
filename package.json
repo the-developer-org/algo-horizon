@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS=--max-old-space-size=4096 next dev --webpack -p 5050",
+    "dev": "WATCHPACK_POLLING=1000 NODE_OPTIONS=--max-old-space-size=4096 next dev --webpack -p 5050",
     "build": "next build --webpack",
-    "start": "NODE_OPTIONS=--max-old-space-size=4096 next dev --webpack -p 5050",
+    "start": "WATCHPACK_POLLING=1000 NODE_OPTIONS=--max-old-space-size=4096 next dev --webpack -p 5050",
     "start:prod": "next build --webpack && next start -p 5050",
     "lint": "next lint"
   },

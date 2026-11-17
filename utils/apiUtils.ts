@@ -36,7 +36,7 @@ function parseInstrumentKeyMapping(payload: unknown): KeyMapping {
  * Company name -> instrument key from GET /api/instruments/get-mapping.
  * Concurrent callers share one in-flight request.
  */
-export const fetchKeyMapping = async (): Promise<KeyMapping> => {
+export const fetchKeyMappingDirect = async (): Promise<KeyMapping> => {
   if (instrumentKeyMappingRequest) {
     return instrumentKeyMappingRequest;
   }
@@ -65,6 +65,24 @@ export const fetchKeyMapping = async (): Promise<KeyMapping> => {
     console.error('Error fetching KeyMapping:', error);
     throw new Error('Failed to load company data');
   }
+};
+
+/**
+ * Company name -> instrument key.
+ * In browser environments, delegates to Redux store cache (via getOrFetchKeyMapping).
+ * If Redux is not available or in server environments, falls back to direct API fetch.
+ */
+export const fetchKeyMapping = async (): Promise<KeyMapping> => {
+  if (typeof window !== 'undefined') {
+    try {
+      const { getOrFetchKeyMapping } = await import('@/lib/store/instrumentsSlice');
+      return await getOrFetchKeyMapping();
+    } catch {
+      // Fallback if Redux is not initialized yet
+      return fetchKeyMappingDirect();
+    }
+  }
+  return fetchKeyMappingDirect();
 };
 
 /**
