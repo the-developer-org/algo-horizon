@@ -12,7 +12,6 @@ import type { RawMessage } from '@/lib/marketDataSocket';
 import { InstrumentQuote } from '../InstrumentQuote';
 import { DerivativePicker, InstrumentKindTabs, modalTheme } from '../InstrumentPicker';
 import { indexForSector, INSTRUMENT_TABS, sessionClose, todaySessionClose, type InstrumentTab } from '../instrumentCatalog';
-import { constituentNameKey, indexConstituentNames, untrackedConstituents } from './indexConstituents';
 
 interface Quote {
   ltp?: number;
@@ -995,11 +994,9 @@ export default function LiveMarketPage() {
   const alertFor = (k: string) => alerts.find((alert) => normalizeKey(alert.instrumentKey) === normalizeKey(k));
   const nameOf = (k: string) => alertFor(k)?.companyName || names[k] || names[k.replace('|', '-')];
   const allRows = Object.entries(merged);
-  const selectedIndexNames = indexConstituentNames(selectedIndex ? liveIndexes[selectedIndex] ?? [] : []);
-  const selectedConstituents = new Set(selectedIndexNames.map(constituentNameKey));
-  const untrackedIndexNames = tab === 'indexes' && momentumFilter === 'all'
-    ? untrackedConstituents(selectedIndexNames, allRows.map(([key]) => nameOf(key) ?? ''))
-    : [];
+  const selectedConstituents = new Set(
+    (selectedIndex ? liveIndexes[selectedIndex] ?? [] : []).map((companyName) => companyName.trim().toUpperCase()),
+  );
   const rows = allRows
     .filter(([key]) => {
       const alert = alertFor(key);
@@ -1054,6 +1051,7 @@ export default function LiveMarketPage() {
     .filter(({ chgValue }) => chgValue <= 0)
     .sort((a, b) => a.chgValue - b.chgValue);
   const selectedRFactorStocks = stocksForIndex(indexParameterMap, selectedIndex);
+  const selectedIndexNames = (selectedIndex ? liveIndexes[selectedIndex] ?? [] : []).filter((name) => name.trim());
   const unmatchedRFactor = tab === 'indexes' && selectedIndex && selectedRFactorStocks && selectedIndexNames.length > 0
     ? unmatchedRFactorStocks([[selectedIndex, selectedRFactorStocks]], selectedIndexNames)
     : [];
@@ -1252,7 +1250,7 @@ export default function LiveMarketPage() {
             </label>
           </div>
         )}
-        {allRows.length === 0 && untrackedIndexNames.length === 0 ? (
+        {allRows.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white/80 py-20 text-center text-slate-500 shadow-sm">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-xl text-slate-400">⌁</div>
             {!inWindow
@@ -1261,13 +1259,11 @@ export default function LiveMarketPage() {
                 ? 'Connected. No prices yet.'
                 : 'Not connected.'}
           </div>
-        ) : rows.length === 0 && untrackedIndexNames.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white/80 py-16 text-center text-slate-500 shadow-sm">
             {tab === 'indexes'
               ? selectedIndex
-                ? selectedIndexNames.length === 0
-                  ? 'This index is added, but its stock list has not come back yet.'
-                  : 'No index stocks match this momentum filter.'
+                ? 'This index is added, but its stock list has not come back yet.'
                 : 'Click an index again to view only its stocks.'
               : 'No instruments match this momentum filter.'}
           </div>
@@ -1469,21 +1465,6 @@ export default function LiveMarketPage() {
                       <div className="mt-3 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-400">Waiting for tick</div>
                     )}
                   </div>
-                </div>
-              );
-            })}
-            {untrackedIndexNames.map((name) => {
-              const param3 = param3ForCompany(selectedRFactorStocks, name);
-              return (
-                <div key={constituentNameKey(name)} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_20px_rgba(15,23,42,0.05)]">
-                  <div className="text-sm font-bold tracking-wide text-slate-700">{name}</div>
-                  {param3 !== undefined && (
-                    <div className={`mt-1 text-xs font-bold tabular-nums ${param3 >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                      R factor {param3 >= 0 ? '+' : ''}{param3.toFixed(2)}
-                    </div>
-                  )}
-                  <div className="mt-5 text-3xl font-extrabold text-gray-700">—</div>
-                  <div className="mt-3 text-xs font-semibold text-slate-500">Price unavailable: instrument not tracked</div>
                 </div>
               );
             })}
