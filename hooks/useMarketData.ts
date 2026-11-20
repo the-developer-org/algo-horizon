@@ -32,6 +32,18 @@ export function useMarketDataMessages(onMessage: (raw: RawMessage) => void, enab
   }, [enabled]);
 }
 
+/**
+ * Subscribe to messages on a specific STOMP topic (e.g. /topic/candles) reusing the shared socket.
+ */
+export function useStompTopicMessages(topic: string, onMessage: (raw: RawMessage) => void, enabled = true) {
+  const ref = useRef(onMessage);
+  ref.current = onMessage;
+  useEffect(() => {
+    if (!enabled) return;
+    return marketDataSocket.subscribeTopic(topic, (raw) => ref.current(raw));
+  }, [topic, enabled]);
+}
+
 /** Raw Upstox binary fan-out. Live ticks are not published on STOMP `/topic/data`. */
 export function useMarketFeedStatus(enabled = true): { status: MarketDataStatus; error: string | null } {
   useEffect(() => {

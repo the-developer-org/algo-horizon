@@ -14,7 +14,7 @@ export interface IndexInstrument {
 }
 
 export const INDEXES: IndexInstrument[] = [
-  { name: 'Nifty 50', key: 'NIFTY_50', instrumentKey: 'NSE_INDEX|Nifty 50', tredCodeKey: 'NIFTY' },
+  { name: 'Nifty 50', key: 'NIFTY_50', instrumentKey: 'NSE_INDEX|Nifty 50', tredCodeKey: 'NIFTY_50' },
   { name: 'Nifty 100', key: 'NIFTY_100', instrumentKey: 'NSE_INDEX|Nifty 100' },
   { name: 'Nifty 200', key: 'NIFTY_200', instrumentKey: 'NSE_INDEX|Nifty 200' },
   { name: 'Nifty 500', key: 'NIFTY_500', instrumentKey: 'NSE_INDEX|Nifty 500' },
@@ -94,9 +94,12 @@ function sectorSymbol(value: string) {
   return value.trim().toUpperCase().replace(/[\s_-]+/g, '');
 }
 
-/** Trendlyne sector Symbol (tredCodeKey) -> INDEXES.key. Only explicit keys match. */
+/** Trendlyne and normalized sector symbols -> INDEXES.key. */
 export const TRED_CODE_TO_KEY: Record<string, string> = Object.fromEntries(
-  INDEXES.flatMap((item) => item.tredCodeKey ? [[sectorSymbol(item.tredCodeKey), item.key]] : []),
+  INDEXES.flatMap((item) => [
+    [sectorSymbol(item.key), item.key],
+    ...(item.tredCodeKey ? [[sectorSymbol(item.tredCodeKey), item.key]] : []),
+  ]),
 );
 
 export function indexForSector(symbol: string): IndexInstrument | undefined {

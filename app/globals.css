@@ -610,6 +610,27 @@
 .lm-live-dot { animation: lm-live-dot 1.2s infinite; }
 .lm-title { animation: lm-title-glow 2.4s ease-in-out infinite; }
 
+@keyframes candle-glow-high {
+  0% { color: #16a34a; text-shadow: 0 0 10px rgba(34, 197, 94, 0.9); transform: scale(1.15); }
+  100% { color: inherit; text-shadow: none; transform: scale(1); }
+}
+@keyframes candle-glow-low {
+  0% { color: #dc2626; text-shadow: 0 0 10px rgba(239, 68, 68, 0.9); transform: scale(1.15); }
+  100% { color: inherit; text-shadow: none; transform: scale(1); }
+}
+@keyframes candle-glow-box-up {
+  0% { box-shadow: 0 0 16px rgba(34, 197, 94, 0.8), inset 0 0 8px rgba(34, 197, 94, 0.4); border-color: #16a34a; }
+  100% { box-shadow: none; }
+}
+@keyframes candle-glow-box-down {
+  0% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.8), inset 0 0 8px rgba(239, 68, 68, 0.4); border-color: #dc2626; }
+  100% { box-shadow: none; }
+}
+.candle-flash-high { animation: candle-glow-high 0.8s ease-out; }
+.candle-flash-low { animation: candle-glow-low 0.8s ease-out; }
+.candle-box-flash-up { animation: candle-glow-box-up 0.8s ease-out; }
+.candle-box-flash-down { animation: candle-glow-box-down 0.8s ease-out; }
+
 @keyframes nav-live-pulse {
   0%, 100% { border-color: rgba(239, 68, 68, 0.3); box-shadow: 0 0 0 rgba(239, 68, 68, 0); background-color: rgba(239, 68, 68, 0.05); }
   50% { border-color: #ef4444; box-shadow: 0 0 22px rgba(239, 68, 68, 0.95), inset 0 0 14px rgba(239, 68, 68, 0.4); background-color: rgba(239, 68, 68, 0.28); }

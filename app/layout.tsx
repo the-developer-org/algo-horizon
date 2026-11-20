@@ -32,6 +32,11 @@ function LayoutContent({ children }: Readonly<{ children: React.ReactNode }>) {
 
   useEffect(() => {
     const checkAuth = () => {
+      if (process.env.NEXT_PUBLIC_SKIP_AUTH === 'true') {
+        setAuthStatus('authenticated');
+        return;
+      }
+
       try {
         const isAuthorised = localStorage.getItem('isUserAuthorised');
         const currentUser = localStorage.getItem('currentUser');

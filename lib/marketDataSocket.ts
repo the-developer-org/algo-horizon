@@ -21,6 +21,7 @@ export class MarketDataSocket {
   private client: Client | null = null;
   private status: MarketDataStatus = 'disconnected';
   private messageListeners = new Set<MessageListener>();
+  private topicListeners = new Map<string, Set<MessageListener>>();
   private statusListeners = new Set<() => void>();
   private refCount = 0;
   private attempts = 0;
@@ -41,15 +42,41 @@ export class MarketDataSocket {
     return () => { this.statusListeners.delete(cb); };
   };
 
-  /** Registers a raw message listener and keeps the socket open while any consumer exists. */
+  /** Registers a raw message listener on default topic (/topic/data) and keeps socket open. */
   subscribe(listener: MessageListener): () => void {
-    this.messageListeners.add(listener);
+    return this.subscribeTopic(marketDataTopic(), listener);
+  }
+
+  /** Registers a listener on a specific topic (e.g., /topic/candles) and keeps socket open. */
+  subscribeTopic(topic: string, listener: MessageListener): () => void {
+    if (topic === marketDataTopic()) {
+      this.messageListeners.add(listener);
+    }
+    let listeners = this.topicListeners.get(topic);
+    if (!listeners) {
+      listeners = new Set();
+      this.topicListeners.set(topic, listeners);
+    }
+    listeners.add(listener);
+
+    // If already connected, dynamically subscribe client if topic is new
+    if (this.client?.connected && listeners.size === 1 && topic !== marketDataTopic()) {
+      this.bindTopicSubscription(this.client, topic);
+    }
+
     this.acquire();
     let done = false;
     return () => {
       if (done) return;
       done = true;
-      this.messageListeners.delete(listener);
+      if (topic === marketDataTopic()) {
+        this.messageListeners.delete(listener);
+      }
+      const set = this.topicListeners.get(topic);
+      if (set) {
+        set.delete(listener);
+        if (set.size === 0) this.topicListeners.delete(topic);
+      }
       this.release();
     };
   }
@@ -98,17 +125,16 @@ export class MarketDataSocket {
           this.attempts = 0;
           this.lastError = null;
           this.setStatus('connected');
-          let messageCount = 0;
-          client.subscribe(marketDataTopic(), (message) => {
-            if (this.client !== client) return;
-            messageCount += 1;
-            const raw: RawMessage = message.isBinaryBody
-              ? normalizeStompPayload(message.binaryBody)
-              : message.body;
-            this.messageListeners.forEach((listener) => {
-              try { listener(raw); } catch (e) { console.error('market-data listener failed', e); }
-            });
-          });
+
+          // Always ensure default topic is registered
+          if (!this.topicListeners.has(marketDataTopic())) {
+            this.topicListeners.set(marketDataTopic(), this.messageListeners);
+          }
+
+          // Subscribe all active topics
+          for (const topic of this.topicListeners.keys()) {
+            this.bindTopicSubscription(client, topic);
+          }
         },
         onWebSocketError: (event) => {
           if (this.client !== client) return;
@@ -131,6 +157,21 @@ export class MarketDataSocket {
       this.lastError = e instanceof Error ? e.message : 'Invalid SockJS URL';
       this.setStatus('error');
     }
+  }
+
+  private bindTopicSubscription(client: Client, topic: string) {
+    client.subscribe(topic, (message) => {
+      if (this.client !== client) return;
+      const raw: RawMessage = message.isBinaryBody
+        ? normalizeStompPayload(message.binaryBody)
+        : message.body;
+      const listeners = this.topicListeners.get(topic);
+      if (listeners) {
+        listeners.forEach((listener) => {
+          try { listener(raw); } catch (e) { console.error(`listener on ${topic} failed`, e); }
+        });
+      }
+    });
   }
 
   private close() {

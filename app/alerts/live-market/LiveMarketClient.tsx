@@ -4,12 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { useMarketDataMessages, useMarketDataStatus, useMarketFeedMessages, useMarketFeedStatus } from '@/hooks/useMarketData';
+import { candlesSocketEnabled } from '@/hooks/candleSocketConfig';
+import { useLiveCandles, EnrichedLiveCandle } from '@/hooks/useLiveCandles';
 import { fetchKeyMapping } from '@/utils/apiUtils';
 import { decodeUpstoxFeed } from '@/lib/upstoxFeed';
 import type { RawMessage } from '@/lib/marketDataSocket';
 import { InstrumentQuote } from '../InstrumentQuote';
 import { DerivativePicker, InstrumentKindTabs, modalTheme } from '../InstrumentPicker';
 import { indexForSector, INSTRUMENT_TABS, sessionClose, todaySessionClose, type InstrumentTab } from '../instrumentCatalog';
+import { constituentNameKey, indexConstituentNames, untrackedConstituents } from './indexConstituents';
 
 interface Quote {
   ltp?: number;
@@ -180,7 +183,7 @@ function indexParameterMapFromData(data: unknown): Record<string, Record<string,
 const INDEX_PARAM_ALIASES: Record<string, string[]> = {
   NIFTY_50: ['NIFTY 50', 'NIFTY'],
   NIFTY_BANK: ['NIFTY BANK', 'BANK NIFTY'],
-  NIFTY_AUTO: ['NIFTY AUTO'],
+  NIFTY_AUTO: ['NIFTY AUTO', 'NIFTYAUTO'],
   NIFTY_FINANCIAL_SERVICES: ['NIFTY FIN SERV', 'NIFTY FINANCIAL SERVICES'],
   NIFTY_FMCG: ['NIFTY FMCG'],
   NIFTY_IT: ['NIFTY IT'],
@@ -524,6 +527,8 @@ export default function LiveMarketPage() {
   }, []);
 
   const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || '').replace(/\/$/, '');
+  const useLiveCandleSocket = candlesSocketEnabled();
+  const { candlesByInstrument: liveCandlesMap } = useLiveCandles(backendBase, useLiveCandleSocket);
 
   const applyActiveAlerts = (list: MarketAlert[]) => {
     setAlerts(list);
@@ -990,9 +995,11 @@ export default function LiveMarketPage() {
   const alertFor = (k: string) => alerts.find((alert) => normalizeKey(alert.instrumentKey) === normalizeKey(k));
   const nameOf = (k: string) => alertFor(k)?.companyName || names[k] || names[k.replace('|', '-')];
   const allRows = Object.entries(merged);
-  const selectedConstituents = new Set(
-    (selectedIndex ? liveIndexes[selectedIndex] ?? [] : []).map((companyName) => companyName.trim().toUpperCase()),
-  );
+  const selectedIndexNames = indexConstituentNames(selectedIndex ? liveIndexes[selectedIndex] ?? [] : []);
+  const selectedConstituents = new Set(selectedIndexNames.map(constituentNameKey));
+  const untrackedIndexNames = tab === 'indexes' && momentumFilter === 'all'
+    ? untrackedConstituents(selectedIndexNames, allRows.map(([key]) => nameOf(key) ?? ''))
+    : [];
   const rows = allRows
     .filter(([key]) => {
       const alert = alertFor(key);
@@ -1047,7 +1054,6 @@ export default function LiveMarketPage() {
     .filter(({ chgValue }) => chgValue <= 0)
     .sort((a, b) => a.chgValue - b.chgValue);
   const selectedRFactorStocks = stocksForIndex(indexParameterMap, selectedIndex);
-  const selectedIndexNames = (selectedIndex ? liveIndexes[selectedIndex] ?? [] : []).filter((name) => name.trim());
   const unmatchedRFactor = tab === 'indexes' && selectedIndex && selectedRFactorStocks && selectedIndexNames.length > 0
     ? unmatchedRFactorStocks([[selectedIndex, selectedRFactorStocks]], selectedIndexNames)
     : [];
@@ -1246,7 +1252,7 @@ export default function LiveMarketPage() {
             </label>
           </div>
         )}
-        {allRows.length === 0 ? (
+        {allRows.length === 0 && untrackedIndexNames.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white/80 py-20 text-center text-slate-500 shadow-sm">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-xl text-slate-400">⌁</div>
             {!inWindow
@@ -1255,11 +1261,13 @@ export default function LiveMarketPage() {
                 ? 'Connected. No prices yet.'
                 : 'Not connected.'}
           </div>
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && untrackedIndexNames.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white/80 py-16 text-center text-slate-500 shadow-sm">
             {tab === 'indexes'
               ? selectedIndex
-                ? 'This index is added, but its stock list has not come back yet.'
+                ? selectedIndexNames.length === 0
+                  ? 'This index is added, but its stock list has not come back yet.'
+                  : 'No index stocks match this momentum filter.'
                 : 'Click an index again to view only its stocks.'
               : 'No instruments match this momentum filter.'}
           </div>
@@ -1293,7 +1301,14 @@ export default function LiveMarketPage() {
               const gapKey = normalizeKey(alert?.instrumentKey ?? key);
               const gapInfo = gapByInstrument[gapKey] ?? gapByInstrument[gapKey.split('|').pop() ?? ''];
               const gapPercent = gapInfo?.gapPercent;
-              const openingCandles = gapInfo?.candles ?? [];
+              
+              const streamCandles = useLiveCandleSocket
+                ? liveCandlesMap[gapKey] ?? liveCandlesMap[key] ?? liveCandlesMap[gapKey.split('|').pop() ?? '']
+                : undefined;
+              const displayCandles = streamCandles && streamCandles.length > 0
+                ? streamCandles
+                : gapInfo?.candles ?? [];
+              const hasUnreliable = streamCandles?.some((c) => c.reliable === false);
               const color = change === undefined ? 'text-gray-700' : change >= 0 ? 'text-green-600' : 'text-red-600';
               const border = change === undefined ? 'border-slate-200' : change >= 0 ? 'border-emerald-200' : 'border-rose-200';
               const target = alert?.targetPrice || levels[key]?.targetPrice;
@@ -1361,37 +1376,65 @@ export default function LiveMarketPage() {
                         </span>
                       )}
                     </div>
-                    {openingCandles.length > 0 && (
-                      <div className={`mt-5 grid gap-3 border-y-2 border-slate-300 py-3 ${openingCandles.length === 1 ? 'grid-cols-1' : openingCandles.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                        {openingCandles.map((candle) => {
-                          const up = candle.close >= candle.open;
-                          const tone = up ? 'text-green-700' : 'text-red-700';
-                          const ink = up ? 'bg-green-600' : 'bg-red-600';
-                          const frame = up ? 'border-green-700' : 'border-red-700';
-                          const box = `mx-auto flex h-5 w-16 items-center justify-center rounded border text-center text-[11px] font-bold leading-none tabular-nums ${tone} ${frame}`;
-                          const topValue = up ? candle.close : candle.open;
-                          const bottomValue = up ? candle.open : candle.close;
-                          const ocPct = candle.open > 0 ? ((candle.close - candle.open) / candle.open) * 100 : undefined;
-                          return (
-                            <div key={candle.label} className="pt-1">
-                              <div className={box}>{candle.label}</div>
-                              <div className={`${box} mb-4 mt-1`}>
-                                {ocPct === undefined ? '—' : `${ocPct >= 0 ? '+' : ''}${ocPct.toFixed(2)}%`}
-                              </div>
-                              <div className={`mb-1 text-center text-[10px] font-bold leading-none tabular-nums ${tone}`}>{candle.high.toFixed(2)}</div>
-                              <div className={`relative flex h-32 justify-center ${tone}`}>
-                                <div className="flex h-32 flex-col items-center">
-                                  <div className={`h-6 w-px ${ink}`} />
-                                  <div className={`h-20 w-3 rounded-[2px] ${ink}`} />
-                                  <div className={`h-6 w-px ${ink}`} />
+                    {displayCandles.length > 0 && (
+                      <div className="mt-5 border-y-2 border-slate-300 py-3">
+                        {hasUnreliable && (
+                          <div className="mb-2 flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                            <span>⚠ Missed ticks during interval</span>
+                          </div>
+                        )}
+                        <div className={`grid gap-3 ${displayCandles.length === 1 ? 'grid-cols-1' : displayCandles.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                          {displayCandles.map((candle) => {
+                            const up = candle.close >= candle.open;
+                            const tone = up ? 'text-green-700' : 'text-red-700';
+                            const ink = up ? 'bg-green-600' : 'bg-red-600';
+                            const frame = up ? 'border-green-700' : 'border-red-700';
+                            const isLive = 'complete' in candle && candle.complete === false;
+                            const enriched = candle as EnrichedLiveCandle;
+                            const lastGlow = enriched.lastGlow;
+                            const glowKey = enriched.lastGlowTimestamp ?? 0;
+
+                            const highFlashClass = lastGlow === 'high-up' ? 'candle-flash-high' : '';
+                            const lowFlashClass = lastGlow === 'low-down' ? 'candle-flash-low' : '';
+                            const boxFlashClass = lastGlow === 'close-up' ? 'candle-box-flash-up' : lastGlow === 'close-down' ? 'candle-box-flash-down' : '';
+
+                            const box = `mx-auto flex h-5 w-16 items-center justify-center rounded border text-center text-[11px] font-bold leading-none tabular-nums transition-all ${tone} ${frame} ${boxFlashClass}`;
+                            const topValue = up ? candle.close : candle.open;
+                            const bottomValue = up ? candle.open : candle.close;
+                            const ocPct = candle.open > 0 ? ((candle.close - candle.open) / candle.open) * 100 : undefined;
+                            return (
+                              <div key={`${candle.label}-${glowKey}`} className="pt-1">
+                                <div className={`${box} relative`}>
+                                  {candle.label}
+                                  {isLive && (
+                                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                    </span>
+                                  )}
                                 </div>
-                                <span className="absolute top-6 left-1/2 ml-2 -translate-y-1/2 text-[10px] font-bold leading-none tabular-nums">{topValue.toFixed(2)}</span>
-                                <span className="absolute bottom-6 left-1/2 ml-2 translate-y-1/2 text-[10px] font-bold leading-none tabular-nums">{bottomValue.toFixed(2)}</span>
+                                <div className={`${box} mb-4 mt-1`}>
+                                  {ocPct === undefined ? '—' : `${ocPct >= 0 ? '+' : ''}${ocPct.toFixed(2)}%`}
+                                </div>
+                                <div className={`mb-1 text-center text-[10px] font-bold leading-none tabular-nums transition-all ${tone} ${highFlashClass}`}>
+                                  {candle.high.toFixed(2)}
+                                </div>
+                                <div className={`relative flex h-32 justify-center ${tone}`}>
+                                  <div className="flex h-32 flex-col items-center">
+                                    <div className={`h-6 w-px ${ink}`} />
+                                    <div className={`h-20 w-3 rounded-[2px] ${ink}`} />
+                                    <div className={`h-6 w-px ${ink}`} />
+                                  </div>
+                                  <span className="absolute top-6 left-1/2 ml-2 -translate-y-1/2 text-[10px] font-bold leading-none tabular-nums">{topValue.toFixed(2)}</span>
+                                  <span className="absolute bottom-6 left-1/2 ml-2 translate-y-1/2 text-[10px] font-bold leading-none tabular-nums">{bottomValue.toFixed(2)}</span>
+                                </div>
+                                <div className={`mt-1 text-center text-[10px] font-bold leading-none tabular-nums transition-all ${tone} ${lowFlashClass}`}>
+                                  {candle.low.toFixed(2)}
+                                </div>
                               </div>
-                              <div className={`mt-1 text-center text-[10px] font-bold leading-none tabular-nums ${tone}`}>{candle.low.toFixed(2)}</div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                     {gapPercent !== undefined && gapPercent !== 0 ? (
@@ -1426,6 +1469,21 @@ export default function LiveMarketPage() {
                       <div className="mt-3 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-400">Waiting for tick</div>
                     )}
                   </div>
+                </div>
+              );
+            })}
+            {untrackedIndexNames.map((name) => {
+              const param3 = param3ForCompany(selectedRFactorStocks, name);
+              return (
+                <div key={constituentNameKey(name)} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_5px_20px_rgba(15,23,42,0.05)]">
+                  <div className="text-sm font-bold tracking-wide text-slate-700">{name}</div>
+                  {param3 !== undefined && (
+                    <div className={`mt-1 text-xs font-bold tabular-nums ${param3 >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      R factor {param3 >= 0 ? '+' : ''}{param3.toFixed(2)}
+                    </div>
+                  )}
+                  <div className="mt-5 text-3xl font-extrabold text-gray-700">—</div>
+                  <div className="mt-3 text-xs font-semibold text-slate-500">Price unavailable: instrument not tracked</div>
                 </div>
               );
             })}
