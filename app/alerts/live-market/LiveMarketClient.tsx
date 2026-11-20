@@ -243,6 +243,19 @@ const R_FACTOR_SYMBOL_BY_COMPANY: Record<string, string> = {
   'JIO FINANCIAL SERVICES': 'JIOFIN',
   'INTERGLOBE AVIATION': 'INDIGO',
   'TECH MAHINDRA': 'TECHM',
+  'HINDUSTAN ZINC': 'HINDZINC',
+  'HINDUSTAN COPPER': 'HINDCOPPER',
+  'VEDANTA': 'VEDL',
+  'STEEL AUTHORITY OF INDIA': 'SAIL',
+  'COAL INDIA': 'COALINDIA',
+  'WIPRO': 'WIPRO',
+  'HCL TECHNOLOGIES': 'HCLTECH',
+  'LTIMINDTREE': 'LTIM',
+  'PERSISTENT SYSTEMS': 'PERSISTENT',
+  'COFORGE': 'COFORGE',
+  'MPHASIS': 'MPHASIS',
+  'KPIT TECHNOLOGIES': 'KPITTECH',
+  'TATA ELXSI': 'TATAELXSI',
 };
 
 const R_FACTOR_SYMBOL_LOOKUP: Record<string, string> = {};
@@ -994,13 +1007,30 @@ export default function LiveMarketPage() {
   const alertFor = (k: string) => alerts.find((alert) => normalizeKey(alert.instrumentKey) === normalizeKey(k));
   const nameOf = (k: string) => alertFor(k)?.companyName || names[k] || names[k.replace('|', '-')];
   const allRows = Object.entries(merged);
-  const selectedConstituents = new Set(
-    (selectedIndex ? liveIndexes[selectedIndex] ?? [] : []).map((companyName) => companyName.trim().toUpperCase()),
-  );
+
+  // Normalize selectedIndex to match any key in liveIndexes (e.g. NIFTY_IT -> Nifty IT / NSE_INDEX|Nifty IT)
+  const resolvedLiveIndexKey = selectedIndex
+    ? Object.keys(liveIndexes).find((key) => indexIdentity(key) === indexIdentity(selectedIndex)) ?? selectedIndex
+    : null;
+  const rawConstituents = (resolvedLiveIndexKey ? liveIndexes[resolvedLiveIndexKey] ?? [] : []).filter((name) => name.trim());
+  const selectedConstituents = new Set(rawConstituents.map((companyName) => companyName.trim().toUpperCase()));
+
+  // Expanded set containing both company names, symbol mappings, and stripped company words for robust constituent matching
+  const expandedConstituentTokens = new Set<string>();
+  for (const c of rawConstituents) {
+    const upper = c.trim().toUpperCase();
+    expandedConstituentTokens.add(upper);
+    const mappedSymbol = symbolFromCompanyMap(upper);
+    if (mappedSymbol) expandedConstituentTokens.add(mappedSymbol.toUpperCase());
+    const words = companyWords(upper);
+    if (words.length > 0) expandedConstituentTokens.add(words.join(' '));
+  }
+
   const rows = allRows
     .filter(([key]) => {
       const alert = alertFor(key);
-      const companyNameUpper = (alert?.companyName ?? nameOf(key) ?? '').trim().toUpperCase();
+      const companyNameRaw = (alert?.companyName ?? nameOf(key) ?? '').trim();
+      const companyNameUpper = companyNameRaw.toUpperCase();
       const addedAsStock = alert?.tickSource === 'REGULAR_MONITORING' || alert?.tickSource === 'ALGO_ALERTS';
 
       if (tab === 'stocks') {
@@ -1012,8 +1042,22 @@ export default function LiveMarketPage() {
         );
       }
       if (tab === 'indexes') {
-        if (!selectedIndex || selectedConstituents.size === 0) return false;
-        return selectedConstituents.has(companyNameUpper);
+        if (!selectedIndex || expandedConstituentTokens.size === 0) return false;
+        if (selectedConstituents.has(companyNameUpper) || expandedConstituentTokens.has(companyNameUpper)) return true;
+
+        // Check if the symbol itself matches (e.g., alert name or symbol like TCS, INFY, HINDZINC)
+        const symbolPart = key.split('|').pop()?.toUpperCase() ?? '';
+        if (expandedConstituentTokens.has(symbolPart)) return true;
+
+        // Check mapped symbol for this company
+        const mappedSymbol = symbolFromCompanyMap(companyNameUpper);
+        if (mappedSymbol && expandedConstituentTokens.has(mappedSymbol.toUpperCase())) return true;
+
+        // Check stripped company words
+        const words = companyWords(companyNameUpper).join(' ');
+        if (words && expandedConstituentTokens.has(words)) return true;
+
+        return false;
       }
       if (tab === 'options') {
         return companyNameUpper.includes(' CE') || companyNameUpper.includes(' PE');
@@ -1051,7 +1095,7 @@ export default function LiveMarketPage() {
     .filter(({ chgValue }) => chgValue <= 0)
     .sort((a, b) => a.chgValue - b.chgValue);
   const selectedRFactorStocks = stocksForIndex(indexParameterMap, selectedIndex);
-  const selectedIndexNames = (selectedIndex ? liveIndexes[selectedIndex] ?? [] : []).filter((name) => name.trim());
+  const selectedIndexNames = rawConstituents;
   const unmatchedRFactor = tab === 'indexes' && selectedIndex && selectedRFactorStocks && selectedIndexNames.length > 0
     ? unmatchedRFactorStocks([[selectedIndex, selectedRFactorStocks]], selectedIndexNames)
     : [];
